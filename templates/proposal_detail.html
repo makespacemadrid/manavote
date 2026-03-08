@@ -1,0 +1,87 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="nav">
+    <a href="{{ url_for('dashboard') }}">← Back to Dashboard</a>
+</div>
+
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: start;">
+        <div>
+            <h1>{{ proposal.title }}</h1>
+            <p style="color: #888;">
+                by {{ proposal.creator }} · {{ proposal.created_at[:10] }}
+                <span class="status status-{{ proposal.status }}">{{ proposal.status }}</span>
+            </p>
+        </div>
+        <div class="proposal-amount">€{{ "%.2f"|format(proposal.amount) }}</div>
+    </div>
+    
+    {% if proposal.description %}
+    <div style="margin: 20px 0; padding: 15px; background: #0f3460; border-radius: 4px;">
+        {{ proposal.description }}
+    </div>
+    {% endif %}
+    
+    <div style="display: flex; gap: 30px; margin: 20px 0; padding: 15px; background: #0f3460; border-radius: 4px;">
+        <div>
+            <div style="color: #888; font-size: 0.85em;">Current Budget</div>
+            <div style="font-size: 1.3em;">€{{ "%.2f"|format(current_budget) }}</div>
+        </div>
+        <div>
+            <div style="color: #888; font-size: 0.85em;">Minimum Backers</div>
+            <div style="font-size: 1.3em;">{{ min_backers }} (10% of {{ member_count }})</div>
+        </div>
+        <div>
+            <div style="color: #888; font-size: 0.85em;">In Favor</div>
+            <div class="vote-approve" style="font-size: 1.3em;">{{ approve_count }}</div>
+        </div>
+        <div>
+            <div style="color: #888; font-size: 0.85em;">Against</div>
+            <div class="vote-reject" style="font-size: 1.3em;">{{ reject_count }}</div>
+        </div>
+    </div>
+    
+    {% if proposal.status == 'active' %}
+    <form method="POST" class="vote-form">
+        <label>Your Vote</label>
+        <div class="vote-buttons">
+            <button type="submit" name="vote" value="in_favor" class="vote-btn approve {{ 'active' if user_vote == 'in_favor' else '' }}">
+                ✓ In Favor
+            </button>
+            <button type="submit" name="vote" value="against" class="vote-btn reject {{ 'active' if user_vote == 'against' else '' }}">
+                ✗ Against
+            </button>
+        </div>
+    </form>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3>Votes ({{ votes|length }})</h3>
+    {% if votes %}
+    <table>
+        <thead>
+            <tr>
+                <th>Member</th>
+                <th>Vote</th>
+                <th>Date</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for v in votes %}
+            <tr>
+                <td>{{ v.username }}</td>
+                <td class="{{ 'vote-approve' if v.vote == 'in_favor' else 'vote-reject' }}">
+                    {{ '✓ In Favor' if v.vote == 'in_favor' else '✗ Against' }}
+                </td>
+                <td>{{ v.created_at[:16] }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p style="color: #666; text-align: center; padding: 20px;">No votes yet</p>
+    {% endif %}
+</div>
+{% endblock %}

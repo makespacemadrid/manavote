@@ -1,0 +1,68 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Hackerspace Budget Voting</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
+        .container { max-width: 900px; margin: 0 auto; padding: 20px; }
+        h1, h2, h3 { margin-bottom: 15px; }
+        h1 { color: #00d9ff; }
+        .card { background: #16213e; border-radius: 8px; padding: 20px; margin-bottom: 20px; border: 1px solid #0f3460; }
+        .btn { display: inline-block; padding: 10px 20px; background: #e94560; color: white; text-decoration: none; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
+        .btn:hover { background: #ff6b6b; }
+        .btn-secondary { background: #0f3460; }
+        .btn-secondary:hover { background: #1a4a7a; }
+        .btn-success { background: #00d9ff; color: #1a1a2e; }
+        .btn-success:hover { background: #00b8d9; }
+        input, textarea { width: 100%; padding: 10px; margin-bottom: 10px; background: #0f3460; border: 1px solid #1a4a7a; color: #eee; border-radius: 4px; }
+        textarea { min-height: 100px; resize: vertical; }
+        label { display: block; margin-bottom: 5px; color: #aaa; }
+        .flash { padding: 10px 15px; border-radius: 4px; margin-bottom: 15px; }
+        .flash.success { background: #00d9ff22; color: #00d9ff; border: 1px solid #00d9ff; }
+        .flash.error { background: #e9456022; color: #e94560; border: 1px solid #e94560; }
+        .budget { font-size: 2.5em; color: #00d9ff; font-weight: bold; }
+        .proposal-list { list-style: none; }
+        .proposal-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #0f3460; border-radius: 6px; margin-bottom: 10px; }
+        .proposal-info h3 { margin: 0 0 5px 0; font-size: 1.1em; }
+        .proposal-meta { color: #888; font-size: 0.85em; }
+        .proposal-amount { font-size: 1.3em; color: #e94560; font-weight: bold; }
+        .vote-counts { display: flex; gap: 15px; font-size: 0.85em; }
+        .vote-approve { color: #00d9ff; }
+        .vote-reject { color: #e94560; }
+        .status { padding: 4px 10px; border-radius: 4px; font-size: 0.8em; font-weight: bold; }
+        .status-active { background: #00d9ff22; color: #00d9ff; }
+        .status-approved { background: #00ff8822; color: #00ff88; }
+        .status-rejected { background: #e9456022; color: #e94560; }
+        .vote-buttons { display: flex; gap: 10px; margin-top: 10px; }
+        .vote-btn { flex: 1; padding: 8px; border: 2px solid; border-radius: 4px; background: transparent; cursor: pointer; font-weight: bold; }
+        .vote-btn.approve { border-color: #00d9ff; color: #00d9ff; }
+        .vote-btn.approve:hover, .vote-btn.approve.active { background: #00d9ff; color: #1a1a2e; }
+        .vote-btn.reject { border-color: #e94560; color: #e94560; }
+        .vote-btn.reject:hover, .vote-btn.reject.active { background: #e94560; color: white; }
+        .nav { display: flex; gap: 15px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #0f3460; }
+        .nav a { color: #00d9ff; text-decoration: none; }
+        .nav a:hover { text-decoration: underline; }
+        table { width: 100%; border-collapse: collapse; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #0f3460; }
+        th { color: #888; }
+        .amount-positive { color: #00ff88; }
+        .amount-negative { color: #e94560; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        {% with messages = get_flashed_messages(with_categories=true) %}
+            {% if messages %}
+                {% for category, message in messages %}
+                    <div class="flash {{ category }}">{{ message }}</div>
+                {% endfor %}
+            {% endif %}
+        {% endwith %}
+        
+        {% block content %}{% endblock %}
+    </div>
+</body>
+</html>

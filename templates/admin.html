@@ -1,0 +1,102 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="nav">
+    <a href="{{ url_for('dashboard') }}">← Back to Dashboard</a>
+</div>
+
+<h2>Admin Panel</h2>
+
+<div class="card">
+    <h3>Add Member</h3>
+    <form method="POST" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
+        <input type="hidden" name="action" value="add_member">
+        <div style="flex: 1; min-width: 150px;">
+            <label>Username</label>
+            <input type="text" name="username" required>
+        </div>
+        <div style="flex: 1; min-width: 150px;">
+            <label>Password</label>
+            <input type="password" name="password" required>
+        </div>
+        <div>
+            <label style="display: flex; align-items: center; gap: 5px;">
+                <input type="checkbox" name="is_admin" style="width: auto;"> Admin
+            </label>
+        </div>
+        <button type="submit" class="btn">Add Member</button>
+    </form>
+</div>
+
+<div class="card">
+    <h3>Members ({{ members|length }})</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Username</th>
+                <th>Role</th>
+                <th>Joined</th>
+                <th>Action</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for m in members %}
+            <tr>
+                <td>{{ m.username }}</td>
+                <td>{{ 'Admin' if m.is_admin else 'Member' }}</td>
+                <td>{{ m.created_at[:10] }}</td>
+                <td>
+                    {% if m.id != session.member_id %}
+                    <form method="POST" style="display: inline;">
+                        <input type="hidden" name="action" value="remove_member">
+                        <input type="hidden" name="member_id" value="{{ m.id }}">
+                        <button type="submit" class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.8em;" onclick="return confirm('Remove {{ m.username }}?')">Remove</button>
+                    </form>
+                    {% else %}
+                    <span style="color: #666;">(you)</span>
+                    {% endif %}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <h3>Budget Management</h3>
+    <form method="POST">
+        <input type="hidden" name="action" value="trigger_monthly">
+        <button type="submit" class="btn">Trigger Monthly Top-up (+€50)</button>
+    </form>
+    
+    <h4 style="margin-top: 20px;">Full Budget History</h4>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th>Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in budget_history %}
+            <tr>
+                <td>{{ log.created_at[:16] }}</td>
+                <td>{{ log.description }}</td>
+                <td class="{{ 'amount-positive' if log.amount > 0 else 'amount-negative' }}">
+                    {{ "+" if log.amount > 0 else "" }}€{{ "%.2f"|format(log.amount) }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
+    <h3>Telegram Configuration</h3>
+    <p style="color: #888;">
+        Set these environment variables to enable Telegram notifications:<br>
+        <code>TELEGRAM_BOT_TOKEN</code> and <code>TELEGRAM_CHAT_ID</code>
+    </p>
+</div>
+{% endblock %}

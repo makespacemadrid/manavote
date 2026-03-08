@@ -1,0 +1,97 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="nav">
+    <span>Logged in as: <strong>{{ session.username }}</strong></span>
+    <a href="{{ url_for('dashboard') }}">Dashboard</a>
+    <a href="{{ url_for('new_proposal') }}">New Proposal</a>
+    {% if session.is_admin %}
+    <a href="{{ url_for('admin') }}">Admin</a>
+    {% endif %}
+    <a href="{{ url_for('logout') }}">Logout</a>
+</div>
+
+<div class="card">
+    <h2>💰 Current Budget</h2>
+    <div class="budget">€{{ "%.2f"|format(current_budget) }}</div>
+    <p style="color: #888; margin-top: 10px;">
+        {{ member_count }} members · {{ min_backers }}+ backers (10%+) needed to approve
+    </p>
+</div>
+
+<div class="card">
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+        <h2>📋 Proposals</h2>
+        <a href="{{ url_for('new_proposal') }}" class="btn">+ New Proposal</a>
+    </div>
+    
+    {% if proposals %}
+    <ul class="proposal-list">
+        {% for p in proposals %}
+        <li class="proposal-item">
+            <div class="proposal-info">
+                <h3>
+                    <a href="{{ url_for('proposal_detail', proposal_id=p.id) }}" style="color: #eee; text-decoration: none;">
+                        {{ p.title }}
+                    </a>
+                    <span class="status status-{{ p.status }}">{{ p.status }}</span>
+                </h3>
+                <div class="proposal-meta">
+                    by {{ p.username }} · {{ p.created_at[:10] }}
+                    {% if p.user_vote %}
+                    · Your vote: <strong>{{ 'in favor' if p.user_vote == 'in_favor' else 'against' }}</strong>
+                    {% endif %}
+                </div>
+                <div class="vote-counts">
+                    <span class="vote-approve">✓ {{ p.approve_count }} in favor</span>
+                    <span class="vote-reject">✗ {{ p.reject_count }} against</span>
+                </div>
+                {% if p.status == 'active' %}
+                <div style="margin-top: 8px; display: flex; gap: 5px;">
+                    <form method="POST" action="{{ url_for('quick_vote', proposal_id=p.id) }}">
+                        <button type="submit" name="vote" value="in_favor" class="vote-btn approve {{ 'active' if p.user_vote == 'in_favor' else '' }}" style="padding: 4px 8px; font-size: 0.75em;">✓ In favor</button>
+                        <button type="submit" name="vote" value="against" class="vote-btn reject {{ 'active' if p.user_vote == 'against' else '' }}" style="padding: 4px 8px; font-size: 0.75em;">✗ Against</button>
+                    </form>
+                </div>
+                {% endif %}
+                {% if session.is_admin and p.status == 'approved' %}
+                <div style="margin-top: 5px;">
+                    <a href="{{ url_for('undo_approve', proposal_id=p.id) }}" style="color: #e94560; font-size: 0.75em;">Undo approval</a>
+                </div>
+                {% endif %}
+            </div>
+            <div style="text-align: right;">
+                <div class="proposal-amount">€{{ "%.2f"|format(p.amount) }}</div>
+            </div>
+        </li>
+        {% endfor %}
+    </ul>
+    {% else %}
+    <p style="color: #666; text-align: center; padding: 40px;">No proposals yet. Create one!</p>
+    {% endif %}
+</div>
+
+<div class="card">
+    <h3>📜 Budget History</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Date</th>
+                <th>Description</th>
+                <th>Amount</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for log in budget_history %}
+            <tr>
+                <td>{{ log.created_at[:16] }}</td>
+                <td>{{ log.description }}</td>
+                <td class="{{ 'amount-positive' if log.amount > 0 else 'amount-negative' }}">
+                    {{ "+" if log.amount > 0 else "" }}€{{ "%.2f"|format(log.amount) }}
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+{% endblock %}
