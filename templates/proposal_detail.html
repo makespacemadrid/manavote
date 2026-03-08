@@ -40,6 +40,10 @@
             <div style="color: #888; font-size: 0.85em;">Against</div>
             <div class="vote-reject" style="font-size: 1.3em;">{{ reject_count }}</div>
         </div>
+        <div>
+            <div style="color: #888; font-size: 0.85em;">Net Votes</div>
+            <div style="font-size: 1.3em; color: {{ '#00d9ff' if net_votes >= min_backers else '#ff6b6b' }};">{{ net_votes }}</div>
+        </div>
     </div>
     
     {% if proposal.status == 'active' %}

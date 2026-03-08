@@ -164,9 +164,17 @@ def process_proposal(proposal_id):
     )
     approve_count = c.fetchone()[0]
 
+    c.execute(
+        "SELECT COUNT(*) FROM votes WHERE proposal_id = ? AND vote = 'against'",
+        (proposal_id,),
+    )
+    reject_count = c.fetchone()[0]
+
+    net_votes = approve_count - reject_count
+
     current_budget = get_current_budget()
 
-    if approve_count >= min_backers and proposal["amount"] <= current_budget:
+    if net_votes >= min_backers and proposal["amount"] <= current_budget:
         c.execute(
             "UPDATE proposals SET status = 'approved', processed_at = ? WHERE id = ?",
             (datetime.now().isoformat(), proposal_id),
@@ -184,13 +192,13 @@ def process_proposal(proposal_id):
 
         conn.commit()
 
-        message = f"💰 *Budget Approved!*\n\n*Proposal:* {proposal['title']}\n*Amount:* €{proposal['amount']}\n*Approved by:* {approve_count} members\n*Remaining budget:* €{new_budget}"
+        message = f"💰 *Budget Approved!*\n\n*Proposal:* {proposal['title']}\n*Amount:* €{proposal['amount']}\n*Net votes:* {approve_count} favor - {reject_count} against = {net_votes}\n*Remaining budget:* €{new_budget}"
         send_telegram_message(message)
 
         conn.close()
         return True
 
-    elif approve_count < min_backers and current_budget < proposal["amount"]:
+    elif net_votes < min_backers and current_budget < proposal["amount"]:
         c.execute(
             "UPDATE proposals SET status = 'rejected', processed_at = ? WHERE id = ?",
             (datetime.now().isoformat(), proposal_id),
@@ -270,6 +278,7 @@ def dashboard():
             (p["id"],),
         )
         p["reject_count"] = c.fetchone()[0]
+        p["net_votes"] = p["approve_count"] - p["reject_count"]
         c.execute(
             "SELECT vote FROM votes WHERE proposal_id = ? AND member_id = ?",
             (p["id"], session["member_id"]),
@@ -345,6 +354,7 @@ def proposal_detail(proposal_id):
 
     approve_count = sum(1 for v in votes if v["vote"] == "in_favor")
     reject_count = sum(1 for v in votes if v["vote"] == "against")
+    net_votes = approve_count - reject_count
 
     current_budget = get_current_budget()
 
@@ -364,7 +374,7 @@ def proposal_detail(proposal_id):
             if result is True:
                 flash("Proposal approved!", "success")
             elif result is False:
-                flash("Proposal rejected (insufficient backers or budget)", "error")
+                flash("Proposal rejected (insufficient net votes or budget)", "error")
 
         return redirect(url_for("proposal_detail", proposal_id=proposal_id))
 
@@ -382,6 +392,7 @@ def proposal_detail(proposal_id):
         votes=votes,
         approve_count=approve_count,
         reject_count=reject_count,
+        net_votes=net_votes,
         member_count=member_count,
         min_backers=min_backers,
         current_budget=current_budget,

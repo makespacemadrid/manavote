@@ -45,6 +45,7 @@
                 <div class="vote-counts">
                     <span class="vote-approve">✓ {{ p.approve_count }} in favor</span>
                     <span class="vote-reject">✗ {{ p.reject_count }} against</span>
+                    <span style="color: {{ '#00d9ff' if p.net_votes >= min_backers else '#888' }};">({{ p.net_votes }} net)</span>
                 </div>
                 {% if p.status == 'active' %}
                 <div style="margin-top: 8px; display: flex; gap: 5px;">

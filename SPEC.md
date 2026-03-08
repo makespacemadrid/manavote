@@ -27,7 +27,7 @@
    - Vote can be changed until proposal is processed
 
 3. **Approval Logic**
-   - Check if 10%+ backers (minimum 5 votes for approval)
+   - Check if net votes (favor - against) >= 10%+ threshold (minimum 5 for 50 members)
    - Check if budget can cover the proposal
    - If both conditions met: approve, deduct from budget, notify Telegram
    - If not approved: mark as rejected/expired
