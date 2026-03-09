@@ -251,6 +251,40 @@ def logout():
     return redirect(url_for("login"))
 
 
+@app.route("/register", methods=["GET", "POST"])
+def register():
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+
+        if not username or not password:
+            flash("Username and password are required", "error")
+            return render_template("register.html")
+
+        password_hash = hashlib.sha256(password.encode()).hexdigest()
+
+        conn = get_db()
+        c = conn.cursor()
+
+        c.execute("SELECT id FROM members WHERE username = ?", (username,))
+        if c.fetchone():
+            flash("Username already exists", "error")
+            conn.close()
+            return render_template("register.html")
+
+        c.execute(
+            "INSERT INTO members (username, password_hash, is_admin) VALUES (?, ?, 0)",
+            (username, password_hash),
+        )
+        conn.commit()
+        conn.close()
+
+        flash("Registration successful! Please log in.", "success")
+        return redirect(url_for("login"))
+
+    return render_template("register.html")
+
+
 @app.route("/dashboard")
 @login_required
 def dashboard():

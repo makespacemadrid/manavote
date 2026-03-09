@@ -4,7 +4,7 @@
 <div style="max-width: 400px; margin: 80px auto;">
     <div class="card">
         <h1 style="text-align: center;">🔧 Hackerspace</h1>
-        <p style="text-align: center; color: #888; margin-bottom: 30px;">Budget Voting System</p>
+        <p style="text-align: center; color: #888; margin-bottom: 30px;">Register</p>
         
         <form method="POST">
             <label>Username</label>
@@ -13,10 +13,11 @@
             <label>Password</label>
             <input type="password" name="password" required>
             
-            <button type="submit" class="btn" style="width: 100%;">Login</button>
+            <button type="submit" class="btn" style="width: 100%;">Register</button>
         </form>
+        
         <p style="text-align: center; margin-top: 20px; color: #888;">
-            Don't have an account? <a href="{{ url_for('register') }}" style="color: #00d9ff;">Register</a>
+            Already have an account? <a href="{{ url_for('login') }}" style="color: #00d9ff;">Login</a>
         </p>
     </div>
 </div>
