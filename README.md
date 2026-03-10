@@ -5,7 +5,9 @@ A Flask web application for managing and voting on budget proposals in a hackers
 ## Features
 
 - **Member Authentication**: Simple username/password login for ~50 members
-- **Proposal System**: Create budget proposals with title, description, and amount
+- **Self-Registration**: Members can register themselves
+- **Proposal System**: Create budget proposals with title, description, amount, optional URL, and optional image (JPG/PNG)
+- **Edit Proposals**: Proposal creators can edit their proposals while active
 - **Voting**: Members can Approve or Reject proposals (one vote per member, changeable)
 - **Automatic Approval**: Proposals with net votes (favor - against) >= 10% threshold that fit within budget are auto-approved
 - **Budget Tracking**: Real-time budget display with transaction history
@@ -42,7 +44,7 @@ python app.py
 ## Default Admin
 
 - Username: `admin`
-- Password: `admin123`
+- Password: `carpediem42`
 
 ## Tech Stack
 
