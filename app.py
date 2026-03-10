@@ -14,12 +14,16 @@ from flask import (
     flash,
     send_file,
 )
+from werkzeug.utils import secure_filename
 import requests
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "hackerspace.db")
+UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "static", "uploads")
+app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
+os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
@@ -42,6 +46,8 @@ def init_db():
         title TEXT NOT NULL,
         description TEXT,
         amount REAL NOT NULL,
+        url TEXT,
+        image_filename TEXT,
         created_by INTEGER NOT NULL,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         status TEXT DEFAULT 'active',
@@ -85,6 +91,15 @@ def init_db():
         c.execute(
             "INSERT INTO budget_log (amount, description) VALUES (300, 'Initial budget')"
         )
+
+    try:
+        c.execute("ALTER TABLE proposals ADD COLUMN url TEXT")
+    except:
+        pass
+    try:
+        c.execute("ALTER TABLE proposals ADD COLUMN image_filename TEXT")
+    except:
+        pass
 
     conn.commit()
     conn.close()
@@ -339,16 +354,28 @@ def new_proposal():
         title = request.form["title"]
         description = request.form["description"]
         amount = float(request.form["amount"])
+        url = request.form.get("url", "").strip()
 
         if amount <= 0:
             flash("Amount must be positive", "error")
             return redirect(url_for("new_proposal"))
 
+        image_filename = None
+        if "image" in request.files:
+            image = request.files["image"]
+            if image and image.filename:
+                ext = image.filename.split(".")[-1].lower()
+                if ext in ["jpg", "jpeg", "png"]:
+                    image_filename = f"{secrets.token_hex(8)}.{ext}"
+                    image.save(
+                        os.path.join(app.config["UPLOAD_FOLDER"], image_filename)
+                    )
+
         conn = get_db()
         c = conn.cursor()
         c.execute(
-            "INSERT INTO proposals (title, description, amount, created_by) VALUES (?, ?, ?, ?)",
-            (title, description, amount, session["member_id"]),
+            "INSERT INTO proposals (title, description, amount, url, image_filename, created_by) VALUES (?, ?, ?, ?, ?, ?)",
+            (title, description, amount, url, image_filename, session["member_id"]),
         )
         conn.commit()
         conn.close()
@@ -431,6 +458,74 @@ def proposal_detail(proposal_id):
         min_backers=min_backers,
         current_budget=current_budget,
         user_vote=user_vote["vote"] if user_vote else None,
+    )
+
+
+@app.route("/proposal/<int:proposal_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_proposal(proposal_id):
+    conn = get_db()
+    c = conn.cursor()
+
+    c.execute("SELECT * FROM proposals WHERE id = ?", (proposal_id,))
+    proposal = c.fetchone()
+
+    if not proposal:
+        conn.close()
+        flash("Proposal not found", "error")
+        return redirect(url_for("dashboard"))
+
+    if proposal["created_by"] != session["member_id"] and not session.get("is_admin"):
+        conn.close()
+        flash("You can only edit your own proposals", "error")
+        return redirect(url_for("dashboard"))
+
+    if proposal["status"] != "active":
+        conn.close()
+        flash("Cannot edit processed proposals", "error")
+        return redirect(url_for("dashboard"))
+
+    if request.method == "POST":
+        title = request.form["title"]
+        description = request.form["description"]
+        amount = float(request.form["amount"])
+        url = request.form.get("url", "").strip()
+
+        if amount <= 0:
+            flash("Amount must be positive", "error")
+            return redirect(url_for("edit_proposal", proposal_id=proposal_id))
+
+        image_filename = proposal["image_filename"]
+        if "image" in request.files:
+            image = request.files["image"]
+            if image and image.filename:
+                ext = image.filename.split(".")[-1].lower()
+                if ext in ["jpg", "jpeg", "png"]:
+                    if image_filename and os.path.exists(
+                        os.path.join(app.config["UPLOAD_FOLDER"], image_filename)
+                    ):
+                        os.remove(
+                            os.path.join(app.config["UPLOAD_FOLDER"], image_filename)
+                        )
+                    image_filename = f"{secrets.token_hex(8)}.{ext}"
+                    image.save(
+                        os.path.join(app.config["UPLOAD_FOLDER"], image_filename)
+                    )
+
+        c.execute(
+            "UPDATE proposals SET title = ?, description = ?, amount = ?, url = ?, image_filename = ? WHERE id = ?",
+            (title, description, amount, url, image_filename, proposal_id),
+        )
+        conn.commit()
+        conn.close()
+
+        flash("Proposal updated!", "success")
+        return redirect(url_for("proposal_detail", proposal_id=proposal_id))
+
+    conn.close()
+    current_budget = get_current_budget()
+    return render_template(
+        "edit_proposal.html", proposal=proposal, current_budget=current_budget
     )
 
 

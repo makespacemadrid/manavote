@@ -12,7 +12,7 @@
         Available budget: <strong>€{{ "%.2f"|format(current_budget) }}</strong>
     </p>
     
-    <form method="POST">
+    <form method="POST" enctype="multipart/form-data">
         <label>Title</label>
         <input type="text" name="title" placeholder="e.g., Buy new soldering station" required>
         
@@ -21,6 +21,12 @@
         
         <label>Amount (EUR)</label>
         <input type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" required>
+        
+        <label>URL (optional)</label>
+        <input type="url" name="url" placeholder="https://example.com/product">
+        
+        <label>Image (optional, JPG/PNG only)</label>
+        <input type="file" name="image" accept=".jpg,.jpeg,.png">
         
         <button type="submit" class="btn">Submit Proposal</button>
         <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancel</a>

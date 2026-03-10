@@ -29,6 +29,13 @@
     <ul class="proposal-list">
         {% for p in proposals %}
         <li class="proposal-item">
+            {% if p.image_filename %}
+            <div style="flex-shrink: 0; margin-right: 15px;">
+                <a href="{{ url_for('proposal_detail', proposal_id=p.id) }}">
+                    <img src="{{ url_for('static', filename='uploads/' + p.image_filename) }}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 4px;">
+                </a>
+            </div>
+            {% endif %}
             <div class="proposal-info">
                 <h3>
                     <a href="{{ url_for('proposal_detail', proposal_id=p.id) }}" style="color: #eee; text-decoration: none;">

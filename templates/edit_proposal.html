@@ -1,0 +1,41 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="nav">
+    <a href="{{ url_for('proposal_detail', proposal_id=proposal.id) }}">← Back to Proposal</a>
+</div>
+
+<div class="card">
+    <h2>Edit Proposal</h2>
+    
+    <p style="color: #888; margin-bottom: 20px;">
+        Available budget: <strong>€{{ "%.2f"|format(current_budget) }}</strong>
+    </p>
+    
+    <form method="POST" enctype="multipart/form-data">
+        <label>Title</label>
+        <input type="text" name="title" value="{{ proposal.title }}" required>
+        
+        <label>Description</label>
+        <textarea name="description">{{ proposal.description or '' }}</textarea>
+        
+        <label>Amount (EUR)</label>
+        <input type="number" name="amount" step="0.01" min="0.01" value="{{ proposal.amount }}" required>
+        
+        <label>URL (optional)</label>
+        <input type="url" name="url" value="{{ proposal.url or '' }}" placeholder="https://example.com/product">
+        
+        <label>Image (optional, JPG/PNG only)</label>
+        {% if proposal.image_filename %}
+        <div style="margin: 10px 0;">
+            <img src="{{ url_for('static', filename='uploads/' + proposal.image_filename) }}" style="max-width: 200px; border-radius: 4px;">
+            <p style="color: #888; font-size: 0.85em;">Current image (upload new to replace)</p>
+        </div>
+        {% endif %}
+        <input type="file" name="image" accept=".jpg,.jpeg,.png">
+        
+        <button type="submit" class="btn">Save Changes</button>
+        <a href="{{ url_for('proposal_detail', proposal_id=proposal.id) }}" class="btn btn-secondary">Cancel</a>
+    </form>
+</div>
+{% endblock %}

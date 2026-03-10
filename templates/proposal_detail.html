@@ -3,6 +3,9 @@
 {% block content %}
 <div class="nav">
     <a href="{{ url_for('dashboard') }}">← Back to Dashboard</a>
+    {% if proposal.status == 'active' and (proposal.created_by == session.member_id or session.is_admin) %}
+    <a href="{{ url_for('edit_proposal', proposal_id=proposal.id) }}">Edit</a>
+    {% endif %}
 </div>
 
 <div class="card">
@@ -16,6 +19,18 @@
         </div>
         <div class="proposal-amount">€{{ "%.2f"|format(proposal.amount) }}</div>
     </div>
+    
+    {% if proposal.image_filename %}
+    <div style="margin: 20px 0;">
+        <img src="{{ url_for('static', filename='uploads/' + proposal.image_filename) }}" style="max-width: 100%; max-height: 400px; border-radius: 4px;">
+    </div>
+    {% endif %}
+    
+    {% if proposal.url %}
+    <div style="margin: 10px 0;">
+        <a href="{{ proposal.url }}" target="_blank" style="color: #00d9ff;">{{ proposal.url }}</a>
+    </div>
+    {% endif %}
     
     {% if proposal.description %}
     <div style="margin: 20px 0; padding: 15px; background: #0f3460; border-radius: 4px;">
