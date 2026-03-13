@@ -211,7 +211,17 @@ def process_proposal(proposal_id):
         send_telegram_message(message)
 
         conn.close()
+        check_over_budget_proposals()
         return True
+
+    elif net_votes >= min_backers and proposal["amount"] > current_budget:
+        c.execute(
+            "UPDATE proposals SET status = 'over_budget', processed_at = ? WHERE id = ?",
+            (datetime.now().isoformat(), proposal_id),
+        )
+        conn.commit()
+        conn.close()
+        return "over_budget"
 
     elif net_votes < min_backers and current_budget < proposal["amount"]:
         c.execute(
@@ -224,6 +234,44 @@ def process_proposal(proposal_id):
 
     conn.close()
     return None
+
+
+def check_over_budget_proposals():
+    conn = get_db()
+    c = conn.cursor()
+
+    current_budget = get_current_budget()
+
+    c.execute(
+        "SELECT id, title, amount FROM proposals WHERE status = 'over_budget' ORDER BY created_at ASC"
+    )
+    over_budget = c.fetchall()
+
+    for proposal in over_budget:
+        if proposal["amount"] <= current_budget:
+            c.execute(
+                "UPDATE proposals SET status = 'approved', processed_at = ? WHERE id = ?",
+                (datetime.now().isoformat(), proposal["id"]),
+            )
+
+            new_budget = current_budget - proposal["amount"]
+            c.execute(
+                "UPDATE settings SET value = ? WHERE key = 'current_budget'",
+                (str(new_budget),),
+            )
+            c.execute(
+                "INSERT INTO budget_log (amount, description) VALUES (?, ?)",
+                (-proposal["amount"], f"Approved: {proposal['title']}"),
+            )
+
+            conn.commit()
+
+            message = f"💰 *Budget Approved!*\n\n*Proposal:* {proposal['title']}\n*Amount:* €{proposal['amount']}\n*Now has enough budget!*\n*Remaining budget:* €{new_budget}"
+            send_telegram_message(message)
+
+            current_budget = new_budget
+
+    conn.close()
 
 
 @app.route("/")
@@ -434,6 +482,11 @@ def proposal_detail(proposal_id):
             result = process_proposal(proposal_id)
             if result is True:
                 flash("Proposal approved!", "success")
+            elif result == "over_budget":
+                flash(
+                    "Proposal pending - over budget (will auto-approve when budget available)",
+                    "error",
+                )
             elif result is False:
                 flash("Proposal rejected (insufficient net votes or budget)", "error")
 
@@ -575,6 +628,7 @@ def undo_approve(proposal_id):
             (proposal["amount"], f"Undo approval: {proposal['title']}"),
         )
         conn.commit()
+        check_over_budget_proposals()
         flash("Approval undone, budget restored", "success")
 
     conn.close()
@@ -627,8 +681,10 @@ def admin():
                 (monthly, "Monthly top-up"),
             )
             conn.commit()
+            check_over_budget_proposals()
             flash(
-                f"Monthly top-up triggered! New budget: €{current + monthly}", "success"
+                f"Monthly top-up triggered! New budget: €{get_current_budget()}",
+                "success",
             )
 
     c.execute("SELECT * FROM members ORDER BY created_at")
@@ -641,6 +697,16 @@ def admin():
     return render_template("admin.html", members=members, budget_history=budget_history)
 
 
+@app.route("/check-overbudget")
+def check_overbudget():
+    token = request.args.get("token", "")
+    if token != app.secret_key:
+        return "Unauthorized", 401
+    check_over_budget_proposals()
+    return "OK"
+
+
 if __name__ == "__main__":
     init_db()
+    check_over_budget_proposals()
     app.run(debug=True, host="0.0.0.0", port=5000)
