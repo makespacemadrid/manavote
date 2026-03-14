@@ -63,6 +63,14 @@ def init_db():
         UNIQUE(proposal_id, member_id)
     )""")
 
+    c.execute("""CREATE TABLE IF NOT EXISTS comments (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        proposal_id INTEGER NOT NULL,
+        member_id INTEGER NOT NULL,
+        content TEXT NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )""")
+
     c.execute("""CREATE TABLE IF NOT EXISTS budget_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         amount REAL NOT NULL,
@@ -468,27 +476,40 @@ def proposal_detail(proposal_id):
     current_budget = get_current_budget()
 
     if request.method == "POST":
-        vote = request.form["vote"]
+        if "vote" in request.form:
+            vote = request.form["vote"]
 
-        c.execute(
-            "INSERT OR REPLACE INTO votes (proposal_id, member_id, vote) VALUES (?, ?, ?)",
-            (proposal_id, session["member_id"], vote),
-        )
-        conn.commit()
+            c.execute(
+                "INSERT OR REPLACE INTO votes (proposal_id, member_id, vote) VALUES (?, ?, ?)",
+                (proposal_id, session["member_id"], vote),
+            )
+            conn.commit()
 
-        flash("Vote recorded!", "success")
+            flash("Vote recorded!", "success")
 
-        if proposal["status"] == "active":
-            result = process_proposal(proposal_id)
-            if result is True:
-                flash("Proposal approved!", "success")
-            elif result == "over_budget":
-                flash(
-                    "Proposal pending - over budget (will auto-approve when budget available)",
-                    "error",
+            if proposal["status"] == "active":
+                result = process_proposal(proposal_id)
+                if result is True:
+                    flash("Proposal approved!", "success")
+                elif result == "over_budget":
+                    flash(
+                        "Proposal pending - over budget (will auto-approve when budget available)",
+                        "error",
+                    )
+                elif result is False:
+                    flash(
+                        "Proposal rejected (insufficient net votes or budget)", "error"
+                    )
+
+        elif "comment" in request.form:
+            comment = request.form["comment"].strip()
+            if comment:
+                c.execute(
+                    "INSERT INTO comments (proposal_id, member_id, content) VALUES (?, ?, ?)",
+                    (proposal_id, session["member_id"], comment),
                 )
-            elif result is False:
-                flash("Proposal rejected (insufficient net votes or budget)", "error")
+                conn.commit()
+                flash("Comment added!", "success")
 
         return redirect(url_for("proposal_detail", proposal_id=proposal_id))
 
@@ -498,12 +519,19 @@ def proposal_detail(proposal_id):
     )
     user_vote = c.fetchone()
 
+    c.execute(
+        "SELECT c.*, m.username FROM comments c JOIN members m ON c.member_id = m.id WHERE proposal_id = ? ORDER BY c.created_at DESC",
+        (proposal_id,),
+    )
+    comments = c.fetchall()
+
     conn.close()
 
     return render_template(
         "proposal_detail.html",
         proposal=proposal,
         votes=votes,
+        comments=comments,
         approve_count=approve_count,
         reject_count=reject_count,
         net_votes=net_votes,

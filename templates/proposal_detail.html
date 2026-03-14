@@ -103,4 +103,29 @@
     <p style="color: #666; text-align: center; padding: 20px;">No votes yet</p>
     {% endif %}
 </div>
+
+<div class="card">
+    <h3>Comments ({{ comments|length }})</h3>
+    
+    <form method="POST" style="margin-bottom: 20px;">
+        <textarea name="comment" placeholder="Add a comment..." required style="min-height: 60px;"></textarea>
+        <button type="submit" class="btn">Post Comment</button>
+    </form>
+    
+    {% if comments %}
+    <div style="display: flex; flex-direction: column; gap: 10px;">
+        {% for c in comments %}
+        <div style="padding: 10px; background: #0f3460; border-radius: 4px;">
+            <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
+                <strong>{{ c.username }}</strong>
+                <span style="color: #888; font-size: 0.85em;">{{ c.created_at[:16] }}</span>
+            </div>
+            <div>{{ c.content }}</div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <p style="color: #666; text-align: center; padding: 20px;">No comments yet</p>
+    {% endif %}
+</div>
 {% endblock %}
