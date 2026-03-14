@@ -231,15 +231,6 @@ def process_proposal(proposal_id):
         conn.close()
         return "over_budget"
 
-    elif net_votes < min_backers and current_budget < proposal["amount"]:
-        c.execute(
-            "UPDATE proposals SET status = 'rejected', processed_at = ? WHERE id = ?",
-            (datetime.now().isoformat(), proposal_id),
-        )
-        conn.commit()
-        conn.close()
-        return False
-
     conn.close()
     return None
 
@@ -495,10 +486,6 @@ def proposal_detail(proposal_id):
                     flash(
                         "Proposal pending - over budget (will auto-approve when budget available)",
                         "error",
-                    )
-                elif result is False:
-                    flash(
-                        "Proposal rejected (insufficient net votes or budget)", "error"
                     )
 
         elif "comment" in request.form:
