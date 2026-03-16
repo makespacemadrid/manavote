@@ -2,7 +2,7 @@
 
 {% block content %}
 <div class="nav">
-    <span>Logged in as: <strong>{{ session.username }}</strong></span>
+    <span>Logged in as: <strong>{{ session.username|username }}</strong></span>
     <a href="{{ url_for('dashboard') }}">Dashboard</a>
     <a href="{{ url_for('new_proposal') }}">New Proposal</a>
     {% if session.is_admin %}
@@ -29,13 +29,15 @@
     <ul class="proposal-list">
         {% for p in proposals %}
         <li class="proposal-item">
-            {% if p.image_filename %}
             <div style="flex-shrink: 0; margin-right: 15px;">
+                {% if p.image_filename %}
                 <a href="{{ url_for('proposal_detail', proposal_id=p.id) }}">
                     <img src="{{ url_for('static', filename='uploads/' + p.image_filename) }}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 4px;">
                 </a>
+                {% else %}
+                <div style="width: 80px; height: 80px; background: #0a0a1a; border-radius: 4px;"></div>
+                {% endif %}
             </div>
-            {% endif %}
             <div class="proposal-info">
                 <h3>
                     <a href="{{ url_for('proposal_detail', proposal_id=p.id) }}" style="color: #eee; text-decoration: none;">
@@ -44,7 +46,7 @@
                     <span class="status status-{{ p.status }}">{{ p.status }}</span>
                 </h3>
                 <div class="proposal-meta">
-                    by {{ p.username }} · {{ p.created_at[:10] }}
+                    by {{ p.username|username }} · {{ p.created_at[:10] }}
                     {% if p.user_vote %}
                     · Your vote: <strong>{{ 'in favor' if p.user_vote == 'in_favor' else 'against' }}</strong>
                     {% endif %}

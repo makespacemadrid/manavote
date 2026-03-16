@@ -20,6 +20,14 @@ import requests
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
 
+
+@app.template_filter("username")
+def truncate_username(username):
+    if "@" in username:
+        return username.split("@")[0]
+    return username
+
+
 DB_PATH = os.path.join(os.path.dirname(__file__), "hackerspace.db")
 UPLOAD_FOLDER = os.path.join(os.path.dirname(__file__), "static", "uploads")
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
