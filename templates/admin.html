@@ -64,9 +64,24 @@
 
 <div class="card">
     <h3>Budget Management</h3>
+    <form method="POST" style="margin-bottom: 15px;">
+        <input type="hidden" name="action" value="add_budget">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
+            <div style="flex: 1; min-width: 120px;">
+                <label>Amount (EUR)</label>
+                <input type="number" name="amount" step="0.01" min="0.01" required>
+            </div>
+            <div style="flex: 2; min-width: 200px;">
+                <label>Description</label>
+                <input type="text" name="description" placeholder="e.g., Donation, sponsorship" required>
+            </div>
+            <button type="submit" class="btn">Add to Budget</button>
+        </div>
+    </form>
+    
     <form method="POST">
         <input type="hidden" name="action" value="trigger_monthly">
-        <button type="submit" class="btn">Trigger Monthly Top-up (+€50)</button>
+        <button type="submit" class="btn btn-secondary">Trigger Monthly Top-up (+€50)</button>
     </form>
     
     <h4 style="margin-top: 20px;">Full Budget History</h4>

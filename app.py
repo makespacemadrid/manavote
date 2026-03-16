@@ -758,6 +758,31 @@ def admin():
             conn.commit()
             check_over_budget_proposals()
             flash(
+                f"Monthly top-up applied! New budget: €{get_current_budget()}",
+                "success",
+            )
+
+        elif action == "add_budget":
+            amount = float(request.form["amount"])
+            description = request.form["description"].strip()
+            if amount <= 0:
+                flash("Amount must be positive", "error")
+            else:
+                current = get_current_budget()
+                c.execute(
+                    "UPDATE settings SET value = ? WHERE key = 'current_budget'",
+                    (str(current + amount),),
+                )
+                c.execute(
+                    "INSERT INTO budget_log (amount, description) VALUES (?, ?)",
+                    (amount, description),
+                )
+                conn.commit()
+                flash(
+                    f"Added €{amount} to budget! New balance: €{get_current_budget()}",
+                    "success",
+                )
+            flash(
                 f"Monthly top-up triggered! New budget: €{get_current_budget()}",
                 "success",
             )

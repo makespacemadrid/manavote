@@ -18,13 +18,16 @@
 1. **Member Management**
    - Simple authentication (username/password stored as hashed)
    - Admin can add/remove members
+   - Self-registration for new members
    - ~50 member capacity
 
 2. **Proposal System**
-   - Create proposal with: title, description, amount (EUR)
+   - Create proposal with: title, description, amount (EUR), optional URL, optional image (JPG/PNG)
+   - Edit proposals while active (creator or admin)
    - Members vote: Approve or Reject
    - One vote per member per proposal
    - Vote can be changed until proposal is processed
+   - Comments on proposals
 
 3. **Approval Logic**
    - Check if net votes (favor - against) >= 10%+ threshold (minimum 5 for 50 members)
@@ -33,36 +36,49 @@
    - If not approved: mark as rejected/expired
 
 4. **Budget Tracking**
-   - Display current available budget
-   - Show transaction history (approved proposals)
+   - Display current available budget ("Budget for New Toys")
+   - Show transaction history (approved proposals, manual additions, monthly top-ups)
    - Monthly automatic top-up
+   - Admin can manually add budget with description
 
-5. **Telegram Integration**
+5. **Admin Features**
+   - Manage members (add/remove)
+   - Manually increase budget with description
+   - Edit/delete any comment
+   - Undo proposal approvals
+   - Trigger monthly top-up manually
+
+6. **Telegram Integration**
    - Bot token configuration
    - Chat ID for the hackerspace group
    - Send message when proposal is approved
 
 ### User Interface
 - Login page
+- Registration page
 - Dashboard with current budget and proposal list
 - Create proposal form
-- Proposal detail page with voting
-- Admin page for member management
+- Proposal detail page with voting and comments
+- Admin page for member and budget management
 
 ## Technical Implementation
 
 ### Data Storage
 - SQLite database (simple, no external deps)
-- Tables: members, proposals, votes
+- Tables: members, proposals, votes, comments, settings, budget_log
 
 ### Routes
 - `/` - Login or dashboard (if authenticated)
 - `/login` - Login page
+- `/register` - Registration page
 - `/logout` - Logout
 - `/dashboard` - Main dashboard
 - `/proposal/new` - Create new proposal
 - `/proposal/<id>` - View and vote on proposal
-- `/admin` - Member management (admin only)
+- `/proposal/<id>/edit` - Edit proposal
+- `/comment/<id>/edit` - Edit comment (admin)
+- `/comment/<id>/delete` - Delete comment (admin)
+- `/admin` - Admin panel (member and budget management)
 
 ## Acceptance Criteria
 1. Members can log in and vote
@@ -71,3 +87,5 @@
 4. Budget correctly tracks spending and monthly additions
 5. Vote count is visible on each proposal
 6. Admins can manage members
+7. Admins can edit/delete comments
+8. Admins can manually add budget with description
