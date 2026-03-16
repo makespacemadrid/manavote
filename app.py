@@ -529,6 +529,66 @@ def proposal_detail(proposal_id):
     )
 
 
+@app.route("/comment/<int:comment_id>/edit", methods=["GET", "POST"])
+@login_required
+def edit_comment(comment_id):
+    if not session.get("is_admin"):
+        flash("Admin access required", "error")
+        return redirect(url_for("dashboard"))
+
+    conn = get_db()
+    c = conn.cursor()
+
+    c.execute("SELECT * FROM comments WHERE id = ?", (comment_id,))
+    comment = c.fetchone()
+
+    if not comment:
+        conn.close()
+        flash("Comment not found", "error")
+        return redirect(url_for("dashboard"))
+
+    if request.method == "POST":
+        content = request.form["content"].strip()
+        if content:
+            c.execute(
+                "UPDATE comments SET content = ? WHERE id = ?", (content, comment_id)
+            )
+            conn.commit()
+            flash("Comment updated!", "success")
+        conn.close()
+        return redirect(url_for("proposal_detail", proposal_id=comment["proposal_id"]))
+
+    conn.close()
+    return render_template("edit_comment.html", comment=comment)
+
+
+@app.route("/comment/<int:comment_id>/delete", methods=["POST"])
+@login_required
+def delete_comment(comment_id):
+    if not session.get("is_admin"):
+        flash("Admin access required", "error")
+        return redirect(url_for("dashboard"))
+
+    conn = get_db()
+    c = conn.cursor()
+
+    c.execute("SELECT * FROM comments WHERE id = ?", (comment_id,))
+    comment = c.fetchone()
+
+    if not comment:
+        conn.close()
+        flash("Comment not found", "error")
+        return redirect(url_for("dashboard"))
+
+    proposal_id = comment["proposal_id"]
+    c.execute("DELETE FROM comments WHERE id = ?", (comment_id,))
+    conn.commit()
+    conn.close()
+
+    flash("Comment deleted!", "success")
+    return redirect(url_for("proposal_detail", proposal_id=proposal_id))
+
+
 @app.route("/proposal/<int:proposal_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit_proposal(proposal_id):

@@ -1,0 +1,18 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="nav">
+    <a href="{{ url_for('proposal_detail', proposal_id=comment.proposal_id) }}">← Back to Proposal</a>
+</div>
+
+<div class="card">
+    <h2>Edit Comment</h2>
+    
+    <form method="POST">
+        <label>Comment</label>
+        <textarea name="content" required style="min-height: 100px;">{{ comment.content }}</textarea>
+        
+        <button type="submit" class="btn">Save</button>
+    </form>
+</div>
+{% endblock %}
