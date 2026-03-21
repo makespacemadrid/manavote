@@ -433,7 +433,13 @@ def new_proposal():
             (title, description, amount, url, image_filename, session["member_id"]),
         )
         conn.commit()
+        proposal_id = c.lastrowid
+        c.execute("SELECT username FROM members WHERE id = ?", (session["member_id"],))
+        creator = c.fetchone()["username"]
         conn.close()
+
+        message = f"🆕 *New Proposal!*\n\n*{title}*\nBy: {creator.split('@')[0]}\nAmount: €{amount}\n\n{description[:200]}{'...' if len(description) > 200 else ''}\n\n👉 {url if url else 'No link'}"
+        send_telegram_message(message)
 
         flash("Proposal created!", "success")
         return redirect(url_for("dashboard"))
