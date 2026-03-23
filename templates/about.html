@@ -1,0 +1,27 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="card">
+    <h2>About This System</h2>
+    
+    <p style="margin-bottom: 15px;">
+        This budget voting system was created to encourage member participation in our hackerspace.
+        It's an experiment in decentralized decision-making and community funding.
+    </p>
+    
+    <h3>How It Works</h3>
+    <ul style="margin-bottom: 15px; padding-left: 20px;">
+        <li>Any member can submit a proposal for equipment or resources</li>
+        <li>Members vote on proposals - at least 10% must be in favor for approval</li>
+        <li>Approved proposals are automatically funded if within budget</li>
+    </ul>
+    
+    <h3>Funding</h3>
+    <p style="margin-bottom: 15px;">
+        The initial budget of <strong>€300</strong> was funded by <strong>Mercadillo sales</strong> (community marketplace).
+    </p>
+    <p>
+        Currently, the <strong>Association contributes €50 per month</strong> to keep the budget alive.
+    </p>
+</div>
+{% endblock %}
