@@ -1,30 +1,33 @@
 {% extends "base.html" %}
 
 {% block content %}
+<div class="nav">
+    <a href="{{ url_for('dashboard') }}">← Back to Dashboard</a>
+</div>
+
 <div class="card">
-    <h2>About This System</h2>
+    <h2>About</h2>
     
-    <p style="margin-bottom: 15px;">
+    <p style="margin-bottom: 25px;">
         This budget voting system was created to encourage member participation in our hackerspace.
         It's an experiment in decentralized decision-making and community funding.
     </p>
     
     <h3>How It Works</h3>
-    <ul style="margin-bottom: 15px; padding-left: 20px;">
+    <ul style="margin-bottom: 25px; padding-left: 20px;">
         <li>Any member can submit a proposal for equipment or resources</li>
         <li>Members vote on proposals - at least 10% must be in favor for approval</li>
         <li>Approved proposals are automatically funded if within budget</li>
     </ul>
     
     <h3>Funding</h3>
-    <p style="margin-bottom: 15px;">
-        The initial budget of <strong>€300</strong> was funded by <strong>Mercadillo sales</strong> (community marketplace).
+    <p style="margin-bottom: 25px;">
+        The initial budget of <strong>€300</strong> was funded by <strong>the Mercadillo from Jairo's donations</strong>. Currently, the <strong>Association contributes €50 per month</strong> to keep the budget alive.
     </p>
-    <p>
-        Currently, the <strong>Association contributes €50 per month</strong> to keep the budget alive.
-    </p>
-    <p> 
-	Any member is welcome to suggest changes at <a href="https://github.com/makespacemadrid/manavote"></a> or our next monthly meeting.
+
+    <h3>Features & Governance</h3>
+    <p style="margin-bottom: 25px;"> 
+	Any member is welcome to suggest changes at <a href="https://github.com/makespacemadrid/manavote">https://github.com/makespacemadrid/manavote</a>, which will be voted at our next monthly meeting.
     </p>
 </div>
 {% endblock %}
