@@ -28,7 +28,7 @@ jobs:
         id: meta
         uses: docker/metadata-action@v5
         with:
-          images: makespacemadrid/manavote
+          images: luisriverag/manavote
           tags: |
             type=ref,event=branch
             type=sha
@@ -42,5 +42,5 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-          cache-from: type=registry,ref=makespacemadrid/manavote:latest
+          cache-from: type=registry,ref=luisriverag/manavote:latest
           cache-to: type=inline
