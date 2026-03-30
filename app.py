@@ -59,7 +59,8 @@ def init_db():
         created_by INTEGER NOT NULL,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         status TEXT DEFAULT 'active',
-        processed_at TEXT
+        processed_at TEXT,
+        basic_supplies INTEGER DEFAULT 0
     )""")
 
     c.execute("""CREATE TABLE IF NOT EXISTS votes (
@@ -187,7 +188,15 @@ def process_proposal(proposal_id):
     proposal = c.fetchone()
 
     member_count = get_member_count()
-    min_backers = max(1, int(member_count * 0.1))
+    current_budget = get_current_budget()
+    min_backers = max(
+        1,
+        int(
+            member_count * 0.05
+            if proposal.get("basic_supplies")
+            else (member_count * 0.2 if proposal["amount"] > 50 else member_count * 0.1)
+        ),
+    )
 
     c.execute(
         "SELECT COUNT(*) FROM votes WHERE proposal_id = ? AND vote = 'in_favor'",
@@ -202,8 +211,6 @@ def process_proposal(proposal_id):
     reject_count = c.fetchone()[0]
 
     net_votes = approve_count - reject_count
-
-    current_budget = get_current_budget()
 
     if net_votes >= min_backers and proposal["amount"] <= current_budget:
         c.execute(
@@ -374,9 +381,16 @@ def dashboard():
 
     current_budget = get_current_budget()
     member_count = get_member_count()
-    min_backers = max(1, int(member_count * 0.1))
 
     for p in proposals:
+        p["min_backers"] = max(
+            1,
+            int(
+                member_count * 0.05
+                if p.get("basic_supplies")
+                else (member_count * 0.2 if p["amount"] > 50 else member_count * 0.1)
+            ),
+        )
         c.execute(
             "SELECT COUNT(*) FROM votes WHERE proposal_id = ? AND vote = 'in_favor'",
             (p["id"],),
@@ -403,7 +417,6 @@ def dashboard():
         current_budget=current_budget,
         budget_history=budget_history,
         member_count=member_count,
-        min_backers=min_backers,
     )
 
 
@@ -415,6 +428,7 @@ def new_proposal():
         description = request.form["description"]
         amount = float(request.form["amount"])
         url = request.form.get("url", "").strip()
+        basic_supplies = 1 if request.form.get("basic_supplies") else 0
 
         if amount <= 0:
             flash("Amount must be positive", "error")
@@ -434,8 +448,16 @@ def new_proposal():
         conn = get_db()
         c = conn.cursor()
         c.execute(
-            "INSERT INTO proposals (title, description, amount, url, image_filename, created_by) VALUES (?, ?, ?, ?, ?, ?)",
-            (title, description, amount, url, image_filename, session["member_id"]),
+            "INSERT INTO proposals (title, description, amount, url, image_filename, created_by, basic_supplies) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                title,
+                description,
+                amount,
+                url,
+                image_filename,
+                session["member_id"],
+                basic_supplies,
+            ),
         )
         conn.commit()
         proposal_id = c.lastrowid
@@ -477,13 +499,19 @@ def proposal_detail(proposal_id):
     votes = c.fetchall()
 
     member_count = get_member_count()
-    min_backers = max(1, int(member_count * 0.1))
+    current_budget = get_current_budget()
+    min_backers = max(
+        1,
+        int(
+            member_count * 0.05
+            if proposal.get("basic_supplies")
+            else (member_count * 0.2 if proposal["amount"] > 50 else member_count * 0.1)
+        ),
+    )
 
     approve_count = sum(1 for v in votes if v["vote"] == "in_favor")
     reject_count = sum(1 for v in votes if v["vote"] == "against")
     net_votes = approve_count - reject_count
-
-    current_budget = get_current_budget()
 
     if request.method == "POST":
         if "vote" in request.form:
@@ -637,6 +665,7 @@ def edit_proposal(proposal_id):
         description = request.form["description"]
         amount = float(request.form["amount"])
         url = request.form.get("url", "").strip()
+        basic_supplies = 1 if request.form.get("basic_supplies") else 0
 
         if amount <= 0:
             flash("Amount must be positive", "error")
@@ -660,8 +689,16 @@ def edit_proposal(proposal_id):
                     )
 
         c.execute(
-            "UPDATE proposals SET title = ?, description = ?, amount = ?, url = ?, image_filename = ? WHERE id = ?",
-            (title, description, amount, url, image_filename, proposal_id),
+            "UPDATE proposals SET title = ?, description = ?, amount = ?, url = ?, image_filename = ?, basic_supplies = ? WHERE id = ?",
+            (
+                title,
+                description,
+                amount,
+                url,
+                image_filename,
+                basic_supplies,
+                proposal_id,
+            ),
         )
         conn.commit()
         conn.close()

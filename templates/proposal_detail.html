@@ -45,7 +45,7 @@
         </div>
         <div>
             <div style="color: #888; font-size: 0.85em;">Minimum Backers</div>
-            <div style="font-size: 1.3em;">{{ min_backers }} (10% of {{ member_count }})</div>
+            <div style="font-size: 1.3em;">{{ min_backers }} ({{ '5%' if proposal.basic_supplies else ('20%' if proposal.amount > 50 else '10%') }} of {{ member_count }})</div>
         </div>
         <div>
             <div style="color: #888; font-size: 0.85em;">In Favor</div>

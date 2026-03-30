@@ -11,7 +11,9 @@ A Flask web application for managing and voting on budget proposals in a hackers
 - **Comments**: Members can comment on proposals
 - **Admin Comment Management**: Admins can edit/delete any comment
 - **Voting**: Members can Approve or Reject proposals (one vote per member, changeable)
-- **Automatic Approval**: Proposals with net votes (favor - against) >= 10% threshold that fit within budget are auto-approved
+- **Automatic Approval**: Proposals with net votes >= threshold that fit within budget are auto-approved
+   - Standard threshold: 10% (5 votes for 50 members)
+   - Basic supplies: 5% threshold (3 votes for 50 members) - can be selected when creating a proposal
 - **Budget Tracking**: Real-time budget display with transaction history
 - **Admin Budget Control**: Admins can manually increase budget with description
 - **Telegram Notifications**: Auto-notify hackerspace group when proposals are approved

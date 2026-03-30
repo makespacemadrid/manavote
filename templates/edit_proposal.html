@@ -34,6 +34,10 @@
         {% endif %}
         <input type="file" name="image" accept=".jpg,.jpeg,.png">
         
+        <label style="margin-top: 10px;">
+            <input type="checkbox" name="basic_supplies" value="1" {{ 'checked' if proposal.basic_supplies else '' }}> Basic supplies (5% backers required)
+        </label>
+        
         <button type="submit" class="btn">Save Changes</button>
         <a href="{{ url_for('proposal_detail', proposal_id=proposal.id) }}" class="btn btn-secondary">Cancel</a>
     </form>

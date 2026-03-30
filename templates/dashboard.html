@@ -16,7 +16,7 @@
     <h2>💰 Budget for New Toys</h2>
     <div class="budget">€{{ "%.2f"|format(current_budget) }}</div>
     <p style="color: #888; margin-top: 10px;">
-        {{ member_count }} members · {{ min_backers }}+ backers (10%+) needed to approve
+        {{ member_count }} members · Proposals over €50 need 20%+, basic supplies need 5%, otherwise 10%+
     </p>
 </div>
 
@@ -45,6 +45,7 @@
                         {{ p.title }}
                     </a>
                     <span class="status status-{{ p.status }}">{{ p.status }}</span>
+                    {% if p.basic_supplies %}<span class="status" style="background: #4a4; margin-left: 5px;">basic supplies</span>{% endif %}
                 </h3>
                 <div class="proposal-meta">
                     by {{ p.username|username }} · {{ p.created_at[:10] }}
@@ -55,7 +56,7 @@
                 <div class="vote-counts">
                     <span class="vote-approve">✓ {{ p.approve_count }} in favor</span>
                     <span class="vote-reject">✗ {{ p.reject_count }} against</span>
-                    <span style="color: {{ '#00d9ff' if p.net_votes >= min_backers else '#888' }};">({{ p.net_votes }} net)</span>
+                    <span style="color: {{ '#00d9ff' if p.net_votes >= p.min_backers else '#888' }};">({{ p.net_votes }} net)</span>
                 </div>
                 {% if p.status == 'active' and (p.created_by == session.member_id or session.is_admin) %}
                 <div style="margin-top: 5px;">

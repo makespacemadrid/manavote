@@ -30,7 +30,9 @@
    - Comments on proposals
 
 3. **Approval Logic**
-   - Check if net votes (favor - against) >= 10%+ threshold (minimum 5 for 50 members)
+   - Check if net votes (favor - against) >= threshold (minimum 5 for 50 members)
+   - Standard threshold: 10%+ (5 votes for 50 members)
+   - Basic supplies threshold: 5% (3 votes for 50 members) - marked with checkbox when creating proposal
    - Check if budget can cover the proposal
    - If both conditions met: approve, deduct from budget, notify Telegram
    - If not approved: mark as rejected/expired
