@@ -4,3 +4,6 @@ venv/
 __pycache__/
 *.pyc
 static/uploads/
+.ruff_cache/
+.DS_Store
+*.log
