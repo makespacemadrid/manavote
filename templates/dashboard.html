@@ -16,7 +16,7 @@
     <h2>💰 Budget for New Toys</h2>
     <div class="budget">€{{ "%.2f"|format(current_budget) }}</div>
     <p style="color: #888; margin-top: 10px;">
-        {{ member_count }} members · Proposals over €50 need 20%+, basic supplies need 5%, otherwise 10%+
+        {{ member_count }} members · Proposals over €50 need {{ thresholds.over50 }}%, basic supplies need {{ thresholds.basic }}%, otherwise {{ thresholds.default }}%
     </p>
 </div>
 

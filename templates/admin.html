@@ -108,6 +108,31 @@
 </div>
 
 <div class="card">
+    <h3>Vote Thresholds</h3>
+    <p style="color: #888; margin-bottom: 15px;">
+        Minimum percentage of members required to approve proposals (as net votes).
+    </p>
+    <form method="POST">
+        <input type="hidden" name="action" value="update_thresholds">
+        <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+            <div style="flex: 1; min-width: 120px;">
+                <label>Basic Supplies (%)</label>
+                <input type="number" name="threshold_basic" value="{{ thresholds.basic }}" min="1" max="100" step="1" required>
+            </div>
+            <div style="flex: 1; min-width: 120px;">
+                <label>Over €50 (%)</label>
+                <input type="number" name="threshold_over50" value="{{ thresholds.over50 }}" min="1" max="100" step="1" required>
+            </div>
+            <div style="flex: 1; min-width: 120px;">
+                <label>Default (%)</label>
+                <input type="number" name="threshold_default" value="{{ thresholds.default }}" min="1" max="100" step="1" required>
+            </div>
+            <button type="submit" class="btn">Update Thresholds</button>
+        </div>
+    </form>
+</div>
+
+<div class="card">
     <h3>Telegram Configuration</h3>
     <p style="color: #888;">
         Set these environment variables to enable Telegram notifications:<br>

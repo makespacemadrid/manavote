@@ -105,6 +105,11 @@ def init_db():
     if row is None:
         c.execute("INSERT INTO settings (key, value) VALUES ('current_budget', '300')")
         c.execute("INSERT INTO settings (key, value) VALUES ('monthly_topup', '50')")
+        c.execute("INSERT INTO settings (key, value) VALUES ('threshold_basic', '5')")
+        c.execute("INSERT INTO settings (key, value) VALUES ('threshold_over50', '20')")
+        c.execute(
+            "INSERT INTO settings (key, value) VALUES ('threshold_default', '10')"
+        )
         c.execute(
             "INSERT INTO budget_log (amount, description) VALUES (300, 'Initial budget')"
         )
@@ -167,6 +172,19 @@ def get_member_count():
     return count
 
 
+def get_thresholds():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT key, value FROM settings WHERE key LIKE 'threshold_%'")
+    thresholds = {row[0]: float(row[1]) for row in c.fetchall()}
+    conn.close()
+    return {
+        "basic": thresholds.get("threshold_basic", 5),
+        "over50": thresholds.get("threshold_over50", 20),
+        "default": thresholds.get("threshold_default", 10),
+    }
+
+
 def send_telegram_message(message):
     if not TELEGRAM_BOT_TOKEN or not TELEGRAM_CHAT_ID:
         return False
@@ -189,12 +207,17 @@ def process_proposal(proposal_id):
 
     member_count = get_member_count()
     current_budget = get_current_budget()
+    thresholds = get_thresholds()
     min_backers = max(
         1,
         int(
-            member_count * 0.05
+            member_count * (thresholds["basic"] / 100)
             if proposal["basic_supplies"]
-            else (member_count * 0.2 if proposal["amount"] > 50 else member_count * 0.1)
+            else (
+                member_count * (thresholds["over50"] / 100)
+                if proposal["amount"] > 50
+                else member_count * (thresholds["default"] / 100)
+            )
         ),
     )
 
@@ -255,6 +278,7 @@ def check_over_budget_proposals():
     c = conn.cursor()
 
     current_budget = get_current_budget()
+    thresholds = get_thresholds()
 
     c.execute(
         "SELECT id, title, amount, basic_supplies FROM proposals WHERE status = 'over_budget' ORDER BY created_at ASC"
@@ -267,12 +291,12 @@ def check_over_budget_proposals():
             min_backers = max(
                 1,
                 int(
-                    member_count * 0.05
+                    member_count * (thresholds["basic"] / 100)
                     if proposal["basic_supplies"]
                     else (
-                        member_count * 0.2
+                        member_count * (thresholds["over50"] / 100)
                         if proposal["amount"] > 50
-                        else member_count * 0.1
+                        else member_count * (thresholds["default"] / 100)
                     )
                 ),
             )
@@ -410,14 +434,19 @@ def dashboard():
 
     current_budget = get_current_budget()
     member_count = get_member_count()
+    thresholds = get_thresholds()
 
     for p in proposals:
         p["min_backers"] = max(
             1,
             int(
-                member_count * 0.05
+                member_count * (thresholds["basic"] / 100)
                 if p.get("basic_supplies")
-                else (member_count * 0.2 if p["amount"] > 50 else member_count * 0.1)
+                else (
+                    member_count * (thresholds["over50"] / 100)
+                    if p["amount"] > 50
+                    else member_count * (thresholds["default"] / 100)
+                )
             ),
         )
         c.execute(
@@ -440,12 +469,15 @@ def dashboard():
 
     conn.close()
 
+    thresholds = get_thresholds()
+
     return render_template(
         "dashboard.html",
         proposals=proposals,
         current_budget=current_budget,
         budget_history=budget_history,
         member_count=member_count,
+        thresholds=thresholds,
     )
 
 
@@ -529,12 +561,17 @@ def proposal_detail(proposal_id):
 
     member_count = get_member_count()
     current_budget = get_current_budget()
+    thresholds = get_thresholds()
     min_backers = max(
         1,
         int(
-            member_count * 0.05
+            member_count * (thresholds["basic"] / 100)
             if proposal["basic_supplies"]
-            else (member_count * 0.2 if proposal["amount"] > 50 else member_count * 0.1)
+            else (
+                member_count * (thresholds["over50"] / 100)
+                if proposal["amount"] > 50
+                else member_count * (thresholds["default"] / 100)
+            )
         ),
     )
 
@@ -590,6 +627,8 @@ def proposal_detail(proposal_id):
 
     conn.close()
 
+    thresholds = get_thresholds()
+
     return render_template(
         "proposal_detail.html",
         proposal=proposal,
@@ -602,6 +641,7 @@ def proposal_detail(proposal_id):
         min_backers=min_backers,
         current_budget=current_budget,
         user_vote=user_vote["vote"] if user_vote else None,
+        thresholds=thresholds,
     )
 
 
@@ -872,14 +912,43 @@ def admin():
                 "success",
             )
 
+        elif action == "update_thresholds":
+            basic = request.form.get("threshold_basic", "5")
+            over50 = request.form.get("threshold_over50", "20")
+            default = request.form.get("threshold_default", "10")
+            if basic:
+                c.execute(
+                    "UPDATE settings SET value = ? WHERE key = 'threshold_basic'",
+                    (basic,),
+                )
+            if over50:
+                c.execute(
+                    "UPDATE settings SET value = ? WHERE key = 'threshold_over50'",
+                    (over50,),
+                )
+            if default:
+                c.execute(
+                    "UPDATE settings SET value = ? WHERE key = 'threshold_default'",
+                    (default,),
+                )
+            conn.commit()
+            flash("Thresholds updated!", "success")
+
     c.execute("SELECT * FROM members ORDER BY created_at")
     members = c.fetchall()
     c.execute("SELECT * FROM budget_log ORDER BY created_at DESC LIMIT 20")
     budget_history = c.fetchall()
 
+    thresholds = get_thresholds()
+
     conn.close()
 
-    return render_template("admin.html", members=members, budget_history=budget_history)
+    return render_template(
+        "admin.html",
+        members=members,
+        budget_history=budget_history,
+        thresholds=thresholds,
+    )
 
 
 @app.route("/check-overbudget")
