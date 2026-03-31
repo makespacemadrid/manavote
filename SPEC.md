@@ -9,7 +9,7 @@
 ## Budget Rules
 - Starting budget: 300 EUR
 - Monthly addition: 50 EUR (on 1st of each month)
-- Minimum approval threshold: 10% of members (5 members for 50 members)
+- Minimum approval threshold: varies by proposal type (see below)
 - Proposals must be fully covered by current budget to be approved
 
 ## Functionality Specification
@@ -30,12 +30,15 @@
    - Comments on proposals
 
 3. **Approval Logic**
-   - Check if net votes (favor - against) >= threshold (minimum 5 for 50 members)
-   - Standard threshold: 10%+ (5 votes for 50 members)
-   - Basic supplies threshold: 5% (3 votes for 50 members) - marked with checkbox when creating proposal
+   - Check if net votes (favor - against) >= threshold
+   - Threshold varies by proposal type and amount:
+     - Basic supplies: 5% of members (minimum 1)
+     - Proposals over €50: 20% of members
+     - Other proposals: 10% of members
    - Check if budget can cover the proposal
    - If both conditions met: approve, deduct from budget, notify Telegram
-   - If not approved: mark as rejected/expired
+   - If votes meet threshold but budget insufficient: mark as "over_budget" (auto-approves when budget becomes available)
+   - If votes don't meet threshold: remains active for more voting
 
 4. **Budget Tracking**
    - Display current available budget ("Budget for New Toys")
@@ -84,10 +87,14 @@
 
 ## Acceptance Criteria
 1. Members can log in and vote
-2. Proposals with 10%+ approval votes that fit budget are automatically approved
+2. Proposals with required net votes that fit budget are automatically approved
+   - Basic supplies: 5% threshold
+   - Proposals over €50: 20% threshold
+   - Other proposals: 10% threshold
 3. Approved proposals trigger Telegram notification
 4. Budget correctly tracks spending and monthly additions
 5. Vote count is visible on each proposal
 6. Admins can manage members
 7. Admins can edit/delete comments
 8. Admins can manually add budget with description
+9. Proposals that meet vote threshold but exceed budget are marked "over_budget" and auto-approve when budget becomes available

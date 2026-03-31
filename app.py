@@ -193,7 +193,7 @@ def process_proposal(proposal_id):
         1,
         int(
             member_count * 0.05
-            if proposal.get("basic_supplies")
+            if proposal["basic_supplies"]
             else (member_count * 0.2 if proposal["amount"] > 50 else member_count * 0.1)
         ),
     )
@@ -257,33 +257,62 @@ def check_over_budget_proposals():
     current_budget = get_current_budget()
 
     c.execute(
-        "SELECT id, title, amount FROM proposals WHERE status = 'over_budget' ORDER BY created_at ASC"
+        "SELECT id, title, amount, basic_supplies FROM proposals WHERE status = 'over_budget' ORDER BY created_at ASC"
     )
     over_budget = c.fetchall()
 
     for proposal in over_budget:
         if proposal["amount"] <= current_budget:
-            c.execute(
-                "UPDATE proposals SET status = 'approved', processed_at = ? WHERE id = ?",
-                (datetime.now().isoformat(), proposal["id"]),
+            member_count = get_member_count()
+            min_backers = max(
+                1,
+                int(
+                    member_count * 0.05
+                    if proposal["basic_supplies"]
+                    else (
+                        member_count * 0.2
+                        if proposal["amount"] > 50
+                        else member_count * 0.1
+                    )
+                ),
             )
 
-            new_budget = current_budget - proposal["amount"]
             c.execute(
-                "UPDATE settings SET value = ? WHERE key = 'current_budget'",
-                (str(new_budget),),
+                "SELECT COUNT(*) FROM votes WHERE proposal_id = ? AND vote = 'in_favor'",
+                (proposal["id"],),
             )
+            approve_count = c.fetchone()[0]
+
             c.execute(
-                "INSERT INTO budget_log (amount, description) VALUES (?, ?)",
-                (-proposal["amount"], f"Approved: {proposal['title']}"),
+                "SELECT COUNT(*) FROM votes WHERE proposal_id = ? AND vote = 'against'",
+                (proposal["id"],),
             )
+            reject_count = c.fetchone()[0]
 
-            conn.commit()
+            net_votes = approve_count - reject_count
 
-            message = f"💰 *Budget Approved!*\n\n*Proposal:* {proposal['title']}\n*Amount:* €{proposal['amount']}\n*Now has enough budget!*\n*Remaining budget:* €{new_budget}"
-            send_telegram_message(message)
+            if net_votes >= min_backers:
+                c.execute(
+                    "UPDATE proposals SET status = 'approved', processed_at = ? WHERE id = ?",
+                    (datetime.now().isoformat(), proposal["id"]),
+                )
 
-            current_budget = new_budget
+                new_budget = current_budget - proposal["amount"]
+                c.execute(
+                    "UPDATE settings SET value = ? WHERE key = 'current_budget'",
+                    (str(new_budget),),
+                )
+                c.execute(
+                    "INSERT INTO budget_log (amount, description) VALUES (?, ?)",
+                    (-proposal["amount"], f"Approved: {proposal['title']}"),
+                )
+
+                conn.commit()
+
+                message = f"💰 *Budget Approved!*\n\n*Proposal:* {proposal['title']}\n*Amount:* €{proposal['amount']}\n*Now has enough budget!*\n*Remaining budget:* €{new_budget}"
+                send_telegram_message(message)
+
+                current_budget = new_budget
 
     conn.close()
 
@@ -504,7 +533,7 @@ def proposal_detail(proposal_id):
         1,
         int(
             member_count * 0.05
-            if proposal.get("basic_supplies")
+            if proposal["basic_supplies"]
             else (member_count * 0.2 if proposal["amount"] > 50 else member_count * 0.1)
         ),
     )

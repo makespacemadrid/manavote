@@ -23,8 +23,12 @@ A Flask web application for managing and voting on budget proposals in a hackers
 
 - Starting budget: 300 EUR
 - Monthly addition: 50 EUR (on 1st of each month)
-- Minimum approval threshold: 10% of members (5 votes for 50 members)
+- Approval thresholds (net votes = favorable - against):
+  - Basic supplies: 5% of members - can be selected when creating a proposal
+  - Proposals over €50: 20% of members
+  - Other proposals: 10% of members
 - Proposals must be fully covered by current budget to be approved
+- Proposals meeting vote threshold but exceeding budget are marked "over_budget" and auto-approve when budget becomes available
 
 ## Setup
 
