@@ -533,7 +533,10 @@ def new_proposal():
         return redirect(url_for("dashboard"))
 
     current_budget = get_current_budget()
-    return render_template("new_proposal.html", current_budget=current_budget)
+    thresholds = get_thresholds()
+    return render_template(
+        "new_proposal.html", current_budget=current_budget, thresholds=thresholds
+    )
 
 
 @app.route("/proposal/<int:proposal_id>", methods=["GET", "POST"])
@@ -777,8 +780,12 @@ def edit_proposal(proposal_id):
 
     conn.close()
     current_budget = get_current_budget()
+    thresholds = get_thresholds()
     return render_template(
-        "edit_proposal.html", proposal=proposal, current_budget=current_budget
+        "edit_proposal.html",
+        proposal=proposal,
+        current_budget=current_budget,
+        thresholds=thresholds,
     )
 
 

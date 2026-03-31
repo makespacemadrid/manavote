@@ -35,7 +35,7 @@
         <input type="file" name="image" accept=".jpg,.jpeg,.png">
         
         <label style="margin-top: 10px;">
-            <input type="checkbox" name="basic_supplies" value="1" {{ 'checked' if proposal.basic_supplies else '' }}> Basic supplies (5% backers required)
+            <input type="checkbox" name="basic_supplies" value="1" {{ 'checked' if proposal.basic_supplies else '' }}> Basic supplies ({{ thresholds.basic }}% backers required)
         </label>
         
         <button type="submit" class="btn">Save Changes</button>
