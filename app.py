@@ -17,6 +17,7 @@ from flask import (
 )
 from werkzeug.utils import secure_filename
 import requests
+from budget_service import calculate_min_backers, summarize_votes
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
@@ -121,12 +122,14 @@ def init_db():
 
     try:
         c.execute("ALTER TABLE proposals ADD COLUMN url TEXT")
-    except:
-        pass
+    except sqlite3.OperationalError as exc:
+        if "duplicate column name" not in str(exc).lower():
+            raise
     try:
         c.execute("ALTER TABLE proposals ADD COLUMN image_filename TEXT")
-    except:
-        pass
+    except sqlite3.OperationalError as exc:
+        if "duplicate column name" not in str(exc).lower():
+            raise
 
     conn.commit()
     conn.close()
@@ -208,7 +211,7 @@ def send_telegram_message(message):
             url, json={"chat_id": TELEGRAM_CHAT_ID, "text": message}, timeout=10
         )
         return True
-    except:
+    except requests.RequestException:
         return False
 
 
@@ -222,17 +225,8 @@ def process_proposal(proposal_id):
     member_count = get_member_count()
     current_budget = get_current_budget()
     thresholds = get_thresholds()
-    min_backers = max(
-        1,
-        int(
-            member_count * (thresholds["basic"] / 100)
-            if proposal["basic_supplies"]
-            else (
-                member_count * (thresholds["over50"] / 100)
-                if proposal["amount"] > 50
-                else member_count * (thresholds["default"] / 100)
-            )
-        ),
+    min_backers = calculate_min_backers(
+        member_count, proposal["amount"], proposal["basic_supplies"], thresholds
     )
 
     c.execute(
@@ -302,17 +296,8 @@ def check_over_budget_proposals():
     for proposal in over_budget:
         if proposal["amount"] <= current_budget:
             member_count = get_member_count()
-            min_backers = max(
-                1,
-                int(
-                    member_count * (thresholds["basic"] / 100)
-                    if proposal["basic_supplies"]
-                    else (
-                        member_count * (thresholds["over50"] / 100)
-                        if proposal["amount"] > 50
-                        else member_count * (thresholds["default"] / 100)
-                    )
-                ),
+            min_backers = calculate_min_backers(
+                member_count, proposal["amount"], proposal["basic_supplies"], thresholds
             )
 
             c.execute(
@@ -624,17 +609,8 @@ def dashboard():
     thresholds = get_thresholds()
 
     for p in proposals:
-        p["min_backers"] = max(
-            1,
-            int(
-                member_count * (thresholds["basic"] / 100)
-                if p.get("basic_supplies")
-                else (
-                    member_count * (thresholds["over50"] / 100)
-                    if p["amount"] > 50
-                    else member_count * (thresholds["default"] / 100)
-                )
-            ),
+        p["min_backers"] = calculate_min_backers(
+            member_count, p["amount"], p.get("basic_supplies"), thresholds
         )
         c.execute(
             "SELECT COUNT(*) FROM votes WHERE proposal_id = ? AND vote = 'in_favor'",
@@ -752,26 +728,19 @@ def proposal_detail(proposal_id):
     member_count = get_member_count()
     current_budget = get_current_budget()
     thresholds = get_thresholds()
-    min_backers = max(
-        1,
-        int(
-            member_count * (thresholds["basic"] / 100)
-            if proposal["basic_supplies"]
-            else (
-                member_count * (thresholds["over50"] / 100)
-                if proposal["amount"] > 50
-                else member_count * (thresholds["default"] / 100)
-            )
-        ),
+    min_backers = calculate_min_backers(
+        member_count, proposal["amount"], proposal["basic_supplies"], thresholds
     )
 
-    approve_count = sum(1 for v in votes if v["vote"] == "in_favor")
-    reject_count = sum(1 for v in votes if v["vote"] == "against")
-    net_votes = approve_count - reject_count
+    approve_count, reject_count, net_votes = summarize_votes([v["vote"] for v in votes])
 
     if request.method == "POST":
         if "vote" in request.form:
             vote = request.form["vote"]
+            if vote not in {"in_favor", "against"}:
+                conn.close()
+                flash("Invalid vote value", "error")
+                return redirect(url_for("proposal_detail", proposal_id=proposal_id))
 
             c.execute(
                 "INSERT OR REPLACE INTO votes (proposal_id, member_id, vote) VALUES (?, ?, ?)",
@@ -980,6 +949,9 @@ def edit_proposal(proposal_id):
 @login_required
 def quick_vote(proposal_id):
     vote = request.form.get("vote")
+    if vote not in {"in_favor", "against"}:
+        flash("Invalid vote value", "error")
+        return redirect(url_for("dashboard"))
     conn = get_db()
     c = conn.cursor()
     c.execute(
@@ -1065,7 +1037,9 @@ def admin():
 
         elif action == "trigger_monthly":
             current = get_current_budget()
-            monthly = 50
+            c.execute("SELECT value FROM settings WHERE key = 'monthly_topup'")
+            row = c.fetchone()
+            monthly = float(row["value"]) if row else 50
             c.execute(
                 "UPDATE settings SET value = ? WHERE key = 'current_budget'",
                 (str(current + monthly),),
@@ -1101,10 +1075,6 @@ def admin():
                     f"Added €{amount} to budget! New balance: €{get_current_budget()}",
                     "success",
                 )
-            flash(
-                f"Monthly top-up triggered! New budget: €{get_current_budget()}",
-                "success",
-            )
 
         elif action == "update_thresholds":
             basic = request.form.get("threshold_basic", "5")
@@ -1166,4 +1136,5 @@ def check_overbudget():
 if __name__ == "__main__":
     init_db()
     check_over_budget_proposals()
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    flask_debug = os.environ.get("FLASK_DEBUG", "false").lower() == "true"
+    app.run(debug=flask_debug, host="0.0.0.0", port=5000)
