@@ -4,55 +4,56 @@ A Flask web application for managing and voting on budget proposals in a hackers
 
 ## Features
 
-- **Member Authentication**: Simple username/password login for ~50 members
-- **Self-Registration**: Members can register themselves (can be disabled by admin)
-- **Admin Registration via API**: Admins can register members programmatically via REST API
-- **Proposal System**: Create budget proposals with title, description, amount, optional URL, and optional image (JPG/PNG)
-- **Edit Proposals**: Proposal creators can edit their proposals while active
+- **Member Authentication**: Simple username/password login
+- **Self-Registration**: Members can register themselves (admin can disable)
+- **Admin Registration via API**: Register members programmatically
+- **Proposal System**: Create proposals with title, description, amount, URL, and image
+- **Edit Proposals**: Creators and admins can edit active proposals
+- **Delete Proposals**: Creators and admins can delete active proposals
 - **Comments**: Members can comment on proposals
 - **Admin Comment Management**: Admins can edit/delete any comment
-- **Voting**: Members can Approve or Reject proposals (one vote per member, changeable)
-- **Automatic Approval**: Proposals with net votes >= threshold that fit within budget are auto-approved
-   - Standard threshold: 10% (5 votes for 50 members)
-   - Basic supplies: 5% threshold (3 votes for 50 members) - can be selected when creating a proposal
+- **Voting**: Members vote Approve or Reject (one vote per member, changeable)
+- **Automatic Approval**: Proposals auto-approve when thresholds met and budget available
+- **Over-Budget Queue**: Proposals waiting for budget auto-approve when funds available
 - **Budget Tracking**: Real-time budget display with transaction history
-- **Admin Budget Control**: Admins can manually increase budget with description
-- **Telegram Notifications**: Auto-notify hackerspace group when proposals are approved
-- **Admin Panel**: Manage members and toggle registration settings
+- **Admin Budget Control**: Manually increase budget with description
+- **Configurable Thresholds**: Admin can adjust approval thresholds
+- **Telegram Notifications**: Auto-notify on new proposals and approvals
+- **REST API**: Programmatic member and proposal management
 
 ## Budget Rules
 
-- Starting budget: 300 EUR
-- Monthly addition: configurable via `settings.monthly_topup` (default 50 EUR, on 1st of each month)
-- Approval thresholds (net votes = favorable - against):
-  - Basic supplies: 5% of members - can be selected when creating a proposal
-  - Proposals over €50: 20% of members
-  - Other proposals: 10% of members
-- Proposals must be fully covered by current budget to be approved
-- Proposals meeting vote threshold but exceeding budget are marked "over_budget" and auto-approve when budget becomes available
+- **Starting budget**: 300 EUR
+- **Monthly addition**: Configurable (default 50 EUR)
+- **Approval thresholds** (net votes = favorable - against):
+  - Basic supplies: 5% (selectable when creating proposal)
+  - Proposals over €50: 20%
+  - Other proposals: 10%
+- Proposals must fit within budget to be approved
+- Proposals meeting threshold but over budget auto-approve when funds available
 
 ## Setup
 
-### Option 1: Docker (Recommended)
+### Docker (Recommended)
 
 ```bash
 docker-compose up --build
 ```
 
-### Option 2: Manual
+### Manual
 
 1. Install dependencies:
 ```bash
 pip install -r requirements.txt
 ```
 
-2. Configure environment variables (optional):
+2. Configure environment:
 ```bash
-cp .env.example .env
-# Edit .env with your Telegram bot token and chat ID
+cp sample.env .env
+# Edit .env with your settings
 ```
 
-3. Run the application:
+3. Run:
 ```bash
 python app.py
 ```
@@ -64,144 +65,95 @@ python app.py
 - Username: `admin`
 - Password: `carpediem42`
 
+**Important**: Change this password immediately and configure `ADMIN_API_KEY` for API access.
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `TELEGRAM_BOT_TOKEN` | No | Telegram bot token for notifications |
+| `TELEGRAM_CHAT_ID` | No | Telegram chat ID for notifications |
+| `ADMIN_API_KEY` | Yes (for API) | Secret key for REST API authentication |
+
 ## REST API
 
-### Member Registration
+All API endpoints require `X-Admin-Key` header with the `ADMIN_API_KEY` value.
 
-Admins can register new members via the REST API (requires API key):
+### Register Member
 
-**Endpoint:** `POST /api/register`
-
-**Headers:**
-```
-X-Admin-Key: your_admin_api_key
-Content-Type: application/json
-```
-
-**Request Body (JSON):**
-```json
-{
-  "username": "newmember",
-  "password": "securepassword",
-  "is_admin": false
-}
-```
-
-**Response (Success - 201):**
-```json
-{
-  "success": true,
-  "message": "User newmember created",
-  "member_id": 5
-}
-```
-
-**Response (Error - 401):**
-```json
-{
-  "error": "Unauthorized"
-}
-```
-
-**Example with curl:**
 ```bash
 curl -X POST http://localhost:5000/api/register \
-  -H "X-Admin-Key: your_admin_api_key" \
+  -H "X-Admin-Key: your_api_key" \
   -H "Content-Type: application/json" \
-  -d '{"username": "newmember", "password": "securepassword", "is_admin": false}'
+  -d '{"username": "member1", "password": "secret123", "is_admin": false}'
 ```
-
-**Setup:** Set `ADMIN_API_KEY` environment variable in `.env` file.
 
 ### Create Proposal
 
-**Endpoint:** `POST /api/proposals`
-
-**Headers:**
-```
-X-Admin-Key: your_admin_api_key
-Content-Type: application/json
-```
-
-**Request Body (JSON):**
-```json
-{
-  "title": "New LED Strips",
-  "description": "RGB LED strips for workshop",
-  "amount": 75.50,
-  "url": "https://example.com/led-strips",
-  "basic_supplies": false,
-  "created_by": 1
-}
-```
-
-**Response (Success - 201):**
-```json
-{
-  "success": true,
-  "message": "Proposal created",
-  "proposal_id": 12
-}
-```
-
-**Example with curl:**
 ```bash
 curl -X POST http://localhost:5000/api/proposals \
-  -H "X-Admin-Key: your_admin_api_key" \
+  -H "X-Admin-Key: your_api_key" \
   -H "Content-Type: application/json" \
-  -d '{"title": "New LED Strips", "description": "RGB LED strips", "amount": 75.50, "created_by": 1}'
+  -d '{
+    "title": "LED Strips",
+    "description": "RGB LED strips for workshop",
+    "amount": 75.50,
+    "url": "https://example.com/led",
+    "basic_supplies": false,
+    "created_by": 1
+  }'
 ```
 
 ### Edit Proposal
 
-**Endpoint:** `PUT /api/proposals/<id>`
-
-**Headers:**
-```
-X-Admin-Key: your_admin_api_key
-Content-Type: application/json
-```
-
-**Request Body (JSON):** (all fields optional, only include what you want to update)
-```json
-{
-  "title": "Updated Title",
-  "description": "Updated description",
-  "amount": 100,
-  "url": "https://example.com/new-link",
-  "basic_supplies": true
-}
-```
-
-**Response (Success - 200):**
-```json
-{
-  "success": true,
-  "message": "Proposal updated",
-  "proposal_id": 12
-}
-```
-
-**Example with curl:**
 ```bash
 curl -X PUT http://localhost:5000/api/proposals/12 \
-  -H "X-Admin-Key: your_admin_api_key" \
+  -H "X-Admin-Key: your_api_key" \
   -H "Content-Type: application/json" \
-  -d '{"amount": 100, "title": "Updated Title"}'
+  -d '{"title": "Updated Title", "amount": 100}'
+```
+
+### API Response Codes
+
+| Code | Meaning |
+|------|---------|
+| 200 | Success |
+| 201 | Created |
+| 400 | Bad request |
+| 401 | Unauthorized |
+| 404 | Not found |
+| 409 | Conflict (e.g., username exists) |
+| 503 | API not configured |
+
+## Testing
+
+```bash
+pytest -q
 ```
 
 ## Tech Stack
 
-- Flask
+- Flask 3.0.0
 - SQLite
 - Telegram Bot API
 - Docker
 - Pytest
 
-## Testing
+## File Structure
 
-Run the test suite with:
-
-```bash
-pytest -q
 ```
+├── app.py              # Main application
+├── static/uploads/     # Image uploads
+├── templates/          # HTML templates
+├── tests/              # Test suite
+├── requirements.txt    # Dependencies
+└── docker-compose.yml  # Docker config
+```
+
+## Screenshots
+
+The system includes:
+- Login/registration pages
+- Dashboard with budget and proposals
+- Proposal detail with voting and comments
+- Admin panel for member and budget management
