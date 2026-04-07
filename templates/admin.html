@@ -29,6 +29,25 @@
 </div>
 
 <div class="card">
+    <h3>Registration Settings</h3>
+    <form method="POST">
+        <input type="hidden" name="action" value="toggle_registration">
+        <p style="margin-bottom: 10px;">
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" name="registration_enabled" value="1" 
+                    {{ 'checked' if registration_enabled else '' }}
+                    style="width: auto; height: 18px;">
+                <span><strong>Enable self-registration</strong> - Allow new members to register via the form</span>
+            </label>
+        </p>
+        <p style="color: #888; font-size: 0.9em; margin-bottom: 15px;">
+            When disabled, only admins can add members via the API or the form above.
+        </p>
+        <button type="submit" class="btn">Save Settings</button>
+    </form>
+</div>
+
+<div class="card">
     <h3>Members ({{ members|length }})</h3>
     <table>
         <thead>

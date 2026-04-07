@@ -13,6 +13,7 @@ from flask import (
     session,
     flash,
     send_file,
+    jsonify,
 )
 from werkzeug.utils import secure_filename
 import requests
@@ -113,6 +114,9 @@ def init_db():
         c.execute(
             "INSERT INTO budget_log (amount, description) VALUES (300, 'Initial budget')"
         )
+        c.execute(
+            "INSERT OR IGNORE INTO settings (key, value) VALUES ('registration_enabled', 'true')"
+        )
 
     try:
         c.execute("ALTER TABLE proposals ADD COLUMN url TEXT")
@@ -183,6 +187,15 @@ def get_thresholds():
         "over50": thresholds.get("threshold_over50", 20),
         "default": thresholds.get("threshold_default", 10),
     }
+
+
+def is_registration_enabled():
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT value FROM settings WHERE key = 'registration_enabled'")
+    row = c.fetchone()
+    conn.close()
+    return row and row[0].lower() == "true"
 
 
 def send_telegram_message(message):
@@ -375,6 +388,49 @@ def login():
     return render_template("login.html")
 
 
+@app.route("/api/register", methods=["POST"])
+def api_register():
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "JSON body required"}), 400
+
+    username = data.get("username")
+    password = data.get("password")
+    is_admin = data.get("is_admin", False)
+
+    if not username or not password:
+        return jsonify({"error": "username and password are required"}), 400
+
+    password_hash = hashlib.sha256(password.encode()).hexdigest()
+
+    conn = get_db()
+    c = conn.cursor()
+
+    c.execute("SELECT id FROM members WHERE username = ?", (username,))
+    if c.fetchone():
+        conn.close()
+        return jsonify({"error": "Username already exists"}), 409
+
+    try:
+        c.execute(
+            "INSERT INTO members (username, password_hash, is_admin) VALUES (?, ?, ?)",
+            (username, password_hash, 1 if is_admin else 0),
+        )
+        conn.commit()
+        member_id = c.lastrowid
+        conn.close()
+        return jsonify(
+            {
+                "success": True,
+                "message": f"User {username} created",
+                "member_id": member_id,
+            }
+        ), 201
+    except Exception as e:
+        conn.close()
+        return jsonify({"error": str(e)}), 500
+
+
 @app.route("/about")
 def about():
     return render_template("about.html")
@@ -388,6 +444,12 @@ def logout():
 
 @app.route("/register", methods=["GET", "POST"])
 def register():
+    if not is_registration_enabled():
+        flash(
+            "Self-registration is currently disabled. Please contact an admin.", "error"
+        )
+        return redirect(url_for("login"))
+
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
@@ -941,12 +1003,23 @@ def admin():
             conn.commit()
             flash("Thresholds updated!", "success")
 
+        elif action == "toggle_registration":
+            enabled = "true" if request.form.get("registration_enabled") else "false"
+            c.execute(
+                "UPDATE settings SET value = ? WHERE key = 'registration_enabled'",
+                (enabled,),
+            )
+            conn.commit()
+            status = "enabled" if enabled == "true" else "disabled"
+            flash(f"Self-registration {status}!", "success")
+
     c.execute("SELECT * FROM members ORDER BY created_at")
     members = c.fetchall()
     c.execute("SELECT * FROM budget_log ORDER BY created_at DESC LIMIT 20")
     budget_history = c.fetchall()
 
     thresholds = get_thresholds()
+    registration_enabled = is_registration_enabled()
 
     conn.close()
 
@@ -955,6 +1028,7 @@ def admin():
         members=members,
         budget_history=budget_history,
         thresholds=thresholds,
+        registration_enabled=registration_enabled,
     )
 
 

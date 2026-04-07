@@ -18,7 +18,8 @@
 1. **Member Management**
    - Simple authentication (username/password stored as hashed)
    - Admin can add/remove members
-   - Self-registration for new members
+   - Self-registration for new members (can be disabled by admin)
+   - Admin registration via REST API
    - ~50 member capacity
 
 2. **Proposal System**
@@ -48,12 +49,18 @@
 
 5. **Admin Features**
    - Manage members (add/remove)
+   - Toggle self-registration on/off
    - Manually increase budget with description
    - Edit/delete any comment
    - Undo proposal approvals
    - Trigger monthly top-up manually
 
-6. **Telegram Integration**
+6. **REST API**
+   - Admin can register new members via API
+   - Endpoint: `POST /api/register`
+   - JSON body: `{ "username": "...", "password": "...", "is_admin": false }`
+
+7. **Telegram Integration**
    - Bot token configuration
    - Chat ID for the hackerspace group
    - Send message when proposal is approved
@@ -75,7 +82,7 @@
 ### Routes
 - `/` - Login or dashboard (if authenticated)
 - `/login` - Login page
-- `/register` - Registration page
+- `/register` - Registration page (disabled if admin toggled off)
 - `/logout` - Logout
 - `/dashboard` - Main dashboard
 - `/proposal/new` - Create new proposal
@@ -84,6 +91,7 @@
 - `/comment/<id>/edit` - Edit comment (admin)
 - `/comment/<id>/delete` - Delete comment (admin)
 - `/admin` - Admin panel (member and budget management)
+- `/api/register` - REST API for admin member registration
 
 ## Acceptance Criteria
 1. Members can log in and vote

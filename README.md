@@ -5,7 +5,8 @@ A Flask web application for managing and voting on budget proposals in a hackers
 ## Features
 
 - **Member Authentication**: Simple username/password login for ~50 members
-- **Self-Registration**: Members can register themselves
+- **Self-Registration**: Members can register themselves (can be disabled by admin)
+- **Admin Registration via API**: Admins can register members programmatically via REST API
 - **Proposal System**: Create budget proposals with title, description, amount, optional URL, and optional image (JPG/PNG)
 - **Edit Proposals**: Proposal creators can edit their proposals while active
 - **Comments**: Members can comment on proposals
@@ -17,7 +18,7 @@ A Flask web application for managing and voting on budget proposals in a hackers
 - **Budget Tracking**: Real-time budget display with transaction history
 - **Admin Budget Control**: Admins can manually increase budget with description
 - **Telegram Notifications**: Auto-notify hackerspace group when proposals are approved
-- **Admin Panel**: Manage members
+- **Admin Panel**: Manage members and toggle registration settings
 
 ## Budget Rules
 
@@ -62,6 +63,46 @@ python app.py
 
 - Username: `admin`
 - Password: `carpediem42`
+
+## REST API
+
+### Member Registration
+
+Admins can register new members via the REST API:
+
+**Endpoint:** `POST /api/register`
+
+**Request Body (JSON):**
+```json
+{
+  "username": "newmember",
+  "password": "securepassword",
+  "is_admin": false
+}
+```
+
+**Response (Success - 201):**
+```json
+{
+  "success": true,
+  "message": "User newmember created",
+  "member_id": 5
+}
+```
+
+**Response (Error - 409):**
+```json
+{
+  "error": "Username already exists"
+}
+```
+
+**Example with curl:**
+```bash
+curl -X POST http://localhost:5000/api/register \
+  -H "Content-Type: application/json" \
+  -d '{"username": "newmember", "password": "securepassword", "is_admin": false}'
+```
 
 ## Tech Stack
 
