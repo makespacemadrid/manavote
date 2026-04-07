@@ -177,7 +177,12 @@ def admin_required(f):
 
 
 def get_current_budget():
-    return get_setting_float("current_budget", 0)
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT SUM(amount) as total FROM budget_log")
+    total = c.fetchone()["total"]
+    conn.close()
+    return total if total else 0
 
 
 def get_member_count():
@@ -612,7 +617,7 @@ def dashboard():
     c.execute("SELECT * FROM proposals ORDER BY created_at DESC")
     proposals = [dict(row) for row in c.fetchall()]
 
-    c.execute("SELECT * FROM budget_log ORDER BY created_at DESC LIMIT 10")
+    c.execute("SELECT * FROM budget_log ORDER BY created_at DESC LIMIT 50")
     budget_history = c.fetchall()
 
     current_budget = get_current_budget()
@@ -1137,11 +1142,14 @@ def admin():
 
     c.execute("SELECT * FROM members ORDER BY created_at")
     members = c.fetchall()
-    c.execute("SELECT * FROM budget_log ORDER BY created_at DESC LIMIT 20")
+
+    c.execute("SELECT SUM(amount) as total FROM budget_log")
+    c.execute("SELECT * FROM budget_log ORDER BY created_at DESC LIMIT 100")
     budget_history = c.fetchall()
 
     thresholds = get_thresholds()
     registration_enabled = is_registration_enabled()
+    current_budget = get_current_budget()
 
     conn.close()
 
@@ -1149,6 +1157,7 @@ def admin():
         "admin.html",
         members=members,
         budget_history=budget_history,
+        current_budget=current_budget,
         thresholds=thresholds,
         registration_enabled=registration_enabled,
     )
