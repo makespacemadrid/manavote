@@ -68,9 +68,15 @@ python app.py
 
 ### Member Registration
 
-Admins can register new members via the REST API:
+Admins can register new members via the REST API (requires API key):
 
 **Endpoint:** `POST /api/register`
+
+**Headers:**
+```
+X-Admin-Key: your_admin_api_key
+Content-Type: application/json
+```
 
 **Request Body (JSON):**
 ```json
@@ -90,18 +96,98 @@ Admins can register new members via the REST API:
 }
 ```
 
-**Response (Error - 409):**
+**Response (Error - 401):**
 ```json
 {
-  "error": "Username already exists"
+  "error": "Unauthorized"
 }
 ```
 
 **Example with curl:**
 ```bash
 curl -X POST http://localhost:5000/api/register \
+  -H "X-Admin-Key: your_admin_api_key" \
   -H "Content-Type: application/json" \
   -d '{"username": "newmember", "password": "securepassword", "is_admin": false}'
+```
+
+**Setup:** Set `ADMIN_API_KEY` environment variable in `.env` file.
+
+### Create Proposal
+
+**Endpoint:** `POST /api/proposals`
+
+**Headers:**
+```
+X-Admin-Key: your_admin_api_key
+Content-Type: application/json
+```
+
+**Request Body (JSON):**
+```json
+{
+  "title": "New LED Strips",
+  "description": "RGB LED strips for workshop",
+  "amount": 75.50,
+  "url": "https://example.com/led-strips",
+  "basic_supplies": false,
+  "created_by": 1
+}
+```
+
+**Response (Success - 201):**
+```json
+{
+  "success": true,
+  "message": "Proposal created",
+  "proposal_id": 12
+}
+```
+
+**Example with curl:**
+```bash
+curl -X POST http://localhost:5000/api/proposals \
+  -H "X-Admin-Key: your_admin_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{"title": "New LED Strips", "description": "RGB LED strips", "amount": 75.50, "created_by": 1}'
+```
+
+### Edit Proposal
+
+**Endpoint:** `PUT /api/proposals/<id>`
+
+**Headers:**
+```
+X-Admin-Key: your_admin_api_key
+Content-Type: application/json
+```
+
+**Request Body (JSON):** (all fields optional, only include what you want to update)
+```json
+{
+  "title": "Updated Title",
+  "description": "Updated description",
+  "amount": 100,
+  "url": "https://example.com/new-link",
+  "basic_supplies": true
+}
+```
+
+**Response (Success - 200):**
+```json
+{
+  "success": true,
+  "message": "Proposal updated",
+  "proposal_id": 12
+}
+```
+
+**Example with curl:**
+```bash
+curl -X PUT http://localhost:5000/api/proposals/12 \
+  -H "X-Admin-Key: your_admin_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{"amount": 100, "title": "Updated Title"}'
 ```
 
 ## Tech Stack

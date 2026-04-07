@@ -58,7 +58,16 @@
 6. **REST API**
    - Admin can register new members via API
    - Endpoint: `POST /api/register`
+   - Authentication: `X-Admin-Key` header with `ADMIN_API_KEY` env var
    - JSON body: `{ "username": "...", "password": "...", "is_admin": false }`
+   - Admin can create proposals via API
+   - Endpoint: `POST /api/proposals`
+   - Authentication: `X-Admin-Key` header with `ADMIN_API_KEY` env var
+   - JSON body: `{ "title": "...", "description": "...", "amount": 100, "url": "...", "basic_supplies": false, "created_by": 1 }`
+   - Admin can edit proposals via API
+   - Endpoint: `PUT /api/proposals/<id>`
+   - Authentication: `X-Admin-Key` header with `ADMIN_API_KEY` env var
+   - JSON body: `{ "title": "...", "description": "...", "amount": 100, "url": "...", "basic_supplies": true }`
 
 7. **Telegram Integration**
    - Bot token configuration

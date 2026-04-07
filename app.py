@@ -36,6 +36,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+ADMIN_API_KEY = os.environ.get("ADMIN_API_KEY", "")
 
 
 def init_db():
@@ -390,6 +391,13 @@ def login():
 
 @app.route("/api/register", methods=["POST"])
 def api_register():
+    if not ADMIN_API_KEY:
+        return jsonify({"error": "API not configured"}), 503
+
+    provided_key = request.headers.get("X-Admin-Key", "")
+    if provided_key != ADMIN_API_KEY:
+        return jsonify({"error": "Unauthorized"}), 401
+
     data = request.get_json()
     if not data:
         return jsonify({"error": "JSON body required"}), 400
@@ -426,6 +434,123 @@ def api_register():
                 "member_id": member_id,
             }
         ), 201
+    except Exception as e:
+        conn.close()
+        return jsonify({"error": str(e)}), 500
+
+
+def require_api_key():
+    if not ADMIN_API_KEY:
+        return jsonify({"error": "API not configured"}), 503
+    provided_key = request.headers.get("X-Admin-Key", "")
+    if provided_key != ADMIN_API_KEY:
+        return jsonify({"error": "Unauthorized"}), 401
+    return None
+
+
+@app.route("/api/proposals", methods=["POST"])
+def api_create_proposal():
+    auth_error = require_api_key()
+    if auth_error:
+        return auth_error
+
+    data = request.get_json()
+    if not data:
+        return jsonify({"error": "JSON body required"}), 400
+
+    title = data.get("title")
+    description = data.get("description", "")
+    amount = data.get("amount")
+    url = data.get("url", "")
+    basic_supplies = 1 if data.get("basic_supplies", False) else 0
+    created_by = data.get("created_by")
+
+    if not title or amount is None:
+        return jsonify({"error": "title and amount are required"}), 400
+
+    if amount <= 0:
+        return jsonify({"error": "amount must be positive"}), 400
+
+    if not created_by:
+        return jsonify({"error": "created_by is required"}), 400
+
+    conn = get_db()
+    c = conn.cursor()
+
+    c.execute("SELECT id FROM members WHERE id = ?", (created_by,))
+    if not c.fetchone():
+        conn.close()
+        return jsonify({"error": "Creator member not found"}), 404
+
+    try:
+        c.execute(
+            "INSERT INTO proposals (title, description, amount, url, created_by, basic_supplies) VALUES (?, ?, ?, ?, ?, ?)",
+            (title, description, amount, url, created_by, basic_supplies),
+        )
+        conn.commit()
+        proposal_id = c.lastrowid
+        conn.close()
+        return jsonify(
+            {
+                "success": True,
+                "message": "Proposal created",
+                "proposal_id": proposal_id,
+            }
+        ), 201
+    except Exception as e:
+        conn.close()
+        return jsonify({"error": str(e)}), 500
+
+
+@app.route("/api/proposals/<int:proposal_id>", methods=["PUT", "PATCH"])
+def api_edit_proposal(proposal_id):
+    auth_error = require_api_key()
+    if auth_error:
+        return auth_error
+
+    conn = get_db()
+    c = conn.cursor()
+
+    c.execute("SELECT * FROM proposals WHERE id = ?", (proposal_id,))
+    proposal = c.fetchone()
+
+    if not proposal:
+        conn.close()
+        return jsonify({"error": "Proposal not found"}), 404
+
+    if proposal["status"] != "active":
+        conn.close()
+        return jsonify({"error": "Cannot edit processed proposals"}), 400
+
+    data = request.get_json()
+    if not data:
+        conn.close()
+        return jsonify({"error": "JSON body required"}), 400
+
+    title = data.get("title", proposal["title"])
+    description = data.get("description", proposal["description"])
+    amount = data.get("amount", proposal["amount"])
+    url = data.get("url", proposal["url"])
+    basic_supplies = 1 if data.get("basic_supplies", proposal["basic_supplies"]) else 0
+
+    if amount <= 0:
+        conn.close()
+        return jsonify({"error": "amount must be positive"}), 400
+
+    try:
+        c.execute(
+            "UPDATE proposals SET title = ?, description = ?, amount = ?, url = ?, basic_supplies = ? WHERE id = ?",
+            (title, description, amount, url, basic_supplies, proposal_id),
+        )
+        conn.commit()
+        conn.close()
+        return jsonify(
+            {
+                "success": True,
+                "message": "Proposal updated",
+                "proposal_id": proposal_id,
+            }
+        )
     except Exception as e:
         conn.close()
         return jsonify({"error": str(e)}), 500
@@ -1034,9 +1159,6 @@ def admin():
 
 @app.route("/check-overbudget")
 def check_overbudget():
-    token = request.args.get("token", "")
-    if token != app.secret_key:
-        return "Unauthorized", 401
     check_over_budget_proposals()
     return "OK"
 
