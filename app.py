@@ -206,7 +206,9 @@ def calculate_min_backers(member_count, amount, basic_supplies, thresholds):
     percentage = (
         thresholds["basic"]
         if basic_supplies
-        else thresholds["over50"] if amount > 50 else thresholds["default"]
+        else thresholds["over50"]
+        if amount > 50
+        else thresholds["default"]
     )
     return max(1, int(member_count * (percentage / 100)))
 
@@ -858,6 +860,40 @@ def delete_comment(comment_id):
 
     flash("Comment deleted!", "success")
     return redirect(url_for("proposal_detail", proposal_id=proposal_id))
+
+
+@app.route("/proposal/<int:proposal_id>/delete", methods=["POST"])
+@login_required
+def delete_proposal(proposal_id):
+    conn = get_db()
+    c = conn.cursor()
+
+    c.execute("SELECT * FROM proposals WHERE id = ?", (proposal_id,))
+    proposal = c.fetchone()
+
+    if not proposal:
+        conn.close()
+        flash("Proposal not found", "error")
+        return redirect(url_for("dashboard"))
+
+    if proposal["status"] != "active":
+        conn.close()
+        flash("Cannot delete processed proposals", "error")
+        return redirect(url_for("proposal_detail", proposal_id=proposal_id))
+
+    if proposal["created_by"] != session["member_id"] and not session.get("is_admin"):
+        conn.close()
+        flash("You can only delete your own proposals", "error")
+        return redirect(url_for("proposal_detail", proposal_id=proposal_id))
+
+    c.execute("DELETE FROM votes WHERE proposal_id = ?", (proposal_id,))
+    c.execute("DELETE FROM comments WHERE proposal_id = ?", (proposal_id,))
+    c.execute("DELETE FROM proposals WHERE id = ?", (proposal_id,))
+    conn.commit()
+    conn.close()
+
+    flash("Proposal deleted!", "success")
+    return redirect(url_for("dashboard"))
 
 
 @app.route("/proposal/<int:proposal_id>/edit", methods=["GET", "POST"])
