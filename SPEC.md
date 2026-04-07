@@ -3,121 +3,217 @@
 ## Project Overview
 - **Project name**: Hackerspace Budget Voting
 - **Type**: Flask web application
-- **Core functionality**: Voting system for 50 members to approve/disapprove spending proposals, with automatic Telegram notifications for approved proposals
+- **Core functionality**: Voting system for members to approve/disapprove spending proposals, with automatic Telegram notifications for approved proposals
 - **Target users**: Hackerspace members (~50 people)
 
-## Budget Rules
-- Starting budget: 300 EUR
-- Monthly addition: configurable via `settings.monthly_topup` (default 50 EUR, on 1st of each month)
-- Minimum approval threshold: varies by proposal type (see below)
-- Proposals must be fully covered by current budget to be approved
+## Architecture
+- **Framework**: Flask monolith (`app.py`) with server-rendered Jinja templates
+- **Database**: SQLite (`hackerspace.db`) with direct SQL (no ORM)
+- **State & auth**: Cookie-based Flask sessions (`session[member_id|username|is_admin]`)
+- **Notifications**: Telegram Bot API via `requests.post`
+- **File uploads**: Proposal images in `static/uploads/`
 
-## Functionality Specification
+## Data Model
 
-### Core Features
-1. **Member Management**
-   - Simple authentication (username/password stored as hashed)
-   - Admin can add/remove members
-   - Self-registration for new members (can be disabled by admin)
-   - Admin registration via REST API
-   - ~50 member capacity
+### `members`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | INTEGER PK | Auto-increment |
+| username | TEXT UNIQUE | Required |
+| password_hash | TEXT | SHA-256 hex |
+| is_admin | INTEGER | 0 or 1 |
+| created_at | TEXT | Default CURRENT_TIMESTAMP |
 
-2. **Proposal System**
-   - Create proposal with: title, description, amount (EUR), optional URL, optional image (JPG/PNG)
-   - Edit proposals while active (creator or admin)
-   - Members vote: Approve or Reject
-   - One vote per member per proposal
-   - Vote can be changed until proposal is processed
-   - Comments on proposals
+### `proposals`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | INTEGER PK | Auto-increment |
+| title | TEXT | Required |
+| description | TEXT | |
+| amount | REAL | Required |
+| url | TEXT | Optional |
+| image_filename | TEXT | Optional, JPG/PNG |
+| created_by | INTEGER | FK to members.id |
+| created_at | TEXT | Default CURRENT_TIMESTAMP |
+| status | TEXT | `active`, `approved`, `over_budget` |
+| processed_at | TEXT | |
+| basic_supplies | INTEGER | 0 or 1 |
 
-3. **Approval Logic**
-   - Check if net votes (favor - against) >= threshold
-   - Threshold varies by proposal type and amount:
-     - Basic supplies: 5% of members (minimum 1)
-     - Proposals over €50: 20% of members
-     - Other proposals: 10% of members
-   - Check if budget can cover the proposal
-   - If both conditions met: approve, deduct from budget, notify Telegram
-   - If votes meet threshold but budget insufficient: mark as "over_budget" (auto-approves when budget becomes available)
-   - If votes don't meet threshold: remains active for more voting
+### `votes`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | INTEGER PK | Auto-increment |
+| proposal_id | INTEGER | FK to proposals.id |
+| member_id | INTEGER | FK to members.id |
+| vote | TEXT | `in_favor` or `against` |
+| created_at | TEXT | Default CURRENT_TIMESTAMP |
+| | | UNIQUE(proposal_id, member_id) |
 
-4. **Budget Tracking**
-   - Display current available budget ("Budget for New Toys")
-   - Show transaction history (approved proposals, manual additions, monthly top-ups)
-   - Monthly automatic top-up
-   - Admin can manually add budget with description
+### `comments`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | INTEGER PK | Auto-increment |
+| proposal_id | INTEGER | FK to proposals.id |
+| member_id | INTEGER | FK to members.id |
+| content | TEXT | Required |
+| created_at | TEXT | Default CURRENT_TIMESTAMP |
 
-5. **Admin Features**
-   - Manage members (add/remove)
-   - Toggle self-registration on/off
-   - Manually increase budget with description
-   - Edit/delete any comment
-   - Undo proposal approvals
-   - Trigger monthly top-up manually
+### `budget_log`
+| Column | Type | Notes |
+|--------|------|-------|
+| id | INTEGER PK | Auto-increment |
+| amount | REAL | Positive or negative |
+| description | TEXT | |
+| created_at | TEXT | Default CURRENT_TIMESTAMP |
 
-6. **REST API**
-   - Admin can register new members via API
-   - Endpoint: `POST /api/register`
-   - Authentication: `X-Admin-Key` header with `ADMIN_API_KEY` env var
-   - JSON body: `{ "username": "...", "password": "...", "is_admin": false }`
-   - Admin can create proposals via API
-   - Endpoint: `POST /api/proposals`
-   - Authentication: `X-Admin-Key` header with `ADMIN_API_KEY` env var
-   - JSON body: `{ "title": "...", "description": "...", "amount": 100, "url": "...", "basic_supplies": false, "created_by": 1 }`
-   - Admin can edit proposals via API
-   - Endpoint: `PUT /api/proposals/<id>`
-   - Authentication: `X-Admin-Key` header with `ADMIN_API_KEY` env var
-   - JSON body: `{ "title": "...", "description": "...", "amount": 100, "url": "...", "basic_supplies": true }`
+### `settings`
+| Column | Type | Notes |
+|--------|------|-------|
+| key | TEXT PK | |
+| value | TEXT | |
 
-7. **Telegram Integration**
-   - Bot token configuration
-   - Chat ID for the hackerspace group
-   - Send message when proposal is approved
+**Used keys**: `current_budget`, `monthly_topup`, `threshold_basic`, `threshold_over50`, `threshold_default`, `registration_enabled`
 
-### User Interface
-- Login page
-- Registration page
-- Dashboard with current budget and proposal list
-- Create proposal form
-- Proposal detail page with voting and comments
-- Admin page for member and budget management
+## Business Rules
 
-## Technical Implementation
+### Initialization Defaults
+On first run:
+- Default admin: username `admin`, password `carpediem42`
+- `current_budget = 300`
+- `monthly_topup = 50`
+- `threshold_basic = 5`
+- `threshold_over50 = 20`
+- `threshold_default = 10`
+- `registration_enabled = true`
 
-### Data Storage
-- SQLite database (simple, no external deps)
-- Tables: members, proposals, votes, comments, settings, budget_log
+### Voting Threshold Formula
+```
+min_backers = max(1, int(member_count * threshold%))
+```
 
-### Routes
-- `/` - Login or dashboard (if authenticated)
-- `/login` - Login page
-- `/register` - Registration page (disabled if admin toggled off)
-- `/logout` - Logout
-- `/dashboard` - Main dashboard
-- `/proposal/new` - Create new proposal
-- `/proposal/<id>` - View and vote on proposal
-- `/proposal/<id>/edit` - Edit proposal
-- `/comment/<id>/edit` - Edit comment (admin)
-- `/comment/<id>/delete` - Delete comment (admin)
-- `/admin` - Admin panel (member and budget management)
-- `/api/register` - REST API for admin member registration
+Threshold selection:
+1. `basic_supplies == 1` → `threshold_basic` (5%)
+2. Else if `amount > 50` → `threshold_over50` (20%)
+3. Else → `threshold_default` (10%)
 
-## Acceptance Criteria
-1. Members can log in and vote
-2. Proposals with required net votes that fit budget are automatically approved
-   - Basic supplies: 5% threshold
-   - Proposals over €50: 20% threshold
-   - Other proposals: 10% threshold
-3. Approved proposals trigger Telegram notification
-4. Budget correctly tracks spending and monthly additions
-5. Vote count is visible on each proposal
-6. Admins can manage members
-7. Admins can edit/delete comments
-8. Admins can manually add budget with description
-9. Proposals that meet vote threshold but exceed budget are marked "over_budget" and auto-approve when budget becomes available
+### Approval Condition
+Proposal is approved when BOTH:
+1. `net_votes = in_favor - against >= min_backers`
+2. `proposal.amount <= current_budget`
 
-## Current Automated Test Coverage
-- Threshold math helper (`calculate_min_backers`)
-- Settings numeric parsing fallback (`get_setting_float`)
-- Admin monthly top-up respects `settings.monthly_topup`
-- Admin add-budget flow no longer shows an incorrect monthly top-up flash
+On approval:
+- status → `approved`
+- `processed_at` set
+- Budget decremented by amount
+- Budget log entry added
+- Telegram notification sent
+
+### Over-Budget Condition
+If votes meet threshold but budget insufficient:
+- status → `over_budget`
+- `processed_at` set
+- Auto-approved (FIFO by `created_at`) when budget becomes available
+
+## Features
+
+### Member Management
+- Simple authentication (username/password)
+- Self-registration (can be disabled by admin)
+- Admin member management (add/remove)
+- Admin member registration via REST API
+
+### Proposal System
+- Create proposal: title, description, amount, URL (optional), image (optional, JPG/PNG)
+- Edit proposals while active (creator or admin)
+- Delete active proposals (creator or admin)
+- Members vote: Approve or Reject
+- One vote per member per proposal (changeable)
+- Comments on proposals
+
+### Budget Tracking
+- Display current available budget
+- Transaction history
+- Monthly automatic top-up (configurable)
+- Admin can manually add budget
+
+### Admin Features
+- Manage members (add/remove)
+- Toggle self-registration
+- Manually add budget
+- Edit/delete any comment
+- Undo proposal approvals
+- Trigger monthly top-up
+- Update vote thresholds
+
+### REST API (X-Admin-Key authentication)
+
+| Method | Endpoint | Description |
+|--------|----------|-------------|
+| POST | `/api/register` | Register new member |
+| POST | `/api/proposals` | Create proposal |
+| PUT | `/api/proposals/<id>` | Edit proposal |
+
+### Telegram Integration
+- Bot token configuration
+- Chat ID for notifications
+- Auto-notify on proposal approval
+
+## Routes
+
+### Web Routes
+| Route | Methods | Auth | Description |
+|-------|---------|------|-------------|
+| `/` | GET | - | Redirect to login/dashboard |
+| `/login` | GET/POST | - | Login page |
+| `/logout` | GET | - | Logout |
+| `/register` | GET/POST | - | Registration (subject to setting) |
+| `/about` | GET | - | About page |
+| `/dashboard` | GET | Required | Main dashboard |
+| `/proposal/new` | GET/POST | Required | Create proposal |
+| `/proposal/<id>` | GET/POST | Required | View, vote, comment |
+| `/proposal/<id>/edit` | GET/POST | Required | Edit (owner/admin, active only) |
+| `/proposal/<id>/delete` | POST | Required | Delete (owner/admin, active only) |
+| `/vote/<id>` | POST | Required | Quick vote |
+| `/comment/<id>/edit` | GET/POST | Admin | Edit comment |
+| `/comment/<id>/delete` | POST | Admin | Delete comment |
+| `/undo/<id>` | POST | Admin | Undo approval |
+| `/admin` | GET/POST | Admin | Admin panel |
+| `/check-overbudget` | GET | - | Trigger over-budget check |
+
+## Known Issues & Security Findings
+
+### High Priority
+1. **Hardcoded default admin**: `admin`/`carpediem42` created automatically
+2. **Weak password hashing**: SHA-256 (should use `werkzeug.security`)
+3. **No CSRF protection**: All form POSTs vulnerable
+4. **Debug mode enabled**: `debug=True` in entrypoint
+
+### Medium Priority
+5. No rate limiting on login/API
+6. Upload validation by extension only (no MIME check)
+7. Broad `except:` blocks suppress errors
+8. `/check-overbudget` unauthenticated
+
+### Correctness
+- ✅ `trigger_monthly` uses `monthly_topup` setting
+- ✅ No duplicate flash in `add_budget`
+- Amount parsing lacks validation guards
+- Connection nesting in `process_proposal()`
+
+### Performance
+- N+1 query pattern on dashboard
+- Single-file monolith
+- ✅ Repeated threshold logic consolidated
+
+## Testing
+
+Run tests with:
+```bash
+pytest -q
+```
+
+Current coverage:
+- Threshold calculation (`calculate_min_backers`)
+- Settings float parsing fallback
+- Admin monthly top-up respects setting
+- No duplicate flash on add budget
