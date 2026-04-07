@@ -138,6 +138,23 @@ def get_db():
     return conn
 
 
+def get_setting_value(key, default=None):
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT value FROM settings WHERE key = ?", (key,))
+    row = c.fetchone()
+    conn.close()
+    return row[0] if row else default
+
+
+def get_setting_float(key, default=0.0):
+    value = get_setting_value(key, default)
+    try:
+        return float(value)
+    except (TypeError, ValueError):
+        return float(default)
+
+
 def login_required(f):
     @wraps(f)
     def decorated_function(*args, **kwargs):
@@ -160,12 +177,7 @@ def admin_required(f):
 
 
 def get_current_budget():
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("SELECT value FROM settings WHERE key = 'current_budget'")
-    row = c.fetchone()
-    conn.close()
-    return float(row[0]) if row else 0
+    return get_setting_float("current_budget", 0)
 
 
 def get_member_count():
@@ -190,13 +202,32 @@ def get_thresholds():
     }
 
 
+def calculate_min_backers(member_count, amount, basic_supplies, thresholds):
+    percentage = (
+        thresholds["basic"]
+        if basic_supplies
+        else thresholds["over50"] if amount > 50 else thresholds["default"]
+    )
+    return max(1, int(member_count * (percentage / 100)))
+
+
+def get_vote_counts(cursor, proposal_id):
+    cursor.execute(
+        "SELECT COUNT(*) FROM votes WHERE proposal_id = ? AND vote = 'in_favor'",
+        (proposal_id,),
+    )
+    approve_count = cursor.fetchone()[0]
+    cursor.execute(
+        "SELECT COUNT(*) FROM votes WHERE proposal_id = ? AND vote = 'against'",
+        (proposal_id,),
+    )
+    reject_count = cursor.fetchone()[0]
+    return approve_count, reject_count
+
+
 def is_registration_enabled():
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("SELECT value FROM settings WHERE key = 'registration_enabled'")
-    row = c.fetchone()
-    conn.close()
-    return row and row[0].lower() == "true"
+    value = get_setting_value("registration_enabled", "true")
+    return str(value).lower() == "true"
 
 
 def send_telegram_message(message):
@@ -222,30 +253,10 @@ def process_proposal(proposal_id):
     member_count = get_member_count()
     current_budget = get_current_budget()
     thresholds = get_thresholds()
-    min_backers = max(
-        1,
-        int(
-            member_count * (thresholds["basic"] / 100)
-            if proposal["basic_supplies"]
-            else (
-                member_count * (thresholds["over50"] / 100)
-                if proposal["amount"] > 50
-                else member_count * (thresholds["default"] / 100)
-            )
-        ),
+    min_backers = calculate_min_backers(
+        member_count, proposal["amount"], proposal["basic_supplies"], thresholds
     )
-
-    c.execute(
-        "SELECT COUNT(*) FROM votes WHERE proposal_id = ? AND vote = 'in_favor'",
-        (proposal_id,),
-    )
-    approve_count = c.fetchone()[0]
-
-    c.execute(
-        "SELECT COUNT(*) FROM votes WHERE proposal_id = ? AND vote = 'against'",
-        (proposal_id,),
-    )
-    reject_count = c.fetchone()[0]
+    approve_count, reject_count = get_vote_counts(c, proposal_id)
 
     net_votes = approve_count - reject_count
 
@@ -302,30 +313,13 @@ def check_over_budget_proposals():
     for proposal in over_budget:
         if proposal["amount"] <= current_budget:
             member_count = get_member_count()
-            min_backers = max(
-                1,
-                int(
-                    member_count * (thresholds["basic"] / 100)
-                    if proposal["basic_supplies"]
-                    else (
-                        member_count * (thresholds["over50"] / 100)
-                        if proposal["amount"] > 50
-                        else member_count * (thresholds["default"] / 100)
-                    )
-                ),
+            min_backers = calculate_min_backers(
+                member_count,
+                proposal["amount"],
+                proposal["basic_supplies"],
+                thresholds,
             )
-
-            c.execute(
-                "SELECT COUNT(*) FROM votes WHERE proposal_id = ? AND vote = 'in_favor'",
-                (proposal["id"],),
-            )
-            approve_count = c.fetchone()[0]
-
-            c.execute(
-                "SELECT COUNT(*) FROM votes WHERE proposal_id = ? AND vote = 'against'",
-                (proposal["id"],),
-            )
-            reject_count = c.fetchone()[0]
+            approve_count, reject_count = get_vote_counts(c, proposal["id"])
 
             net_votes = approve_count - reject_count
 
@@ -624,28 +618,13 @@ def dashboard():
     thresholds = get_thresholds()
 
     for p in proposals:
-        p["min_backers"] = max(
-            1,
-            int(
-                member_count * (thresholds["basic"] / 100)
-                if p.get("basic_supplies")
-                else (
-                    member_count * (thresholds["over50"] / 100)
-                    if p["amount"] > 50
-                    else member_count * (thresholds["default"] / 100)
-                )
-            ),
+        p["min_backers"] = calculate_min_backers(
+            member_count,
+            p["amount"],
+            p.get("basic_supplies"),
+            thresholds,
         )
-        c.execute(
-            "SELECT COUNT(*) FROM votes WHERE proposal_id = ? AND vote = 'in_favor'",
-            (p["id"],),
-        )
-        p["approve_count"] = c.fetchone()[0]
-        c.execute(
-            "SELECT COUNT(*) FROM votes WHERE proposal_id = ? AND vote = 'against'",
-            (p["id"],),
-        )
-        p["reject_count"] = c.fetchone()[0]
+        p["approve_count"], p["reject_count"] = get_vote_counts(c, p["id"])
         p["net_votes"] = p["approve_count"] - p["reject_count"]
         c.execute(
             "SELECT vote FROM votes WHERE proposal_id = ? AND member_id = ?",
@@ -655,8 +634,6 @@ def dashboard():
         p["user_vote"] = user_vote["vote"] if user_vote else None
 
     conn.close()
-
-    thresholds = get_thresholds()
 
     return render_template(
         "dashboard.html",
@@ -752,21 +729,11 @@ def proposal_detail(proposal_id):
     member_count = get_member_count()
     current_budget = get_current_budget()
     thresholds = get_thresholds()
-    min_backers = max(
-        1,
-        int(
-            member_count * (thresholds["basic"] / 100)
-            if proposal["basic_supplies"]
-            else (
-                member_count * (thresholds["over50"] / 100)
-                if proposal["amount"] > 50
-                else member_count * (thresholds["default"] / 100)
-            )
-        ),
+    min_backers = calculate_min_backers(
+        member_count, proposal["amount"], proposal["basic_supplies"], thresholds
     )
 
-    approve_count = sum(1 for v in votes if v["vote"] == "in_favor")
-    reject_count = sum(1 for v in votes if v["vote"] == "against")
+    approve_count, reject_count = get_vote_counts(c, proposal_id)
     net_votes = approve_count - reject_count
 
     if request.method == "POST":
@@ -816,8 +783,6 @@ def proposal_detail(proposal_id):
     comments = c.fetchall()
 
     conn.close()
-
-    thresholds = get_thresholds()
 
     return render_template(
         "proposal_detail.html",
@@ -1065,7 +1030,7 @@ def admin():
 
         elif action == "trigger_monthly":
             current = get_current_budget()
-            monthly = 50
+            monthly = get_setting_float("monthly_topup", 50)
             c.execute(
                 "UPDATE settings SET value = ? WHERE key = 'current_budget'",
                 (str(current + monthly),),
@@ -1101,10 +1066,6 @@ def admin():
                     f"Added €{amount} to budget! New balance: €{get_current_budget()}",
                     "success",
                 )
-            flash(
-                f"Monthly top-up triggered! New budget: €{get_current_budget()}",
-                "success",
-            )
 
         elif action == "update_thresholds":
             basic = request.form.get("threshold_basic", "5")

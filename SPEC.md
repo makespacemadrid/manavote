@@ -8,7 +8,7 @@
 
 ## Budget Rules
 - Starting budget: 300 EUR
-- Monthly addition: 50 EUR (on 1st of each month)
+- Monthly addition: configurable via `settings.monthly_topup` (default 50 EUR, on 1st of each month)
 - Minimum approval threshold: varies by proposal type (see below)
 - Proposals must be fully covered by current budget to be approved
 
@@ -115,3 +115,9 @@
 7. Admins can edit/delete comments
 8. Admins can manually add budget with description
 9. Proposals that meet vote threshold but exceed budget are marked "over_budget" and auto-approve when budget becomes available
+
+## Current Automated Test Coverage
+- Threshold math helper (`calculate_min_backers`)
+- Settings numeric parsing fallback (`get_setting_float`)
+- Admin monthly top-up respects `settings.monthly_topup`
+- Admin add-budget flow no longer shows an incorrect monthly top-up flash

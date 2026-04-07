@@ -160,8 +160,8 @@ All API routes return JSON and enforce `ADMIN_API_KEY` presence + header check.
 
 ## 7) Correctness & Logic Findings
 
-1. **Monthly top-up mismatch**: admin action `trigger_monthly` uses hardcoded `50` instead of `settings.monthly_topup`.
-2. **Duplicate/misleading flash in `add_budget`**: after add-budget action, an extra flash says monthly top-up triggered.
+1. ✅ **Resolved (2026-04-07)**: admin action `trigger_monthly` now reads `settings.monthly_topup` instead of hardcoded `50`.
+2. ✅ **Resolved (2026-04-07)**: duplicate/misleading flash in `add_budget` was removed.
 3. **Amount parsing lacks validation guards** on form handlers (`float(request.form["amount"])`) for malformed input.
 4. **Connection nesting risk**: `process_proposal()` opens a new DB connection while some callers still hold another connection; works often in SQLite but can increase lock-contention risk.
 5. **No status guard in quick vote insert path** before writing vote (vote accepted then checks status for processing).
@@ -173,7 +173,7 @@ All API routes return JSON and enforce `ADMIN_API_KEY` presence + header check.
 1. **N+1 query pattern on dashboard**: per-proposal counts and user-vote queries.
 2. **Single-file monolith** (`app.py`) mixes routing, business logic, persistence, and integration concerns.
 3. **Repeated threshold formula logic** appears in multiple functions.
-4. **No automated tests** observed in repository.
+4. ✅ **Baseline tests now present**: pytest coverage exists for threshold helper behavior and admin budget regressions.
 
 ---
 
