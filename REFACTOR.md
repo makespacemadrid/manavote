@@ -161,3 +161,28 @@ Suggested commands:
 - Modular structure replaces monolithic business logic.
 - Known correctness bugs fixed and regression tested.
 - Documentation updated for operators and contributors.
+
+---
+
+## Incremental Progress Log
+
+### 2026-04-07
+- Continued Phase 2 extraction in-place inside `app.py` by introducing:
+  - `calculate_min_backers(...)` to unify threshold math in one location.
+  - `get_vote_counts(...)` to centralize vote tally SQL.
+- Replaced duplicated threshold/vote snippets in:
+  - `process_proposal(...)`
+  - `check_over_budget_proposals(...)`
+  - `dashboard(...)`
+  - `proposal_detail(...)`
+- This keeps behavior-compatible while reducing copy/paste logic ahead of moving business rules into dedicated modules.
+- Continued incremental refactor/correctness cleanup:
+  - Added `get_setting_value(...)` and `get_setting_float(...)` to centralize settings reads and numeric parsing.
+  - Updated `get_current_budget()` and `is_registration_enabled()` to use shared settings helpers.
+  - Updated admin monthly top-up flow to use `settings.monthly_topup` instead of a hardcoded value.
+  - Removed the duplicated success flash in `add_budget` action.
+- Added initial pytest coverage for recent refactor/correctness changes:
+  - threshold calculation helper behavior
+  - settings numeric fallback parsing
+  - admin monthly top-up respecting `monthly_topup`
+  - regression guard for duplicate `add_budget` flash

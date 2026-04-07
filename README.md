@@ -23,7 +23,7 @@ A Flask web application for managing and voting on budget proposals in a hackers
 ## Budget Rules
 
 - Starting budget: 300 EUR
-- Monthly addition: 50 EUR (on 1st of each month)
+- Monthly addition: configurable via `settings.monthly_topup` (default 50 EUR, on 1st of each month)
 - Approval thresholds (net votes = favorable - against):
   - Basic supplies: 5% of members - can be selected when creating a proposal
   - Proposals over €50: 20% of members
@@ -196,3 +196,12 @@ curl -X PUT http://localhost:5000/api/proposals/12 \
 - SQLite
 - Telegram Bot API
 - Docker
+- Pytest
+
+## Testing
+
+Run the test suite with:
+
+```bash
+pytest -q
+```
