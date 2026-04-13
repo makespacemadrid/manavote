@@ -9,6 +9,7 @@
     <a href="{{ url_for('admin') }}">Admin</a>
     {% endif %}
     <a href="{{ url_for('about') }}">About</a>
+    <a href="{{ url_for('change_password') }}">Password</a>
     <a href="{{ url_for('logout') }}">Logout</a>
 </div>
 
@@ -25,6 +26,20 @@
         <h2>📋 Proposals</h2>
         <a href="{{ url_for('new_proposal') }}" class="btn">+ New Proposal</a>
     </div>
+    
+    <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+        <a href="{{ url_for('dashboard') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em;">All</a>
+        <a href="{{ url_for('dashboard', filter='active') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00d9ff22' if filter == 'active' else 'transparent' }}; color: #00d9ff; border: 1px solid #00d9ff;">Active</a>
+        <a href="{{ url_for('dashboard', filter='approved') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00ff8822' if filter == 'approved' else 'transparent' }}; color: #00ff88; border: 1px solid #00ff88;">Approved</a>
+        <a href="{{ url_for('dashboard', filter='over_budget') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#ffa50022' if filter == 'over_budget' else 'transparent' }}; color: #ffa500; border: 1px solid #ffa500;">Over Budget</a>
+        <a href="{{ url_for('dashboard', filter='basic') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: #FFD700; color: #000; border: 1px solid #FFD700;">Basic</a>
+        <a href="{{ url_for('dashboard', filter='purchased') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#4a44' if filter == 'purchased' else 'transparent' }}; color: #4a4; border: 1px solid #4a4;">Purchased</a>
+        <a href="{{ url_for('dashboard', filter='not_purchased') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#ff6b6b22' if filter == 'not_purchased' else 'transparent' }}; color: #ff6b6b; border: 1px solid #ff6b6b;">Not Purchased</a>
+    </div>
+    
+    {% if total_count is defined and total_count != proposals|length %}
+    <p style="color: #888; margin-bottom: 10px; font-size: 0.9em;">Showing {{ proposals|length }} of {{ total_count }} proposals</p>
+    {% endif %}
     
     {% if proposals %}
     <ul class="proposal-list">
@@ -45,7 +60,7 @@
                         {{ p.title }}
                     </a>
                     <span class="status status-{{ p.status }}">{{ p.status }}</span>
-                    {% if p.basic_supplies %}<span class="status" style="background: #4a4; margin-left: 5px;">basic supplies</span>{% endif %}
+                    {% if p.basic_supplies %}<span class="status" style="background: #FFD700; color: #000; margin-left: 5px;">basic supplies</span>{% endif %}
                 </h3>
                 <div class="proposal-meta">
                     by {{ p.username|username }} · {{ p.created_at[:10] }}
@@ -72,8 +87,18 @@
                 </div>
                 {% endif %}
                 {% if session.is_admin and p.status == 'approved' %}
-                <div style="margin-top: 5px;">
-                    <a href="{{ url_for('undo_approve', proposal_id=p.id) }}" style="color: #e94560; font-size: 0.75em;">Undo approval</a>
+                <div style="margin-top: 5px; display: flex; gap: 10px; align-items: center;">
+                    {% if p.purchased_at %}
+                    <span style="color: #4a4; font-size: 0.75em;">✓ purchased</span>
+                    <form method="POST" action="{{ url_for('unmark_purchased', proposal_id=p.id) }}" style="display: inline;">
+                        <button type="submit" style="background: none; border: none; color: #888; font-size: 0.75em; cursor: pointer; padding: 0;">unmark</button>
+                    </form>
+                    {% else %}
+                    <form method="POST" action="{{ url_for('mark_purchased', proposal_id=p.id) }}" style="display: inline;" onsubmit="return confirm('Mark as purchased?');">
+                        <button type="submit" style="background: none; border: none; color: #00d9ff; font-size: 0.75em; cursor: pointer; padding: 0;">mark purchased</button>
+                    </form>
+                    {% endif %}
+                    <a href="{{ url_for('undo_approve', proposal_id=p.id) }}" style="color: #e94560; font-size: 0.75em;">undo</a>
                 </div>
                 {% endif %}
             </div>

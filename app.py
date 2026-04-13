@@ -62,6 +62,7 @@ def init_db():
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
         status TEXT DEFAULT 'active',
         processed_at TEXT,
+        purchased_at TEXT,
         basic_supplies INTEGER DEFAULT 0
     )""")
 
@@ -113,7 +114,7 @@ def init_db():
             "INSERT INTO settings (key, value) VALUES ('threshold_default', '10')"
         )
         c.execute(
-            "INSERT INTO budget_log (amount, description) VALUES (300, 'Initial budget')"
+            "INSERT INTO budget_log (amount, description) VALUES (300, 'Ventas mercadillo marzo')"
         )
         c.execute(
             "INSERT OR IGNORE INTO settings (key, value) VALUES ('registration_enabled', 'true')"
@@ -125,6 +126,10 @@ def init_db():
         pass
     try:
         c.execute("ALTER TABLE proposals ADD COLUMN image_filename TEXT")
+    except:
+        pass
+    try:
+        c.execute("ALTER TABLE proposals ADD COLUMN purchased_at TEXT")
     except:
         pass
 
@@ -568,6 +573,53 @@ def logout():
     return redirect(url_for("login"))
 
 
+@app.route("/change-password", methods=["GET", "POST"])
+@login_required
+def change_password():
+    if request.method == "POST":
+        current_password = request.form["current_password"]
+        new_password = request.form["new_password"]
+        confirm_password = request.form["confirm_password"]
+
+        if not current_password or not new_password or not confirm_password:
+            flash("All fields are required", "error")
+            return redirect(url_for("change_password"))
+
+        if new_password != confirm_password:
+            flash("New passwords do not match", "error")
+            return redirect(url_for("change_password"))
+
+        if len(new_password) < 4:
+            flash("Password must be at least 4 characters", "error")
+            return redirect(url_for("change_password"))
+
+        current_hash = hashlib.sha256(current_password.encode()).hexdigest()
+
+        conn = get_db()
+        c = conn.cursor()
+        c.execute(
+            "SELECT id FROM members WHERE id = ? AND password_hash = ?",
+            (session["member_id"], current_hash),
+        )
+        if not c.fetchone():
+            conn.close()
+            flash("Current password is incorrect", "error")
+            return redirect(url_for("change_password"))
+
+        new_hash = hashlib.sha256(new_password.encode()).hexdigest()
+        c.execute(
+            "UPDATE members SET password_hash = ? WHERE id = ?",
+            (new_hash, session["member_id"]),
+        )
+        conn.commit()
+        conn.close()
+
+        flash("Password changed successfully!", "success")
+        return redirect(url_for("dashboard"))
+
+    return render_template("change_password.html")
+
+
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if not is_registration_enabled():
@@ -614,8 +666,32 @@ def dashboard():
     conn = get_db()
     c = conn.cursor()
 
-    c.execute("SELECT * FROM proposals ORDER BY created_at DESC")
+    filter_type = request.args.get("filter", "")
+
+    if filter_type == "basic":
+        c.execute(
+            "SELECT * FROM proposals WHERE basic_supplies = 1 ORDER BY created_at DESC"
+        )
+    elif filter_type in ("active", "approved", "over_budget"):
+        c.execute(
+            "SELECT * FROM proposals WHERE status = ? ORDER BY created_at DESC",
+            (filter_type,),
+        )
+    elif filter_type == "purchased":
+        c.execute(
+            "SELECT * FROM proposals WHERE purchased_at IS NOT NULL ORDER BY created_at DESC"
+        )
+    elif filter_type == "not_purchased":
+        c.execute(
+            "SELECT * FROM proposals WHERE status = 'approved' AND purchased_at IS NULL ORDER BY created_at DESC"
+        )
+    else:
+        c.execute("SELECT * FROM proposals ORDER BY created_at DESC")
+
     proposals = [dict(row) for row in c.fetchall()]
+
+    c.execute("SELECT COUNT(*) FROM proposals")
+    total_count = c.fetchone()[0]
 
     c.execute("SELECT * FROM budget_log ORDER BY created_at DESC LIMIT 50")
     budget_history = c.fetchall()
@@ -645,6 +721,8 @@ def dashboard():
     return render_template(
         "dashboard.html",
         proposals=proposals,
+        filter=filter_type,
+        total_count=total_count,
         current_budget=current_budget,
         budget_history=budget_history,
         member_count=member_count,
@@ -652,6 +730,7 @@ def dashboard():
     )
 
 
+@app.route("/proposal/new", methods=["GET", "POST"])
 @app.route("/proposal/new", methods=["GET", "POST"])
 @login_required
 def new_proposal():
@@ -1033,6 +1112,66 @@ def undo_approve(proposal_id):
 
     conn.close()
     return redirect(url_for("dashboard"))
+
+
+@app.route("/purchase/<int:proposal_id>", methods=["POST"])
+@login_required
+def mark_purchased(proposal_id):
+    conn = get_db()
+    c = conn.cursor()
+
+    c.execute("SELECT * FROM proposals WHERE id = ?", (proposal_id,))
+    proposal = c.fetchone()
+
+    if not proposal:
+        conn.close()
+        flash("Proposal not found", "error")
+        return redirect(url_for("dashboard"))
+
+    if proposal["status"] != "approved":
+        conn.close()
+        flash("Can only mark approved proposals as purchased", "error")
+        return redirect(url_for("proposal_detail", proposal_id=proposal_id))
+
+    c.execute(
+        "UPDATE proposals SET purchased_at = ? WHERE id = ?",
+        (datetime.now().isoformat(), proposal_id),
+    )
+    conn.commit()
+    conn.close()
+
+    flash("Marked as purchased!", "success")
+    return redirect(url_for("proposal_detail", proposal_id=proposal_id))
+
+
+@app.route("/unpurchase/<int:proposal_id>", methods=["POST"])
+@login_required
+def unmark_purchased(proposal_id):
+    conn = get_db()
+    c = conn.cursor()
+
+    c.execute("SELECT * FROM proposals WHERE id = ?", (proposal_id,))
+    proposal = c.fetchone()
+
+    if not proposal:
+        conn.close()
+        flash("Proposal not found", "error")
+        return redirect(url_for("dashboard"))
+
+    if proposal["status"] != "approved":
+        conn.close()
+        flash("Proposal not found", "error")
+        return redirect(url_for("dashboard"))
+
+    c.execute(
+        "UPDATE proposals SET purchased_at = NULL WHERE id = ?",
+        (proposal_id,),
+    )
+    conn.commit()
+    conn.close()
+
+    flash("Purchase status removed", "success")
+    return redirect(url_for("proposal_detail", proposal_id=proposal_id))
 
 
 @app.route("/admin", methods=["GET", "POST"])

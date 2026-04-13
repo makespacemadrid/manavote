@@ -18,6 +18,7 @@
             <p style="color: #888;">
                 by {{ proposal.creator|username }} · {{ proposal.created_at[:10] }}
                 <span class="status status-{{ proposal.status }}">{{ proposal.status }}</span>
+                {% if proposal.purchased_at %}<span class="status" style="background: #4a4;">purchased</span>{% endif %}
             </p>
         </div>
         <div class="proposal-amount">€{{ "%.2f"|format(proposal.amount) }}</div>
