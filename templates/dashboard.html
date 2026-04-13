@@ -31,10 +31,13 @@
         <a href="{{ url_for('dashboard') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em;">All</a>
         <a href="{{ url_for('dashboard', filter='active') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00d9ff22' if filter == 'active' else 'transparent' }}; color: #00d9ff; border: 1px solid #00d9ff;">Active</a>
         <a href="{{ url_for('dashboard', filter='approved') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00ff8822' if filter == 'approved' else 'transparent' }}; color: #00ff88; border: 1px solid #00ff88;">Approved</a>
-        <a href="{{ url_for('dashboard', filter='over_budget') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#ffa50022' if filter == 'over_budget' else 'transparent' }}; color: #ffa500; border: 1px solid #ffa500;">Over Budget</a>
-        <a href="{{ url_for('dashboard', filter='basic') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: #FFD700; color: #000; border: 1px solid #FFD700;">Basic</a>
+        <a href="{{ url_for('dashboard', filter='over_budget') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#ffa50022' if filter == 'over_budget' else 'transparent' }}; color: #ffa500; border: 1px solid #ffa500;">Pending Budget</a>
+        <a href="{{ url_for('dashboard', filter='not_purchased') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#ff6b6b22' if filter == 'not_purchased' else 'transparent' }}; color: #ff6b6b; border: 1px solid #ff6b6b;">Pending Purchase</a>
         <a href="{{ url_for('dashboard', filter='purchased') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#4a44' if filter == 'purchased' else 'transparent' }}; color: #4a4; border: 1px solid #4a4;">Purchased</a>
-        <a href="{{ url_for('dashboard', filter='not_purchased') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#ff6b6b22' if filter == 'not_purchased' else 'transparent' }}; color: #ff6b6b; border: 1px solid #ff6b6b;">Not Purchased</a>
+    </div>
+    <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+        <a href="{{ url_for('dashboard', filter='basic') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: #FFD700; color: #000; border: 1px solid #FFD700;">Basic</a>
+        <a href="{{ url_for('dashboard', filter='expensive') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#9b59b622' if filter == 'expensive' else 'transparent' }}; color: #9b59b6; border: 1px solid #9b59b6;">Expensive</a>
     </div>
     
     {% if total_count is defined and total_count != proposals|length %}
@@ -60,7 +63,9 @@
                         {{ p.title }}
                     </a>
                     <span class="status status-{{ p.status }}">{{ p.status }}</span>
-                    {% if p.basic_supplies %}<span class="status" style="background: #FFD700; color: #000; margin-left: 5px;">basic supplies</span>{% endif %}
+                    {% if p.basic_supplies %}<span class="status" style="background: #FFD700; color: #000; margin-left: 5px;">basic</span>{% endif %}
+                    {% if p.status == 'approved' and p.amount > 50 %}<span class="status" style="background: #9b59b622; color: #9b59b6; margin-left: 5px;">expensive</span>{% endif %}
+                    {% if p.purchased_at %}<span class="status" style="background: #4a4; color: #fff; margin-left: 5px;">purchased</span>{% endif %}
                 </h3>
                 <div class="proposal-meta">
                     by {{ p.username|username }} · {{ p.created_at[:10] }}

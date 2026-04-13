@@ -18,6 +18,8 @@
             <p style="color: #888;">
                 by {{ proposal.creator|username }} · {{ proposal.created_at[:10] }}
                 <span class="status status-{{ proposal.status }}">{{ proposal.status }}</span>
+                {% if proposal.basic_supplies %}<span class="status" style="background: #FFD700; color: #000; margin-left: 5px;">basic</span>{% endif %}
+                {% if proposal.status == 'approved' and proposal.amount > 50 %}<span class="status" style="background: #9b59b622; color: #9b59b6; margin-left: 5px;">expensive</span>{% endif %}
                 {% if proposal.purchased_at %}<span class="status" style="background: #4a4;">purchased</span>{% endif %}
             </p>
         </div>

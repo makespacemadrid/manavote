@@ -685,6 +685,10 @@ def dashboard():
         c.execute(
             "SELECT * FROM proposals WHERE status = 'approved' AND purchased_at IS NULL ORDER BY created_at DESC"
         )
+    elif filter_type == "expensive":
+        c.execute(
+            "SELECT * FROM proposals WHERE status = 'approved' AND amount > 50 ORDER BY created_at DESC"
+        )
     else:
         c.execute("SELECT * FROM proposals ORDER BY created_at DESC")
 
@@ -730,7 +734,6 @@ def dashboard():
     )
 
 
-@app.route("/proposal/new", methods=["GET", "POST"])
 @app.route("/proposal/new", methods=["GET", "POST"])
 @login_required
 def new_proposal():
@@ -1282,7 +1285,6 @@ def admin():
     c.execute("SELECT * FROM members ORDER BY created_at")
     members = c.fetchall()
 
-    c.execute("SELECT SUM(amount) as total FROM budget_log")
     c.execute("SELECT * FROM budget_log ORDER BY created_at DESC LIMIT 100")
     budget_history = c.fetchall()
 

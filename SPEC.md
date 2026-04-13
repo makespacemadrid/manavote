@@ -20,14 +20,14 @@
 ```
 ├── app.py              # Main application (monolith)
 ├── static/
-│   └── uploads/        # Proposal image uploads
+│   └── uploads/       # Proposal image uploads
 ├── templates/          # Jinja2 HTML templates
 ├── tests/              # pytest test suite
 ├── hackerspace.db      # SQLite database (gitignored)
 ├── .env                # Environment variables (gitignored)
 ├── sample.env          # Environment template
 ├── requirements.txt    # Python dependencies
-└── docker-compose.yml  # Docker deployment
+└── docker-compose.yml # Docker deployment
 ```
 
 ### Startup Behavior
@@ -60,6 +60,7 @@ When run directly (`python app.py`):
 | created_at | TEXT | DEFAULT CURRENT_TIMESTAMP | Creation time |
 | status | TEXT | DEFAULT 'active' | `active`, `approved`, `over_budget` |
 | processed_at | TEXT | | Approval/over-budget time |
+| purchased_at | TEXT | | Purchase timestamp |
 | basic_supplies | INTEGER | DEFAULT 0 | Basic supplies flag (0/1) |
 
 ### `votes`
@@ -111,7 +112,10 @@ When run directly (`python app.py`):
 On first run (when no admin exists):
 - Creates default admin: username `admin`, password `carpediem42`
 - Initializes settings to defaults above
-- Adds initial budget log: `+300 ("Initial budget")`
+- Adds initial budget log: `+300 ("Ventas mercadillo marzo")`
+
+### Budget Calculation
+Budget is calculated as the SUM of all `budget_log` entries, not stored separately.
 
 ### Voting Threshold Formula
 ```
@@ -141,6 +145,7 @@ Threshold selection order:
 - Meets vote threshold AND fits budget
 - Budget deducted
 - Telegram notification sent
+- Can be marked as purchased
 - Can be undone by admin (restores budget)
 
 #### Status: `over_budget`
@@ -176,6 +181,7 @@ Both conditions must be TRUE:
 - Session-based authentication (Flask sessions)
 - Auto-create default admin on first run
 - SHA-256 password hashing
+- Password change for members
 
 ### Member Management
 | Action | Who | Method |
@@ -183,6 +189,7 @@ Both conditions must be TRUE:
 | Register | Anyone | Web form (if enabled) |
 | Login | Member | Web form |
 | Logout | Member | Click |
+| Change password | Member | Web form |
 | Add member | Admin | Web form |
 | Remove member | Admin | Web form |
 | Toggle registration | Admin | Admin panel |
@@ -197,6 +204,28 @@ Both conditions must be TRUE:
 | Delete | Creator/Admin | Active status only |
 | Vote | Member | One per member |
 | Comment | Member | |
+| Mark purchased | Member | Approved only |
+| Unmark purchased | Member | Approved only |
+
+### Proposal Tags
+| Tag | Condition | Color |
+|-----|-----------|-------|
+| basic | basic_supplies = 1 | Yellow |
+| expensive | approved AND amount > 50 | Purple |
+| purchased | purchased_at is set | Green |
+| pending budget | status = over_budget | Orange |
+
+### Dashboard Filters
+| Filter | Query |
+|--------|-------|
+| All | All proposals |
+| Active | status = 'active' |
+| Approved | status = 'approved' |
+| Pending Budget | status = 'over_budget' |
+| Purchased | purchased_at IS NOT NULL |
+| Pending Purchase | status = 'approved' AND purchased_at IS NULL |
+| Basic | basic_supplies = 1 |
+| Expensive | status = 'approved' AND amount > 50 |
 
 ### Voting
 - Two options: `in_favor` / `against`
@@ -208,8 +237,8 @@ Both conditions must be TRUE:
 ### Budget Management
 | Action | Who | Description |
 |--------|-----|-------------|
-| View balance | Member | Dashboard display |
-| View history | Member | Last 10 transactions |
+| View balance | Member | Dashboard display (from log sum) |
+| View history | Member | Last 50 transactions |
 | Add budget | Admin | Manual addition with description |
 | Monthly top-up | Admin | Adds `monthly_topup` amount |
 | Undo approval | Admin | Restores budget |
@@ -313,12 +342,15 @@ Response (200):
 | Route | Methods | Description |
 |-------|---------|-------------|
 | `/logout` | GET | Logout |
+| `/change-password` | GET/POST | Change password |
 | `/dashboard` | GET | Main dashboard |
 | `/proposal/new` | GET/POST | Create proposal |
 | `/proposal/<id>` | GET/POST | View, vote, comment |
 | `/proposal/<id>/edit` | GET/POST | Edit proposal |
 | `/proposal/<id>/delete` | POST | Delete proposal |
 | `/vote/<id>` | POST | Quick vote |
+| `/purchase/<id>` | POST | Mark as purchased |
+| `/unpurchase/<id>` | POST | Remove purchase status |
 | `/undo/<id>` | POST | Undo approval |
 
 ### Admin Routes
@@ -383,9 +415,13 @@ pytest -v
 - [x] Proposals auto-approve when thresholds met and budget available
 - [x] Over-budget proposals auto-approve when budget available
 - [x] Telegram notifications on approval
-- [x] Budget tracking with history
+- [x] Budget tracking with history (calculated from log)
 - [x] Admin can manage members and settings
 - [x] Admin can edit/delete comments
 - [x] Admin can add budget manually
 - [x] REST API for member/proposal management
 - [x] Proposals can be deleted by creator/admin
+- [x] Members can change their password
+- [x] Approved proposals can be marked as purchased
+- [x] Dashboard filters for status and purchase state
+- [x] Proposal tags: basic, expensive, purchased

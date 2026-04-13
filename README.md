@@ -6,6 +6,7 @@ A Flask web application for managing and voting on budget proposals in a hackers
 
 - **Member Authentication**: Simple username/password login
 - **Self-Registration**: Members can register themselves (admin can disable)
+- **Password Change**: Members can change their own password
 - **Admin Registration via API**: Register members programmatically
 - **Proposal System**: Create proposals with title, description, amount, URL, and image
 - **Edit Proposals**: Creators and admins can edit active proposals
@@ -14,11 +15,14 @@ A Flask web application for managing and voting on budget proposals in a hackers
 - **Admin Comment Management**: Admins can edit/delete any comment
 - **Voting**: Members vote Approve or Reject (one vote per member, changeable)
 - **Automatic Approval**: Proposals auto-approve when thresholds met and budget available
-- **Over-Budget Queue**: Proposals waiting for budget auto-approve when funds available
-- **Budget Tracking**: Real-time budget display with transaction history
-- **Admin Budget Control**: Manually increase budget with description
+- **Pending Budget Queue**: Proposals waiting for budget auto-approve when funds available
+- **Budget Tracking**: Real-time budget display calculated from transaction history
+- **Admin Budget Control**: Manually add budget with description
 - **Configurable Thresholds**: Admin can adjust approval thresholds
 - **Telegram Notifications**: Auto-notify on new proposals and approvals
+- **Purchase Tracking**: Mark approved proposals as purchased
+- **Proposal Tags**: Visual tags for basic supplies, expensive (>€50), and purchased
+- **Dashboard Filters**: Filter proposals by status (Active, Approved, Pending Budget) and purchase state (Purchased, Pending Purchase)
 - **REST API**: Programmatic member and proposal management
 
 ## Budget Rules
@@ -27,10 +31,30 @@ A Flask web application for managing and voting on budget proposals in a hackers
 - **Monthly addition**: Configurable (default 50 EUR)
 - **Approval thresholds** (net votes = favorable - against):
   - Basic supplies: 5% (selectable when creating proposal)
-  - Proposals over €50: 20%
+  - Expensive (>€50): 20%
   - Other proposals: 10%
 - Proposals must fit within budget to be approved
 - Proposals meeting threshold but over budget auto-approve when funds available
+
+## Proposal Tags
+
+| Tag | Condition | Color |
+|-----|-----------|-------|
+| basic | basic_supplies flag set | Yellow |
+| expensive | approved, amount > €50 | Purple |
+| purchased | marked as purchased | Green |
+| pending budget | over_budget status | Orange |
+
+## Dashboard Filters
+
+- **All**: Show all proposals
+- **Active**: Proposals awaiting votes
+- **Approved**: Approved proposals
+- **Pending Budget**: Proposals waiting for sufficient budget
+- **Pending Purchase**: Approved but not yet marked as purchased
+- **Purchased**: Marked as purchased
+- **Basic**: Basic supplies proposals
+- **Expensive**: Approved proposals over €50
 
 ## Setup
 
