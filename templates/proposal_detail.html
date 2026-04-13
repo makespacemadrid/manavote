@@ -79,7 +79,7 @@
                 ✗ Against
             </button>
             {% if user_vote %}
-            <a href="{{ url_for('withdraw_vote', proposal_id=proposal.id) }}" class="vote-btn" style="border-color: #888; color: #888;">withdraw</a>
+            <a href="{{ url_for('withdraw_vote', proposal_id=proposal.id) }}" class="vote-btn" style="border-color: #888; color: #888; padding: 8px; font-weight: bold;">withdraw</a>
             {% endif %}
         </div>
     </form>
