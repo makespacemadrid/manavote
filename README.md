@@ -2,140 +2,63 @@
 
 A Flask web application for managing and voting on budget proposals in a hackerspace community.
 
-## Features
-
-- **Member Authentication**: Simple username/password login
+## Authentication & Members
 - **Self-Registration**: Members can register themselves (admin can disable)
 - **Password Change**: Members can change their own password
-- **Admin Registration via API**: Register members programmatically
-- **Proposal System**: Create proposals with title, description, amount, URL, and image
-- **Edit Proposals**: Creators and admins can edit active proposals
-- **Delete Proposals**: Creators and admins can delete active proposals
-- **Comments**: Members can comment on proposals
-- **Admin Comment Management**: Admins can edit/delete any comment
-- **Voting**: Members vote Approve or Reject (one vote per member, changeable)
-- **Automatic Approval**: Proposals auto-approve when thresholds met and budget available
-- **Pending Budget Queue**: Proposals waiting for budget auto-approve when funds available
-- **Budget Tracking**: Real-time budget display calculated from transaction history
-- **Admin Budget Control**: Manually add budget with description
-- **Configurable Thresholds**: Admin can adjust approval thresholds
-- **Telegram Notifications**: Auto-notify on new proposals and approvals
-- **Purchase Tracking**: Mark approved proposals as purchased
-- **Proposal Tags**: Visual tags for basic, standard (≤€50), expensive (>€50), and purchased
-- **Dashboard Filters**: Filter proposals by status, purchase state, and category (Basic, Standard, Expensive)
-- **REST API**: Programmatic member and proposal management
+- **REST API Registration**: Admins can register members programmatically
+
+## Proposals
+- Create proposals with title, description, amount, URL, and image
+- Edit/delete active proposals (creator or admin)
+- Auto-vote in_favor when creating a proposal
+- Visual tags: **basic** (supplies), **standard** (≤€50), **expensive** (>€50), **purchased**
+
+## Voting
+- Members vote: **In Favor** or **Against**
+- One vote per member per proposal (changeable)
+- Withdraw vote on active proposals
+- Automatic approval when thresholds met and budget available
+- Pending budget queue for proposals waiting for funds
+
+## Dashboard
+- Real-time budget from transaction history
+- Filter by: All, Active, Approved, Pending Budget, Purchased, Pending Purchase
+- Filter by category: Basic, Standard, Expensive
+
+## Budget & Admin
+- Budget tracking with full transaction history
+- Manual budget additions with description
+- Configurable vote thresholds
+- Telegram notifications on new proposals and approvals
+- Mark approved proposals as purchased
+- REST API for member and proposal management
 
 ## Budget Rules
-
 - **Starting budget**: 300 EUR
-- **Monthly addition**: Configurable (default 50 EUR)
-- **Approval thresholds** (net votes = favorable - against):
-  - Basic supplies: 5% (selectable when creating proposal)
-  - Expensive (>€50): 20%
-  - Other proposals: 10%
-- Proposals must fit within budget to be approved
-- Proposals meeting threshold but over budget auto-approve when funds available
-
-## Proposal Tags
-
-| Tag | Condition | Color |
-|-----|-----------|-------|
-| basic | basic_supplies flag set | Yellow |
-| standard | approved, ≤€50, not basic | Cyan |
-| expensive | approved, amount > €50 | Purple |
-| purchased | marked as purchased | Green |
-| pending budget | over_budget status | Orange |
-
-## Dashboard Filters
-
-| Filter | Query |
-|--------|-------|
-| All | All proposals |
-| Active | status = 'active' |
-| Approved | status = 'approved' |
-| Pending Budget | status = 'over_budget' |
-| Purchased | purchased_at IS NOT NULL |
-| Pending Purchase | status = 'approved' AND purchased_at IS NULL |
-| Basic | basic_supplies = 1 |
-| Standard | approved, ≤€50, not basic |
-| Expensive | approved, >€50 |
+- **Monthly addition**: 50 EUR (configurable)
+- **Thresholds**: Basic 5%, Expensive 20%, Standard 10%
+- Over-budget proposals auto-approve when budget available
 
 ## Setup
 
 ### Docker (Recommended)
-
 ```bash
 docker-compose up --build
 ```
 
 ### Manual
-
-1. Install dependencies:
 ```bash
 pip install -r requirements.txt
-```
-
-2. Configure environment:
-```bash
 cp sample.env .env
-# Edit .env with your settings
-```
-
-3. Run:
-```bash
 python app.py
 ```
 
-4. Access at http://localhost:5000
-
 ## Default Admin
-
 - Username: `admin`
 - Password: `carpediem42`
 
-**Important**: Change this password immediately and configure `ADMIN_API_KEY` for API access.
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `TELEGRAM_BOT_TOKEN` | No | Telegram bot token for notifications |
-| `TELEGRAM_CHAT_ID` | No | Telegram chat ID for notifications |
-| `ADMIN_API_KEY` | Yes (for API) | Secret key for REST API authentication |
-
 ## REST API
-
 See [APIDOC.md](APIDOC.md) for full API documentation.
 
-## Testing
-
-```bash
-pytest -q
-```
-
 ## Tech Stack
-
-- Flask 3.0.0
-- SQLite
-- Telegram Bot API
-- Docker
-- Pytest
-
-## File Structure
-
-```
-├── app.py              # Main application
-├── static/uploads/     # Image uploads
-├── templates/          # HTML templates
-├── tests/              # Test suite
-├── requirements.txt    # Dependencies
-└── docker-compose.yml  # Docker config
-```
-
-## Screenshots
-
-The system includes:
-- Login/registration pages
-- Dashboard with budget and proposals
-- Proposal detail with voting and comments
-- Admin panel for member and budget management
+- Flask 3.0.0, SQLite, Telegram Bot API, Docker, Pytest
