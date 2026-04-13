@@ -779,6 +779,15 @@ def new_proposal():
         )
         conn.commit()
         proposal_id = c.lastrowid
+
+        c.execute(
+            "INSERT INTO votes (proposal_id, member_id, vote) VALUES (?, ?, 'in_favor')",
+            (proposal_id, session["member_id"]),
+        )
+        conn.commit()
+
+        process_proposal(proposal_id)
+
         c.execute("SELECT username FROM members WHERE id = ?", (session["member_id"],))
         creator = c.fetchone()["username"]
         conn.close()
