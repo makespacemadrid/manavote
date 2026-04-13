@@ -1091,6 +1091,31 @@ def quick_vote(proposal_id):
     return redirect(url_for("dashboard"))
 
 
+@app.route("/withdraw-vote/<int:proposal_id>", methods=["POST"])
+@login_required
+def withdraw_vote(proposal_id):
+    conn = get_db()
+    c = conn.cursor()
+
+    c.execute("SELECT status FROM proposals WHERE id = ?", (proposal_id,))
+    status = c.fetchone()
+
+    if status and status["status"] != "active":
+        conn.close()
+        flash("Cannot withdraw vote on processed proposals", "error")
+        return redirect(url_for("dashboard"))
+
+    c.execute(
+        "DELETE FROM votes WHERE proposal_id = ? AND member_id = ?",
+        (proposal_id, session["member_id"]),
+    )
+    conn.commit()
+    conn.close()
+
+    flash("Vote withdrawn!", "success")
+    return redirect(url_for("dashboard"))
+
+
 @app.route("/undo/<int:proposal_id>")
 @admin_required
 def undo_approve(proposal_id):

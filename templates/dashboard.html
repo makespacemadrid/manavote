@@ -85,11 +85,20 @@
                     <a href="{{ url_for('edit_proposal', proposal_id=p.id) }}" style="color: #00d9ff; font-size: 0.75em;">Edit</a>
                 </div>
                 {% endif %}
-                {% if p.status == 'active' %}
+                {% if p.status == 'active' and p.user_vote %}
                 <div style="margin-top: 8px; display: flex; gap: 5px;">
                     <form method="POST" action="{{ url_for('quick_vote', proposal_id=p.id) }}">
                         <button type="submit" name="vote" value="in_favor" class="vote-btn approve {{ 'active' if p.user_vote == 'in_favor' else '' }}" style="padding: 4px 8px; font-size: 0.75em;">✓ In favor</button>
                         <button type="submit" name="vote" value="against" class="vote-btn reject {{ 'active' if p.user_vote == 'against' else '' }}" style="padding: 4px 8px; font-size: 0.75em;">✗ Against</button>
+                    </form>
+                    <a href="{{ url_for('withdraw_vote', proposal_id=p.id) }}" style="color: #e94560; font-size: 0.75em; padding: 4px 8px; border: 1px solid #e94560; border-radius: 4px; text-decoration: none;">withdraw</a>
+                </div>
+                {% endif %}
+                {% if p.status == 'active' and not p.user_vote %}
+                <div style="margin-top: 8px; display: flex; gap: 5px;">
+                    <form method="POST" action="{{ url_for('quick_vote', proposal_id=p.id) }}">
+                        <button type="submit" name="vote" value="in_favor" class="vote-btn approve" style="padding: 4px 8px; font-size: 0.75em;">✓ In favor</button>
+                        <button type="submit" name="vote" value="against" class="vote-btn reject" style="padding: 4px 8px; font-size: 0.75em;">✗ Against</button>
                     </form>
                 </div>
                 {% endif %}
