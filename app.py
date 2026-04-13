@@ -1119,6 +1119,12 @@ def withdraw_vote(proposal_id):
         (proposal_id, session["member_id"]),
     )
     conn.commit()
+
+    c.execute("SELECT status FROM proposals WHERE id = ?", (proposal_id,))
+    status = c.fetchone()
+    if status and status["status"] == "active":
+        process_proposal(proposal_id)
+
     conn.close()
 
     flash("Vote withdrawn!", "success")
