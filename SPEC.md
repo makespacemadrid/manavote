@@ -20,13 +20,18 @@
 ```
 ├── app.py              # Main application (monolith)
 ├── static/
+│   ├── img/           # Static assets
+│   │   └── favicon.ico # Site favicon
 │   └── uploads/       # Proposal image uploads
-├── templates/          # Jinja2 HTML templates
-├── tests/              # pytest test suite
-├── hackerspace.db      # SQLite database (gitignored)
-├── .env                # Environment variables (gitignored)
-├── sample.env          # Environment template
-├── requirements.txt    # Python dependencies
+├── templates/         # Jinja2 HTML templates
+├── tests/             # pytest test suite
+├── APIDOC.md          # REST API documentation
+├── SPEC.md            # This specification
+├── README.md          # Project readme
+├── hackerspace.db     # SQLite database (gitignored)
+├── .env               # Environment variables (gitignored)
+├── sample.env         # Environment template
+├── requirements.txt   # Python dependencies
 └── docker-compose.yml # Docker deployment
 ```
 
@@ -233,6 +238,8 @@ Both conditions must be TRUE:
 - Two options: `in_favor` / `against`
 - One vote per member per proposal
 - Vote can be changed (INSERT OR REPLACE)
+- Vote can be withdrawn on active proposals
+- Creator automatically votes in_favor when creating proposal
 - Proposal auto-processes after each vote
 - Quick vote button on dashboard
 
@@ -351,6 +358,7 @@ Response (200):
 | `/proposal/<id>/edit` | GET/POST | Edit proposal |
 | `/proposal/<id>/delete` | POST | Delete proposal |
 | `/vote/<id>` | POST | Quick vote |
+| `/withdraw-vote/<id>` | GET | Withdraw vote |
 | `/purchase/<id>` | POST | Mark as purchased |
 | `/unpurchase/<id>` | POST | Remove purchase status |
 | `/undo/<id>` | POST | Undo approval |
@@ -426,4 +434,6 @@ pytest -v
 - [x] Members can change their password
 - [x] Approved proposals can be marked as purchased
 - [x] Dashboard filters for status and purchase state
-- [x] Proposal tags: basic, expensive, purchased
+- [x] Proposal tags: basic, standard, expensive, purchased
+- [x] Members can withdraw vote on active proposals
+- [x] Creator auto-votes in_favor when creating proposal
