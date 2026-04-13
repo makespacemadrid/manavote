@@ -1091,7 +1091,7 @@ def quick_vote(proposal_id):
     return redirect(url_for("dashboard"))
 
 
-@app.route("/withdraw-vote/<int:proposal_id>", methods=["POST"])
+@app.route("/withdraw-vote/<int:proposal_id>", methods=["GET", "POST"])
 @login_required
 def withdraw_vote(proposal_id):
     conn = get_db()
