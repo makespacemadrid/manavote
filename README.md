@@ -21,8 +21,8 @@ A Flask web application for managing and voting on budget proposals in a hackers
 - **Configurable Thresholds**: Admin can adjust approval thresholds
 - **Telegram Notifications**: Auto-notify on new proposals and approvals
 - **Purchase Tracking**: Mark approved proposals as purchased
-- **Proposal Tags**: Visual tags for basic supplies, expensive (>€50), and purchased
-- **Dashboard Filters**: Filter proposals by status (Active, Approved, Pending Budget) and purchase state (Purchased, Pending Purchase)
+- **Proposal Tags**: Visual tags for basic, standard (≤€50), expensive (>€50), and purchased
+- **Dashboard Filters**: Filter proposals by status, purchase state, and category (Basic, Standard, Expensive)
 - **REST API**: Programmatic member and proposal management
 
 ## Budget Rules
@@ -41,20 +41,24 @@ A Flask web application for managing and voting on budget proposals in a hackers
 | Tag | Condition | Color |
 |-----|-----------|-------|
 | basic | basic_supplies flag set | Yellow |
+| standard | approved, ≤€50, not basic | Cyan |
 | expensive | approved, amount > €50 | Purple |
 | purchased | marked as purchased | Green |
 | pending budget | over_budget status | Orange |
 
 ## Dashboard Filters
 
-- **All**: Show all proposals
-- **Active**: Proposals awaiting votes
-- **Approved**: Approved proposals
-- **Pending Budget**: Proposals waiting for sufficient budget
-- **Pending Purchase**: Approved but not yet marked as purchased
-- **Purchased**: Marked as purchased
-- **Basic**: Basic supplies proposals
-- **Expensive**: Approved proposals over €50
+| Filter | Query |
+|--------|-------|
+| All | All proposals |
+| Active | status = 'active' |
+| Approved | status = 'approved' |
+| Pending Budget | status = 'over_budget' |
+| Purchased | purchased_at IS NOT NULL |
+| Pending Purchase | status = 'approved' AND purchased_at IS NULL |
+| Basic | basic_supplies = 1 |
+| Standard | approved, ≤€50, not basic |
+| Expensive | approved, >€50 |
 
 ## Setup
 

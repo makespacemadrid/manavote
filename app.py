@@ -689,6 +689,10 @@ def dashboard():
         c.execute(
             "SELECT * FROM proposals WHERE status = 'approved' AND amount > 50 ORDER BY created_at DESC"
         )
+    elif filter_type == "standard":
+        c.execute(
+            "SELECT * FROM proposals WHERE status = 'approved' AND basic_supplies = 0 AND amount <= 50 ORDER BY created_at DESC"
+        )
     else:
         c.execute("SELECT * FROM proposals ORDER BY created_at DESC")
 

@@ -211,6 +211,7 @@ Both conditions must be TRUE:
 | Tag | Condition | Color |
 |-----|-----------|-------|
 | basic | basic_supplies = 1 | Yellow |
+| standard | approved AND basic_supplies = 0 AND amount <= 50 | Cyan |
 | expensive | approved AND amount > 50 | Purple |
 | purchased | purchased_at is set | Green |
 | pending budget | status = over_budget | Orange |
@@ -225,7 +226,8 @@ Both conditions must be TRUE:
 | Purchased | purchased_at IS NOT NULL |
 | Pending Purchase | status = 'approved' AND purchased_at IS NULL |
 | Basic | basic_supplies = 1 |
-| Expensive | status = 'approved' AND amount > 50 |
+| Standard | approved AND basic_supplies = 0 AND amount <= 50 |
+| Expensive | approved AND amount > 50 |
 
 ### Voting
 - Two options: `in_favor` / `against`

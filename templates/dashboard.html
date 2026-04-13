@@ -36,7 +36,8 @@
         <a href="{{ url_for('dashboard', filter='purchased') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#4a44' if filter == 'purchased' else 'transparent' }}; color: #4a4; border: 1px solid #4a4;">Purchased</a>
     </div>
     <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
-        <a href="{{ url_for('dashboard', filter='basic') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: #FFD700; color: #000; border: 1px solid #FFD700;">Basic</a>
+        <a href="{{ url_for('dashboard', filter='basic') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#FFD70022' if filter == 'basic' else 'transparent' }}; color: #FFD700; border: 1px solid #FFD700;">Basic</a>
+        <a href="{{ url_for('dashboard', filter='standard') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00d9ff22' if filter == 'standard' else 'transparent' }}; color: #00d9ff; border: 1px solid #00d9ff;">Standard</a>
         <a href="{{ url_for('dashboard', filter='expensive') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#9b59b622' if filter == 'expensive' else 'transparent' }}; color: #9b59b6; border: 1px solid #9b59b6;">Expensive</a>
     </div>
     
@@ -65,6 +66,7 @@
                     <span class="status status-{{ p.status }}">{{ p.status }}</span>
                     {% if p.basic_supplies %}<span class="status" style="background: #FFD700; color: #000; margin-left: 5px;">basic</span>{% endif %}
                     {% if p.status == 'approved' and p.amount > 50 %}<span class="status" style="background: #9b59b622; color: #9b59b6; margin-left: 5px;">expensive</span>{% endif %}
+                    {% if p.status == 'approved' and not p.basic_supplies and p.amount <= 50 %}<span class="status" style="background: #00d9ff22; color: #00d9ff; margin-left: 5px;">standard</span>{% endif %}
                     {% if p.purchased_at %}<span class="status" style="background: #4a4; color: #fff; margin-left: 5px;">purchased</span>{% endif %}
                 </h3>
                 <div class="proposal-meta">
