@@ -290,7 +290,7 @@ def process_proposal(proposal_id):
 
         conn.commit()
 
-        message = f"💰 *Budget Approved!*\n\n*Proposal:* {proposal['title']}\n*Amount:* €{proposal['amount']}\n*Net votes:* {approve_count} favor - {reject_count} against = {net_votes}\n*Remaining budget:* €{new_budget}"
+        message = f"💰 *Budget Approved!*\n\n*Proposal:* {proposal['title']}\n*Amount:* €{proposal['amount']}\n*Net votes:* {approve_count} favor - {reject_count} against = {net_votes}\n*Remaining budget:* €{new_budget}\n\n👉 {request.host_url}proposal/{proposal_id}"
         send_telegram_message(message)
 
         conn.close()
@@ -353,7 +353,7 @@ def check_over_budget_proposals():
 
                 conn.commit()
 
-                message = f"💰 *Budget Approved!*\n\n*Proposal:* {proposal['title']}\n*Amount:* €{proposal['amount']}\n*Now has enough budget!*\n*Remaining budget:* €{new_budget}"
+                message = f"💰 *Budget Approved!*\n\n*Proposal:* {proposal['title']}\n*Amount:* €{proposal['amount']}\n*Now has enough budget!*\n*Remaining budget:* €{new_budget}\n\n👉 {request.host_url}proposal/{proposal['id']}"
                 send_telegram_message(message)
 
                 current_budget = new_budget
@@ -792,7 +792,7 @@ def new_proposal():
         creator = c.fetchone()["username"]
         conn.close()
 
-        message = f"🆕 *New Proposal!*\n\n*{title}*\nBy: {creator.split('@')[0]}\nAmount: €{amount}\n\n{description[:200]}{'...' if len(description) > 200 else ''}\n\n👉 {url if url else 'No link'}"
+        message = f"🆕 *New Proposal!*\n\n*{title}*\nBy: {creator.split('@')[0]}\nAmount: €{amount}\n\n{description[:200]}{'...' if len(description) > 200 else ''}\n\n👉 {url if url else 'No link'}\n🔗 {request.host_url}proposal/{proposal_id}"
         send_telegram_message(message)
 
         flash("Proposal created!", "success")
