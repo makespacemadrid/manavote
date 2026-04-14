@@ -101,7 +101,7 @@
                     </form>
                 </div>
                 {% endif %}
-                {% if p.status == 'approved' %}
+                {% if p.status == 'approved' and (p.created_by == session.member_id or session.is_admin) %}
                 <div style="margin-top: 5px; display: flex; gap: 10px; align-items: center;">
                     {% if p.purchased_at %}
                     <span style="color: #4a4; font-size: 0.75em;">✓ purchased</span>
@@ -114,9 +114,9 @@
                     <form method="POST" action="{{ url_for('mark_purchased', proposal_id=p.id) }}" style="display: inline;" onsubmit="return confirm('Mark as purchased?');">
                         <button type="submit" style="background: #00d9ff22; border: 1px solid #00d9ff; color: #00d9ff; font-size: 0.8em; cursor: pointer; padding: 4px 10px; border-radius: 4px;">✓ confirm purchase</button>
                     </form>
+                    {% endif %}
                     {% if session.is_admin %}
                     <a href="{{ url_for('undo_approve', proposal_id=p.id) }}" style="color: #e94560; font-size: 0.75em;">undo</a>
-                    {% endif %}
                     {% endif %}
                 </div>
                 {% endif %}
