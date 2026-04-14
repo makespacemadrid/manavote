@@ -16,6 +16,7 @@
                 <th>Votes Cast</th>
                 <th>Proposals Made</th>
                 <th>Proposals Approved</th>
+                <th>Comments</th>
             </tr>
         </thead>
         <tbody>
@@ -25,6 +26,7 @@
                 <td>{{ stat.vote_count }}</td>
                 <td>{{ stat.proposal_count }}</td>
                 <td>{{ stat.approved_count }}</td>
+                <td>{{ stat.comment_count }}</td>
             </tr>
             {% endfor %}
         </tbody>

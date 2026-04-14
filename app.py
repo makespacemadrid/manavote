@@ -2,7 +2,7 @@ import os
 import sqlite3
 import hashlib
 import secrets
-from datetime import datetime, date
+from datetime import datetime, date, timedelta
 from functools import wraps
 from flask import (
     Flask,
@@ -21,6 +21,7 @@ import markdown
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
+app.permanent_session_lifetime = timedelta(days=30)
 
 
 @app.template_filter("username")
@@ -416,6 +417,7 @@ def login():
             session["member_id"] = member["id"]
             session["username"] = member["username"]
             session["is_admin"] = member["is_admin"]
+            session.permanent = True
             return redirect(url_for("dashboard"))
         else:
             flash("Invalid credentials", "error")
@@ -1379,7 +1381,8 @@ def admin():
             m.is_admin,
             (SELECT COUNT(*) FROM votes v WHERE v.member_id = m.id) as vote_count,
             (SELECT COUNT(*) FROM proposals p WHERE p.created_by = m.id) as proposal_count,
-            (SELECT COUNT(*) FROM proposals p WHERE p.created_by = m.id AND p.status = 'approved') as approved_count
+            (SELECT COUNT(*) FROM proposals p WHERE p.created_by = m.id AND p.status = 'approved') as approved_count,
+            (SELECT COUNT(*) FROM comments c WHERE c.member_id = m.id) as comment_count
         FROM members m
         ORDER BY vote_count DESC, proposal_count DESC
     """)
