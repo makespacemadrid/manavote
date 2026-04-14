@@ -17,6 +17,7 @@ from flask import (
 )
 from werkzeug.utils import secure_filename
 import requests
+import markdown
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
@@ -27,6 +28,13 @@ def truncate_username(username):
     if "@" in username:
         return username.split("@")[0]
     return username
+
+
+@app.template_filter("markdown")
+def render_markdown(text):
+    if not text:
+        return ""
+    return markdown.markdown(text, extensions=["nl2br"])
 
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "hackerspace.db")

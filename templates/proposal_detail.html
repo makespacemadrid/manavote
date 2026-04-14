@@ -41,7 +41,7 @@
     
     {% if proposal.description %}
     <div style="margin: 20px 0; padding: 15px; background: #0f3460; border-radius: 4px;">
-        {{ proposal.description }}
+        {{ proposal.description|markdown|safe }}
     </div>
     {% endif %}
     
