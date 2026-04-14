@@ -1364,6 +1364,19 @@ def admin():
     c.execute("SELECT * FROM budget_log ORDER BY created_at DESC LIMIT 100")
     budget_history = c.fetchall()
 
+    c.execute("""
+        SELECT 
+            m.id,
+            m.username,
+            m.is_admin,
+            (SELECT COUNT(*) FROM votes v WHERE v.member_id = m.id) as vote_count,
+            (SELECT COUNT(*) FROM proposals p WHERE p.created_by = m.id) as proposal_count,
+            (SELECT COUNT(*) FROM proposals p WHERE p.created_by = m.id AND p.status = 'approved') as approved_count
+        FROM members m
+        ORDER BY vote_count DESC, proposal_count DESC
+    """)
+    member_stats = c.fetchall()
+
     thresholds = get_thresholds()
     registration_enabled = is_registration_enabled()
     current_budget = get_current_budget()
@@ -1373,6 +1386,7 @@ def admin():
     return render_template(
         "admin.html",
         members=members,
+        member_stats=member_stats,
         budget_history=budget_history,
         current_budget=current_budget,
         thresholds=thresholds,

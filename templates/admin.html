@@ -8,6 +8,30 @@
 <h2>Admin Panel</h2>
 
 <div class="card">
+    <h3>📊 Member Statistics</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>Member</th>
+                <th>Votes Cast</th>
+                <th>Proposals Made</th>
+                <th>Proposals Approved</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for stat in member_stats %}
+            <tr>
+                <td>{{ stat.username }} {% if stat.is_admin %}(admin){% endif %}</td>
+                <td>{{ stat.vote_count }}</td>
+                <td>{{ stat.proposal_count }}</td>
+                <td>{{ stat.approved_count }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div class="card">
     <h3>Add Member</h3>
     <form method="POST" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
         <input type="hidden" name="action" value="add_member">
