@@ -119,6 +119,14 @@ def init_db():
         c.execute(
             "INSERT OR IGNORE INTO settings (key, value) VALUES ('registration_enabled', 'true')"
         )
+    try:
+        c.execute("ALTER TABLE settings ADD COLUMN url TEXT")
+    except:
+        pass
+    try:
+        c.execute("ALTER TABLE settings ADD COLUMN url TEXT")
+    except:
+        pass
 
     try:
         c.execute("ALTER TABLE proposals ADD COLUMN url TEXT")
@@ -158,6 +166,15 @@ def get_setting_float(key, default=0.0):
         return float(value)
     except (TypeError, ValueError):
         return float(default)
+
+
+def get_base_url():
+    url = get_setting_value("url", "")
+    if url:
+        return url
+    if request:
+        return request.host_url
+    return ""
 
 
 def login_required(f):
@@ -290,7 +307,9 @@ def process_proposal(proposal_id):
 
         conn.commit()
 
-        message = f"💰 *Budget Approved!*\n\n*Proposal:* {proposal['title']}\n*Amount:* €{proposal['amount']}\n*Net votes:* {approve_count} favor - {reject_count} against = {net_votes}\n*Remaining budget:* €{new_budget}\n\n👉 {request.host_url}proposal/{proposal_id}"
+        base_url = get_base_url()
+
+        message = f"💰 *Budget Approved!*\n\n*Proposal:* {proposal['title']}\n*Amount:* €{proposal['amount']}\n*Net votes:* {approve_count} favor - {reject_count} against = {net_votes}\n*Remaining budget:* €{new_budget}\n\n👉 {base_url}proposal/{proposal_id}"
         send_telegram_message(message)
 
         conn.close()
@@ -353,7 +372,8 @@ def check_over_budget_proposals():
 
                 conn.commit()
 
-                message = f"💰 *Budget Approved!*\n\n*Proposal:* {proposal['title']}\n*Amount:* €{proposal['amount']}\n*Now has enough budget!*\n*Remaining budget:* €{new_budget}\n\n👉 {request.host_url}proposal/{proposal['id']}"
+                base_url = get_base_url()
+                message = f"💰 *Budget Approved!*\n\n*Proposal:* {proposal['title']}\n*Amount:* €{proposal['amount']}\n*Now has enough budget!*\n*Remaining budget:* €{new_budget}\n\n👉 {base_url}proposal/{proposal['id']}"
                 send_telegram_message(message)
 
                 current_budget = new_budget
@@ -792,7 +812,9 @@ def new_proposal():
         creator = c.fetchone()["username"]
         conn.close()
 
-        message = f"🆕 *New Proposal!*\n\n*{title}*\nBy: {creator.split('@')[0]}\nAmount: €{amount}\n\n{description[:200]}{'...' if len(description) > 200 else ''}\n\n👉 {url if url else 'No link'}\n🔗 {request.host_url}proposal/{proposal_id}"
+        base_url = get_base_url()
+
+        message = f"🆕 *New Proposal!*\n\n*{title}*\nBy: {creator.split('@')[0]}\nAmount: €{amount}\n\n{description[:200]}{'...' if len(description) > 200 else ''}\n\n👉 {url if url else 'No link'}\n🔗 {base_url}proposal/{proposal_id}"
         send_telegram_message(message)
 
         flash("Proposal created!", "success")
@@ -1316,6 +1338,16 @@ def admin():
             conn.commit()
             flash("Thresholds updated!", "success")
 
+        elif action == "update_url":
+            base_url = request.form.get("base_url", "").rstrip("/")
+            if base_url:
+                c.execute(
+                    "UPDATE settings SET value = ? WHERE key = 'url'",
+                    (base_url,),
+                )
+            conn.commit()
+            flash("Base URL updated!", "success")
+
         elif action == "toggle_registration":
             enabled = "true" if request.form.get("registration_enabled") else "false"
             c.execute(
@@ -1345,6 +1377,7 @@ def admin():
         current_budget=current_budget,
         thresholds=thresholds,
         registration_enabled=registration_enabled,
+        get_setting_value=get_setting_value,
     )
 
 

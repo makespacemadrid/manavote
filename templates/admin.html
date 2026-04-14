@@ -153,9 +153,19 @@
 
 <div class="card">
     <h3>Telegram Configuration</h3>
-    <p style="color: #888;">
+    <p style="color: #888; margin-bottom: 15px;">
         Set these environment variables to enable Telegram notifications:<br>
         <code>TELEGRAM_BOT_TOKEN</code> and <code>TELEGRAM_CHAT_ID</code>
     </p>
+    <form method="POST">
+        <input type="hidden" name="action" value="update_url">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
+            <div style="flex: 2; min-width: 200px;">
+                <label>Base URL (for proposal links in Telegram messages)</label>
+                <input type="url" name="base_url" value="{{ get_setting_value('url', '') }}" placeholder="https://manavote.mksmad.org">
+            </div>
+            <button type="submit" class="btn">Update URL</button>
+        </div>
+    </form>
 </div>
 {% endblock %}
