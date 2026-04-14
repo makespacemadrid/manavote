@@ -101,19 +101,23 @@
                     </form>
                 </div>
                 {% endif %}
-                {% if session.is_admin and p.status == 'approved' %}
+                {% if p.status == 'approved' %}
                 <div style="margin-top: 5px; display: flex; gap: 10px; align-items: center;">
                     {% if p.purchased_at %}
                     <span style="color: #4a4; font-size: 0.75em;">✓ purchased</span>
+                    {% if session.is_admin %}
                     <form method="POST" action="{{ url_for('unmark_purchased', proposal_id=p.id) }}" style="display: inline;">
                         <button type="submit" style="background: none; border: none; color: #888; font-size: 0.75em; cursor: pointer; padding: 0;">unmark</button>
                     </form>
+                    {% endif %}
                     {% else %}
                     <form method="POST" action="{{ url_for('mark_purchased', proposal_id=p.id) }}" style="display: inline;" onsubmit="return confirm('Mark as purchased?');">
-                        <button type="submit" style="background: none; border: none; color: #00d9ff; font-size: 0.75em; cursor: pointer; padding: 0;">mark purchased</button>
+                        <button type="submit" style="background: none; border: none; color: #00d9ff; font-size: 0.75em; cursor: pointer; padding: 0;">confirm purchase</button>
                     </form>
-                    {% endif %}
+                    {% if session.is_admin %}
                     <a href="{{ url_for('undo_approve', proposal_id=p.id) }}" style="color: #e94560; font-size: 0.75em;">undo</a>
+                    {% endif %}
+                    {% endif %}
                 </div>
                 {% endif %}
             </div>
