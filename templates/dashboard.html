@@ -112,7 +112,7 @@
                     {% endif %}
                     {% else %}
                     <form method="POST" action="{{ url_for('mark_purchased', proposal_id=p.id) }}" style="display: inline;" onsubmit="return confirm('Mark as purchased?');">
-                        <button type="submit" style="background: none; border: none; color: #00d9ff; font-size: 0.75em; cursor: pointer; padding: 0;">confirm purchase</button>
+                        <button type="submit" style="background: #00d9ff22; border: 1px solid #00d9ff; color: #00d9ff; font-size: 0.8em; cursor: pointer; padding: 4px 10px; border-radius: 4px;">✓ confirm purchase</button>
                     </form>
                     {% if session.is_admin %}
                     <a href="{{ url_for('undo_approve', proposal_id=p.id) }}" style="color: #e94560; font-size: 0.75em;">undo</a>
