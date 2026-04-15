@@ -24,6 +24,11 @@ app.secret_key = secrets.token_hex(32)
 app.permanent_session_lifetime = timedelta(days=30)
 
 
+@app.context_processor
+def inject_lang():
+    return dict(session_lang=session.get("lang", "en"))
+
+
 @app.template_filter("username")
 def truncate_username(username):
     if "@" in username:
@@ -36,6 +41,80 @@ def render_markdown(text):
     if not text:
         return ""
     return markdown.markdown(text, extensions=["nl2br"])
+
+
+@app.template_filter("lang")
+def get_lang(key):
+    translations = {
+        "en": {
+            "Dashboard": "Dashboard",
+            "New Proposal": "New Proposal",
+            "Calendar": "Calendar",
+            "Admin": "Admin",
+            "About": "About",
+            "Password": "Password",
+            "Logout": "Logout",
+            "Budget": "Budget",
+            "Proposals": "Proposals",
+            "Members": "Members",
+            "Vote": "Vote",
+            "Approved": "Approved",
+            "Rejected": "Rejected",
+            "Active": "Active",
+            "In Favor": "In Favor",
+            "Against": "Against",
+            "Amount": "Amount",
+            "Title": "Title",
+            "Description": "Description",
+            "Submit": "Submit",
+            "Cancel": "Cancel",
+            "Save": "Save",
+            "Delete": "Delete",
+            "Edit": "Edit",
+            "Login": "Login",
+            "Register": "Register",
+            "Username": "Username",
+            "Password": "Password",
+            "Settings": "Settings",
+            "Add Member": "Add Member",
+            "Remove": "Remove",
+        },
+        "es": {
+            "Dashboard": "Panel",
+            "New Proposal": "Nueva Propuesta",
+            "Calendar": "Calendario",
+            "Admin": "Admin",
+            "About": "Acerca de",
+            "Password": "Contraseña",
+            "Logout": "Salir",
+            "Budget": "Presupuesto",
+            "Proposals": "Propuestas",
+            "Members": "Miembros",
+            "Vote": "Votar",
+            "Approved": "Aprobada",
+            "Rejected": "Rechazada",
+            "Active": "Activa",
+            "In Favor": "A favor",
+            "Against": "En contra",
+            "Amount": "Cantidad",
+            "Title": "Título",
+            "Description": "Descripción",
+            "Submit": "Enviar",
+            "Cancel": "Cancelar",
+            "Save": "Guardar",
+            "Delete": "Eliminar",
+            "Edit": "Editar",
+            "Login": "Entrar",
+            "Register": "Registrarse",
+            "Username": "Usuario",
+            "Password": "Contraseña",
+            "Settings": "Ajustes",
+            "Add Member": "Añadir Miembro",
+            "Remove": "Eliminar",
+        },
+    }
+    lang = session.get("lang", "en")
+    return translations.get(lang, translations["en"]).get(key, key)
 
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "hackerspace.db")
@@ -417,6 +496,8 @@ def login():
             session["member_id"] = member["id"]
             session["username"] = member["username"]
             session["is_admin"] = member["is_admin"]
+            if "lang" not in session:
+                session["lang"] = "en"
             session.permanent = True
             return redirect(url_for("dashboard"))
         else:
@@ -657,6 +738,15 @@ def calendar():
 def logout():
     session.clear()
     return redirect(url_for("login"))
+
+
+@app.route("/set-language/<lang>")
+def set_language(lang):
+    if lang in ("en", "es"):
+        session["lang"] = lang
+        session.permanent = True
+    referrer = request.headers.get("Referer", url_for("dashboard"))
+    return redirect(referrer)
 
 
 @app.route("/change-password", methods=["GET", "POST"])

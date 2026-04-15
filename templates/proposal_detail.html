@@ -2,13 +2,17 @@
 
 {% block content %}
 <div class="nav">
-    <a href="{{ url_for('dashboard') }}">← Back to Dashboard</a>
+    <a href="{{ url_for('dashboard') }}">← {{ 'Dashboard'|lang }}</a>
     {% if proposal.status == 'active' and (proposal.created_by == session.member_id or session.is_admin) %}
-    <a href="{{ url_for('edit_proposal', proposal_id=proposal.id) }}">Edit</a>
+    <a href="{{ url_for('edit_proposal', proposal_id=proposal.id) }}">{{ 'Edit'|lang }}</a>
     <form method="POST" action="{{ url_for('delete_proposal', proposal_id=proposal.id) }}" style="display: inline;" onsubmit="return confirm('Delete this proposal? This cannot be undone.');">
-        <button type="submit" style="background: none; border: none; color: #e63946; cursor: pointer; padding: 0; font-size: inherit;">Delete</button>
+        <button type="submit" style="background: none; border: none; color: #e63946; cursor: pointer; padding: 0; font-size: inherit;">{{ 'Delete'|lang }}</button>
     </form>
     {% endif %}
+    <div class="lang-selector">
+        <a href="{{ url_for('set_language', lang='en') }}" class="{{ 'active' if session_lang == 'en' else '' }}">EN</a>
+        <a href="{{ url_for('set_language', lang='es') }}" class="{{ 'active' if session_lang == 'es' else '' }}">ES</a>
+    </div>
 </div>
 
 <div class="card">

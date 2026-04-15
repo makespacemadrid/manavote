@@ -3,15 +3,19 @@
 {% block content %}
 <div class="nav">
     <span>Logged in as: <strong>{{ session.username|username }}</strong></span>
-    <a href="{{ url_for('dashboard') }}">Dashboard</a>
-    <a href="{{ url_for('new_proposal') }}">New Proposal</a>
-    <a href="{{ url_for('calendar') }}">Calendar</a>
+    <a href="{{ url_for('dashboard') }}">{{ 'Dashboard'|lang }}</a>
+    <a href="{{ url_for('new_proposal') }}">{{ 'New Proposal'|lang }}</a>
+    <a href="{{ url_for('calendar') }}">{{ 'Calendar'|lang }}</a>
     {% if session.is_admin %}
-    <a href="{{ url_for('admin') }}">Admin</a>
+    <a href="{{ url_for('admin') }}">{{ 'Admin'|lang }}</a>
     {% endif %}
-    <a href="{{ url_for('about') }}">About</a>
-    <a href="{{ url_for('change_password') }}">Password</a>
-    <a href="{{ url_for('logout') }}">Logout</a>
+    <a href="{{ url_for('about') }}">{{ 'About'|lang }}</a>
+    <a href="{{ url_for('change_password') }}">{{ 'Password'|lang }}</a>
+    <a href="{{ url_for('logout') }}">{{ 'Logout'|lang }}</a>
+    <div class="lang-selector">
+        <a href="{{ url_for('set_language', lang='en') }}" class="{{ 'active' if session_lang == 'en' else '' }}">EN</a>
+        <a href="{{ url_for('set_language', lang='es') }}" class="{{ 'active' if session_lang == 'es' else '' }}">ES</a>
+    </div>
 </div>
 
 <div class="card">
