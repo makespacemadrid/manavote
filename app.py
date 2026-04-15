@@ -45,6 +45,8 @@ def render_markdown(text):
 
 @app.template_filter("lang")
 def get_lang(key):
+    from flask import session as flask_session
+
     translations = {
         "en": {
             "Dashboard": "Dashboard",
