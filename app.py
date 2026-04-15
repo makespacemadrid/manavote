@@ -36,6 +36,20 @@ def inject_lang():
     return dict(session_lang=session.get("lang", "en"))
 
 
+@app.template_filter("username")
+def truncate_username(username):
+    if "@" in username:
+        return username.split("@")[0]
+    return username
+
+
+@app.template_filter("markdown")
+def render_markdown(text):
+    if not text:
+        return ""
+    return markdown.markdown(text, extensions=["nl2br"])
+
+
 @app.template_filter("lang")
 def get_lang(key):
     from flask import has_request_context, session
