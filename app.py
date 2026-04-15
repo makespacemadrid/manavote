@@ -26,7 +26,9 @@ app.permanent_session_lifetime = timedelta(days=30)
 
 @app.before_request
 def set_lang_global():
-    pass
+    from flask import session, g
+
+    g.lang = session.get("lang", "en")
 
 
 @app.context_processor
@@ -52,12 +54,10 @@ def render_markdown(text):
 
 @app.template_filter("lang")
 def get_lang(key):
-    from flask import has_request_context, session
+    from flask import g
 
-    if has_request_context():
-        lang = session.get("lang", "en")
-    else:
-        lang = "en"
+    lang = getattr(g, "lang", "en")
+
     translations = {
         "en": {
             "Dashboard": "Dashboard",
@@ -924,6 +924,8 @@ def dashboard():
 
     conn.close()
 
+    lang = session.get("lang", "en")
+
     return render_template(
         "dashboard.html",
         proposals=proposals,
@@ -933,6 +935,7 @@ def dashboard():
         budget_history=budget_history,
         member_count=member_count,
         thresholds=thresholds,
+        session_lang=lang,
     )
 
 

@@ -1,17 +1,23 @@
 {% extends "base.html" %}
 
+{% macro t(key) %}{{
+    {'en': {'Dashboard': 'Dashboard', 'New Proposal': 'New Proposal', 'Calendar': 'Calendar', 'Admin': 'Admin', 'About': 'About', 'Password': 'Password', 'Logout': 'Logout'},
+     'es': {'Dashboard': 'Panel', 'New Proposal': 'Nueva Propuesta', 'Calendar': 'Calendario', 'Admin': 'Admin', 'About': 'Acerca de', 'Password': 'Contraseña', 'Logout': 'Salir'}
+    }[session_lang][key]
+}}{% endmacro %}
+
 {% block content %}
 <div class="nav">
     <span>Logged in as: <strong>{{ session.username|username }}</strong></span>
-    <a href="{{ url_for('dashboard') }}">{{ 'Dashboard'|lang }}</a>
-    <a href="{{ url_for('new_proposal') }}">{{ 'New Proposal'|lang }}</a>
-    <a href="{{ url_for('calendar') }}">{{ 'Calendar'|lang }}</a>
+    <a href="{{ url_for('dashboard') }}">{{ t('Dashboard') }}</a>
+    <a href="{{ url_for('new_proposal') }}">{{ t('New Proposal') }}</a>
+    <a href="{{ url_for('calendar') }}">{{ t('Calendar') }}</a>
     {% if session.is_admin %}
-    <a href="{{ url_for('admin') }}">{{ 'Admin'|lang }}</a>
+    <a href="{{ url_for('admin') }}">{{ t('Admin') }}</a>
     {% endif %}
-    <a href="{{ url_for('about') }}">{{ 'About'|lang }}</a>
-    <a href="{{ url_for('change_password') }}">{{ 'Password'|lang }}</a>
-    <a href="{{ url_for('logout') }}">{{ 'Logout'|lang }}</a>
+    <a href="{{ url_for('about') }}">{{ t('About') }}</a>
+    <a href="{{ url_for('change_password') }}">{{ t('Password') }}</a>
+    <a href="{{ url_for('logout') }}">{{ t('Logout') }}</a>
     <div class="lang-selector">
         <a href="{{ url_for('set_language', lang='en') }}" class="{{ 'active' if session_lang == 'en' else '' }}">EN</a>
         <a href="{{ url_for('set_language', lang='es') }}" class="{{ 'active' if session_lang == 'es' else '' }}">ES</a>
