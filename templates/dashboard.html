@@ -5,6 +5,7 @@
     <span>Logged in as: <strong>{{ session.username|username }}</strong></span>
     <a href="{{ url_for('dashboard') }}">Dashboard</a>
     <a href="{{ url_for('new_proposal') }}">New Proposal</a>
+    <a href="{{ url_for('calendar') }}">Calendar</a>
     {% if session.is_admin %}
     <a href="{{ url_for('admin') }}">Admin</a>
     {% endif %}

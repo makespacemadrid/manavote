@@ -6,6 +6,7 @@ A Flask web application for managing and voting on budget proposals in a hackers
 - **Self-Registration**: Members can register themselves (admin can disable)
 - **Password Change**: Members can change their own password
 - **REST API Registration**: Admins can register members programmatically
+- **30-day persistent sessions**: Login cookies last 30 days
 
 ## Proposals
 - Create proposals with title, description, amount, URL, and image
@@ -24,6 +25,11 @@ A Flask web application for managing and voting on budget proposals in a hackers
 - Real-time budget from transaction history
 - Filter by: All, Active, Approved, Pending Budget, Purchased, Pending Purchase
 - Filter by category: Basic, Standard, Expensive
+
+## Calendar
+- Activity timeline: proposal submissions, approvals, rejections
+- Budget movements graph (income/expense over time)
+- Colored category legend
 
 ## Budget & Admin
 - Budget tracking with full transaction history

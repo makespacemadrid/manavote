@@ -184,6 +184,7 @@ Both conditions must be TRUE:
 ### Authentication
 - Username/password login
 - Session-based authentication (Flask sessions)
+- **30-day persistent sessions** (configurable)
 - Auto-create default admin on first run
 - SHA-256 password hashing
 - Password change for members
@@ -257,6 +258,20 @@ Admins can adjust via admin panel:
 - `threshold_basic`: Basic supplies approval %
 - `threshold_over50`: Proposals over €50 approval %
 - `threshold_default`: Other proposals approval %
+
+### Calendar (Activity Timeline)
+| Action | Who | Description |
+|--------|-----|-------------|
+| View calendar | Member | Timeline of proposals and budget |
+| Budget graph | Member | Chart.js line chart |
+| Legend | Member | Colored category keys |
+
+**Legend Colors:**
+- Proposal Submitted: Cyan (#00d9ff)
+- Proposal Approved: Green (#00ff88)
+- Proposal Rejected: Red (#e94560)
+- Budget Income: Green border
+- Budget Expense: Red border
 
 ## REST API
 

@@ -597,6 +597,64 @@ def about():
     return render_template("about.html")
 
 
+@app.route("/calendar")
+def calendar():
+    if not session.get("member_id"):
+        return redirect(url_for("login"))
+
+    sort_by = request.args.get("sort", "date_desc")
+    amount_sort = request.args.get("amount", "desc")
+
+    if sort_by == "date_asc":
+        proposal_order = "created_at ASC"
+    else:
+        proposal_order = "created_at DESC"
+
+    if amount_sort == "asc":
+        budget_order = "amount ASC"
+    else:
+        budget_order = "amount DESC"
+
+    conn = get_db()
+    c = conn.cursor()
+
+    c.execute(f"""
+        SELECT id, title, amount, created_at, status, created_at as submitted_at
+        FROM proposals 
+        ORDER BY {proposal_order}
+        LIMIT 200
+    """)
+    proposals = c.fetchall()
+
+    c.execute(f"""
+        SELECT id, amount, description, created_at
+        FROM budget_log
+        ORDER BY {budget_order}
+        LIMIT 100
+    """)
+    budget_logs = c.fetchall()
+
+    c.execute("""
+        SELECT 
+            date(created_at) as day,
+            SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as income,
+            SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as expense
+        FROM budget_log
+        GROUP BY date(created_at)
+        ORDER BY day
+    """)
+    daily_budget = [dict(row) for row in c.fetchall()]
+
+    conn.close()
+
+    return render_template(
+        "calendar.html",
+        proposals=proposals,
+        budget_logs=budget_logs,
+        daily_budget=daily_budget,
+    )
+
+
 @app.route("/logout")
 def logout():
     session.clear()

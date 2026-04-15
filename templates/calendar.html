@@ -1,0 +1,183 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="nav">
+    <span>Logged in as: <strong>{{ session.username|username }}</strong></span>
+    <a href="{{ url_for('dashboard') }}">Dashboard</a>
+    <a href="{{ url_for('new_proposal') }}">New Proposal</a>
+    <a href="{{ url_for('calendar') }}">Calendar</a>
+    {% if session.is_admin %}
+    <a href="{{ url_for('admin') }}">Admin</a>
+    {% endif %}
+    <a href="{{ url_for('about') }}">About</a>
+    <a href="{{ url_for('change_password') }}">Password</a>
+    <a href="{{ url_for('logout') }}">Logout</a>
+</div>
+
+<div class="card">
+    <h2>📅 Activity Calendar</h2>
+    <p style="color: #888; margin-bottom: 20px;">
+        View proposal submissions, approvals, rejections, and budget movements.
+    </p>
+
+    <div style="margin-bottom: 25px; display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.9em;">
+        <span style="display: flex; align-items: center; gap: 6px;">
+            <span style="display: inline-block; width: 14px; height: 14px; background: #00d9ff; border-radius: 3px;"></span>
+            Proposal Submitted
+        </span>
+        <span style="display: flex; align-items: center; gap: 6px;">
+            <span style="display: inline-block; width: 14px; height: 14px; background: #00ff88; border-radius: 3px;"></span>
+            Proposal Approved
+        </span>
+        <span style="display: flex; align-items: center; gap: 6px;">
+            <span style="display: inline-block; width: 14px; height: 14px; background: #e94560; border-radius: 3px;"></span>
+            Proposal Rejected
+        </span>
+        <span style="display: flex; align-items: center; gap: 6px;">
+            <span style="display: inline-block; width: 14px; height: 14px; border: 2px solid #00ff88; border-radius: 3px;"></span>
+            Budget In (+)
+        </span>
+        <span style="display: flex; align-items: center; gap: 6px;">
+            <span style="display: inline-block; width: 14px; height: 14px; border: 2px solid #e94560; border-radius: 3px;"></span>
+            Budget Out (-)
+        </span>
+    </div>
+</div>
+
+<div class="card">
+    <h3>📊 Budget Over Time</h3>
+    <canvas id="budgetChart" height="80"></canvas>
+</div>
+
+<div class="card">
+    <h3>📋 Recent Events</h3>
+    <div style="margin-bottom: 15px; display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.9em;">
+        <span style="color: #888;">Sort proposals:</span>
+        <a href="{{ url_for('calendar', sort='date_desc') }}" style="color: {{ '#00d9ff' if request.args.get('sort') == 'date_desc' or not request.args.get('sort') else '#888' }};">Newest</a>
+        <a href="{{ url_for('calendar', sort='date_asc') }}" style="color: {{ '#00d9ff' if request.args.get('sort') == 'date_asc' else '#888' }};">Oldest</a>
+    </div>
+    <div style="margin-bottom: 15px; display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.9em;">
+        <span style="color: #888;">Sort budget:</span>
+        <a href="{{ url_for('calendar', sort=request.args.get('sort', 'date_desc'), amount='desc') }}" style="color: {{ '#00d9ff' if request.args.get('amount') == 'desc' or not request.args.get('amount') else '#888' }};">Highest</a>
+        <a href="{{ url_for('calendar', sort=request.args.get('sort', 'date_desc'), amount='asc') }}" style="color: {{ '#00d9ff' if request.args.get('amount') == 'asc' else '#888' }};">Lowest</a>
+    </div>
+    <div style="overflow-x: auto;">
+        <table>
+            <thead>
+                <tr>
+                    <th>Date</th>
+                    <th>Type</th>
+                    <th>Event</th>
+                    <th>Amount</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for p in proposals %}
+                <tr>
+                    <td>{{ p.created_at[:10] }}</td>
+                    <td>
+                        {% if p.status == 'approved' %}
+                        <span style="color: #00ff88;">✓ Approved</span>
+                        {% elif p.status == 'rejected' %}
+                        <span style="color: #e94560;">✗ Rejected</span>
+                        {% else %}
+                        <span style="color: #00d9ff;">○ {{ p.status|title }}</span>
+                        {% endif %}
+                    </td>
+                    <td><a href="{{ url_for('proposal_detail', proposal_id=p.id) }}" style="color: #00d9ff;">{{ p.title }}</a></td>
+                    <td class="{{ 'amount-negative' if p.amount < 0 else '' }}">€{{ "%.2f"|format(p.amount) }}</td>
+                </tr>
+                {% endfor %}
+                {% for b in budget_logs[:30] %}
+                <tr>
+                    <td>{{ b.created_at[:10] }}</td>
+                    <td>
+                        {% if b.amount > 0 %}
+                        <span style="color: #00ff88;">↑ Income</span>
+                        {% else %}
+                        <span style="color: #e94560;">↓ Expense</span>
+                        {% endif %}
+                    </td>
+                    <td>{{ b.description }}</td>
+                    <td class="{{ 'amount-positive' if b.amount > 0 else 'amount-negative' }}">
+                        {{ "+" if b.amount > 0 else "" }}€{{ "%.2f"|format(b.amount) }}
+                    </td>
+                </tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script>
+const dailyData = {{ daily_budget|tojson }};
+const labels = dailyData.map(d => d.day);
+const incomeData = dailyData.map(d => d.income || 0);
+const expenseData = dailyData.map(d => d.expense || 0);
+
+let cumulative = 0;
+const budgetData = labels.map((_, i) => {
+    cumulative += (incomeData[i] || 0) - (expenseData[i] || 0);
+    return cumulative;
+});
+
+const ctx = document.getElementById('budgetChart').getContext('2d');
+new Chart(ctx, {
+    type: 'line',
+    data: {
+        labels: labels,
+        datasets: [
+            {
+                label: 'Budget Balance',
+                data: budgetData,
+                borderColor: '#00d9ff',
+                backgroundColor: '#00d9ff22',
+                fill: true,
+                tension: 0.3,
+                pointRadius: 4
+            },
+            {
+                label: 'Income',
+                data: incomeData,
+                borderColor: '#00ff88',
+                backgroundColor: 'transparent',
+                borderDash: [5, 5],
+                tension: 0.3,
+                pointRadius: 3
+            },
+            {
+                label: 'Expense',
+                data: expenseData,
+                borderColor: '#e94560',
+                backgroundColor: 'transparent',
+                borderDash: [5, 5],
+                tension: 0.3,
+                pointRadius: 3
+            }
+        ]
+    },
+    options: {
+        responsive: true,
+        plugins: {
+            legend: {
+                labels: { color: '#aaa' }
+            }
+        },
+        scales: {
+            x: {
+                ticks: { color: '#888' },
+                grid: { color: '#0f3460' }
+            },
+            y: {
+                ticks: { 
+                    color: '#888',
+                    callback: function(value) { return '€' + value; }
+                },
+                grid: { color: '#0f3460' }
+            }
+        }
+    }
+});
+</script>
+{% endblock %}
