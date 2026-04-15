@@ -1089,6 +1089,8 @@ def proposal_detail(proposal_id):
 
     conn.close()
 
+    lang = session.get("lang", "en")
+
     return render_template(
         "proposal_detail.html",
         proposal=proposal,
@@ -1102,6 +1104,7 @@ def proposal_detail(proposal_id):
         current_budget=current_budget,
         user_vote=user_vote["vote"] if user_vote else None,
         thresholds=thresholds,
+        session_lang=lang,
     )
 
 
