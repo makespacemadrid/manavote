@@ -24,29 +24,26 @@ app.secret_key = secrets.token_hex(32)
 app.permanent_session_lifetime = timedelta(days=30)
 
 
+@app.before_request
+def set_lang_global():
+    pass
+
+
 @app.context_processor
 def inject_lang():
+    from flask import session
+
     return dict(session_lang=session.get("lang", "en"))
-
-
-@app.template_filter("username")
-def truncate_username(username):
-    if "@" in username:
-        return username.split("@")[0]
-    return username
-
-
-@app.template_filter("markdown")
-def render_markdown(text):
-    if not text:
-        return ""
-    return markdown.markdown(text, extensions=["nl2br"])
 
 
 @app.template_filter("lang")
 def get_lang(key):
-    from flask import session as flask_session
+    from flask import has_request_context, session
 
+    if has_request_context():
+        lang = session.get("lang", "en")
+    else:
+        lang = "en"
     translations = {
         "en": {
             "Dashboard": "Dashboard",
@@ -115,7 +112,6 @@ def get_lang(key):
             "Remove": "Eliminar",
         },
     }
-    lang = session.get("lang", "en")
     return translations.get(lang, translations["en"]).get(key, key)
 
 
@@ -744,11 +740,19 @@ def logout():
 
 @app.route("/set-language/<lang>")
 def set_language(lang):
+    from flask import session as flask_session
+
     if lang in ("en", "es"):
-        session["lang"] = lang
-        session.permanent = True
-    referrer = request.headers.get("Referer", url_for("dashboard"))
-    return redirect(referrer)
+        flask_session["lang"] = lang
+        flask_session.permanent = True
+    # Force no caching
+    from flask import make_response
+
+    response = make_response(
+        redirect(request.headers.get("Referer", url_for("dashboard")))
+    )
+    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
+    return response
 
 
 @app.route("/change-password", methods=["GET", "POST"])
@@ -841,6 +845,8 @@ def register():
 @app.route("/dashboard")
 @login_required
 def dashboard():
+    from flask import make_response
+
     conn = get_db()
     c = conn.cursor()
 
