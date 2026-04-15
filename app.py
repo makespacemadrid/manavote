@@ -603,17 +603,15 @@ def calendar():
         return redirect(url_for("login"))
 
     sort_by = request.args.get("sort", "date_desc")
-    amount_sort = request.args.get("amount", "desc")
 
     if sort_by == "date_asc":
-        proposal_order = "created_at ASC"
+        order_clause = "created_at ASC"
+    elif sort_by == "amount_desc":
+        order_clause = "amount DESC"
+    elif sort_by == "amount_asc":
+        order_clause = "amount ASC"
     else:
-        proposal_order = "created_at DESC"
-
-    if amount_sort == "asc":
-        budget_order = "amount ASC"
-    else:
-        budget_order = "amount DESC"
+        order_clause = "created_at DESC"
 
     conn = get_db()
     c = conn.cursor()
@@ -621,7 +619,7 @@ def calendar():
     c.execute(f"""
         SELECT id, title, amount, created_at, status, created_at as submitted_at
         FROM proposals 
-        ORDER BY {proposal_order}
+        ORDER BY {order_clause}
         LIMIT 200
     """)
     proposals = c.fetchall()
@@ -629,7 +627,7 @@ def calendar():
     c.execute(f"""
         SELECT id, amount, description, created_at
         FROM budget_log
-        ORDER BY {budget_order}
+        ORDER BY {order_clause}
         LIMIT 100
     """)
     budget_logs = c.fetchall()

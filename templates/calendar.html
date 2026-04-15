@@ -51,15 +51,12 @@
 
 <div class="card">
     <h3>📋 Recent Events</h3>
-    <div style="margin-bottom: 15px; display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.9em;">
-        <span style="color: #888;">Sort proposals:</span>
-        <a href="{{ url_for('calendar', sort='date_desc') }}" style="color: {{ '#00d9ff' if request.args.get('sort') == 'date_desc' or not request.args.get('sort') else '#888' }};">Newest</a>
-        <a href="{{ url_for('calendar', sort='date_asc') }}" style="color: {{ '#00d9ff' if request.args.get('sort') == 'date_asc' else '#888' }};">Oldest</a>
-    </div>
-    <div style="margin-bottom: 15px; display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.9em;">
-        <span style="color: #888;">Sort budget:</span>
-        <a href="{{ url_for('calendar', sort=request.args.get('sort', 'date_desc'), amount='desc') }}" style="color: {{ '#00d9ff' if request.args.get('amount') == 'desc' or not request.args.get('amount') else '#888' }};">Highest</a>
-        <a href="{{ url_for('calendar', sort=request.args.get('sort', 'date_desc'), amount='asc') }}" style="color: {{ '#00d9ff' if request.args.get('amount') == 'asc' else '#888' }};">Lowest</a>
+    <div style="margin-bottom: 15px; display: flex; gap: 15px; flex-wrap: wrap; font-size: 0.9em;">
+        <span style="color: #888;">Sort by:</span>
+        <a href="{{ url_for('calendar', sort='date_desc') }}" style="color: {{ '#00d9ff' if request.args.get('sort') == 'date_desc' or not request.args.get('sort') else '#888' }};">Date (Newest)</a>
+        <a href="{{ url_for('calendar', sort='date_asc') }}" style="color: {{ '#00d9ff' if request.args.get('sort') == 'date_asc' else '#888' }};">Date (Oldest)</a>
+        <a href="{{ url_for('calendar', sort='amount_desc') }}" style="color: {{ '#00d9ff' if request.args.get('sort') == 'amount_desc' else '#888' }};">Amount (Highest)</a>
+        <a href="{{ url_for('calendar', sort='amount_asc') }}" style="color: {{ '#00d9ff' if request.args.get('sort') == 'amount_asc' else '#888' }};">Amount (Lowest)</a>
     </div>
     <div style="overflow-x: auto;">
         <table>
