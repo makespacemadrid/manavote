@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 
-{% macro t(key) %}{%{
+{% macro t(key) %}{{
     {'en': {'Dashboard': 'Dashboard', 'Edit': 'Edit', 'Delete': 'Delete', 'In Favor': 'In Favor', 'Against': 'Against', 'withdraw': 'withdraw', 'Votes': 'Votes', 'Member': 'Member', 'Vote': 'Vote', 'Date': 'Date', 'No votes yet': 'No votes yet', 'Comments': 'Comments', 'Add a comment': 'Add a comment...', 'Post Comment': 'Post Comment', 'No comments yet': 'No comments yet', 'Budget': 'Budget', 'Minimum Backers': 'Minimum Backers', 'Net Votes': 'Net Votes', 'Back': 'Back', 'Delete comment': 'Delete this comment?', 'basic': 'basic', 'expensive': 'expensive', 'standard': 'standard', 'purchased': 'purchased'},
      'es': {'Dashboard': 'Panel', 'Edit': 'Editar', 'Delete': 'Eliminar', 'In Favor': 'A favor', 'Against': 'En contra', 'withdraw': 'retirar', 'Votes': 'Votos', 'Member': 'Miembro', 'Vote': 'Voto', 'Date': 'Fecha', 'No votes yet': 'Sin votos aún', 'Comments': 'Comentarios', 'Add a comment': 'Añadir un comentario...', 'Post Comment': 'Publicar', 'No comments yet': 'Sin comentarios aún', 'Budget': 'Presupuesto', 'Minimum Backers': 'Apoyo mínimo', 'Net Votes': 'Votos netos', 'Back': 'Volver', 'Delete comment': '¿Eliminar este comentario?', 'basic': 'básico', 'expensive': 'caro', 'standard': 'estándar', 'purchased': 'comprado'}
     }[session_lang][key]
