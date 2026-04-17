@@ -83,12 +83,16 @@ class TestTranslations(unittest.TestCase):
         self.assertIn("Dashboard", budget_app.TRANSLATIONS["en"])
         self.assertIn("Proposals", budget_app.TRANSLATIONS["en"])
         self.assertIn("Budget", budget_app.TRANSLATIONS["en"])
+        self.assertIn("Make Admin", budget_app.TRANSLATIONS["en"])
+        self.assertIn("Remove Admin", budget_app.TRANSLATIONS["en"])
 
     def test_spanish_translations_exist(self):
         """Spanish translations are defined"""
         self.assertIn("Dashboard", budget_app.TRANSLATIONS["es"])
         self.assertIn("Proposals", budget_app.TRANSLATIONS["es"])
         self.assertIn("Budget", budget_app.TRANSLATIONS["es"])
+        self.assertIn("Make Admin", budget_app.TRANSLATIONS["es"])
+        self.assertIn("Remove Admin", budget_app.TRANSLATIONS["es"])
 
     def test_spanish_translations_differ(self):
         """Spanish translations differ from English"""

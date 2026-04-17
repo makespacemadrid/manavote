@@ -64,6 +64,8 @@ TRANSLATIONS = {
         "Settings": "Settings",
         "Add Member": "Add Member",
         "Remove": "Remove",
+        "Make Admin": "Make Admin",
+        "Remove Admin": "Remove Admin",
         "All": "All",
         "Pending Budget": "Pending Budget",
         "Pending Purchase": "Pending Purchase",
@@ -207,6 +209,8 @@ TRANSLATIONS = {
         "Settings": "Ajustes",
         "Add Member": "Añadir Miembro",
         "Remove": "Eliminar",
+        "Make Admin": "Hacer Admin",
+        "Remove Admin": "Quitar Admin",
         "All": "Todas",
         "Pending Budget": "Pendiente Presupuesto",
         "Pending Purchase": "Pendiente Compra",
@@ -1674,6 +1678,24 @@ def admin():
                 c.execute("DELETE FROM members WHERE id = ?", (member_id,))
                 conn.commit()
                 flash("Member removed!", "success")
+
+        elif action == "toggle_admin":
+            member_id = request.form["member_id"]
+            if int(member_id) == session["member_id"]:
+                flash("You can't change your own admin role", "error")
+            else:
+                current_is_admin = c.execute(
+                    "SELECT is_admin FROM members WHERE id = ?", (member_id,)
+                ).fetchone()["is_admin"]
+                new_is_admin = 0 if current_is_admin else 1
+                c.execute(
+                    "UPDATE members SET is_admin = ? WHERE id = ?",
+                    (new_is_admin, member_id),
+                )
+                conn.commit()
+                flash(
+                    f"Admin role {'granted' if new_is_admin else 'removed'}!", "success"
+                )
 
         elif action == "trigger_monthly":
             current = get_current_budget()
