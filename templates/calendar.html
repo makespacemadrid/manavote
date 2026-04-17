@@ -50,7 +50,7 @@
 
 <div class="card">
     <h3>📊 {{ 'Budget Over Time'|lang }}</h3>
-    <canvas id="budgetChart" height="80"></canvas>
+    <canvas id="budgetChart" style="max-height: 300px;"></canvas>
 </div>
 
 <div class="card">
@@ -160,6 +160,7 @@ new Chart(ctx, {
     },
     options: {
         responsive: true,
+        maintainAspectRatio: false,
         plugins: {
             legend: {
                 labels: { color: '#aaa' }
