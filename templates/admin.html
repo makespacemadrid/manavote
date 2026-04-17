@@ -9,24 +9,24 @@
     </div>
 </div>
 
-<h2>Admin Panel</h2>
+<h2>{{ 'Admin'|lang }}</h2>
 
 <div class="card">
-    <h3>📊 Member Statistics</h3>
+    <h3>📊 {{ 'Member Statistics'|lang }}</h3>
     <table>
         <thead>
             <tr>
-                <th>Member</th>
-                <th>Votes Cast</th>
-                <th>Proposals Made</th>
-                <th>Proposals Approved</th>
-                <th>Comments</th>
+                <th>{{ 'Member'|lang }}</th>
+                <th>{{ 'Votes'|lang }}</th>
+                <th>{{ 'Proposals'|lang }}</th>
+                <th>{{ 'Approved'|lang }}</th>
+                <th>{{ 'Comments'|lang }}</th>
             </tr>
         </thead>
         <tbody>
             {% for stat in member_stats %}
             <tr>
-                <td>{{ stat.username }} {% if stat.is_admin %}(admin){% endif %}</td>
+                <td>{{ stat.username|username }} {% if stat.is_admin %}({{ 'Admin'|lang|lower }}){% endif %}</td>
                 <td>{{ stat.vote_count }}</td>
                 <td>{{ stat.proposal_count }}</td>
                 <td>{{ stat.approved_count }}</td>
@@ -38,28 +38,28 @@
 </div>
 
 <div class="card">
-    <h3>Add Member</h3>
+    <h3>{{ 'Add Member'|lang }}</h3>
     <form method="POST" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
         <input type="hidden" name="action" value="add_member">
         <div style="flex: 1; min-width: 150px;">
-            <label>Username</label>
+            <label>{{ 'Username'|lang }}</label>
             <input type="text" name="username" required>
         </div>
         <div style="flex: 1; min-width: 150px;">
-            <label>Password</label>
+            <label>{{ 'Password'|lang }}</label>
             <input type="password" name="password" required>
         </div>
         <div>
             <label style="display: flex; align-items: center; gap: 5px;">
-                <input type="checkbox" name="is_admin" style="width: auto;"> Admin
+                <input type="checkbox" name="is_admin" style="width: auto;"> {{ 'Admin'|lang }}
             </label>
         </div>
-        <button type="submit" class="btn">Add Member</button>
+        <button type="submit" class="btn">{{ 'Add Member'|lang }}</button>
     </form>
 </div>
 
 <div class="card">
-    <h3>Registration Settings</h3>
+    <h3>{{ 'Registration Settings'|lang }}</h3>
     <form method="POST">
         <input type="hidden" name="action" value="toggle_registration">
         <p style="margin-bottom: 10px;">
@@ -67,42 +67,39 @@
                 <input type="checkbox" name="registration_enabled" value="1" 
                     {{ 'checked' if registration_enabled else '' }}
                     style="width: auto; height: 18px;">
-                <span><strong>Enable self-registration</strong> - Allow new members to register via the form</span>
+                <span><strong>{{ 'Enable self-registration'|lang }}</strong></span>
             </label>
         </p>
-        <p style="color: #888; font-size: 0.9em; margin-bottom: 15px;">
-            When disabled, only admins can add members via the API or the form above.
-        </p>
-        <button type="submit" class="btn">Save Settings</button>
+        <button type="submit" class="btn">{{ 'Save Settings'|lang }}</button>
     </form>
 </div>
 
 <div class="card">
-    <h3>Members ({{ members|length }})</h3>
+    <h3>{{ 'Members'|lang }} ({{ members|length }})</h3>
     <table>
         <thead>
             <tr>
-                <th>Username</th>
-                <th>Role</th>
-                <th>Joined</th>
-                <th>Action</th>
+                <th>{{ 'Username'|lang }}</th>
+                <th>{{ 'Role'|lang }}</th>
+                <th>{{ 'Joined'|lang }}</th>
+                <th>{{ 'Action'|lang }}</th>
             </tr>
         </thead>
         <tbody>
             {% for m in members %}
             <tr>
                 <td>{{ m.username }}</td>
-                <td>{{ 'Admin' if m.is_admin else 'Member' }}</td>
+                <td>{{ 'Admin'|lang if m.is_admin else 'Member'|lang }}</td>
                 <td>{{ m.created_at[:10] }}</td>
                 <td>
                     {% if m.id != session.member_id %}
                     <form method="POST" style="display: inline;">
                         <input type="hidden" name="action" value="remove_member">
                         <input type="hidden" name="member_id" value="{{ m.id }}">
-                        <button type="submit" class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.8em;" onclick="return confirm('Remove {{ m.username }}?')">Remove</button>
+                        <button type="submit" class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.8em;" onclick="return confirm('{{ 'Remove'|lang }} {{ m.username }}?')">{{ 'Remove'|lang }}</button>
                     </form>
                     {% else %}
-                    <span style="color: #666;">(you)</span>
+                    <span style="color: #666;">{{ '(you)'|lang }}</span>
                     {% endif %}
                 </td>
             </tr>
@@ -112,34 +109,34 @@
 </div>
 
 <div class="card">
-    <h3>Budget Management</h3>
+    <h3>{{ 'Budget'|lang }}</h3>
     <form method="POST" style="margin-bottom: 15px;">
         <input type="hidden" name="action" value="add_budget">
         <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
             <div style="flex: 1; min-width: 120px;">
-                <label>Amount (EUR)</label>
+                <label>{{ 'Amount'|lang }} (EUR)</label>
                 <input type="number" name="amount" step="0.01" min="0.01" required>
             </div>
             <div style="flex: 2; min-width: 200px;">
-                <label>Description</label>
-                <input type="text" name="description" placeholder="e.g., Donation, sponsorship" required>
+                <label>{{ 'Description'|lang }}</label>
+                <input type="text" name="description" placeholder="{{ 'e.g. Donation, sponsorship'|lang }}" required>
             </div>
-            <button type="submit" class="btn">Add to Budget</button>
+            <button type="submit" class="btn">{{ 'Add to Budget'|lang }}</button>
         </div>
     </form>
     
     <form method="POST">
         <input type="hidden" name="action" value="trigger_monthly">
-        <button type="submit" class="btn btn-secondary">Trigger Monthly Top-up (+€50)</button>
+        <button type="submit" class="btn btn-secondary">{{ 'Trigger Monthly Top-up'|lang }} (+€50)</button>
     </form>
     
-    <h4 style="margin-top: 20px;">Full Budget History</h4>
+    <h4 style="margin-top: 20px;">{{ 'Full Budget History'|lang }}</h4>
     <table>
         <thead>
             <tr>
-                <th>Date</th>
-                <th>Description</th>
-                <th>Amount</th>
+                <th>{{ 'Date'|lang }}</th>
+                <th>{{ 'Description'|lang }}</th>
+                <th>{{ 'Amount'|lang }}</th>
             </tr>
         </thead>
         <tbody>
@@ -157,44 +154,37 @@
 </div>
 
 <div class="card">
-    <h3>Vote Thresholds</h3>
-    <p style="color: #888; margin-bottom: 15px;">
-        Minimum percentage of members required to approve proposals (as net votes).
-    </p>
+    <h3>{{ 'Vote Thresholds'|lang }}</h3>
     <form method="POST">
         <input type="hidden" name="action" value="update_thresholds">
         <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
             <div style="flex: 1; min-width: 120px;">
-                <label>Basic Supplies (%)</label>
+                <label>{{ 'Basic'|lang }} (%)</label>
                 <input type="number" name="threshold_basic" value="{{ thresholds.basic }}" min="1" max="100" step="1" required>
             </div>
             <div style="flex: 1; min-width: 120px;">
-                <label>Over €50 (%)</label>
+                <label>{{ 'Over €50'|lang }} (%)</label>
                 <input type="number" name="threshold_over50" value="{{ thresholds.over50 }}" min="1" max="100" step="1" required>
             </div>
             <div style="flex: 1; min-width: 120px;">
-                <label>Default (%)</label>
+                <label>{{ 'Default'|lang }} (%)</label>
                 <input type="number" name="threshold_default" value="{{ thresholds.default }}" min="1" max="100" step="1" required>
             </div>
-            <button type="submit" class="btn">Update Thresholds</button>
+            <button type="submit" class="btn">{{ 'Update'|lang }}</button>
         </div>
     </form>
 </div>
 
 <div class="card">
-    <h3>Telegram Configuration</h3>
-    <p style="color: #888; margin-bottom: 15px;">
-        Set these environment variables to enable Telegram notifications:<br>
-        <code>TELEGRAM_BOT_TOKEN</code> and <code>TELEGRAM_CHAT_ID</code>
-    </p>
+    <h3>{{ 'Telegram Configuration'|lang }}</h3>
     <form method="POST">
         <input type="hidden" name="action" value="update_url">
         <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
             <div style="flex: 2; min-width: 200px;">
-                <label>Base URL (for proposal links in Telegram messages)</label>
+                <label>{{ 'Base URL for proposal links'|lang }}</label>
                 <input type="url" name="base_url" value="{{ get_setting_value('url', '') }}" placeholder="https://manavote.mksmad.org">
             </div>
-            <button type="submit" class="btn">Update URL</button>
+            <button type="submit" class="btn">{{ 'Update URL'|lang }}</button>
         </div>
     </form>
 </div>

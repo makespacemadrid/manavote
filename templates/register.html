@@ -4,20 +4,20 @@
 <div style="max-width: 400px; margin: 80px auto;">
     <div class="card">
         <h1 style="text-align: center;">🔧 MakeSpace Madrid</h1>
-        <p style="text-align: center; color: #888; margin-bottom: 30px;">Register</p>
+        <p style="text-align: center; color: #888; margin-bottom: 30px;">{{ 'Register'|lang }}</p>
         
         <form method="POST">
-            <label>Telegram Name</label>
+            <label>{{ 'Username'|lang }}</label>
             <input type="text" name="username" required autofocus>
             
-            <label>Password</label>
+            <label>{{ 'Password'|lang }}</label>
             <input type="password" name="password" required>
             
-            <button type="submit" class="btn" style="width: 100%;">Register</button>
+            <button type="submit" class="btn" style="width: 100%;">{{ 'Register'|lang }}</button>
         </form>
         
         <p style="text-align: center; margin-top: 20px; color: #888;">
-            Already have an account? <a href="{{ url_for('login') }}" style="color: #00d9ff;">Login</a>
+            {{ 'Already have account'|lang }} <a href="{{ url_for('login') }}" style="color: #00d9ff;">{{ 'Login'|lang }}</a>
         </p>
     </div>
 </div>

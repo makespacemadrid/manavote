@@ -2,17 +2,17 @@
 
 {% block content %}
 <div class="nav">
-    <a href="{{ url_for('proposal_detail', proposal_id=comment.proposal_id) }}">← Back to Proposal</a>
+    <a href="{{ url_for('proposal_detail', proposal_id=comment.proposal_id) }}">← {{ 'Back'|lang }}</a>
 </div>
 
 <div class="card">
-    <h2>Edit Comment</h2>
+    <h2>{{ 'Edit Comment'|lang }}</h2>
     
     <form method="POST">
-        <label>Comment</label>
+        <label>{{ 'Comments'|lang }}</label>
         <textarea name="content" required style="min-height: 100px;">{{ comment.content }}</textarea>
         
-        <button type="submit" class="btn">Save</button>
+        <button type="submit" class="btn">{{ 'Save'|lang }}</button>
     </form>
 </div>
 {% endblock %}

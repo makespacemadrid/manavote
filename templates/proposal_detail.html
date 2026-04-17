@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 
 {% macro t(key) %}{{
-    {'en': {'Dashboard': 'Dashboard', 'Edit': 'Edit', 'Delete': 'Delete', 'In Favor': 'In Favor', 'Against': 'Against', 'withdraw': 'withdraw', 'Votes': 'Votes', 'Member': 'Member', 'Vote': 'Vote', 'Date': 'Date', 'No votes yet': 'No votes yet', 'Comments': 'Comments', 'Add a comment': 'Add a comment...', 'Post Comment': 'Post Comment', 'Edit': 'Edit', 'Delete': 'Delete', 'No comments yet': 'No comments yet', 'Budget': 'Budget', 'Minimum Backers': 'Minimum Backers', 'In Favor': 'In Favor', 'Against': 'Against', 'Net Votes': 'Net Votes', 'Back': 'Back', 'proposal': 'proposal', 'Delete comment': 'Delete this comment?'},
-     'es': {'Dashboard': 'Panel', 'Edit': 'Editar', 'Delete': 'Eliminar', 'In Favor': 'A favor', 'Against': 'En contra', 'withdraw': 'retirar', 'Votes': 'Votos', 'Member': 'Miembro', 'Vote': 'Voto', 'Date': 'Fecha', 'No votes yet': 'Sin votos aún', 'Comments': 'Comentarios', 'Add a comment': 'Añadir un comentario...', 'Post Comment': 'Publicar', 'Edit': 'Editar', 'Delete': 'Eliminar', 'No comments yet': 'Sin comentarios aún', 'Budget': 'Presupuesto', 'Minimum Backers': 'Apoyo mínimo', 'In Favor': 'A favor', 'Against': 'En contra', 'Net Votes': 'Votos netos', 'Back': 'Volver', 'proposal': 'propuesta', 'Delete comment': '¿Eliminar este comentario?'}
+    {'en': {'Dashboard': 'Dashboard', 'Edit': 'Edit', 'Delete': 'Delete', 'In Favor': 'In Favor', 'Against': 'Against', 'withdraw': 'withdraw', 'Votes': 'Votes', 'Member': 'Member', 'Vote': 'Vote', 'Date': 'Date', 'No votes yet': 'No votes yet', 'Comments': 'Comments', 'Add a comment': 'Add a comment...', 'Post Comment': 'Post Comment', 'No comments yet': 'No comments yet', 'Budget': 'Budget', 'Minimum Backers': 'Minimum Backers', 'Net Votes': 'Net Votes', 'Back': 'Back', 'Delete comment': 'Delete this comment?', 'basic': 'basic', 'expensive': 'expensive', 'standard': 'standard', 'purchased': 'purchased'},
+     'es': {'Dashboard': 'Panel', 'Edit': 'Editar', 'Delete': 'Eliminar', 'In Favor': 'A favor', 'Against': 'En contra', 'withdraw': 'retirar', 'Votes': 'Votos', 'Member': 'Miembro', 'Vote': 'Voto', 'Date': 'Fecha', 'No votes yet': 'Sin votos aún', 'Comments': 'Comentarios', 'Add a comment': 'Añadir un comentario...', 'Post Comment': 'Publicar', 'No comments yet': 'Sin comentarios aún', 'Budget': 'Presupuesto', 'Minimum Backers': 'Apoyo mínimo', 'Net Votes': 'Votos netos', 'Back': 'Volver', 'Delete comment': '¿Eliminar este comentario?', 'basic': 'básico', 'expensive': 'caro', 'standard': 'estándar', 'purchased': 'comprado'}
     }[session_lang][key]
 }}{% endmacro %}
 
@@ -26,12 +26,12 @@
         <div>
             <h1>{{ proposal.title }}</h1>
             <p style="color: #888;">
-                by {{ proposal.creator|username }} · {{ proposal.created_at[:10] }}
+                {{ 'by'|lang }} {{ proposal.creator|username }} · {{ proposal.created_at[:10] }}
                 <span class="status status-{{ proposal.status }}">{{ proposal.status }}</span>
-                {% if proposal.basic_supplies %}<span class="status" style="background: #FFD700; color: #000; margin-left: 5px;">basic</span>{% endif %}
-                {% if proposal.status == 'approved' and proposal.amount > 50 %}<span class="status" style="background: #9b59b622; color: #9b59b6; margin-left: 5px;">expensive</span>{% endif %}
-                {% if proposal.status == 'approved' and not proposal.basic_supplies and proposal.amount <= 50 %}<span class="status" style="background: #00d9ff22; color: #00d9ff; margin-left: 5px;">standard</span>{% endif %}
-                {% if proposal.purchased_at %}<span class="status" style="background: #4a4;">purchased</span>{% endif %}
+                {% if proposal.basic_supplies %}<span class="status" style="background: #FFD700; color: #000; margin-left: 5px;">{{ 'basic'|lang }}</span>{% endif %}
+                {% if proposal.status == 'approved' and proposal.amount > 50 %}<span class="status" style="background: #9b59b622; color: #9b59b6; margin-left: 5px;">{{ 'expensive'|lang }}</span>{% endif %}
+                {% if proposal.status == 'approved' and not proposal.basic_supplies and proposal.amount <= 50 %}<span class="status" style="background: #00d9ff22; color: #00d9ff; margin-left: 5px;">{{ 'standard'|lang }}</span>{% endif %}
+                {% if proposal.purchased_at %}<span class="status" style="background: #4a4;">{{ 'purchased'|lang }}</span>{% endif %}
             </p>
         </div>
         <div class="proposal-amount">€{{ "%.2f"|format(proposal.amount) }}</div>

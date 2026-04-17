@@ -10,35 +10,35 @@
 </div>
 
 <div class="card">
-    <h2>Create New Proposal</h2>
+    <h2>{{ 'New Proposal'|lang }}</h2>
     
     <p style="color: #888; margin-bottom: 20px;">
-        Available budget: <strong>€{{ "%.2f"|format(current_budget) }}</strong>
+        {{ 'Budget'|lang }}: <strong>€{{ "%.2f"|format(current_budget) }}</strong>
     </p>
     
     <form method="POST" enctype="multipart/form-data">
-        <label>Title</label>
-        <input type="text" name="title" placeholder="e.g., Buy new soldering station" required>
+        <label>{{ 'Title'|lang }}</label>
+        <input type="text" name="title" placeholder="{{ 'Title placeholder'|lang }}" required>
         
-        <label>Description</label>
-        <textarea name="description" placeholder="Describe what the money will be used for..."></textarea>
+        <label>{{ 'Description'|lang }}</label>
+        <textarea name="description" placeholder="{{ 'Description placeholder'|lang }}"></textarea>
         
-        <label>Amount (EUR)</label>
-        <input type="number" name="amount" step="0.01" min="0.01" placeholder="0.00" required>
+        <label>{{ 'Amount'|lang }} (EUR)</label>
+        <input type="number" name="amount" step="0.01" min="0.01" placeholder="{{ 'Amount placeholder'|lang }}" required>
         
         <label>URL (optional)</label>
         <input type="url" name="url" placeholder="https://example.com/product">
         
-        <label>Image (optional, JPG/PNG only)</label>
+        <label>{{ 'Image optional JPG PNG only'|lang }}</label>
         <input type="file" name="image" accept=".jpg,.jpeg,.png">
         
-        <label style="margin-top: 10px; display: block;">Basic supplies ({{ thresholds.basic }}% backers required)</label>
+        <label style="margin-top: 10px; display: block;">{{ 'Basic'|lang }} supplies ({{ thresholds.basic }}% backers required)</label>
         <div style="margin-bottom: 15px; text-align: left;">
             <input type="checkbox" name="basic_supplies" value="1" style="width: auto !important; margin-left: 0;">
         </div>
         
-        <button type="submit" class="btn">Submit Proposal</button>
-        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">Cancel</a>
+        <button type="submit" class="btn">{{ 'Submit Proposal'|lang }}</button>
+        <a href="{{ url_for('dashboard') }}" class="btn btn-secondary">{{ 'Cancel'|lang }}</a>
     </form>
 </div>
 {% endblock %}

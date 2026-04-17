@@ -2,7 +2,7 @@
 
 {% block content %}
 <div class="nav">
-    <span>Logged in as: <strong>{{ session.username|username }}</strong></span>
+    <span>{{ 'Logged in as'|lang }}: <strong>{{ session.username|username }}</strong></span>
     <a href="{{ url_for('dashboard') }}">{{ 'Dashboard'|lang }}</a>
     <a href="{{ url_for('new_proposal') }}">{{ 'New Proposal'|lang }}</a>
     <a href="{{ url_for('calendar') }}">{{ 'Calendar'|lang }}</a>
@@ -19,57 +19,57 @@
 </div>
 
 <div class="card">
-    <h2>📅 Activity Calendar</h2>
+    <h2>📅 {{ 'Activity Calendar'|lang }}</h2>
     <p style="color: #888; margin-bottom: 20px;">
-        View proposal submissions, approvals, rejections, and budget movements.
+        {{ 'View proposal submissions description'|lang }}
     </p>
 
     <div style="margin-bottom: 25px; display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.9em;">
         <span style="display: flex; align-items: center; gap: 6px;">
             <span style="display: inline-block; width: 14px; height: 14px; background: #00d9ff; border-radius: 3px;"></span>
-            Proposal Submitted
+            {{ 'Proposal Submitted'|lang }}
         </span>
         <span style="display: flex; align-items: center; gap: 6px;">
             <span style="display: inline-block; width: 14px; height: 14px; background: #00ff88; border-radius: 3px;"></span>
-            Proposal Approved
+            {{ 'Approved'|lang }}
         </span>
         <span style="display: flex; align-items: center; gap: 6px;">
             <span style="display: inline-block; width: 14px; height: 14px; background: #e94560; border-radius: 3px;"></span>
-            Proposal Rejected
+            {{ 'Rejected'|lang }}
         </span>
         <span style="display: flex; align-items: center; gap: 6px;">
             <span style="display: inline-block; width: 14px; height: 14px; border: 2px solid #00ff88; border-radius: 3px;"></span>
-            Budget In (+)
+            {{ 'Budget In'|lang }} (+)
         </span>
         <span style="display: flex; align-items: center; gap: 6px;">
             <span style="display: inline-block; width: 14px; height: 14px; border: 2px solid #e94560; border-radius: 3px;"></span>
-            Budget Out (-)
+            {{ 'Budget Out'|lang }} (-)
         </span>
     </div>
 </div>
 
 <div class="card">
-    <h3>📊 Budget Over Time</h3>
+    <h3>📊 {{ 'Budget Over Time'|lang }}</h3>
     <canvas id="budgetChart" height="80"></canvas>
 </div>
 
 <div class="card">
-    <h3>📋 Recent Events</h3>
+    <h3>📋 {{ 'Recent Events'|lang }}</h3>
     <div style="margin-bottom: 15px; display: flex; gap: 15px; flex-wrap: wrap; font-size: 0.9em;">
-        <span style="color: #888;">Sort by:</span>
-        <a href="{{ url_for('calendar', sort='date_desc') }}" style="color: {{ '#00d9ff' if request.args.get('sort') == 'date_desc' or not request.args.get('sort') else '#888' }};">Date (Newest)</a>
-        <a href="{{ url_for('calendar', sort='date_asc') }}" style="color: {{ '#00d9ff' if request.args.get('sort') == 'date_asc' else '#888' }};">Date (Oldest)</a>
-        <a href="{{ url_for('calendar', sort='amount_desc') }}" style="color: {{ '#00d9ff' if request.args.get('sort') == 'amount_desc' else '#888' }};">Amount (Highest)</a>
-        <a href="{{ url_for('calendar', sort='amount_asc') }}" style="color: {{ '#00d9ff' if request.args.get('sort') == 'amount_asc' else '#888' }};">Amount (Lowest)</a>
+        <span style="color: #888;">{{ 'Sort by'|lang }}:</span>
+        <a href="{{ url_for('calendar', sort='date_desc') }}" style="color: {{ '#00d9ff' if request.args.get('sort') == 'date_desc' or not request.args.get('sort') else '#888' }};">{{ 'Date (Newest)'|lang }}</a>
+        <a href="{{ url_for('calendar', sort='date_asc') }}" style="color: {{ '#00d9ff' if request.args.get('sort') == 'date_asc' else '#888' }};">{{ 'Date (Oldest)'|lang }}</a>
+        <a href="{{ url_for('calendar', sort='amount_desc') }}" style="color: {{ '#00d9ff' if request.args.get('sort') == 'amount_desc' else '#888' }};">{{ 'Amount (Highest)'|lang }}</a>
+        <a href="{{ url_for('calendar', sort='amount_asc') }}" style="color: {{ '#00d9ff' if request.args.get('sort') == 'amount_asc' else '#888' }};">{{ 'Amount (Lowest)'|lang }}</a>
     </div>
     <div style="overflow-x: auto;">
         <table>
             <thead>
                 <tr>
-                    <th>Date</th>
-                    <th>Type</th>
-                    <th>Event</th>
-                    <th>Amount</th>
+                    <th>{{ 'Date'|lang }}</th>
+                    <th>{{ 'Type'|lang }}</th>
+                    <th>{{ 'Event'|lang }}</th>
+                    <th>{{ 'Amount'|lang }}</th>
                 </tr>
             </thead>
             <tbody>
@@ -78,9 +78,9 @@
                     <td>{{ p.created_at[:10] }}</td>
                     <td>
                         {% if p.status == 'approved' %}
-                        <span style="color: #00ff88;">✓ Approved</span>
+                        <span style="color: #00ff88;">✓ {{ 'Approved'|lang }}</span>
                         {% elif p.status == 'rejected' %}
-                        <span style="color: #e94560;">✗ Rejected</span>
+                        <span style="color: #e94560;">✗ {{ 'Rejected'|lang }}</span>
                         {% else %}
                         <span style="color: #00d9ff;">○ {{ p.status|title }}</span>
                         {% endif %}
@@ -94,9 +94,9 @@
                     <td>{{ b.created_at[:10] }}</td>
                     <td>
                         {% if b.amount > 0 %}
-                        <span style="color: #00ff88;">↑ Income</span>
+                        <span style="color: #00ff88;">↑ {{ 'Income'|lang }}</span>
                         {% else %}
-                        <span style="color: #e94560;">↓ Expense</span>
+                        <span style="color: #e94560;">↓ {{ 'Expense'|lang }}</span>
                         {% endif %}
                     </td>
                     <td>{{ b.description }}</td>
@@ -130,7 +130,7 @@ new Chart(ctx, {
         labels: labels,
         datasets: [
             {
-                label: 'Budget Balance',
+                label: '{{ 'Budget Balance'|lang }}',
                 data: budgetData,
                 borderColor: '#00d9ff',
                 backgroundColor: '#00d9ff22',

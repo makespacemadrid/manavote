@@ -22,20 +22,7 @@ import markdown
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
 app.permanent_session_lifetime = timedelta(days=30)
-
-
-@app.before_request
-def set_lang_global():
-    from flask import session, g
-
-    g.lang = session.get("lang", "en")
-
-
-@app.context_processor
-def inject_lang():
-    from flask import session
-
-    return dict(session_lang=session.get("lang", "en"))
+app.jinja_env.cache = None
 
 
 @app.template_filter("username")
@@ -43,6 +30,296 @@ def truncate_username(username):
     if "@" in username:
         return username.split("@")[0]
     return username
+
+
+TRANSLATIONS = {
+    "en": {
+        "Dashboard": "Dashboard",
+        "New Proposal": "New Proposal",
+        "Calendar": "Calendar",
+        "Admin": "Admin",
+        "About": "About",
+        "Password": "Password",
+        "Logout": "Logout",
+        "Budget": "Budget",
+        "Proposals": "Proposals",
+        "Members": "Members",
+        "Vote": "Vote",
+        "Approved": "Approved",
+        "Rejected": "Rejected",
+        "Active": "Active",
+        "In Favor": "In Favor",
+        "Against": "Against",
+        "Amount": "Amount",
+        "Title": "Title",
+        "Description": "Description",
+        "Submit": "Submit",
+        "Cancel": "Cancel",
+        "Save": "Save",
+        "Delete": "Delete",
+        "Edit": "Edit",
+        "Login": "Login",
+        "Register": "Register",
+        "Username": "Username",
+        "Settings": "Settings",
+        "Add Member": "Add Member",
+        "Remove": "Remove",
+        "All": "All",
+        "Pending Budget": "Pending Budget",
+        "Pending Purchase": "Pending Purchase",
+        "Purchased": "Purchased",
+        "Basic": "Basic",
+        "Standard": "Standard",
+        "Expensive": "Expensive",
+        "withdraw": "withdraw",
+        "Votes": "Votes",
+        "Member": "Member",
+        "Date": "Date",
+        "No votes yet": "No votes yet",
+        "Comments": "Comments",
+        "Add a comment": "Add a comment...",
+        "Post Comment": "Post Comment",
+        "No comments yet": "No comments yet",
+        "Minimum Backers": "Minimum Backers",
+        "Net Votes": "Net Votes",
+        "Save Settings": "Save Settings",
+        "Save Changes": "Save Changes",
+        "Submit Proposal": "Submit Proposal",
+        "Edit Proposal": "Edit Proposal",
+        "Edit Comment": "Edit Comment",
+        "Current Password": "Current Password",
+        "New Password": "New Password",
+        "Confirm New Password": "Confirm New Password",
+        "Change Password": "Change Password",
+        "Register here": "Register here",
+        "Already have account": "Already have an account?",
+        "Back": "Back",
+        "Delete comment": "Delete this comment?",
+        "Proposal Submitted": "Proposal Submitted",
+        "Date (Newest)": "Date (Newest)",
+        "Date (Oldest)": "Date (Oldest)",
+        "Amount (Highest)": "Amount (Highest)",
+        "Amount (Lowest)": "Amount (Lowest)",
+        "Recent Events": "Recent Events",
+        "Budget Over Time": "Budget Over Time",
+        "Activity Calendar": "Activity Calendar",
+        "Member Statistics": "Member Statistics",
+        "Add to Budget": "Add to Budget",
+        "Trigger Monthly Top-up": "Trigger Monthly Top-up",
+        "Full Budget History": "Full Budget History",
+        "Vote Thresholds": "Vote Thresholds",
+        "Logged in as": "Logged in as",
+        "Your vote": "Your vote",
+        "in favor": "in favor",
+        "Budget History": "Budget History",
+        "Role": "Role",
+        "Joined": "Joined",
+        "Action": "Action",
+        "(you)": "(you)",
+        "Registration Settings": "Registration Settings",
+        "Enable self-registration": "Enable self-registration",
+        "Allow new members to register via the form": "Allow new members to register via the form",
+        "When disabled, only admins can add members": "When disabled, only admins can add members via the API or the form above",
+        "e.g. Donation, sponsorship": "e.g., Donation, sponsorship",
+        "Minimum percentage of members required": "Minimum percentage of members required to approve proposals (as net votes)",
+        "Over €50": "Over €50",
+        "Default": "Default",
+        "Update": "Update",
+        "Telegram Configuration": "Telegram Configuration",
+        "Set these environment variables": "Set these environment variables to enable Telegram notifications",
+        "Base URL for proposal links": "Base URL (for proposal links in Telegram messages)",
+        "Update URL": "Update URL",
+        "Sort by": "Sort by",
+        "Type": "Type",
+        "Event": "Event",
+        "Showing X of Y proposals": "Showing X of Y proposals",
+        "No proposals yet. Create one!": "No proposals yet. Create one!",
+        "Image optional JPG PNG only": "Image (optional, JPG/PNG only)",
+        "Current image upload new to replace": "Current image (upload new to replace)",
+        "About": "About",
+        "How It Works": "How It Works",
+        "Any member can submit": "Any member can submit a proposal for equipment or resources",
+        "Members vote on proposals": "Members vote on proposals - minimum approval threshold varies by proposal type",
+        "Basic supplies threshold": "Basic supplies: 5% of members required",
+        "Over 50 threshold": "Proposals over €50: 20% of members required",
+        "Other proposals threshold": "Other proposals: 10% of members required",
+        "Approved proposals are automatically funded": "Approved proposals are automatically funded if within available budget, and a notification is sent to our Telegram group",
+        "Member given go ahead to purchase": "The member that submitted proposal is given go ahead to execute purchase & claim reimbursement via the usual channels",
+        "If item not purchased within 30 days": "If item is not purchased within 30 days members can vote to cancel the approval",
+        "Funding": "Funding",
+        "Features Governance": "Features & Governance",
+        "basic": "basic",
+        "expensive": "expensive",
+        "standard": "standard",
+        "purchased": "purchased",
+        "in favor": "in favor",
+        "against": "against",
+        "net": "net",
+        "confirm purchase": "confirm purchase",
+        "unmark": "unmark",
+        "undo": "undo",
+        "Income": "Income",
+        "Expense": "Expense",
+        "Budget In": "Budget In",
+        "Budget Out": "Budget Out",
+        "Discretionary Budget": "Discretionary Budget",
+        "Budget Balance": "Budget Balance",
+        "Mark as purchased?": "Mark as purchased?",
+        "Remove": "Remove",
+        "View proposal submissions description": "View proposal submissions, approvals, rejections, and budget movements.",
+        "Title placeholder": "e.g., Buy new soldering station",
+        "Description placeholder": "Describe what the money will be used for...",
+        "Amount placeholder": "0.00",
+        "by": "by",
+        "members": "members",
+        "over 50 need": "over €50 need",
+        "basic supplies need": "basic supplies need",
+        "otherwise": "otherwise",
+    },
+    "es": {
+        "Dashboard": "Panel",
+        "New Proposal": "Nueva Propuesta",
+        "Calendar": "Calendario",
+        "Admin": "Admin",
+        "About": "Acerca de",
+        "Password": "Contraseña",
+        "Logout": "Salir",
+        "Budget": "Presupuesto",
+        "Proposals": "Propuestas",
+        "Members": "Miembros",
+        "Vote": "Votar",
+        "Approved": "Aprobada",
+        "Rejected": "Rechazada",
+        "Active": "Activa",
+        "In Favor": "A favor",
+        "Against": "En contra",
+        "Amount": "Cantidad",
+        "Title": "Título",
+        "Description": "Descripción",
+        "Submit": "Enviar",
+        "Cancel": "Cancelar",
+        "Save": "Guardar",
+        "Delete": "Eliminar",
+        "Edit": "Editar",
+        "Login": "Entrar",
+        "Register": "Registrarse",
+        "Username": "Usuario",
+        "Settings": "Ajustes",
+        "Add Member": "Añadir Miembro",
+        "Remove": "Eliminar",
+        "All": "Todas",
+        "Pending Budget": "Pendiente Presupuesto",
+        "Pending Purchase": "Pendiente Compra",
+        "Purchased": "Compradas",
+        "Basic": "Básicos",
+        "Standard": "Estándar",
+        "Expensive": "Caros",
+        "withdraw": "retirar",
+        "Votes": "Votos",
+        "Member": "Miembro",
+        "Date": "Fecha",
+        "No votes yet": "Sin votos aún",
+        "Comments": "Comentarios",
+        "Add a comment": "Añadir un comentario...",
+        "Post Comment": "Publicar",
+        "No comments yet": "Sin comentarios aún",
+        "Minimum Backers": "Apoyo mínimo",
+        "Net Votes": "Votos netos",
+        "Save Settings": "Guardar Ajustes",
+        "Save Changes": "Guardar Cambios",
+        "Submit Proposal": "Enviar Propuesta",
+        "Edit Proposal": "Editar Propuesta",
+        "Edit Comment": "Editar Comentario",
+        "Current Password": "Contraseña Actual",
+        "New Password": "Nueva Contraseña",
+        "Confirm New Password": "Confirmar Nueva Contraseña",
+        "Change Password": "Cambiar Contraseña",
+        "Register here": "Registrarse aquí",
+        "Already have account": "¿Ya tienes cuenta?",
+        "Back": "Volver",
+        "Delete comment": "¿Eliminar este comentario?",
+        "Proposal Submitted": "Propuesta Enviada",
+        "Date (Newest)": "Fecha (Recientes)",
+        "Date (Oldest)": "Fecha (Antiguos)",
+        "Amount (Highest)": "Cantidad (Mayor)",
+        "Amount (Lowest)": "Cantidad (Menor)",
+        "Recent Events": "Eventos Recientes",
+        "Budget Over Time": "Presupuesto en el Tiempo",
+        "Activity Calendar": "Calendario de Actividad",
+        "Member Statistics": "Estadísticas de Miembros",
+        "Add to Budget": "Añadir al Presupuesto",
+        "Trigger Monthly Top-up": "Recarga Mensual",
+        "Full Budget History": "Historial de Presupuesto",
+        "Vote Thresholds": "Umbrales de Votación",
+        "Logged in as": "Conectado como",
+        "Your vote": "Tu voto",
+        "in favor": "a favor",
+        "Budget History": "Historial de Presupuesto",
+        "Role": "Rol",
+        "Joined": "Joined",
+        "Action": "Acción",
+        "(you)": "(tú)",
+        "Registration Settings": "Ajustes de Registro",
+        "Enable self-registration": "Habilitar auto-registro",
+        "Allow new members to register via the form": "Permitir que nuevos miembros se registren mediante el formulario",
+        "When disabled, only admins can add members": "Cuando está deshabilitado, solo los admins pueden añadir miembros mediante la API o el formulario anterior",
+        "e.g. Donation, sponsorship": "p. ej., Donación, patrocinio",
+        "Minimum percentage of members required": "Porcentaje mínimo de miembros requerido para aprobar propuestas (como votos netos)",
+        "Over €50": "Más de €50",
+        "Default": "Por defecto",
+        "Update": "Actualizar",
+        "Telegram Configuration": "Configuración de Telegram",
+        "Set these environment variables": "Configura estas variables de entorno para activar notificaciones de Telegram",
+        "Base URL for proposal links": "URL Base (para enlaces de propuestas en mensajes de Telegram)",
+        "Update URL": "Actualizar URL",
+        "Sort by": "Ordenar por",
+        "Type": "Tipo",
+        "Event": "Evento",
+        "Showing X of Y proposals": "Mostrando X de Y propuestas",
+        "No proposals yet. Create one!": "Aún no hay propuestas. ¡Crea una!",
+        "Image optional JPG PNG only": "Imagen (opcional, solo JPG/PNG)",
+        "Current image upload new to replace": "Imagen actual (sube una nueva para reemplazar)",
+        "About": "Acerca de",
+        "How It Works": "Cómo Funciona",
+        "Any member can submit": "Cualquier miembro puede enviar una propuesta",
+        "Members vote on proposals": "Los miembros votan las propuestas - el umbral mínimo de aprobación varía según el tipo de propuesta",
+        "Basic supplies threshold": "Suministros básicos: 5% de miembros requeridos",
+        "Over 50 threshold": "Propuestas de más de €50: 20% de miembros requeridos",
+        "Other proposals threshold": "Otras propuestas: 10% de miembros requeridos",
+        "Approved proposals are automatically funded": "Las propuestas aprobadas se financian automáticamente si hay presupuesto disponible, y se envía una notificación a nuestro grupo de Telegram",
+        "Member given go ahead to purchase": "Al miembro que envió la propuesta se le da luz verde para ejecutar la compra y reclamar el reembolso por los canales habituales",
+        "If item not purchased within 30 days": "Si el artículo no se compra en 30 días, los miembros pueden votar para cancelar la aprobación",
+        "Funding": "Financiación",
+        "Features Governance": "Características y Gobernanza",
+        "basic": "básico",
+        "expensive": "caro",
+        "standard": "estándar",
+        "purchased": "comprado",
+        "in favor": "a favor",
+        "against": "en contra",
+        "net": "neto",
+        "confirm purchase": "confirmar compra",
+        "unmark": "desmarcar",
+        "undo": "deshacer",
+        "Income": "Ingreso",
+        "Expense": "Gasto",
+        "Budget In": "Entradas",
+        "Budget Out": "Salidas",
+        "Discretionary Budget": "Presupuesto Discrecional",
+        "Budget Balance": "Balance de Presupuesto",
+        "Mark as purchased?": "¿Marcar como comprado?",
+        "Remove": "Eliminar",
+        "View proposal submissions description": "Ver envíos de propuestas, aprobaciones, rechazos y movimientos de presupuesto.",
+        "Title placeholder": "p. ej., Comprar nueva estación de soldadura",
+        "Description placeholder": "Describe para qué se usará el dinero...",
+        "Amount placeholder": "0.00",
+        "by": "por",
+        "members": "miembros",
+        "over 50 need": "de más de €50 necesitan",
+        "basic supplies need": "de básicos necesitan",
+        "otherwise": "de lo contrario",
+    },
+}
 
 
 @app.template_filter("markdown")
@@ -54,79 +331,10 @@ def render_markdown(text):
 
 @app.template_filter("lang")
 def get_lang(key):
-    from flask import g
+    from flask import session, g
 
-    lang = getattr(g, "lang", "en")
-
-    translations = {
-        "en": {
-            "Dashboard": "Dashboard",
-            "New Proposal": "New Proposal",
-            "Calendar": "Calendar",
-            "Admin": "Admin",
-            "About": "About",
-            "Password": "Password",
-            "Logout": "Logout",
-            "Budget": "Budget",
-            "Proposals": "Proposals",
-            "Members": "Members",
-            "Vote": "Vote",
-            "Approved": "Approved",
-            "Rejected": "Rejected",
-            "Active": "Active",
-            "In Favor": "In Favor",
-            "Against": "Against",
-            "Amount": "Amount",
-            "Title": "Title",
-            "Description": "Description",
-            "Submit": "Submit",
-            "Cancel": "Cancel",
-            "Save": "Save",
-            "Delete": "Delete",
-            "Edit": "Edit",
-            "Login": "Login",
-            "Register": "Register",
-            "Username": "Username",
-            "Password": "Password",
-            "Settings": "Settings",
-            "Add Member": "Add Member",
-            "Remove": "Remove",
-        },
-        "es": {
-            "Dashboard": "Panel",
-            "New Proposal": "Nueva Propuesta",
-            "Calendar": "Calendario",
-            "Admin": "Admin",
-            "About": "Acerca de",
-            "Password": "Contraseña",
-            "Logout": "Salir",
-            "Budget": "Presupuesto",
-            "Proposals": "Propuestas",
-            "Members": "Miembros",
-            "Vote": "Votar",
-            "Approved": "Aprobada",
-            "Rejected": "Rechazada",
-            "Active": "Activa",
-            "In Favor": "A favor",
-            "Against": "En contra",
-            "Amount": "Cantidad",
-            "Title": "Título",
-            "Description": "Descripción",
-            "Submit": "Enviar",
-            "Cancel": "Cancelar",
-            "Save": "Guardar",
-            "Delete": "Eliminar",
-            "Edit": "Editar",
-            "Login": "Entrar",
-            "Register": "Registrarse",
-            "Username": "Usuario",
-            "Password": "Contraseña",
-            "Settings": "Ajustes",
-            "Add Member": "Añadir Miembro",
-            "Remove": "Eliminar",
-        },
-    }
-    return translations.get(lang, translations["en"]).get(key, key)
+    lang = session.get("lang", "en")
+    return TRANSLATIONS.get(lang, TRANSLATIONS["en"]).get(key, key)
 
 
 DB_PATH = os.path.join(os.path.dirname(__file__), "hackerspace.db")
@@ -515,7 +723,7 @@ def login():
         else:
             flash("Invalid credentials", "error")
 
-    return render_template("login.html")
+    return render_template("login.html", session_lang=session.get("lang", "en"))
 
 
 @app.route("/api/register", methods=["POST"])
@@ -687,7 +895,7 @@ def api_edit_proposal(proposal_id):
 
 @app.route("/about")
 def about():
-    return render_template("about.html")
+    return render_template("about.html", session_lang=session.get("lang", "en"))
 
 
 @app.route("/calendar")
@@ -743,6 +951,7 @@ def calendar():
         proposals=proposals,
         budget_logs=budget_logs,
         daily_budget=daily_budget,
+        session_lang=session.get("lang", "en"),
     )
 
 
@@ -754,19 +963,10 @@ def logout():
 
 @app.route("/set-language/<lang>")
 def set_language(lang):
-    from flask import session as flask_session
-
     if lang in ("en", "es"):
-        flask_session["lang"] = lang
-        flask_session.permanent = True
-    # Force no caching
-    from flask import make_response
-
-    response = make_response(
-        redirect(request.headers.get("Referer", url_for("dashboard")))
-    )
-    response.headers["Cache-Control"] = "no-cache, no-store, must-revalidate"
-    return response
+        session["lang"] = lang
+        session.permanent = True
+    return redirect(request.headers.get("Referer", url_for("dashboard")))
 
 
 @app.route("/change-password", methods=["GET", "POST"])
@@ -813,7 +1013,9 @@ def change_password():
         flash("Password changed successfully!", "success")
         return redirect(url_for("dashboard"))
 
-    return render_template("change_password.html")
+    return render_template(
+        "change_password.html", session_lang=session.get("lang", "en")
+    )
 
 
 @app.route("/register", methods=["GET", "POST"])
@@ -830,7 +1032,9 @@ def register():
 
         if not username or not password:
             flash("Username and password are required", "error")
-            return render_template("register.html")
+            return render_template(
+                "register.html", session_lang=session.get("lang", "en")
+            )
 
         password_hash = hashlib.sha256(password.encode()).hexdigest()
 
@@ -841,7 +1045,9 @@ def register():
         if c.fetchone():
             flash("Username already exists", "error")
             conn.close()
-            return render_template("register.html")
+            return render_template(
+                "register.html", session_lang=session.get("lang", "en")
+            )
 
         c.execute(
             "INSERT INTO members (username, password_hash, is_admin) VALUES (?, ?, 0)",
@@ -853,7 +1059,7 @@ def register():
         flash("Registration successful! Please log in.", "success")
         return redirect(url_for("login"))
 
-    return render_template("register.html")
+    return render_template("register.html", session_lang=session.get("lang", "en"))
 
 
 @app.route("/dashboard")
@@ -1004,7 +1210,10 @@ def new_proposal():
     current_budget = get_current_budget()
     thresholds = get_thresholds()
     return render_template(
-        "new_proposal.html", current_budget=current_budget, thresholds=thresholds
+        "new_proposal.html",
+        current_budget=current_budget,
+        thresholds=thresholds,
+        session_lang=session.get("lang", "en"),
     )
 
 
@@ -1138,7 +1347,11 @@ def edit_comment(comment_id):
         return redirect(url_for("proposal_detail", proposal_id=comment["proposal_id"]))
 
     conn.close()
-    return render_template("edit_comment.html", comment=comment)
+    return render_template(
+        "edit_comment.html",
+        comment=comment,
+        session_lang=session.get("lang", "en"),
+    )
 
 
 @app.route("/comment/<int:comment_id>/delete", methods=["POST"])
@@ -1280,6 +1493,7 @@ def edit_proposal(proposal_id):
         proposal=proposal,
         current_budget=current_budget,
         thresholds=thresholds,
+        session_lang=session.get("lang", "en"),
     )
 
 
@@ -1577,6 +1791,7 @@ def admin():
         thresholds=thresholds,
         registration_enabled=registration_enabled,
         get_setting_value=get_setting_value,
+        session_lang=session.get("lang", "en"),
     )
 
 

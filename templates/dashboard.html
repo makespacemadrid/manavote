@@ -1,23 +1,17 @@
 {% extends "base.html" %}
 
-{% macro t(key) %}{{
-    {'en': {'Dashboard': 'Dashboard', 'New Proposal': 'New Proposal', 'Calendar': 'Calendar', 'Admin': 'Admin', 'About': 'About', 'Password': 'Password', 'Logout': 'Logout', 'All': 'All', 'Active': 'Active', 'Approved': 'Approved', 'Pending Budget': 'Pending Budget', 'Pending Purchase': 'Pending Purchase', 'Purchased': 'Purchased', 'Basic': 'Basic', 'Standard': 'Standard', 'Expensive': 'Expensive', 'In favor': 'In favor', 'Against': 'Against'},
-     'es': {'Dashboard': 'Panel', 'New Proposal': 'Nueva Propuesta', 'Calendar': 'Calendario', 'Admin': 'Admin', 'About': 'Acerca de', 'Password': 'Contraseña', 'Logout': 'Salir', 'All': 'Todas', 'Active': 'Activas', 'Approved': 'Aprobadas', 'Pending Budget': 'Pendiente Presupuesto', 'Pending Purchase': 'Pendiente Compra', 'Purchased': 'Compradas', 'Basic': 'Básicos', 'Standard': 'Estándar', 'Expensive': 'Caros', 'In favor': 'A favor', 'Against': 'En contra'}
-    }[session_lang][key]
-}}{% endmacro %}
-
 {% block content %}
 <div class="nav">
-    <span>Logged in as: <strong>{{ session.username|username }}</strong></span>
-    <a href="{{ url_for('dashboard') }}">{{ t('Dashboard') }}</a>
-    <a href="{{ url_for('new_proposal') }}">{{ t('New Proposal') }}</a>
-    <a href="{{ url_for('calendar') }}">{{ t('Calendar') }}</a>
+    <span>{{ 'Logged in as'|lang }}: <strong>{{ session.username|username }}</strong></span>
+    <a href="{{ url_for('dashboard') }}">{{ 'Dashboard'|lang }}</a>
+    <a href="{{ url_for('new_proposal') }}">{{ 'New Proposal'|lang }}</a>
+    <a href="{{ url_for('calendar') }}">{{ 'Calendar'|lang }}</a>
     {% if session.is_admin %}
-    <a href="{{ url_for('admin') }}">{{ t('Admin') }}</a>
+    <a href="{{ url_for('admin') }}">{{ 'Admin'|lang }}</a>
     {% endif %}
-    <a href="{{ url_for('about') }}">{{ t('About') }}</a>
-    <a href="{{ url_for('change_password') }}">{{ t('Password') }}</a>
-    <a href="{{ url_for('logout') }}">{{ t('Logout') }}</a>
+    <a href="{{ url_for('about') }}">{{ 'About'|lang }}</a>
+    <a href="{{ url_for('change_password') }}">{{ 'Password'|lang }}</a>
+    <a href="{{ url_for('logout') }}">{{ 'Logout'|lang }}</a>
     <div class="lang-selector">
         <a href="{{ url_for('set_language', lang='en') }}" class="{{ 'active' if session_lang == 'en' else '' }}">EN</a>
         <a href="{{ url_for('set_language', lang='es') }}" class="{{ 'active' if session_lang == 'es' else '' }}">ES</a>
@@ -25,35 +19,35 @@
 </div>
 
 <div class="card">
-    <h2>💰 Discretionary Budget</h2>
+    <h2>💰 {{ 'Discretionary Budget'|lang }}</h2>
     <div class="budget">€{{ "%.2f"|format(current_budget) }}</div>
     <p style="color: #888; margin-top: 10px;">
-        {{ member_count }} members · Proposals over €50 need {{ thresholds.over50 }}%, basic supplies need {{ thresholds.basic }}%, otherwise {{ thresholds.default }}%
+        {{ member_count }} {{ 'members'|lang }} · {{ 'Proposals'|lang }} {{ 'over 50 need'|lang }} {{ thresholds.over50 }}%, {{ 'basic supplies need'|lang }} {{ thresholds.basic }}%, {{ 'otherwise'|lang }} {{ thresholds.default }}%
     </p>
 </div>
 
 <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h2>📋 Proposals</h2>
-        <a href="{{ url_for('new_proposal') }}" class="btn">+ {{ t('New Proposal') }}</a>
+        <h2>📋 {{ 'Proposals'|lang }}</h2>
+        <a href="{{ url_for('new_proposal') }}" class="btn">+ {{ 'New Proposal'|lang }}</a>
     </div>
     
     <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
-        <a href="{{ url_for('dashboard') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em;">{{ t('All') }}</a>
-        <a href="{{ url_for('dashboard', filter='active') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00d9ff22' if filter == 'active' else 'transparent' }}; color: #00d9ff; border: 1px solid #00d9ff;">{{ t('Active') }}</a>
-        <a href="{{ url_for('dashboard', filter='approved') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00ff8822' if filter == 'approved' else 'transparent' }}; color: #00ff88; border: 1px solid #00ff88;">{{ t('Approved') }}</a>
-        <a href="{{ url_for('dashboard', filter='over_budget') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#ffa50022' if filter == 'over_budget' else 'transparent' }}; color: #ffa500; border: 1px solid #ffa500;">{{ t('Pending Budget') }}</a>
-        <a href="{{ url_for('dashboard', filter='not_purchased') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#ff6b6b22' if filter == 'not_purchased' else 'transparent' }}; color: #ff6b6b; border: 1px solid #ff6b6b;">{{ t('Pending Purchase') }}</a>
-        <a href="{{ url_for('dashboard', filter='purchased') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#4a44' if filter == 'purchased' else 'transparent' }}; color: #4a4; border: 1px solid #4a4;">{{ t('Purchased') }}</a>
+        <a href="{{ url_for('dashboard') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em;">{{ 'All'|lang }}</a>
+        <a href="{{ url_for('dashboard', filter='active') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00d9ff22' if filter == 'active' else 'transparent' }}; color: #00d9ff; border: 1px solid #00d9ff;">{{ 'Active'|lang }}</a>
+        <a href="{{ url_for('dashboard', filter='approved') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00ff8822' if filter == 'approved' else 'transparent' }}; color: #00ff88; border: 1px solid #00ff88;">{{ 'Approved'|lang }}</a>
+        <a href="{{ url_for('dashboard', filter='over_budget') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#ffa50022' if filter == 'over_budget' else 'transparent' }}; color: #ffa500; border: 1px solid #ffa500;">{{ 'Pending Budget'|lang }}</a>
+        <a href="{{ url_for('dashboard', filter='not_purchased') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#ff6b6b22' if filter == 'not_purchased' else 'transparent' }}; color: #ff6b6b; border: 1px solid #ff6b6b;">{{ 'Pending Purchase'|lang }}</a>
+        <a href="{{ url_for('dashboard', filter='purchased') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#4a44' if filter == 'purchased' else 'transparent' }}; color: #4a4; border: 1px solid #4a4;">{{ 'Purchased'|lang }}</a>
     </div>
     <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
-        <a href="{{ url_for('dashboard', filter='basic') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#FFD70022' if filter == 'basic' else 'transparent' }}; color: #FFD700; border: 1px solid #FFD700;">{{ t('Basic') }}</a>
-        <a href="{{ url_for('dashboard', filter='standard') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00d9ff22' if filter == 'standard' else 'transparent' }}; color: #00d9ff; border: 1px solid #00d9ff;">{{ t('Standard') }}</a>
-        <a href="{{ url_for('dashboard', filter='expensive') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#9b59b622' if filter == 'expensive' else 'transparent' }}; color: #9b59b6; border: 1px solid #9b59b6;">{{ t('Expensive') }}</a>
+        <a href="{{ url_for('dashboard', filter='basic') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#FFD70022' if filter == 'basic' else 'transparent' }}; color: #FFD700; border: 1px solid #FFD700;">{{ 'Basic'|lang }}</a>
+        <a href="{{ url_for('dashboard', filter='standard') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00d9ff22' if filter == 'standard' else 'transparent' }}; color: #00d9ff; border: 1px solid #00d9ff;">{{ 'Standard'|lang }}</a>
+        <a href="{{ url_for('dashboard', filter='expensive') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#9b59b622' if filter == 'expensive' else 'transparent' }}; color: #9b59b6; border: 1px solid #9b59b6;">{{ 'Expensive'|lang }}</a>
     </div>
     
     {% if total_count is defined and total_count != proposals|length %}
-    <p style="color: #888; margin-bottom: 10px; font-size: 0.9em;">Showing {{ proposals|length }} of {{ total_count }} proposals</p>
+    <p style="color: #888; margin-bottom: 10px; font-size: 0.9em;">{{ 'Showing X of Y proposals'|lang }}</p>
     {% endif %}
     
     {% if proposals %}
@@ -75,59 +69,59 @@
                         {{ p.title }}
                     </a>
                     <span class="status status-{{ p.status }}">{{ p.status }}</span>
-                    {% if p.basic_supplies %}<span class="status" style="background: #FFD700; color: #000; margin-left: 5px;">basic</span>{% endif %}
-                    {% if p.status == 'approved' and p.amount > 50 %}<span class="status" style="background: #9b59b622; color: #9b59b6; margin-left: 5px;">expensive</span>{% endif %}
-                    {% if p.status == 'approved' and not p.basic_supplies and p.amount <= 50 %}<span class="status" style="background: #00d9ff22; color: #00d9ff; margin-left: 5px;">standard</span>{% endif %}
-                    {% if p.purchased_at %}<span class="status" style="background: #4a4; color: #fff; margin-left: 5px;">purchased</span>{% endif %}
+                    {% if p.basic_supplies %}<span class="status" style="background: #FFD700; color: #000; margin-left: 5px;">{{ 'basic'|lang }}</span>{% endif %}
+                    {% if p.status == 'approved' and p.amount > 50 %}<span class="status" style="background: #9b59b622; color: #9b59b6; margin-left: 5px;">{{ 'expensive'|lang }}</span>{% endif %}
+                    {% if p.status == 'approved' and not p.basic_supplies and p.amount <= 50 %}<span class="status" style="background: #00d9ff22; color: #00d9ff; margin-left: 5px;">{{ 'standard'|lang }}</span>{% endif %}
+                    {% if p.purchased_at %}<span class="status" style="background: #4a4; color: #fff; margin-left: 5px;">{{ 'purchased'|lang }}</span>{% endif %}
                 </h3>
                 <div class="proposal-meta">
-                    by {{ p.username|username }} · {{ p.created_at[:10] }}
+                    {{ 'by'|lang }} {{ p.username|username }} · {{ p.created_at[:10] }}
                     {% if p.user_vote %}
-                    · Your vote: <strong>{{ 'in favor' if p.user_vote == 'in_favor' else 'against' }}</strong>
+                    · {{ 'Your vote'|lang }}: <strong>{{ 'In Favor'|lang if p.user_vote == 'in_favor' else 'Against'|lang }}</strong>
                     {% endif %}
                 </div>
                 <div class="vote-counts">
-                    <span class="vote-approve">✓ {{ p.approve_count }} in favor</span>
-                    <span class="vote-reject">✗ {{ p.reject_count }} against</span>
-                    <span style="color: {{ '#00d9ff' if p.net_votes >= p.min_backers else '#888' }};">({{ p.net_votes }} net)</span>
+                    <span class="vote-approve">✓ {{ p.approve_count }} {{ 'in favor'|lang }}</span>
+                    <span class="vote-reject">✗ {{ p.reject_count }} {{ 'against'|lang }}</span>
+                    <span style="color: {{ '#00d9ff' if p.net_votes >= p.min_backers else '#888' }};">({{ p.net_votes }} {{ 'net'|lang }})</span>
                 </div>
                 {% if p.status == 'active' and (p.created_by == session.member_id or session.is_admin) %}
                 <div style="margin-top: 5px;">
-                    <a href="{{ url_for('edit_proposal', proposal_id=p.id) }}" style="color: #00d9ff; font-size: 0.75em;">Edit</a>
+                    <a href="{{ url_for('edit_proposal', proposal_id=p.id) }}" style="color: #00d9ff; font-size: 0.75em;">{{ 'Edit'|lang }}</a>
                 </div>
                 {% endif %}
                 {% if p.status == 'active' and p.user_vote %}
                 <div style="margin-top: 8px; display: flex; gap: 5px;">
                     <form method="POST" action="{{ url_for('quick_vote', proposal_id=p.id) }}">
-                        <button type="submit" name="vote" value="in_favor" class="vote-btn approve {{ 'active' if p.user_vote == 'in_favor' else '' }}" style="padding: 4px 8px; font-size: 0.75em;">✓ {{ t('In favor') }}</button>
-                        <button type="submit" name="vote" value="against" class="vote-btn reject {{ 'active' if p.user_vote == 'against' else '' }}" style="padding: 4px 8px; font-size: 0.75em;">✗ {{ t('Against') }}</button>
+                        <button type="submit" name="vote" value="in_favor" class="vote-btn approve {{ 'active' if p.user_vote == 'in_favor' else '' }}" style="padding: 4px 8px; font-size: 0.75em;">✓ {{ 'In Favor'|lang }}</button>
+                        <button type="submit" name="vote" value="against" class="vote-btn reject {{ 'active' if p.user_vote == 'against' else '' }}" style="padding: 4px 8px; font-size: 0.75em;">✗ {{ 'Against'|lang }}</button>
                     </form>
                 </div>
                 {% endif %}
                 {% if p.status == 'active' and not p.user_vote %}
                 <div style="margin-top: 8px; display: flex; gap: 5px;">
                     <form method="POST" action="{{ url_for('quick_vote', proposal_id=p.id) }}">
-                        <button type="submit" name="vote" value="in_favor" class="vote-btn approve" style="padding: 4px 8px; font-size: 0.75em;">✓ {{ t('In favor') }}</button>
-                        <button type="submit" name="vote" value="against" class="vote-btn reject" style="padding: 4px 8px; font-size: 0.75em;">✗ {{ t('Against') }}</button>
+                        <button type="submit" name="vote" value="in_favor" class="vote-btn approve" style="padding: 4px 8px; font-size: 0.75em;">✓ {{ 'In Favor'|lang }}</button>
+                        <button type="submit" name="vote" value="against" class="vote-btn reject" style="padding: 4px 8px; font-size: 0.75em;">✗ {{ 'Against'|lang }}</button>
                     </form>
                 </div>
                 {% endif %}
                 {% if p.status == 'approved' and (p.created_by == session.member_id or session.is_admin) %}
                 <div style="margin-top: 5px; display: flex; gap: 10px; align-items: center;">
                     {% if p.purchased_at %}
-                    <span style="color: #4a4; font-size: 0.75em;">✓ purchased</span>
+                    <span style="color: #4a4; font-size: 0.75em;">✓ {{ 'purchased'|lang }}</span>
                     {% if session.is_admin %}
                     <form method="POST" action="{{ url_for('unmark_purchased', proposal_id=p.id) }}" style="display: inline;">
-                        <button type="submit" style="background: none; border: none; color: #888; font-size: 0.75em; cursor: pointer; padding: 0;">unmark</button>
+                        <button type="submit" style="background: none; border: none; color: #888; font-size: 0.75em; cursor: pointer; padding: 0;">{{ 'unmark'|lang }}</button>
                     </form>
                     {% endif %}
                     {% else %}
-                    <form method="POST" action="{{ url_for('mark_purchased', proposal_id=p.id) }}" style="display: inline;" onsubmit="return confirm('Mark as purchased?');">
-                        <button type="submit" style="background: #00d9ff22; border: 1px solid #00d9ff; color: #00d9ff; font-size: 0.8em; cursor: pointer; padding: 4px 10px; border-radius: 4px;">✓ confirm purchase</button>
+                    <form method="POST" action="{{ url_for('mark_purchased', proposal_id=p.id) }}" style="display: inline;" onsubmit="return confirm('{{ 'Mark as purchased?'|lang }}');">
+                        <button type="submit" style="background: #00d9ff22; border: 1px solid #00d9ff; color: #00d9ff; font-size: 0.8em; cursor: pointer; padding: 4px 10px; border-radius: 4px;">✓ {{ 'confirm purchase'|lang }}</button>
                     </form>
                     {% endif %}
                     {% if session.is_admin %}
-                    <a href="{{ url_for('undo_approve', proposal_id=p.id) }}" style="color: #e94560; font-size: 0.75em;">undo</a>
+                    <a href="{{ url_for('undo_approve', proposal_id=p.id) }}" style="color: #e94560; font-size: 0.75em;">{{ 'undo'|lang }}</a>
                     {% endif %}
                 </div>
                 {% endif %}
@@ -139,18 +133,18 @@
         {% endfor %}
     </ul>
     {% else %}
-    <p style="color: #666; text-align: center; padding: 40px;">No proposals yet. Create one!</p>
+    <p style="color: #666; text-align: center; padding: 40px;">{{ 'No proposals yet. Create one!'|lang }}</p>
     {% endif %}
 </div>
 
 <div class="card">
-    <h3>📜 Budget History</h3>
+    <h3>📜 {{ 'Budget History'|lang }}</h3>
     <table>
         <thead>
             <tr>
-                <th>Date</th>
-                <th>Description</th>
-                <th>Amount</th>
+                <th>{{ 'Date'|lang }}</th>
+                <th>{{ 'Description'|lang }}</th>
+                <th>{{ 'Amount'|lang }}</th>
             </tr>
         </thead>
         <tbody>
