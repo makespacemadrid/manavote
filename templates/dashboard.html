@@ -68,7 +68,11 @@
                     <a href="{{ url_for('proposal_detail', proposal_id=p.id) }}" style="color: #eee; text-decoration: none;">
                         {{ p.title }}
                     </a>
-                    <span class="status status-{{ p.status }}">{{ ('Pending Budget'|lang) if p.status == 'over_budget' else p.status }}</span>
+                    {% if p.status == 'over_budget' %}
+                    <span class="status" style="background: #ffa50022; color: #ffa500;">{{ 'Pending Budget'|lang }}</span>
+                    {% else %}
+                    <span class="status status-{{ p.status }}">{{ p.status }}</span>
+                    {% endif %}
                     {% if p.basic_supplies %}<span class="status" style="background: #FFD700; color: #000; margin-left: 5px;">{{ 'basic'|lang }}</span>{% endif %}
                     {% if p.status == 'approved' and p.amount > 50 %}<span class="status" style="background: #9b59b622; color: #9b59b6; margin-left: 5px;">{{ 'expensive'|lang }}</span>{% endif %}
                     {% if p.status == 'approved' and not p.basic_supplies and p.amount <= 50 %}<span class="status" style="background: #00d9ff22; color: #00d9ff; margin-left: 5px;">{{ 'standard'|lang }}</span>{% endif %}
