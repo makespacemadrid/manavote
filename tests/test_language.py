@@ -23,8 +23,8 @@ class TestLanguageSwitch(unittest.TestCase):
         """Default language is English"""
         response = self.client.get("/dashboard")
         self.assertEqual(response.status_code, 200)
-        self.assertIn(b"Discretionary Budget", response.data)
-        self.assertNotIn(b"Presupuesto Discrecional", response.data)
+        self.assertIn(b"Budget", response.data)
+        self.assertNotIn(b"Presupuesto", response.data)
 
     def test_switch_to_spanish(self):
         """Can switch to Spanish"""
@@ -32,18 +32,21 @@ class TestLanguageSwitch(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
 
         response = self.client.get("/dashboard")
-        self.assertIn(b"Presupuesto Discrecional", response.data)
-        self.assertNotIn(b"Discretionary Budget", response.data)
+        # In Spanish - shows Historial
+        self.assertIn(b"Presupuesto", response.data)
+        self.assertIn(b"Historial", response.data)
+        # Should NOT show English "Budget History"
+        self.assertNotIn(b"Budget History", response.data)
 
     def test_switch_back_to_english(self):
         """Can switch back to English"""
         self.client.get("/set-language/es")
         response = self.client.get("/dashboard")
-        self.assertIn(b"Presupuesto Discrecional", response.data)
+        self.assertIn(b"Presupuesto", response.data)
 
         self.client.get("/set-language/en")
         response = self.client.get("/dashboard")
-        self.assertIn(b"Discretionary Budget", response.data)
+        self.assertIn(b"Budget", response.data)
 
     def test_language_persists_across_pages(self):
         """Language persists across different pages"""
@@ -68,7 +71,7 @@ class TestLanguageSwitch(unittest.TestCase):
         """Invalid language codes are ignored"""
         self.client.get("/set-language/fr")
         response = self.client.get("/dashboard")
-        self.assertIn(b"Discretionary Budget", response.data)
+        self.assertIn(b"Budget", response.data)
 
     def test_language_in_session(self):
         """Session has correct language after switch"""

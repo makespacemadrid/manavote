@@ -4,7 +4,6 @@
 <div class="nav">
     <span>{{ 'Logged in as'|lang }}: <strong>{{ session.username|username }}</strong></span>
     <a href="{{ url_for('dashboard') }}">{{ 'Dashboard'|lang }}</a>
-    <a href="{{ url_for('new_proposal') }}">{{ 'New Proposal'|lang }}</a>
     <a href="{{ url_for('calendar') }}">{{ 'Calendar'|lang }}</a>
     {% if session.is_admin %}
     <a href="{{ url_for('admin') }}">{{ 'Admin'|lang }}</a>
@@ -24,17 +23,13 @@
 </div>
 
 <div class="card">
-    <h2>💰 {{ 'Discretionary Budget'|lang }}</h2>
-    <div class="budget">€{{ "%.2f"|format(current_budget) }}</div>
-    <p style="color: #888; margin-top: 10px;">
-        {{ member_count }} {{ 'members'|lang }} · {{ 'Proposals'|lang }} {{ 'over 50 need'|lang }} {{ thresholds.over50 }}%, {{ 'basic supplies need'|lang }} {{ thresholds.basic }}%, {{ 'otherwise'|lang }} {{ thresholds.default }}%
-    </p>
-</div>
-
-<div class="card">
     <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
         <h2>📋 {{ 'Proposals'|lang }}</h2>
         <a href="{{ url_for('new_proposal') }}" class="btn">+ {{ 'New Proposal'|lang }}</a>
+    </div>
+    <div style="display: flex; gap: 20px; margin-bottom: 15px;">
+        <span>{{ 'Budget'|lang }}: <strong style="color: #00d9ff;">€{{ "%.2f"|format(current_budget) }}</strong></span>
+        <span style="color: #888;">{{ member_count }} {{ 'members'|lang }}</span>
     </div>
     
     <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
