@@ -57,6 +57,11 @@
         .lang-selector { display: flex; gap: 8px; margin-left: auto; }
         .lang-selector a { opacity: 0.6; font-size: 0.85em; }
         .lang-selector a.active { opacity: 1; font-weight: bold; }
+        .settings-dropdown { position: relative; margin-left: auto; }
+        .settings-menu { display: none; position: absolute; right: 0; top: 20px; background: #16213e; border: 1px solid #0f3460; border-radius: 4px; padding: 10px; min-width: 150px; z-index: 100; }
+        .settings-dropdown:hover .settings-menu { display: block; }
+        .settings-menu a { display: block; padding: 5px 10px; color: #00d9ff; text-decoration: none; }
+        .settings-menu a:hover { background: #0f3460; }
     </style>
 </head>
 <body>
