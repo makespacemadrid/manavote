@@ -2,7 +2,8 @@
 
 A Flask web application for managing and voting on budget proposals in a hackerspace community.
 
-## Authentication & Members
+## Features
+- **Multi-language**: English and Spanish (switchable from Settings)
 - **Self-Registration**: Members can register themselves (admin can disable)
 - **Password Change**: Members can change their own password
 - **REST API Registration**: Admins can register members programmatically
@@ -38,6 +39,13 @@ A Flask web application for managing and voting on budget proposals in a hackers
 - Telegram notifications on new proposals and approvals
 - Mark approved proposals as purchased
 - REST API for member and proposal management
+- Add/remove members
+- Make/remove admin users
+
+## Settings
+- Change Password: Update your password
+- Logout: End session
+- Language: Switch between English and Español
 
 ## Budget Rules
 - **Starting budget**: 300 EUR

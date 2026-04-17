@@ -5,6 +5,7 @@
 - **Type**: Flask web application
 - **Core functionality**: Voting system for members to approve/disapprove spending proposals, with automatic Telegram notifications for approved proposals
 - **Target users**: Hackerspace members (~50 people)
+- **Languages**: English and Spanish (user-switchable)
 
 ## Architecture
 
@@ -188,6 +189,18 @@ Both conditions must be TRUE:
 - Auto-create default admin on first run
 - SHA-256 password hashing
 - Password change for members
+
+### Internationalization
+- Language switcher: English ↔ Español
+- Settings dropdown in navigation
+- All UI text translated via `|lang` filter
+- Language persists in session
+
+### Navigation
+All pages share consistent navigation:
+- Main links: Dashboard, New Proposal, Calendar, About
+- Conditional: Admin (admins only)
+- Settings dropdown: Change Password, Logout, Language selector
 
 ### Member Management
 | Action | Who | Method |
@@ -377,6 +390,12 @@ Response (200):
 | `/purchase/<id>` | POST | Mark as purchased |
 | `/unpurchase/<id>` | POST | Remove purchase status |
 | `/undo/<id>` | POST | Undo approval |
+| `/calendar` | GET | Activity timeline and budget graph |
+
+### Language Routes
+| Route | Methods | Description |
+|-------|---------|-------------|
+| `/set-language/<lang>` | GET | Switch language (en/es), redirects back |
 
 ### Admin Routes
 | Route | Methods | Description |
@@ -434,6 +453,8 @@ pytest -v
 - Settings float parsing fallback
 - Admin monthly top-up uses `monthly_topup` setting
 - No duplicate flash on add budget
+- Language switching (EN/ES)
+- Translation filter
 
 ## Acceptance Criteria
 - [x] Members can register/login and vote
@@ -452,3 +473,6 @@ pytest -v
 - [x] Proposal tags: basic, standard, expensive, purchased
 - [x] Members can withdraw vote on active proposals
 - [x] Creator auto-votes in_favor when creating proposal
+- [x] Language switching (English/Spanish)
+- [x] Consistent Settings dropdown on all pages
+- [x] Admin can make/remove other admins
