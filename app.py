@@ -136,7 +136,7 @@ def init_db():
 
     c.execute("SELECT COUNT(*) FROM members WHERE is_admin = 1")
     if c.fetchone()[0] == 0:
-        admin_password = hashlib.sha256("carpediem42".encode()).hexdigest()
+        admin_password = generate_password_hash("carpediem42")
         c.execute(
             "INSERT INTO members (username, password_hash, is_admin) VALUES (?, ?, 1)",
             ("admin", admin_password),
@@ -433,18 +433,33 @@ def login():
     if request.method == "POST":
         username = request.form["username"]
         password = request.form["password"]
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
 
         conn = get_db()
         c = conn.cursor()
-        c.execute(
-            "SELECT * FROM members WHERE username = ? AND password_hash = ?",
-            (username, password_hash),
-        )
+        c.execute("SELECT * FROM members WHERE username = ?", (username,))
         member = c.fetchone()
-        conn.close()
 
         if member:
+            stored_hash = member["password_hash"]
+
+            if stored_hash.startswith("pbkdf2:sha256:"):
+                valid = check_password_hash(stored_hash, password)
+            elif stored_hash == hashlib.sha256(password.encode()).hexdigest():
+                new_hash = generate_password_hash(password)
+                c.execute(
+                    "UPDATE members SET password_hash = ? WHERE id = ?",
+                    (new_hash, member["id"]),
+                )
+                conn.commit()
+                valid = True
+            else:
+                valid = False
+        else:
+            valid = False
+
+        conn.close()
+
+        if member and valid:
             session["member_id"] = member["id"]
             session["username"] = member["username"]
             session["is_admin"] = member["is_admin"]
@@ -479,7 +494,7 @@ def api_register():
     if not username or not password:
         return jsonify({"error": "username and password are required"}), 400
 
-    password_hash = hashlib.sha256(password.encode()).hexdigest()
+    password_hash = generate_password_hash(password)
 
     conn = get_db()
     c = conn.cursor()
@@ -782,20 +797,34 @@ def change_password():
             flash("Password must be at least 4 characters", "error")
             return redirect(url_for("change_password"))
 
-        current_hash = hashlib.sha256(current_password.encode()).hexdigest()
-
         conn = get_db()
         c = conn.cursor()
         c.execute(
-            "SELECT id FROM members WHERE id = ? AND password_hash = ?",
-            (session["member_id"], current_hash),
+            "SELECT password_hash FROM members WHERE id = ?",
+            (session["member_id"],),
         )
-        if not c.fetchone():
+        row = c.fetchone()
+
+        if not row:
+            conn.close()
+            flash("Error", "error")
+            return redirect(url_for("change_password"))
+
+        stored_hash = row[0]
+
+        if stored_hash.startswith("pbkdf2:sha256:"):
+            valid = check_password_hash(stored_hash, current_password)
+        elif stored_hash == hashlib.sha256(current_password.encode()).hexdigest():
+            valid = True
+        else:
+            valid = False
+
+        if not valid:
             conn.close()
             flash("Current password is incorrect", "error")
             return redirect(url_for("change_password"))
 
-        new_hash = hashlib.sha256(new_password.encode()).hexdigest()
+        new_hash = generate_password_hash(new_password)
         c.execute(
             "UPDATE members SET password_hash = ? WHERE id = ?",
             (new_hash, session["member_id"]),
@@ -829,7 +858,7 @@ def register():
                 "register.html", session_lang=session.get("lang", "en")
             )
 
-        password_hash = hashlib.sha256(password.encode()).hexdigest()
+        password_hash = generate_password_hash(password)
 
         conn = get_db()
         c = conn.cursor()
@@ -1454,7 +1483,7 @@ def admin():
             username = request.form["username"]
             password = request.form["password"]
             is_admin = 1 if request.form.get("is_admin") else 0
-            password_hash = hashlib.sha256(password.encode()).hexdigest()
+            password_hash = generate_password_hash(password)
 
             try:
                 c.execute(
@@ -1625,6 +1654,35 @@ def admin():
 def check_overbudget():
     check_over_budget_proposals()
     return "OK"
+
+
+def migrate_password_if_needed(user_id, plaintext_password):
+    """Migrate old SHA256 hash to werkzeug hash on login"""
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT password_hash FROM members WHERE id = ?", (user_id,))
+    row = c.fetchone()
+    if not row:
+        conn.close()
+        return False
+
+    stored_hash = row[0]
+
+    if stored_hash.startswith("pbkdf2:sha256:"):
+        conn.close()
+        return check_password_hash(stored_hash, plaintext_password)
+
+    if stored_hash == hashlib.sha256(plaintext_password.encode()).hexdigest():
+        new_hash = generate_password_hash(plaintext_password)
+        c.execute(
+            "UPDATE members SET password_hash = ? WHERE id = ?", (new_hash, user_id)
+        )
+        conn.commit()
+        conn.close()
+        return True
+
+    conn.close()
+    return False
 
 
 if __name__ == "__main__":
