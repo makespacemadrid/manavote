@@ -124,6 +124,7 @@ TRANSLATIONS = {
         "Approved proposals get": "Approved proposals get purchased and budget is deducted",
         "Over-budget proposals": "Over-budget proposals wait in queue until budget available",
         "This budget voting system": "This budget voting system was created to encourage member participation in our hackerspace. It's an experiment in decentralized decision-making and community funding.",
+        "Pending Budget (reserved)": "Pending Budget (reserved)",
     },
     "es": {
         "active": "activo",
@@ -250,5 +251,6 @@ TRANSLATIONS = {
         "Approved proposals get": "Las propuestas aprobadas se compran y se descuenta del presupuesto",
         "Over-budget proposals": "Las propuestas que exceden el presupuesto esperan en cola hasta que haya presupuesto disponible",
         "This budget voting system": "Este sistema de votación de presupuesto fue creado para fomentar la participación de los miembros en nuestro hackerspace. Es un experimento en toma de decisiones descentralizada y financiamiento comunitario.",
+        "Pending Budget (reserved)": "Presupuesto Pendiente (reservado)",
     },
 }

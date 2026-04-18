@@ -33,6 +33,8 @@ def truncate_username(username):
 
 
 from translations import TRANSLATIONS
+
+
 @app.template_filter("markdown")
 def render_markdown(text):
     if not text:
@@ -655,6 +657,14 @@ def calendar():
     """)
     daily_budget = [dict(row) for row in c.fetchall()]
 
+    c.execute(
+        "SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'over_budget'"
+    )
+    pending_budget = c.fetchone()[0] or 0
+
+    c.execute("SELECT COALESCE(SUM(amount), 0) FROM budget_log")
+    starting_balance = c.fetchone()[0] or 0
+
     conn.close()
 
     return render_template(
@@ -662,6 +672,8 @@ def calendar():
         proposals=proposals,
         budget_logs=budget_logs,
         daily_budget=daily_budget,
+        pending_budget=pending_budget,
+        starting_balance=starting_balance,
         session_lang=session.get("lang", "en"),
     )
 
