@@ -153,7 +153,6 @@
             </tr>
         </thead>
         <tbody>
-            {% set balance = current_budget %}
             {% for log in budget_history %}
             <tr>
                 <td>{{ log.created_at[:16] }}</td>
@@ -161,10 +160,9 @@
                 <td class="{{ 'amount-positive' if log.amount > 0 else 'amount-negative' }}">
                     {{ "+" if log.amount > 0 else "" }}€{{ "%.2f"|format(log.amount) }}
                 </td>
-                <td class="{{ 'amount-positive' if balance > 0 else 'amount-negative' }}">
-                    €{{ "%.2f"|format(balance) }}
+                <td class="{{ 'amount-positive' if log.balance > 0 else 'amount-negative' }}">
+                    €{{ "%.2f"|format(log.balance) }}
                 </td>
-                {% set balance = balance - log.amount %}
             </tr>
             {% endfor %}
         </tbody>

@@ -833,14 +833,17 @@ def dashboard():
     c.execute("SELECT COUNT(*) FROM proposals")
     total_count = c.fetchone()[0]
 
-    c.execute("SELECT * FROM budget_log ORDER BY created_at DESC LIMIT 50")
-    budget_history = [dict(row) for row in c.fetchall()]
+    c.execute("SELECT * FROM budget_log ORDER BY created_at ASC")
+    budget_history_asc = [dict(row) for row in c.fetchall()]
+
+    running = 0
+    for log in budget_history_asc:
+        running += log["amount"]
+        log["balance"] = running
+
+    budget_history = list(reversed(budget_history_asc))
 
     current_budget = get_current_budget()
-    running = current_budget
-    for log in budget_history:
-        log["balance"] = running
-        running -= log["amount"]
     member_count = get_member_count()
     thresholds = get_thresholds()
 
@@ -1509,14 +1512,15 @@ def admin():
     c.execute("SELECT * FROM members ORDER BY created_at")
     members = c.fetchall()
 
-    c.execute("SELECT * FROM budget_log ORDER BY created_at DESC LIMIT 100")
-    budget_history = [dict(row) for row in c.fetchall()]
+    c.execute("SELECT * FROM budget_log ORDER BY created_at ASC")
+    budget_history_asc = [dict(row) for row in c.fetchall()]
 
-    current_budget = get_current_budget()
-    running = current_budget
-    for log in budget_history:
+    running = 0
+    for log in budget_history_asc:
+        running += log["amount"]
         log["balance"] = running
-        running -= log["amount"]
+
+    budget_history = list(reversed(budget_history_asc))
 
     c.execute("""
         SELECT 
