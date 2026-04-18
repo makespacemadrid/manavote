@@ -118,16 +118,17 @@
 <script>
 const dailyData = {{ daily_budget|tojson }};
 const pendingBudget = {{ pending_budget|default(0) }};
-const startingBalance = {{ starting_balance|default(0) }};
+const currentBudget = {{ current_budget|default(0) }};
 const labels = dailyData.map(d => d.day);
 const incomeData = dailyData.map(d => d.income || 0);
 const expenseData = dailyData.map(d => d.expense || 0);
 
-let cumulative = startingBalance;
-const budgetData = labels.map((_, i) => {
-    cumulative += (incomeData[i] || 0) - (expenseData[i] || 0);
-    return cumulative - pendingBudget;
+let cumulative = currentBudget;
+const balanceData = labels.map((_, i) => {
+    cumulative += (expenseData[i] || 0) - (incomeData[i] || 0);
+    return cumulative;
 });
+const committedData = balanceData.map(b => b - pendingBudget);
 
 const ctx = document.getElementById('budgetChart').getContext('2d');
 new Chart(ctx, {
@@ -137,9 +138,18 @@ new Chart(ctx, {
         datasets: [
             {
                 label: '{{ 'Budget Balance'|lang }}',
-                data: budgetData,
+                data: balanceData,
                 borderColor: '#00d9ff',
                 backgroundColor: '#00d9ff22',
+                fill: true,
+                tension: 0.3,
+                pointRadius: 4
+            },
+            {
+                label: 'Committed Budget',
+                data: committedData,
+                borderColor: '#ffa500',
+                backgroundColor: '#ffa50022',
                 fill: true,
                 tension: 0.3,
                 pointRadius: 4

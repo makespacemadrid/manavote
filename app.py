@@ -665,6 +665,8 @@ def calendar():
     c.execute("SELECT COALESCE(SUM(amount), 0) FROM budget_log")
     starting_balance = c.fetchone()[0] or 0
 
+    current_budget = get_current_budget()
+
     conn.close()
 
     return render_template(
@@ -672,8 +674,8 @@ def calendar():
         proposals=proposals,
         budget_logs=budget_logs,
         daily_budget=daily_budget,
+        current_budget=current_budget,
         pending_budget=pending_budget,
-        starting_balance=starting_balance,
         session_lang=session.get("lang", "en"),
     )
 
