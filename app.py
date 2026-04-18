@@ -655,7 +655,23 @@ def calendar():
         GROUP BY date(created_at)
         ORDER BY day
     """)
+    c.execute("""
+        SELECT 
+            date(created_at) as day,
+            SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as income,
+            SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as expense
+        FROM budget_log
+        GROUP BY date(created_at)
+        ORDER BY day
+    """)
     daily_budget = [dict(row) for row in c.fetchall()]
+
+    pending_by_day = {}
+    c.execute(
+        "SELECT date(created_at) as day, COALESCE(SUM(amount), 0) as pending FROM proposals WHERE status = 'over_budget' GROUP BY day"
+    )
+    for row in c.fetchall():
+        pending_by_day[row[0]] = row[1]
 
     c.execute(
         "SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'over_budget'"
@@ -678,6 +694,7 @@ def calendar():
         proposals=proposals,
         budget_logs=budget_logs,
         daily_budget=daily_budget,
+        pending_by_day=pending_by_day,
         current_budget=current_budget,
         pending_budget=pending_budget,
         pending_purchase=pending_purchase,

@@ -117,20 +117,19 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 const dailyData = {{ daily_budget|tojson }};
-const pendingTotal = {{ pending_total|default(0) }};
-const currentBudget = {{ current_budget|default(0) }};
+const pendingByDay = {{ pending_by_day|tojson }};
 const labels = dailyData.map(d => d.day);
-
-const balanceData = [];
 const incomeData = dailyData.map(d => d.income || 0);
 const expenseData = dailyData.map(d => d.expense || 0);
 
-balanceData[0] = currentBudget;
+const startingBalance = incomeData[0] + expenseData[0];
+const balanceData = [startingBalance];
 for (let i = 1; i < labels.length; i++) {
-    balanceData[i] = balanceData[i-1] - (incomeData[i] || 0) + (expenseData[i] || 0);
+    balanceData[i] = balanceData[i-1] + (incomeData[i] || 0) - (expenseData[i] || 0);
 }
 
-const committedData = balanceData.map(b => b - pendingTotal);
+const pendingData = labels.map(d => pendingByDay[d] || 0);
+const committedData = balanceData.map((b, i) => b - pendingData[i]);
 
 const ctx = document.getElementById('budgetChart').getContext('2d');
 new Chart(ctx, {
@@ -148,7 +147,7 @@ new Chart(ctx, {
                 pointRadius: 4
             },
             {
-                label: 'Committed Budget',
+                label: '{{ 'Committed Budget'|lang }}',
                 data: committedData,
                 borderColor: '#ffa500',
                 backgroundColor: '#ffa50022',
