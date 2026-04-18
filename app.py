@@ -13,8 +13,9 @@ from flask import (
     session,
     flash,
     send_file,
-    jsonify,
 )
+from flask_limiter import Limiter
+from flask_limiter.util import get_remote_address
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 import requests
@@ -23,6 +24,13 @@ import markdown
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
 app.permanent_session_lifetime = timedelta(days=30)
+
+limiter = Limiter(
+    app=app,
+    key_func=get_remote_address,
+    default_limits=["200 per day", "50 per hour"],
+    storage_uri="memory://",
+)
 app.config["WTF_CSRF_ENABLED"] = os.getenv("FLASK_CSRF", "true").lower() == "true"
 app.config["WTF_CSRF_TIME_LIMIT"] = None
 app.config["DEBUG"] = os.getenv("FLASK_DEBUG", "false").lower() == "true"
@@ -420,6 +428,7 @@ def index():
 
 
 @app.route("/login", methods=["GET", "POST"])
+@limiter.limit("5 per minute")
 def login():
     if request.method == "POST":
         username = request.form["username"]
@@ -450,6 +459,7 @@ def login():
 
 
 @app.route("/api/register", methods=["POST"])
+@limiter.limit("10 per minute")
 def api_register():
     if not ADMIN_API_KEY:
         return jsonify({"error": "API not configured"}), 503
