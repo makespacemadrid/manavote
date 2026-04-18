@@ -36,7 +36,7 @@
         <a href="{{ url_for('dashboard') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em;">{{ 'All'|lang }}</a>
         <a href="{{ url_for('dashboard', filter='active') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00d9ff22' if filter == 'active' else 'transparent' }}; color: #00d9ff; border: 1px solid #00d9ff;">{{ 'Active'|lang }}</a>
         <a href="{{ url_for('dashboard', filter='approved') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00ff8822' if filter == 'approved' else 'transparent' }}; color: #00ff88; border: 1px solid #00ff88;">{{ 'Approved'|lang }}</a>
-        <a href="{{ url_for('dashboard', filter='over_budget') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#ffa50022' if filter == 'over_budget' else 'transparent' }}; color: #ffa500; border: 1px solid #ffa500;">{{ 'pending_budget'|lang }}</a>
+        <a href="{{ url_for('dashboard', filter='over_budget') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#ffa50022' if filter == 'over_budget' else 'transparent' }}; color: #ffa500; border: 1px solid #ffa500;">{{ 'Pending Budget'|lang }}</a>
         <a href="{{ url_for('dashboard', filter='not_purchased') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#ff6b6b22' if filter == 'not_purchased' else 'transparent' }}; color: #ff6b6b; border: 1px solid #ff6b6b;">{{ 'Pending Purchase'|lang }}</a>
         <a href="{{ url_for('dashboard', filter='purchased') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#4a44' if filter == 'purchased' else 'transparent' }}; color: #4a4; border: 1px solid #4a4;">{{ 'Purchased'|lang }}</a>
     </div>
@@ -69,7 +69,7 @@
                         {{ p.title }}
                     </a>
                     {% if p.status == 'over_budget' %}
-                    <span class="status" style="background: #ffa50022; color: #ffa500;">{{ 'pending_budget'|lang }}</span>
+                    <span class="status" style="background: #ffa50022; color: #ffa500;">{{ 'Pending Budget'|lang }}</span>
                     {% else %}
                     <span class="status status-{{ p.status }}" style="text-transform: capitalize;">{{ p.status }}</span>
                     {% endif %}
