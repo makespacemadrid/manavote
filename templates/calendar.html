@@ -125,7 +125,7 @@ const expenseData = dailyData.map(d => d.expense || 0);
 
 let cumulative = currentBudget;
 const balanceData = labels.map((_, i) => {
-    cumulative += (expenseData[i] || 0) - (incomeData[i] || 0);
+    cumulative += (incomeData[i] || 0) - (expenseData[i] || 0);
     return cumulative;
 });
 const committedData = balanceData.map(b => b - pendingBudget);
