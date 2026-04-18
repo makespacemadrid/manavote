@@ -79,7 +79,12 @@ See [APIDOC.md](APIDOC.md) for full API documentation.
 
 ## Testing
 ```bash
-python3 -m unittest tests.test_language -v
+python3 -m unittest discover -s tests -v
 ```
 
-All language switching and translation tests pass.
+All tests pass (21 tests, including language switching, translations, and budget functionality).
+
+## Translations
+- Translations stored in `translations.py` (separate from `app.py` for Docker mount)
+- Filter buttons use Title Case: All, Active, Approved, Pending Budget, etc.
+- Status tags use lowercase: active, approved, pending_budget, etc.

@@ -204,6 +204,12 @@ Both conditions must be TRUE:
 - Settings dropdown in navigation
 - All UI text translated via `|lang` filter
 - Language persists in session
+- Translations stored in `translations.py` (separate file for Docker mount)
+
+### Case Handling
+- **Filter buttons**: Title Case (All, Active, Approved, Pending Budget, Pending Purchase, Purchased, Basic, Standard, Expensive)
+- **Status tags**: lowercase (active, approved, pending_budget, purchased, basic, standard, expensive)
+- Uses separate translation keys for buttons vs. tags to handle case differences
 
 ### Navigation
 All pages share consistent navigation:
@@ -482,6 +488,9 @@ pytest -v
 - [x] Proposal tags: basic, standard, expensive, purchased
 - [x] Members can withdraw vote on active proposals
 - [x] Creator auto-votes in_favor when creating proposal
-- [x] Language switching (English/Spanish)
+- [x] Language switching (English/Spanish) via Settings dropdown
+- [x] Filter buttons use Title Case translations
+- [x] Proposal status tags use lowercase translations
 - [x] Consistent Settings dropdown on all pages
+- [x] Jinja2 template cache disabled (for language switching)
 - [x] Admin can make/remove other admins

@@ -1,5 +1,12 @@
 TRANSLATIONS = {
     "en": {
+        "active": "active",
+        "approved": "approved",
+        "pending_budget": "pending_budget",
+        "purchased": "purchased",
+        "basic": "basic",
+        "standard": "standard",
+        "expensive": "expensive",
         "Dashboard": "Dashboard",
         "New Proposal": "New Proposal",
         "Calendar": "Calendar",
@@ -119,6 +126,13 @@ TRANSLATIONS = {
         "This budget voting system": "This budget voting system was created to encourage member participation in our hackerspace. It's an experiment in decentralized decision-making and community funding.",
     },
     "es": {
+        "active": "activo",
+        "approved": "aprobado",
+        "pending_budget": "pendiente_presupuesto",
+        "purchased": "comprado",
+        "basic": "básico",
+        "standard": "estándar",
+        "expensive": "caro",
         "Dashboard": "Panel",
         "New Proposal": "Nueva Propuesta",
         "Calendar": "Calendario",
