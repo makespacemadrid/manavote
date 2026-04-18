@@ -118,8 +118,8 @@
 <script>
 const dailyData = {{ daily_budget|tojson }};
 const pendingBudget = {{ pending_budget|default(0) }};
+const pendingPurchase = {{ pending_purchase|default(0) }};
 const currentBudget = {{ current_budget|default(0) }};
-const committedBudget = currentBudget - pendingBudget;
 const labels = dailyData.map(d => d.day);
 const incomeData = dailyData.map(d => d.income || 0);
 const expenseData = dailyData.map(d => d.expense || 0);
@@ -129,7 +129,7 @@ const balanceData = labels.map((_, i) => {
     cumulative += (incomeData[i] || 0) - (expenseData[i] || 0);
     return cumulative;
 });
-const committedData = balanceData.map(() => committedBudget);
+const committedData = balanceData.map(b => b - pendingPurchase);
 
 const ctx = document.getElementById('budgetChart').getContext('2d');
 new Chart(ctx, {

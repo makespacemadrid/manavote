@@ -662,6 +662,11 @@ def calendar():
     )
     pending_budget = c.fetchone()[0] or 0
 
+    c.execute(
+        "SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'approved' AND purchased_at IS NULL"
+    )
+    pending_purchase = c.fetchone()[0] or 0
+
     current_budget = get_current_budget()
 
     conn.close()
@@ -673,6 +678,7 @@ def calendar():
         daily_budget=daily_budget,
         current_budget=current_budget,
         pending_budget=pending_budget,
+        pending_purchase=pending_purchase,
         session_lang=session.get("lang", "en"),
     )
 
