@@ -35,7 +35,7 @@
             <p style="color: #888;">
                 {{ 'by'|lang }} {{ proposal.creator|username }} · {{ proposal.created_at[:10] }}
                 {% if proposal.status == 'over_budget' %}
-                <span class="status" style="background: #ffa50022; color: #ffa500; text-transform: capitalize;">{{ 'pending_budget'|lang }}</span>
+                <span class="status" style="background: #ffa50022; color: #ffa500;">{{ 'pending_budget'|lang }}</span>
                 {% else %}
                 <span class="status status-{{ proposal.status }}" style="text-transform: capitalize;">{{ proposal.status }}</span>
                 {% endif %}

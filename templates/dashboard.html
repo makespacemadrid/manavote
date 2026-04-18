@@ -69,7 +69,7 @@
                         {{ p.title }}
                     </a>
                     {% if p.status == 'over_budget' %}
-                    <span class="status" style="background: #ffa50022; color: #ffa500; text-transform: capitalize;">{{ 'pending_budget'|lang }}</span>
+                    <span class="status" style="background: #ffa50022; color: #ffa500;">{{ 'pending_budget'|lang }}</span>
                     {% else %}
                     <span class="status status-{{ p.status }}" style="text-transform: capitalize;">{{ p.status }}</span>
                     {% endif %}
