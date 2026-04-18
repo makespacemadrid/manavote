@@ -117,19 +117,20 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 const dailyData = {{ daily_budget|tojson }};
-const pendingBudget = {{ pending_budget|default(0) }};
-const pendingPurchase = {{ pending_purchase|default(0) }};
+const pendingTotal = {{ pending_total|default(0) }};
 const currentBudget = {{ current_budget|default(0) }};
 const labels = dailyData.map(d => d.day);
+
+const balanceData = [];
 const incomeData = dailyData.map(d => d.income || 0);
 const expenseData = dailyData.map(d => d.expense || 0);
 
-let cumulative = currentBudget;
-const balanceData = labels.map((_, i) => {
-    cumulative += (incomeData[i] || 0) - (expenseData[i] || 0);
-    return cumulative;
-});
-const committedData = balanceData.map(b => b - pendingPurchase);
+balanceData[0] = currentBudget;
+for (let i = 1; i < labels.length; i++) {
+    balanceData[i] = balanceData[i-1] - (incomeData[i] || 0) + (expenseData[i] || 0);
+}
+
+const committedData = balanceData.map(b => b - pendingTotal);
 
 const ctx = document.getElementById('budgetChart').getContext('2d');
 new Chart(ctx, {

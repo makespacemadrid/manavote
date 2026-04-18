@@ -667,6 +667,8 @@ def calendar():
     )
     pending_purchase = c.fetchone()[0] or 0
 
+    pending_total = pending_budget + pending_purchase
+
     current_budget = get_current_budget()
 
     conn.close()
@@ -679,6 +681,7 @@ def calendar():
         current_budget=current_budget,
         pending_budget=pending_budget,
         pending_purchase=pending_purchase,
+        pending_total=pending_total,
         session_lang=session.get("lang", "en"),
     )
 
