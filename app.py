@@ -70,7 +70,7 @@ TRANSLATIONS = {
         "Make Admin": "Make Admin",
         "Remove Admin": "Remove Admin",
         "All": "All",
-        "Pending Budget": "Pending Budget",
+        "pending_budget": "Pending Budget",
         "Pending Purchase": "Pending Purchase",
         "Purchased": "Purchased",
         "Basic": "Basic",
@@ -218,7 +218,8 @@ TRANSLATIONS = {
         "Make Admin": "Hacer Admin",
         "Remove Admin": "Quitar Admin",
         "All": "Todas",
-        "Pending Budget": "Pendiente Presupuesto",
+        "pending_budget": "Pendiente Presupuesto",
+        "pending_budget": "Pendiente Presupuesto",
         "Pending Purchase": "Pendiente Compra",
         "Purchased": "Compradas",
         "Basic": "Básicos",
@@ -341,7 +342,7 @@ def render_markdown(text):
 
 @app.template_filter("lang")
 def get_lang(key):
-    from flask import session, g
+    from flask import session
 
     lang = session.get("lang", "en")
     return TRANSLATIONS.get(lang, TRANSLATIONS["en"]).get(key, key)
