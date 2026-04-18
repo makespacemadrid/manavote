@@ -244,5 +244,224 @@ class TestCalendarBudgetData(unittest.TestCase):
         self.assertIn("Approved", html)
 
 
+class TestDashboardFilters(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        budget_app.app.config["TESTING"] = True
+        cls.client = budget_app.app.test_client()
+
+    def setUp(self):
+        with self.client.session_transaction() as session:
+            session["member_id"] = 1
+            session["username"] = "admin"
+            session["is_admin"] = 1
+            session["lang"] = "en"
+
+    def test_dashboard_shows_all_filter(self):
+        """Dashboard shows All filter button"""
+        response = self.client.get("/dashboard")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("All", html)
+
+    def test_dashboard_shows_active_filter(self):
+        """Dashboard shows Active filter button"""
+        response = self.client.get("/dashboard")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("Active", html)
+
+    def test_dashboard_shows_approved_filter(self):
+        """Dashboard shows Approved filter button"""
+        response = self.client.get("/dashboard")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("Approved", html)
+
+    def test_dashboard_shows_pending_budget_filter(self):
+        """Dashboard shows Pending Budget filter button"""
+        response = self.client.get("/dashboard")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("Pending Budget", html)
+
+    def test_dashboard_shows_purchased_filter(self):
+        """Dashboard shows Purchased filter button"""
+        response = self.client.get("/dashboard")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("Purchased", html)
+
+    def test_dashboard_filter_case_title(self):
+        """Filter buttons use Title Case"""
+        response = self.client.get("/dashboard")
+        html = response.data.decode("utf-8")
+        self.assertIn("Pending Purchase", html)
+        self.assertIn("Basic", html)
+        self.assertIn("Standard", html)
+        self.assertIn("Expensive", html)
+
+
+class TestBudgetHistory(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        budget_app.app.config["TESTING"] = True
+        cls.client = budget_app.app.test_client()
+
+    def setUp(self):
+        with self.client.session_transaction() as session:
+            session["member_id"] = 1
+            session["username"] = "admin"
+            session["is_admin"] = 1
+            session["lang"] = "en"
+
+    def test_budget_history_shows_balance(self):
+        """Budget history shows balance column"""
+        response = self.client.get("/dashboard")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("Balance", html)
+
+    def test_budget_history_shows_amount(self):
+        """Budget history shows amount column"""
+        response = self.client.get("/dashboard")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("Amount", html)
+
+    def test_budget_history_shows_description(self):
+        """Budget history shows description column"""
+        response = self.client.get("/dashboard")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("Description", html)
+
+    def test_budget_history_shows_date(self):
+        """Budget history shows date column"""
+        response = self.client.get("/dashboard")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("Date", html)
+
+
+class TestProposalStatusTags(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        budget_app.app.config["TESTING"] = True
+        cls.client = budget_app.app.test_client()
+
+    def setUp(self):
+        with self.client.session_transaction() as session:
+            session["member_id"] = 1
+            session["username"] = "admin"
+            session["is_admin"] = 1
+            session["lang"] = "en"
+
+    def test_status_active_lowercase(self):
+        """Active status shows lowercase"""
+        response = self.client.get("/dashboard")
+        html = response.data.decode("utf-8")
+        self.assertIn("status-active", html)
+
+    def test_status_approved_lowercase(self):
+        """Approved status shows lowercase"""
+        response = self.client.get("/dashboard")
+        html = response.data.decode("utf-8")
+        self.assertIn("status-approved", html)
+
+    def test_status_rejected_lowercase(self):
+        """Rejected status shows lowercase"""
+        response = self.client.get("/dashboard")
+        html = response.data.decode("utf-8")
+        self.assertIn("status-rejected", html)
+
+    def test_status_over_budget_lowercase(self):
+        """Over-budget status shows lowercase"""
+        response = self.client.get("/dashboard")
+        html = response.data.decode("utf-8")
+        self.assertIn("status-over-budget", html)
+
+
+class TestTranslationKeys(unittest.TestCase):
+    def test_english_translations_complete(self):
+        """All needed English translations exist"""
+        t = budget_app.TRANSLATIONS["en"]
+        self.assertIn("Dashboard", t)
+        self.assertIn("Proposals", t)
+        self.assertIn("Budget", t)
+        self.assertIn("All", t)
+        self.assertIn("Active", t)
+        self.assertIn("Approved", t)
+        self.assertIn("Pending Budget", t)
+        self.assertIn("Purchased", t)
+        self.assertIn("active", t)
+        self.assertIn("approved", t)
+        self.assertIn("pending_budget", t)
+
+    def test_spanish_translations_complete(self):
+        """All needed Spanish translations exist"""
+        t = budget_app.TRANSLATIONS["es"]
+        self.assertIn("Dashboard", t)
+        self.assertIn("Proposals", t)
+        self.assertIn("Budget", t)
+        self.assertIn("All", t)
+        self.assertIn("Active", t)
+        self.assertIn("Approved", t)
+        self.assertIn("Pending Budget", t)
+        self.assertIn("Purchased", t)
+        self.assertIn("active", t)
+        self.assertIn("approved", t)
+        self.assertIn("pending_budget", t)
+
+    def test_committed_translation(self):
+        """Committed translation exists"""
+        en = budget_app.TRANSLATIONS["en"]
+        es = budget_app.TRANSLATIONS["es"]
+        self.assertEqual(en["Committed"], "Committed")
+        self.assertEqual(es["Committed"], "Comprometido")
+
+
+class TestCalendarChartData(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        budget_app.app.config["TESTING"] = True
+        cls.client = budget_app.app.test_client()
+
+    def setUp(self):
+        with self.client.session_transaction() as session:
+            session["member_id"] = 1
+            session["username"] = "admin"
+            session["is_admin"] = 1
+            session["lang"] = "en"
+
+    def test_calendar_has_budget_chart(self):
+        """Calendar has budget chart canvas"""
+        response = self.client.get("/calendar")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("budgetChart", html)
+        self.assertIn("Chart", html)
+
+    def test_calendar_chart_has_balance_line(self):
+        """Chart has Budget Balance line"""
+        response = self.client.get("/calendar")
+        html = response.data.decode("utf-8")
+        self.assertIn("cashBalanceData", html)
+
+    def test_calendar_chart_has_committed_line(self):
+        """Chart has Committed line"""
+        response = self.client.get("/calendar")
+        html = response.data.decode("utf-8")
+        self.assertIn("committedData", html)
+
+    def test_calendar_chart_has_bars(self):
+        """Chart has bars for Cash In/Out and Approved"""
+        response = self.client.get("/calendar")
+        html = response.data.decode("utf-8")
+        self.assertIn("cashInData", html)
+        self.assertIn("cashOutData", html)
+        self.assertIn("approvedData", html)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
