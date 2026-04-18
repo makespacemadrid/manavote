@@ -20,14 +20,23 @@
 ### File Structure
 ```
 ├── app.py              # Main application (monolith)
+├── translations.py     # Language translations (EN/ES)
 ├── static/
 │   ├── img/           # Static assets
 │   │   └── favicon.ico # Site favicon
 │   └── uploads/       # Proposal image uploads
 ├── templates/         # Jinja2 HTML templates
-├── tests/             # pytest test suite
+├── tests/             # Test suite
 ├── APIDOC.md          # REST API documentation
 ├── SPEC.md            # This specification
+├── README.md          # Project readme
+├── Dockerfile         # Docker image
+├── docker-compose.yml # Docker deployment
+├── hackerspace.db     # SQLite database (gitignored)
+├── .env               # Environment variables (gitignored)
+├── sample.env         # Environment template
+└── requirements.txt   # Python dependencies
+```
 ├── README.md          # Project readme
 ├── hackerspace.db     # SQLite database (gitignored)
 ├── .env               # Environment variables (gitignored)

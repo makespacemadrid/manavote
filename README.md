@@ -75,4 +75,11 @@ python app.py
 See [APIDOC.md](APIDOC.md) for full API documentation.
 
 ## Tech Stack
-- Flask 3.0.0, SQLite, Telegram Bot API, Docker, Pytest
+- Flask 3.0.0, SQLite, Jinja2 templates, Docker
+
+## Testing
+```bash
+python3 -m unittest tests.test_language -v
+```
+
+All language switching and translation tests pass.
