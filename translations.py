@@ -126,6 +126,7 @@ TRANSLATIONS = {
         "This budget voting system": "This budget voting system was created to encourage member participation in our hackerspace. It's an experiment in decentralized decision-making and community funding.",
         "Pending Budget (reserved)": "Pending Budget (reserved)",
         "Committed Budget": "Committed Budget",
+        "Committed": "Committed",
     },
     "es": {
         "active": "activo",
@@ -254,5 +255,6 @@ TRANSLATIONS = {
         "This budget voting system": "Este sistema de votación de presupuesto fue creado para fomentar la participación de los miembros en nuestro hackerspace. Es un experimento en toma de decisiones descentralizada y financiamiento comunitario.",
         "Pending Budget (reserved)": "Presupuesto Pendiente (reservado)",
         "Committed Budget": "Presupuesto Comprometido",
+        "Committed": "Comprometido",
     },
 }

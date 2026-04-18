@@ -291,15 +291,25 @@ Admins can adjust via admin panel:
 | Action | Who | Description |
 |--------|-----|-------------|
 | View calendar | Member | Timeline of proposals and budget |
-| Budget graph | Member | Chart.js line chart |
+| Budget graph | Member | Chart.js chart with lines and bars |
 | Legend | Member | Colored category keys |
 
+**Budget Chart Components:**
+- **Budget Balance** (line): Running cash balance from budget_log
+- **Committed** (line): Budget Balance minus over_budget pending items
+- **Approved** (bar): Items approved on each day (reduces available budget)
+- **Cash In** (bar): Money received (mercadillo, monthly top-up)
+- **Cash Out** (bar): Actual cash payments for purchased items
+
 **Legend Colors:**
+- Budget Balance: Cyan (#00d9ff)
+- Committed: Orange (#ffa500)
+- Approved: Red (#e94560)
+- Cash In: Green (#00ff88)
+- Cash Out: Red (#e94560)
 - Proposal Submitted: Cyan (#00d9ff)
 - Proposal Approved: Green (#00ff88)
 - Proposal Rejected: Red (#e94560)
-- Budget Income: Green border
-- Budget Expense: Red border
 
 ## REST API
 

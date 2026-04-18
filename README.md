@@ -29,8 +29,16 @@ A Flask web application for managing and voting on budget proposals in a hackers
 
 ## Calendar
 - Activity timeline: proposal submissions, approvals, rejections
-- Budget movements graph (income/expense over time)
+- Budget graph showing cash flow and commitments over time
 - Colored category legend
+
+## Budget Chart
+The calendar shows a budget graph with:
+- **Budget Balance** (cyan line): Running cash balance from transactions
+- **Committed** (orange line): Available budget after reserving over_budget items
+- **Approved** (red bar): Budget committed when items approved (reduces available budget)
+- **Cash In** (green bar): Money received (mercadillo sales, monthly top-up)
+- **Cash Out** (red bar): Actual cash payments for purchased items
 
 ## Budget & Admin
 - Budget tracking with full transaction history

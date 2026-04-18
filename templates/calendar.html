@@ -117,19 +117,13 @@
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
 <script>
 const dailyData = {{ daily_budget|tojson }};
-const pendingByDay = {{ pending_by_day|tojson }};
 const labels = dailyData.map(d => d.day);
-const incomeData = dailyData.map(d => d.income || 0);
-const expenseData = dailyData.map(d => d.expense || 0);
-
-const startingBalance = incomeData[0] + expenseData[0];
-const balanceData = [startingBalance];
-for (let i = 1; i < labels.length; i++) {
-    balanceData[i] = balanceData[i-1] + (incomeData[i] || 0) - (expenseData[i] || 0);
-}
-
-const pendingData = labels.map(d => pendingByDay[d] || 0);
-const committedData = balanceData.map((b, i) => b - pendingData[i]);
+const cashInData = dailyData.map(d => d.cash_in || 0);
+const cashOutData = dailyData.map(d => d.cash_out || 0);
+const approvedData = dailyData.map(d => d.approved || 0);
+const cashBalanceData = dailyData.map(d => d.cash_balance || 0);
+const pendingData = dailyData.map(d => d.pending || 0);
+const committedData = cashBalanceData.map((b, i) => b - pendingData[i]);
 
 const ctx = document.getElementById('budgetChart').getContext('2d');
 new Chart(ctx, {
@@ -139,7 +133,7 @@ new Chart(ctx, {
         datasets: [
             {
                 label: '{{ 'Budget Balance'|lang }}',
-                data: balanceData,
+                data: cashBalanceData,
                 borderColor: '#00d9ff',
                 backgroundColor: '#00d9ff22',
                 fill: true,
@@ -147,7 +141,7 @@ new Chart(ctx, {
                 pointRadius: 4
             },
             {
-                label: '{{ 'Committed Budget'|lang }}',
+                label: '{{ 'Committed'|lang }}',
                 data: committedData,
                 borderColor: '#ffa500',
                 backgroundColor: '#ffa50022',
@@ -156,22 +150,30 @@ new Chart(ctx, {
                 pointRadius: 4
             },
             {
-                label: 'Income',
-                data: incomeData,
-                borderColor: '#00ff88',
-                backgroundColor: 'transparent',
-                borderDash: [5, 5],
-                tension: 0.3,
-                pointRadius: 3
+                label: 'Approved',
+                data: approvedData,
+                borderColor: '#e94560',
+                backgroundColor: '#e9456044',
+                borderWidth: 1,
+                order: 1
             },
             {
-                label: 'Expense',
-                data: expenseData,
+                type: 'bar',
+                label: 'Cash In',
+                data: cashInData,
+                borderColor: '#00ff88',
+                backgroundColor: '#00ff8844',
+                borderWidth: 1,
+                order: 1
+            },
+            {
+                type: 'bar',
+                label: 'Cash Out',
+                data: cashOutData,
                 borderColor: '#e94560',
-                backgroundColor: 'transparent',
-                borderDash: [5, 5],
-                tension: 0.3,
-                pointRadius: 3
+                backgroundColor: '#e9456044',
+                borderWidth: 1,
+                order: 1
             }
         ]
     },

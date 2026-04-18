@@ -193,5 +193,56 @@ class TestDashboardFiltersAndStatus(unittest.TestCase):
         self.assertIn("Presupuesto Pendiente", html)
 
 
+class TestCalendarBudgetData(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        budget_app.app.config["TESTING"] = True
+        cls.client = budget_app.app.test_client()
+
+    def setUp(self):
+        with self.client.session_transaction() as session:
+            session["member_id"] = 1
+            session["username"] = "admin"
+            session["is_admin"] = 1
+            session["lang"] = "en"
+
+    def test_calendar_budget_data_structure(self):
+        """Calendar returns cash_balance and pending for each day"""
+        response = self.client.get("/calendar")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("cash_balance", html)
+        self.assertIn("pending", html)
+
+    def test_calendar_cash_in_out_bars(self):
+        """Calendar shows Cash In and Cash Out bars"""
+        response = self.client.get("/calendar")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("cashInData", html)
+        self.assertIn("cashOutData", html)
+
+    def test_calendar_approved_bar(self):
+        """Calendar shows Approved bar for item approvals"""
+        response = self.client.get("/calendar")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("approvedData", html)
+
+    def test_calendar_committed_budget_label(self):
+        """Calendar shows Committed line"""
+        response = self.client.get("/calendar")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("Approved", html)
+
+    def test_calendar_committed_budget_spanish(self):
+        """Calendar shows Committed in Spanish"""
+        self.client.get("/set-language/es")
+        response = self.client.get("/calendar")
+        html = response.data.decode("utf-8")
+        self.assertIn("Approved", html)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

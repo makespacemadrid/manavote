@@ -646,26 +646,6 @@ def calendar():
     """)
     budget_logs = c.fetchall()
 
-    c.execute("""
-        SELECT 
-            date(created_at) as day,
-            SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as income,
-            SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as expense
-        FROM budget_log
-        GROUP BY date(created_at)
-        ORDER BY day
-    """)
-    c.execute("""
-        SELECT 
-            date(created_at) as day,
-            SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as income,
-            SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as expense
-        FROM budget_log
-        GROUP BY date(created_at)
-        ORDER BY day
-    """)
-    daily_budget = [dict(row) for row in c.fetchall()]
-
     pending_by_day = {}
     c.execute(
         "SELECT date(created_at) as day, COALESCE(SUM(amount), 0) as pending FROM proposals WHERE status = 'over_budget' GROUP BY day"
@@ -673,19 +653,69 @@ def calendar():
     for row in c.fetchall():
         pending_by_day[row[0]] = row[1]
 
-    c.execute(
-        "SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'over_budget'"
-    )
-    pending_budget = c.fetchone()[0] or 0
+    c.execute("""
+        SELECT 
+            date(created_at) as day,
+            SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as cash_in,
+            SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as cash_out
+        FROM budget_log
+        GROUP BY date(created_at)
+    """)
+    budget_days = set(row[0] for row in c.fetchall())
 
     c.execute(
-        "SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'approved' AND purchased_at IS NULL"
+        "SELECT date(created_at) as day FROM proposals WHERE status = 'over_budget'"
     )
-    pending_purchase = c.fetchone()[0] or 0
+    over_budget_days = set(row[0] for row in c.fetchall())
 
-    pending_total = pending_budget + pending_purchase
+    c.execute(
+        "SELECT date(processed_at) as day, COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'approved' AND processed_at IS NOT NULL GROUP BY day"
+    )
+    approved_by_day = {}
+    for row in c.fetchall():
+        approved_by_day[row[0]] = row[1]
+
+    all_days = sorted(budget_days | set(over_budget_days) | set(approved_by_day.keys()))
+
+    daily_budget = []
+    cash_balance = 0
+    pending_total = 0
+    pending_by_day_lookup = dict(pending_by_day)
+
+    for day in all_days:
+        cash_in = 0
+        cash_out = 0
+
+        if day in budget_days:
+            c.execute(
+                """SELECT SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END)
+                FROM budget_log WHERE date(created_at) = ?""",
+                (day,),
+            )
+            row = c.fetchone()
+            cash_in = row[0] or 0
+            cash_out = row[1] or 0
+            cash_balance += cash_in - cash_out
+
+        if day in over_budget_days:
+            pending_total += pending_by_day_lookup.get(day, 0)
+
+        approved = approved_by_day.get(day, 0)
+
+        daily_budget.append(
+            {
+                "day": day,
+                "cash_in": cash_in,
+                "cash_out": -cash_out if cash_out else 0,
+                "approved": -approved if approved else 0,
+                "cash_balance": cash_balance,
+                "pending": pending_total,
+            }
+        )
 
     current_budget = get_current_budget()
+
+    conn.close()
 
     conn.close()
 
@@ -694,11 +724,6 @@ def calendar():
         proposals=proposals,
         budget_logs=budget_logs,
         daily_budget=daily_budget,
-        pending_by_day=pending_by_day,
-        current_budget=current_budget,
-        pending_budget=pending_budget,
-        pending_purchase=pending_purchase,
-        pending_total=pending_total,
         session_lang=session.get("lang", "en"),
     )
 
