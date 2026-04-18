@@ -30,6 +30,7 @@
     </p>
     
     <form method="POST" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <label>{{ 'Title'|lang }}</label>
         <input type="text" name="title" value="{{ proposal.title }}" required>
         

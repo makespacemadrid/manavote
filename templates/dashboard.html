@@ -97,6 +97,7 @@
                 {% if p.status == 'active' and p.user_vote %}
                 <div style="margin-top: 8px; display: flex; gap: 5px;">
                     <form method="POST" action="{{ url_for('quick_vote', proposal_id=p.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                         <button type="submit" name="vote" value="in_favor" class="vote-btn approve {{ 'active' if p.user_vote == 'in_favor' else '' }}" style="padding: 4px 8px; font-size: 0.75em;">✓ {{ 'In Favor'|lang }}</button>
                         <button type="submit" name="vote" value="against" class="vote-btn reject {{ 'active' if p.user_vote == 'against' else '' }}" style="padding: 4px 8px; font-size: 0.75em;">✗ {{ 'Against'|lang }}</button>
                     </form>
@@ -105,6 +106,7 @@
                 {% if p.status == 'active' and not p.user_vote %}
                 <div style="margin-top: 8px; display: flex; gap: 5px;">
                     <form method="POST" action="{{ url_for('quick_vote', proposal_id=p.id) }}">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                         <button type="submit" name="vote" value="in_favor" class="vote-btn approve" style="padding: 4px 8px; font-size: 0.75em;">✓ {{ 'In Favor'|lang }}</button>
                         <button type="submit" name="vote" value="against" class="vote-btn reject" style="padding: 4px 8px; font-size: 0.75em;">✗ {{ 'Against'|lang }}</button>
                     </form>
@@ -116,11 +118,13 @@
                     <span style="color: #4a4; font-size: 0.75em;">✓ {{ 'purchased'|lang }}</span>
                     {% if session.is_admin %}
                     <form method="POST" action="{{ url_for('unmark_purchased', proposal_id=p.id) }}" style="display: inline;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                         <button type="submit" style="background: none; border: none; color: #888; font-size: 0.75em; cursor: pointer; padding: 0;">{{ 'unmark'|lang }}</button>
                     </form>
                     {% endif %}
                     {% else %}
                     <form method="POST" action="{{ url_for('mark_purchased', proposal_id=p.id) }}" style="display: inline;" onsubmit="return confirm('{{ 'Mark as purchased?'|lang }}');">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                         <button type="submit" style="background: #00d9ff22; border: 1px solid #00d9ff; color: #00d9ff; font-size: 0.8em; cursor: pointer; padding: 4px 10px; border-radius: 4px;">✓ {{ 'confirm purchase'|lang }}</button>
                     </form>
                     {% endif %}

@@ -26,6 +26,7 @@
     <h2>{{ 'Edit Comment'|lang }}</h2>
     
     <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"
         <label>{{ 'Comments'|lang }}</label>
         <textarea name="content" required style="min-height: 100px;">{{ comment.content }}</textarea>
         

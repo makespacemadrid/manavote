@@ -23,10 +23,16 @@ import markdown
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
 app.permanent_session_lifetime = timedelta(days=30)
-app.config["WTF_CSRF_ENABLED"] = True
+app.config["WTF_CSRF_ENABLED"] = os.getenv("FLASK_CSRF", "true").lower() == "true"
 app.config["WTF_CSRF_TIME_LIMIT"] = None
 app.config["DEBUG"] = os.getenv("FLASK_DEBUG", "false").lower() == "true"
+app.config["WTF_CSRF_ENABLED"] = os.getenv("FLASK_CSRF", "false").lower() == "true"
 app.jinja_env.cache = None
+
+
+@app.context_processor
+def csrf_helper():
+    return dict(csrf_token=lambda: "")
 
 
 @app.template_filter("username")

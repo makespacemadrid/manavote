@@ -72,6 +72,7 @@
 <div class="card">
     <h3>{{ 'Registration Settings'|lang }}</h3>
     <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"
         <input type="hidden" name="action" value="toggle_registration">
         <p style="margin-bottom: 10px;">
             <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
@@ -142,6 +143,7 @@
     </form>
     
     <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"
         <input type="hidden" name="action" value="trigger_monthly">
         <button type="submit" class="btn btn-secondary">{{ 'Trigger Monthly Top-up'|lang }} (+€50)</button>
     </form>
@@ -176,6 +178,7 @@
 <div class="card">
     <h3>{{ 'Vote Thresholds'|lang }}</h3>
     <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"
         <input type="hidden" name="action" value="update_thresholds">
         <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
             <div style="flex: 1; min-width: 120px;">
@@ -198,6 +201,7 @@
 <div class="card">
     <h3>{{ 'Telegram Configuration'|lang }}</h3>
     <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"
         <input type="hidden" name="action" value="update_url">
         <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
             <div style="flex: 2; min-width: 200px;">

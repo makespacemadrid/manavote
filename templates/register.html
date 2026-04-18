@@ -7,6 +7,7 @@
         <p style="text-align: center; color: #888; margin-bottom: 30px;">{{ 'Register'|lang }}</p>
         
         <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"
             <label>{{ 'Username'|lang }}</label>
             <input type="text" name="username" required autofocus>
             
