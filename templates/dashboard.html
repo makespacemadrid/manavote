@@ -69,9 +69,9 @@
                         {{ p.title }}
                     </a>
                     {% if p.status == 'over_budget' %}
-                    <span class="status" style="background: #ffa50022; color: #ffa500;">{{ 'Pending Budget'|lang }}</span>
+                    <span class="status" style="background: #ffa50022; color: #ffa500;">{{ 'pending_budget'|lang }}</span>
                     {% else %}
-                    <span class="status status-{{ p.status }}" style="text-transform: capitalize;">{{ p.status }}</span>
+                    <span class="status status-{{ p.status }}">{{ p.status }}</span>
                     {% endif %}
                     {% if p.basic_supplies %}<span class="status" style="background: #FFD700; color: #000; margin-left: 5px;">{{ 'basic'|lang }}</span>{% endif %}
                     {% if p.status == 'approved' and p.amount > 50 %}<span class="status" style="background: #9b59b622; color: #9b59b6; margin-left: 5px;">{{ 'expensive'|lang }}</span>{% endif %}
