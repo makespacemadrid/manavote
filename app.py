@@ -16,12 +16,16 @@ from flask import (
     jsonify,
 )
 from werkzeug.utils import secure_filename
+from werkzeug.security import generate_password_hash, check_password_hash
 import requests
 import markdown
 
 app = Flask(__name__)
 app.secret_key = secrets.token_hex(32)
 app.permanent_session_lifetime = timedelta(days=30)
+app.config["WTF_CSRF_ENABLED"] = True
+app.config["WTF_CSRF_TIME_LIMIT"] = None
+app.config["DEBUG"] = os.getenv("FLASK_DEBUG", "false").lower() == "true"
 app.jinja_env.cache = None
 
 
@@ -1601,6 +1605,7 @@ def admin():
 
 
 @app.route("/check-overbudget")
+@login_required
 def check_overbudget():
     check_over_budget_proposals()
     return "OK"
@@ -1609,4 +1614,5 @@ def check_overbudget():
 if __name__ == "__main__":
     init_db()
     check_over_budget_proposals()
-    app.run(debug=True, host="0.0.0.0", port=5000)
+    debug = os.getenv("FLASK_DEBUG", "false").lower() == "true"
+    app.run(debug=debug, host="0.0.0.0", port=5000)
