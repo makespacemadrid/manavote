@@ -662,9 +662,6 @@ def calendar():
     )
     pending_budget = c.fetchone()[0] or 0
 
-    c.execute("SELECT COALESCE(SUM(amount), 0) FROM budget_log")
-    starting_balance = c.fetchone()[0] or 0
-
     current_budget = get_current_budget()
 
     conn.close()
