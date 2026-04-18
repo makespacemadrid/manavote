@@ -834,9 +834,13 @@ def dashboard():
     total_count = c.fetchone()[0]
 
     c.execute("SELECT * FROM budget_log ORDER BY created_at DESC LIMIT 50")
-    budget_history = c.fetchall()
+    budget_history = [dict(row) for row in c.fetchall()]
 
     current_budget = get_current_budget()
+    running = current_budget
+    for log in budget_history:
+        log["balance"] = running
+        running -= log["amount"]
     member_count = get_member_count()
     thresholds = get_thresholds()
 
@@ -1506,7 +1510,13 @@ def admin():
     members = c.fetchall()
 
     c.execute("SELECT * FROM budget_log ORDER BY created_at DESC LIMIT 100")
-    budget_history = c.fetchall()
+    budget_history = [dict(row) for row in c.fetchall()]
+
+    current_budget = get_current_budget()
+    running = current_budget
+    for log in budget_history:
+        log["balance"] = running
+        running -= log["amount"]
 
     c.execute("""
         SELECT 

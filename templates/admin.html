@@ -153,6 +153,7 @@
                 <th>{{ 'Date'|lang }}</th>
                 <th>{{ 'Description'|lang }}</th>
                 <th>{{ 'Amount'|lang }}</th>
+                <th>Balance</th>
             </tr>
         </thead>
         <tbody>
@@ -162,6 +163,9 @@
                 <td>{{ log.description }}</td>
                 <td class="{{ 'amount-positive' if log.amount > 0 else 'amount-negative' }}">
                     {{ "+" if log.amount > 0 else "" }}€{{ "%.2f"|format(log.amount) }}
+                </td>
+                <td class="{{ 'amount-positive' if log.balance > 0 else 'amount-negative' }}">
+                    €{{ "%.2f"|format(log.balance) }}
                 </td>
             </tr>
             {% endfor %}
