@@ -6,8 +6,9 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - ./hackerspace.db:/app/hackerspace.db
-      - ./static/uploads:/app/static/uploads
+      - ./hackerspace.db:/app/hackerspace.db:z
+      - ./translations.py:/app/translations.py:z
+      - ./static/uploads:/app/static/uploads:z
     environment:
       - FLASK_ENV=development
     restart: unless-stopped
