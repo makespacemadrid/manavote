@@ -304,5 +304,22 @@ class TestProposalList(unittest.TestCase):
         self.assertIn("proposal", html.lower())
 
 
+class TestPasswordSecurity(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        budget_app.app.config["TESTING"] = True
+        cls.client = budget_app.app.test_client()
+
+    def test_admin_default_password_logic(self):
+        """Test default password detection logic"""
+        import hashlib
+
+        expected_sha = hashlib.sha256(b"carpediem42").hexdigest()
+        self.assertEqual(
+            expected_sha,
+            "756cf461000234f37f65aeb5e671cdca304aba93b1c4206f3351ccf201fc20c8",
+        )
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)

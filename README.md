@@ -27,10 +27,14 @@ A Flask web application for managing and voting on budget proposals in a hackers
 - Filter by: All, Active, Approved, Pending Budget, Purchased, Pending Purchase
 - Filter by category: Basic, Standard, Expensive
 
+![Dashboard](/static/img/dashboard.png)
+
 ## Calendar
 - Activity timeline: proposal submissions, approvals, rejections
 - Budget graph showing cash flow and commitments over time
 - Colored category legend
+
+![Calendar](/static/img/calendar.png)
 
 ## Budget Chart
 The calendar shows a budget graph with:
@@ -85,12 +89,45 @@ See [APIDOC.md](APIDOC.md) for full API documentation.
 ## Tech Stack
 - Flask 3.0.0, SQLite, Jinja2 templates, Docker
 
+## Security
+- Password hashing: werkzeug pbkdf2 (auto-migrates SHA256 on login)
+- CSRF protection enabled by default (configurable via FLASK_CSRF)
+- Rate limiting: 5/min login, 10/min API
+- Secure session cookies (HttpOnly, SameSite=Lax)
+- Default admin password change required on first login
+
 ## Testing
 ```bash
-python3 -m unittest discover -s tests -v
+python3 -m pytest tests/ -v
 ```
 
-All tests pass (21 tests, including language switching, translations, and budget functionality).
+All tests pass (**78 tests, 1 skipped**).
+
+## Production Deployment
+
+### Environment Variables
+Copy `sample.env` to `.env` and configure:
+
+| Variable | Default | Description |
+|----------|---------|-------------|
+| FLASK_DEBUG | false | Set true for development |
+| FLASK_CSRF | true | Enable CSRF protection |
+| FLASK_SECURE_COOKIES | true | Secure session cookies |
+| TELEGRAM_BOT_TOKEN | - | Telegram notifications |
+| TELEGRAM_CHAT_ID | - | Telegram chat ID |
+| ADMIN_API_KEY | - | API authentication |
+
+### Security Defaults
+- CSRF protection enabled by default
+- Session cookies: HttpOnly, SameSite=Lax
+- Rate limiting: 5/min login, 10/min API
+- Default admin password must be changed on first login
+
+### HTTPS
+Configure via reverse proxy (nginx/caddy):
+- Set `SESSION_COOKIE_SECURE=true` in production
+- Terminate TLS at proxy
+- Redirect HTTP→HTTPS
 
 ## Translations
 - Translations stored in `translations.py` (separate from `app.py` for Docker mount)

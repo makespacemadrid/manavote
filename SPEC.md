@@ -19,7 +19,7 @@
 
 ### File Structure
 ```
-├── app.py              # Main application (monolith)
+├── app.py              # Main application
 ├── translations.py     # Language translations (EN/ES)
 ├── static/
 │   ├── img/           # Static assets
@@ -28,12 +28,11 @@
 ├── templates/         # Jinja2 HTML templates
 ├── tests/             # Test suite
 ├── APIDOC.md          # REST API documentation
+├── AUDIT.md           # Production security audit
 ├── SPEC.md            # This specification
 ├── README.md          # Project readme
 ├── Dockerfile         # Docker image
 ├── docker-compose.yml # Docker deployment
-├── hackerspace.db     # SQLite database (gitignored)
-├── .env               # Environment variables (gitignored)
 ├── sample.env         # Environment template
 └── requirements.txt   # Python dependencies
 ```
@@ -446,17 +445,19 @@ Messages sent on:
 
 ## Security Findings
 
-### High Priority
-1. **Hardcoded default admin**: `admin`/`carpediem42` created on init
-2. **Weak password hashing**: SHA-256 (no salt, should use `werkzeug.security`)
-3. **No CSRF protection**: All form POSTs vulnerable
-4. **Debug mode enabled**: `debug=True` in `app.py`
+### Fixed ✅
+1. **Default admin**: ✅ Redirects to change password on first login
+2. **Password hashing**: ✅ Migrated to werkzeug pbkdf2 (auto-migrates SHA256)
+3. **CSRF protection**: ✅ Flask-WTF tokens on all forms
+4. **Debug mode**: ✅ `FLASK_DEBUG=false` default
+5. **Rate limiting**: ✅ Flask-Limiter (5/min login, 10/min API)
+6. **/check-overbudget**: ✅ Protected with @login_required
+7. **Session cookies**: ✅ Secure, HttpOnly, SameSite=Lax
+8. **Logging**: ✅ Logs to file and console
 
-### Medium Priority
-5. No rate limiting on login/API endpoints
-6. Upload validation by extension only (no MIME/content check)
-7. Broad `except:` blocks suppress error visibility
-8. `/check-overbudget` unauthenticated
+### Remaining
+- Upload validation by extension only (consider MIME check)
+- Broad except blocks suppress errors (low priority)
 
 ## Performance Findings
 - N+1 query pattern on dashboard (per-proposal vote counts)
@@ -466,20 +467,21 @@ Messages sent on:
 ## Testing
 
 ```bash
-# Run all tests
-pytest -q
-
-# Run with verbose output
-pytest -v
+python3 -m pytest tests/ -v
 ```
 
-### Current Test Coverage
+### Current Test Coverage (78 tests)
 - Threshold calculation (`calculate_min_backers`)
 - Settings float parsing fallback
 - Admin monthly top-up uses `monthly_topup` setting
 - No duplicate flash on add budget
 - Language switching (EN/ES)
 - Translation filter
+- Dashboard filters (Title Case)
+- Status tags (lowercase)
+- Budget history with balance
+- Calendar chart data
+- Admin password change redirect
 
 ## Acceptance Criteria
 - [x] Members can register/login and vote

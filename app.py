@@ -20,10 +20,33 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 import requests
 import markdown
+import imghdr
+import logging
+import warnings
 
 app = Flask(__name__)
+
+warnings.filterwarnings("ignore", category=DeprecationWarning, module="imghdr")
+
+if not app.debug:
+    logging.basicConfig(
+        level=logging.INFO,
+        format="%(asctime)s %(levelname)s: %(message)s",
+        handlers=[
+            logging.FileHandler("budget.log"),
+            logging.StreamHandler(),
+        ],
+    )
+else:
+    logging.basicConfig(level=logging.DEBUG)
 app.secret_key = secrets.token_hex(32)
 app.permanent_session_lifetime = timedelta(days=30)
+
+app.config["SESSION_COOKIE_SECURE"] = (
+    os.getenv("FLASK_SECURE_COOKIES", "true").lower() == "true"
+)
+app.config["SESSION_COOKIE_HTTPONLY"] = True
+app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 
 limiter = Limiter(
     app=app,
@@ -31,10 +54,12 @@ limiter = Limiter(
     default_limits=["200 per day", "50 per hour"],
     storage_uri="memory://",
 )
+
 app.config["WTF_CSRF_ENABLED"] = os.getenv("FLASK_CSRF", "true").lower() == "true"
 app.config["WTF_CSRF_TIME_LIMIT"] = None
-app.config["DEBUG"] = os.getenv("FLASK_DEBUG", "false").lower() == "true"
-app.config["WTF_CSRF_ENABLED"] = os.getenv("FLASK_CSRF", "false").lower() == "true"
+
+DEBUG_MODE = os.getenv("FLASK_DEBUG", "false").lower() == "true"
+app.config["DEBUG"] = DEBUG_MODE
 app.jinja_env.cache = None
 
 
@@ -466,6 +491,19 @@ def login():
             if "lang" not in session:
                 session["lang"] = "en"
             session.permanent = True
+
+            default_pw = "carpediem42"
+            pw_is_default = False
+            expected_sha = hashlib.sha256(default_pw.encode()).hexdigest()
+            if stored_hash.startswith("pbkdf2:sha256:"):
+                pw_is_default = check_password_hash(stored_hash, default_pw)
+            elif stored_hash == expected_sha:
+                pw_is_default = True
+
+            if member["is_admin"] and pw_is_default:
+                flash("Please change your default password", "warning")
+                return redirect(url_for("change_password"))
+
             return redirect(url_for("dashboard"))
         else:
             flash("Invalid credentials", "error")
@@ -995,9 +1033,14 @@ def new_proposal():
                 ext = image.filename.split(".")[-1].lower()
                 if ext in ["jpg", "jpeg", "png"]:
                     image_filename = f"{secrets.token_hex(8)}.{ext}"
-                    image.save(
-                        os.path.join(app.config["UPLOAD_FOLDER"], image_filename)
-                    )
+                    filepath = os.path.join(app.config["UPLOAD_FOLDER"], image_filename)
+                    image.save(filepath)
+
+                    mime_type = imghdr.what(filepath)
+                    if mime_type not in ["jpeg", "png"]:
+                        os.remove(filepath)
+                        flash("Invalid image format", "error")
+                        return redirect(url_for("new_proposal"))
 
         conn = get_db()
         c = conn.cursor()
@@ -1292,9 +1335,16 @@ def edit_proposal(proposal_id):
                             os.path.join(app.config["UPLOAD_FOLDER"], image_filename)
                         )
                     image_filename = f"{secrets.token_hex(8)}.{ext}"
-                    image.save(
-                        os.path.join(app.config["UPLOAD_FOLDER"], image_filename)
-                    )
+                    filepath = os.path.join(app.config["UPLOAD_FOLDER"], image_filename)
+                    image.save(filepath)
+
+                    mime_type = imghdr.what(filepath)
+                    if mime_type not in ["jpeg", "png"]:
+                        os.remove(filepath)
+                        flash("Invalid image format", "error")
+                        return redirect(
+                            url_for("edit_proposal", proposal_id=proposal_id)
+                        )
 
         c.execute(
             "UPDATE proposals SET title = ?, description = ?, amount = ?, url = ?, image_filename = ?, basic_supplies = ? WHERE id = ?",
