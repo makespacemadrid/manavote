@@ -130,6 +130,7 @@ const cashInData = dailyData.map(d => d.cash_in || 0);
 const cashOutData = dailyData.map(d => d.cash_out || 0);
 const cashBalanceData = dailyData.map(d => d.cash_balance || 0);
 const proposalsData = dailyData.map(d => d.proposals || 0);
+const approvedData = dailyData.map(d => d.approved || 0);
 const pendingData = dailyData.map(d => d.pending || 0);
 const committedData = cashBalanceData.map((b, i) => b - pendingData[i]);
 
@@ -179,6 +180,15 @@ new Chart(ctx, {
                 type: 'bar',
                 label: 'Proposals',
                 data: proposalsData,
+                borderColor: '#9932CC',
+                backgroundColor: '#9932CC88',
+                borderWidth: 1,
+                order: 0
+            },
+            {
+                type: 'bar',
+                label: 'Approved',
+                data: approvedData,
                 borderColor: '#9932CC',
                 backgroundColor: '#9932CC88',
                 borderWidth: 1,

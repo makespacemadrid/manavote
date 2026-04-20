@@ -143,3 +143,25 @@ Configure via reverse proxy (nginx/caddy):
 - Translations stored in `translations.py` (separate from `app.py` for Docker mount)
 - Filter buttons use Title Case: All, Active, Approved, Pending Budget, etc.
 - Status tags use lowercase: active, approved, pending_budget, etc.
+
+## Refactored architecture (incremental)
+
+The application now exposes an app factory (`app.create_app`) and keeps a thin startup wrapper in `app.py`.
+
+### Module responsibilities
+- `app/config.py`: Flask/runtime configuration defaults.
+- `app/extensions.py`: extension bootstrap (rate limiting).
+- `app/db/`: DB connection, schema, and explicit/idempotent migrations.
+- `app/repositories/`: SQL access by concern (`settings`, `proposals`, `votes`, etc.).
+- `app/services/`: business rules (auth hash migration, backer thresholds, proposal lifecycle checks).
+- `app/integrations/telegram_client.py`: Telegram notification adapter with specific error handling.
+- `app/web/decorators.py`: shared HTTP/auth decorators.
+- `app/web/routes/main_routes.py`: existing endpoint behavior preserved while delegating key logic to services/repositories.
+
+## Developer migration guide (short)
+
+1. Prefer importing `create_app` from `app` for app bootstrapping and tests.
+2. Add SQL to repository modules instead of route handlers.
+3. Add/modify business rules in `app/services/*` and keep routes orchestration-focused.
+4. Keep endpoint URLs stable when splitting routes into blueprints.
+5. Put new service tests under `tests/unit/`; keep route behavior checks under `tests/integration/`.
