@@ -188,8 +188,24 @@ def init_db():
     conn.close()
 
 
+def ensure_db_ready():
+    conn = repo_get_db()
+    try:
+        c = conn.cursor()
+        c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='members'")
+        has_members = c.fetchone() is not None
+        c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'")
+        has_settings = c.fetchone() is not None
+    finally:
+        conn.close()
+
+    if not (has_members and has_settings):
+        init_db()
+
+
 def get_db():
     set_db_path(DB_PATH)
+    ensure_db_ready()
     return repo_get_db()
 
 
@@ -330,7 +346,7 @@ def login():
             default_pw = "carpediem42"
             pw_is_default = False
             expected_sha = hashlib.sha256(default_pw.encode()).hexdigest()
-            if stored_hash.startswith("pbkdf2:sha256:"):
+            if stored_hash.startswith("pbkdf2:sha256:") or stored_hash.startswith("scrypt:"):
                 pw_is_default = check_password_hash(stored_hash, default_pw)
             elif stored_hash == expected_sha:
                 pw_is_default = True
