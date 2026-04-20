@@ -1,19 +1,27 @@
 # REST API Documentation
 
-All API endpoints require `X-Admin-Key` header with the `ADMIN_API_KEY` value.
+This project exposes a small admin-focused REST API.
 
-## Register Member
+## Authentication
 
-**Endpoint:** `POST /api/register`
+All endpoints require:
+- Header: `X-Admin-Key: <ADMIN_API_KEY>`
+- `ADMIN_API_KEY` must be configured in environment.
 
-```bash
-curl -X POST http://localhost:5000/api/register \
-  -H "X-Admin-Key: your_api_key" \
-  -H "Content-Type: application/json" \
-  -d '{"username": "member1", "password": "secret123", "is_admin": false}'
-```
+If API key is missing in server config: `503 {"error": "API not configured"}`.
+If header key is wrong/missing: `401 {"error": "Unauthorized"}`.
 
-**Request Body:**
+---
+
+## 1) Register Member
+
+**Endpoint**: `POST /api/register`
+
+### Request headers
+- `Content-Type: application/json`
+- `X-Admin-Key: <ADMIN_API_KEY>`
+
+### Request body
 ```json
 {
   "username": "newmember",
@@ -22,7 +30,13 @@ curl -X POST http://localhost:5000/api/register \
 }
 ```
 
-**Response (201):**
+### Validation
+- `username` required
+- `password` required
+- `is_admin` optional (defaults to `false`)
+
+### Success response
+**201 Created**
 ```json
 {
   "success": true,
@@ -31,37 +45,49 @@ curl -X POST http://localhost:5000/api/register \
 }
 ```
 
-## Create Proposal
+### Error responses
+- `400` JSON body missing / required fields missing
+- `409` username already exists
+- `500` unexpected DB/runtime error
 
-**Endpoint:** `POST /api/proposals`
-
+### Example
 ```bash
-curl -X POST http://localhost:5000/api/proposals \
+curl -X POST http://localhost:5000/api/register \
   -H "X-Admin-Key: your_api_key" \
   -H "Content-Type: application/json" \
-  -d '{
-    "title": "LED Strips",
-    "description": "RGB LED strips for workshop",
-    "amount": 75.50,
-    "url": "https://example.com/led",
-    "basic_supplies": false,
-    "created_by": 1
-  }'
+  -d '{"username":"member1","password":"secret123","is_admin":false}'
 ```
 
-**Request Body:**
+---
+
+## 2) Create Proposal
+
+**Endpoint**: `POST /api/proposals`
+
+### Request headers
+- `Content-Type: application/json`
+- `X-Admin-Key: <ADMIN_API_KEY>`
+
+### Request body
 ```json
 {
   "title": "LED Strips",
   "description": "RGB LED strips for workshop",
-  "amount": 75.50,
+  "amount": 75.5,
   "url": "https://example.com/led",
   "basic_supplies": false,
   "created_by": 1
 }
 ```
 
-**Response (201):**
+### Validation
+- `title` required
+- `amount` required and must be `> 0`
+- `created_by` required and must exist in `members`
+- `description`, `url`, `basic_supplies` optional
+
+### Success response
+**201 Created**
 ```json
 {
   "success": true,
@@ -70,18 +96,41 @@ curl -X POST http://localhost:5000/api/proposals \
 }
 ```
 
-## Edit Proposal
+### Error responses
+- `400` invalid payload / missing required fields / non-positive amount
+- `404` creator member not found
+- `500` unexpected DB/runtime error
 
-**Endpoint:** `PUT /api/proposals/<id>`
+### Notes
+- API proposal creation does **not** auto-vote.
+- If `basic_supplies = true` and `amount > 20`, basic flag is auto-removed and a comment is inserted.
 
+### Example
 ```bash
-curl -X PUT http://localhost:5000/api/proposals/12 \
+curl -X POST http://localhost:5000/api/proposals \
   -H "X-Admin-Key: your_api_key" \
   -H "Content-Type: application/json" \
-  -d '{"title": "Updated Title", "amount": 100}'
+  -d '{
+    "title":"LED Strips",
+    "description":"RGB LED strips for workshop",
+    "amount":75.5,
+    "url":"https://example.com/led",
+    "basic_supplies":false,
+    "created_by":1
+  }'
 ```
 
-**Request Body:** (all fields optional)
+---
+
+## 3) Edit Proposal
+
+**Endpoint**: `PUT /api/proposals/<proposal_id>` or `PATCH /api/proposals/<proposal_id>`
+
+### Request headers
+- `Content-Type: application/json`
+- `X-Admin-Key: <ADMIN_API_KEY>`
+
+### Request body (all fields optional)
 ```json
 {
   "title": "Updated Title",
@@ -92,7 +141,13 @@ curl -X PUT http://localhost:5000/api/proposals/12 \
 }
 ```
 
-**Response (200):**
+### Validation
+- Proposal must exist
+- Proposal must be in `active` status
+- If `amount` provided, it must be `> 0`
+
+### Success response
+**200 OK**
 ```json
 {
   "success": true,
@@ -101,14 +156,30 @@ curl -X PUT http://localhost:5000/api/proposals/12 \
 }
 ```
 
-## API Response Codes
+### Error responses
+- `400` invalid payload, missing JSON body, non-positive amount, or editing non-active proposal
+- `404` proposal not found
+- `500` unexpected DB/runtime error
+
+### Example
+```bash
+curl -X PATCH http://localhost:5000/api/proposals/12 \
+  -H "X-Admin-Key: your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{"title":"Updated Title","amount":100}'
+```
+
+---
+
+## Common status codes
 
 | Code | Meaning |
-|------|---------|
-| 200 | Success |
+|---:|---|
+| 200 | OK |
 | 201 | Created |
 | 400 | Bad request |
-| 401 | Unauthorized |
+| 401 | Unauthorized (bad/missing key) |
 | 404 | Not found |
-| 409 | Conflict (e.g., username exists) |
+| 409 | Conflict |
+| 500 | Server error |
 | 503 | API not configured |

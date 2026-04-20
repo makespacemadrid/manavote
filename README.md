@@ -1,167 +1,100 @@
 # Hackerspace Budget Voting System
 
-A Flask web application for managing and voting on budget proposals in a hackerspace community.
+A Flask + SQLite application for managing budget proposals in a hackerspace.
 
-## Features
-- **Multi-language**: English and Spanish (switchable from Settings)
-- **Self-Registration**: Members can register themselves (admin can disable)
-- **Password Change**: Members can change their own password
-- **REST API Registration**: Admins can register members programmatically
-- **30-day persistent sessions**: Login cookies last 30 days
-- **Calendar pagination**: Navigate through events (20 per page)
+## What it does
 
-## Proposals
-- Create proposals with title, description, amount, URL, and image
-- Edit/delete active proposals (creator or admin)
-- Auto-vote in_favor when creating a proposal
-- Visual tags: **basic** (supplies), **standard** (≤€50), **expensive** (>€50), **purchased**
+- Members can create, discuss, and vote on proposals.
+- Proposals are auto-processed based on vote thresholds and available budget.
+- Admins can manage members, thresholds, settings, and budget movements.
+- API endpoints allow admin-key-based automation for member/proposal creation.
+- UI supports English and Spanish.
 
-## Voting
-- Members vote: **In Favor** or **Against**
-- One vote per member per proposal (changeable)
-- Withdraw vote on active proposals
-- Automatic approval when thresholds met and budget available
-- Pending budget queue for proposals waiting for funds
+## Core features
 
-## Dashboard
-- Real-time budget from transaction history
-- Filter by: All, Active, Approved, Pending Budget, Purchased, Pending Purchase
-- Filter by category: Basic, Standard, Expensive
+### Proposals and voting
+- Create proposals with title, description, amount, optional URL, optional image, and basic-supplies flag.
+- Proposal creator gets an automatic `in_favor` vote on web-created proposals.
+- Vote options: `in_favor` / `against`.
+- Votes are upserted (one vote per member per proposal).
+- Active proposals can be edited/deleted by creator or admin.
+- Approved proposals can be marked/unmarked as purchased.
 
-![Dashboard](/static/img/dashboard.png)
+### Budget lifecycle
+- Budget is derived from `budget_log` (`SUM(amount)`).
+- Proposals that meet voting threshold:
+  - become `approved` if budget is sufficient,
+  - become `over_budget` if budget is insufficient.
+- `over_budget` proposals are auto-approved later when budget allows.
+- Admin can undo approvals to restore budget.
 
-## Calendar
-- Activity timeline: proposal submissions, approvals, rejections (with pagination)
-- Budget graph showing cash flow and commitments over time
-- Layout: Budget Over Time chart first, then Activity Calendar + Recent Events merged box
-- Colored category legend
+### Dashboard and calendar
+- Dashboard includes filters for status and categories.
+- Calendar includes an activity table and a "Budget Over Time" Chart.js chart.
+- Budget chart datasets:
+  - Budget Balance (cyan line)
+  - Committed (orange line)
+  - Cash In (green bar)
+  - Cash Out (red bar)
+  - Proposals (Being Voted) (pink bar)
+  - Proposals (Approved) (purple bar)
 
-![Calendar](/static/img/calendar.png)
+## Quick start
 
-## Budget Chart
-The calendar shows a budget graph with:
-- **Budget Balance** (cyan line): Running cash balance from transactions
-- **Committed** (orange line): Available budget after reserving over_budget items
-- **Cash In** (green bar): Money received (mercadillo sales, monthly top-up)
-- **Cash Out** (red bar): Actual cash payments for purchased items
-- **Proposals** (purple bar): Total proposal amounts submitted on each day
-
-## Budget & Admin
-- Budget tracking with full transaction history
-- Manual budget additions with description
-- Configurable vote thresholds
-- Telegram notifications on new proposals and approvals
-- Mark approved proposals as purchased
-- REST API for member and proposal management
-- Add/remove members
-- Make/remove admin users
-- Tabbed admin panel: Stats, Add Member, Settings, Members, Budget, Thresholds, Telegram
-- Timezone setting (Europe/Madrid default)
-
-## Proposal Categories
-- **Basic** supplies (5% threshold): Items under €20
-- **Standard** (10% threshold): Approved items €20-€50
-- **Expensive** (20% threshold): Items over €50
-- Basic flag auto-removed if amount edited over €20
-
-## Settings
-- Change Password: Update your password
-- Logout: End session
-- Language: Switch between English and Español
-
-## Budget Rules
-- **Starting budget**: 300 EUR
-- **Monthly addition**: 50 EUR (configurable)
-- **Thresholds**: Basic 5%, Expensive 20%, Standard 10%
-- Over-budget proposals auto-approve when budget available
-
-## Setup
-
-### Docker (Recommended)
+### Docker
 ```bash
 docker-compose up --build
 ```
 
-### Manual
+### Local
 ```bash
+python -m venv .venv
+source .venv/bin/activate
 pip install -r requirements.txt
 cp sample.env .env
 python app.py
 ```
 
-## Default Admin
+App runs on `http://localhost:5000`.
+
+## Default credentials
 - Username: `admin`
 - Password: `carpediem42`
 
+> On first login, admin is prompted to change the default password.
+
+## Configuration
+Environment variables are read from `.env` (see `sample.env`).
+
+| Variable | Default | Purpose |
+|---|---:|---|
+| `FLASK_DEBUG` | `false` | Flask debug mode |
+| `FLASK_CSRF` | `true` | Flask-WTF CSRF toggle (note: templates currently inject an empty `csrf_token`) |
+| `FLASK_SECURE_COOKIES` | `false` | Enables `SESSION_COOKIE_SECURE` |
+| `ADMIN_API_KEY` | _empty_ | Required for REST API endpoints |
+| `TELEGRAM_BOT_TOKEN` | _empty_ | Telegram integration token |
+| `TELEGRAM_CHAT_ID` | _empty_ | Telegram target chat |
+
 ## REST API
-See [APIDOC.md](APIDOC.md) for full API documentation.
+All API endpoints require `X-Admin-Key: <ADMIN_API_KEY>`.
 
-## Tech Stack
-- Flask 3.0.0, SQLite, Jinja2 templates, Docker
+Implemented endpoints:
+- `POST /api/register`
+- `POST /api/proposals`
+- `PUT|PATCH /api/proposals/<proposal_id>`
 
-## Security
-- Password hashing: werkzeug pbkdf2 (auto-migrates SHA256 on login)
-- CSRF protection enabled by default (configurable via FLASK_CSRF)
-- Rate limiting: 5/min login, 10/min API
-- Secure session cookies (HttpOnly, SameSite=Lax)
-- Default admin password change required on first login
+See [APIDOC.md](APIDOC.md) for request/response details.
+
+## Project structure
+
+- `app/web/routes/main_routes.py` — routes, app setup, and request orchestration.
+- `app/services/` — business logic helpers (auth/budget/proposal/admin/vote).
+- `app/repositories/` — DB access helpers.
+- `app/db/` — schema + migrations + DB connection helper.
+- `templates/` — server-rendered HTML (Jinja2).
+- `tests/` — unit and functional tests.
 
 ## Testing
 ```bash
-python3 -m pytest tests/ -v
+pytest -q
 ```
-
-All tests pass (**78 tests, 1 skipped**).
-
-## Production Deployment
-
-### Environment Variables
-Copy `sample.env` to `.env` and configure:
-
-| Variable | Default | Description |
-|----------|---------|-------------|
-| FLASK_DEBUG | false | Set true for development |
-| FLASK_CSRF | true | Enable CSRF protection |
-| FLASK_SECURE_COOKIES | true | Secure session cookies |
-| TELEGRAM_BOT_TOKEN | - | Telegram notifications |
-| TELEGRAM_CHAT_ID | - | Telegram chat ID |
-| ADMIN_API_KEY | - | API authentication |
-
-### Security Defaults
-- CSRF protection enabled by default
-- Session cookies: HttpOnly, SameSite=Lax
-- Rate limiting: 5/min login, 10/min API
-- Default admin password must be changed on first login
-
-### HTTPS
-Configure via reverse proxy (nginx/caddy):
-- Set `SESSION_COOKIE_SECURE=true` in production
-- Terminate TLS at proxy
-- Redirect HTTP→HTTPS
-
-## Translations
-- Translations stored in `translations.py` (separate from `app.py` for Docker mount)
-- Filter buttons use Title Case: All, Active, Approved, Pending Budget, etc.
-- Status tags use lowercase: active, approved, pending_budget, etc.
-
-## Refactored architecture (incremental)
-
-The application now exposes an app factory (`app.create_app`) and keeps a thin startup wrapper in `app.py`.
-
-### Module responsibilities
-- `app/config.py`: Flask/runtime configuration defaults.
-- `app/extensions.py`: extension bootstrap (rate limiting).
-- `app/db/`: DB connection, schema, and explicit/idempotent migrations.
-- `app/repositories/`: SQL access by concern (`settings`, `proposals`, `votes`, etc.).
-- `app/services/`: business rules (auth hash migration, backer thresholds, proposal lifecycle checks).
-- `app/integrations/telegram_client.py`: Telegram notification adapter with specific error handling.
-- `app/web/decorators.py`: shared HTTP/auth decorators.
-- `app/web/routes/main_routes.py`: existing endpoint behavior preserved while delegating key logic to services/repositories.
-
-## Developer migration guide (short)
-
-1. Prefer importing `create_app` from `app` for app bootstrapping and tests.
-2. Add SQL to repository modules instead of route handlers.
-3. Add/modify business rules in `app/services/*` and keep routes orchestration-focused.
-4. Keep endpoint URLs stable when splitting routes into blueprints.
-5. Put new service tests under `tests/unit/`; keep route behavior checks under `tests/integration/`.
