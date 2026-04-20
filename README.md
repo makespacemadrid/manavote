@@ -53,6 +53,14 @@ The calendar shows a budget graph with:
 - REST API for member and proposal management
 - Add/remove members
 - Make/remove admin users
+- Tabbed admin panel: Stats, Add Member, Settings, Members, Budget, Thresholds, Telegram
+- Timezone setting (Europe/Madrid default)
+
+## Proposal Categories
+- **Basic** supplies (5% threshold): Items under €20
+- **Standard** (10% threshold): Approved items €20-€50
+- **Expensive** (20% threshold): Items over €50
+- Basic flag auto-removed if amount edited over €20
 
 ## Settings
 - Change Password: Update your password

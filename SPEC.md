@@ -482,6 +482,8 @@ python3 -m pytest tests/ -v
 - Budget history with balance
 - Calendar chart data
 - Admin password change redirect
+- Upload MIME validation
+- Basic supplies auto-removal (over €20)
 
 ## Acceptance Criteria
 - [x] Members can register/login and vote
@@ -506,3 +508,8 @@ python3 -m pytest tests/ -v
 - [x] Consistent Settings dropdown on all pages
 - [x] Jinja2 template cache disabled (for language switching)
 - [x] Admin can make/remove other admins
+- [x] Admin panel with tabbed interface (Stats, Add Member, Settings, Members, Budget, Thresholds, Telegram)
+- [x] Timezone setting (Europe/Madrid default), timestamps in Madrid time
+- [x] Upload validation (rejects spoofed image files)
+- [x] Secure session cookies (HttpOnly, SameSite=Lax)
+- [x] Basic supplies only under €20 (auto-removed if over €20)

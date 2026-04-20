@@ -46,7 +46,10 @@
         <label>{{ 'Image optional JPG PNG only'|lang }}</label>
         <input type="file" name="image" accept=".jpg,.jpeg,.png">
         
-        <label style="margin-top: 10px; display: block;">{{ 'Basic'|lang }} supplies ({{ thresholds.basic }}% backers required)</label>
+        <label style="margin-top: 10px; display: block;">
+            {{ 'Basic'|lang }} supplies ({{ thresholds.basic }}% backers required)
+            <span style="color: #888; font-size: 0.85em;">(auto-removed if over €20)</span>
+        </label>
         <div style="margin-bottom: 15px; text-align: left;">
             <input type="checkbox" name="basic_supplies" value="1" style="width: auto !important; margin-left: 0;">
         </div>

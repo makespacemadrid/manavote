@@ -256,5 +256,11 @@ TRANSLATIONS = {
         "Pending Budget (reserved)": "Presupuesto Pendiente (reservado)",
         "Committed Budget": "Presupuesto Comprometido",
         "Committed": "Comprometido",
+        "Timezone": "Zona Horaria",
+        "Save Timezone": "Guardar Zona Horaria",
+        "Stats": "Stats",
+        "Settings": "Settings",
+        "Show All": "Mostrar todo",
+        "Thresholds": "Umbrales",
     },
 }

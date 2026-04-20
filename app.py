@@ -4,6 +4,14 @@ import hashlib
 import secrets
 from datetime import datetime, date, timedelta
 from functools import wraps
+
+try:
+    from dotenv import load_dotenv
+
+    load_dotenv()
+except ImportError:
+    pass
+
 from flask import (
     Flask,
     render_template,
@@ -51,7 +59,7 @@ app.config["SESSION_COOKIE_SAMESITE"] = "Lax"
 limiter = Limiter(
     app=app,
     key_func=get_remote_address,
-    default_limits=["200 per day", "50 per hour"],
+    default_limits=["200 per day", "100 per hour"],
     storage_uri="memory://",
 )
 
@@ -205,6 +213,13 @@ def init_db():
     except:
         pass
 
+    try:
+        c.execute(
+            "UPDATE proposals SET basic_supplies = 0 WHERE basic_supplies = 1 AND amount > 20"
+        )
+    except:
+        pass
+
     conn.commit()
     conn.close()
 
@@ -328,10 +343,10 @@ def send_telegram_message(message):
         return False
     url = f"https://api.telegram.org/bot{TELEGRAM_BOT_TOKEN}/sendMessage"
     try:
-        requests.post(
+        r = requests.post(
             url, json={"chat_id": TELEGRAM_CHAT_ID, "text": message}, timeout=10
         )
-        return True
+        return r.status_code == 200
     except:
         return False
 
@@ -467,7 +482,9 @@ def login():
         if member:
             stored_hash = member["password_hash"]
 
-            if stored_hash.startswith("pbkdf2:sha256:"):
+            if stored_hash.startswith("pbkdf2:sha256:") or stored_hash.startswith(
+                "scrypt:"
+            ):
                 valid = check_password_hash(stored_hash, password)
             elif stored_hash == hashlib.sha256(password.encode()).hexdigest():
                 new_hash = generate_password_hash(password)
@@ -612,6 +629,21 @@ def api_create_proposal():
         )
         conn.commit()
         proposal_id = c.lastrowid
+
+        if basic_supplies and amount > 20.0:
+            c.execute(
+                "UPDATE proposals SET basic_supplies = 0 WHERE id = ?", (proposal_id,)
+            )
+            c.execute(
+                "INSERT INTO comments (proposal_id, member_id, content) VALUES (?, ?, ?)",
+                (
+                    proposal_id,
+                    created_by,
+                    "Auto-removed basic supplies flag: amount over €20",
+                ),
+            )
+            conn.commit()
+
         conn.close()
         return jsonify(
             {
@@ -1021,7 +1053,6 @@ def new_proposal():
         amount = float(request.form["amount"])
         url = request.form.get("url", "").strip()
         basic_supplies = 1 if request.form.get("basic_supplies") else 0
-
         if amount <= 0:
             flash("Amount must be positive", "error")
             return redirect(url_for("new_proposal"))
@@ -1058,6 +1089,20 @@ def new_proposal():
         )
         conn.commit()
         proposal_id = c.lastrowid
+
+        if basic_supplies and amount > 20.0:
+            c.execute(
+                "UPDATE proposals SET basic_supplies = 0 WHERE id = ?", (proposal_id,)
+            )
+            c.execute(
+                "INSERT INTO comments (proposal_id, member_id, content) VALUES (?, ?, ?)",
+                (
+                    proposal_id,
+                    session["member_id"],
+                    "Auto-removed basic supplies flag: amount over €20",
+                ),
+            )
+            conn.commit()
 
         c.execute(
             "INSERT INTO votes (proposal_id, member_id, vote) VALUES (?, ?, 'in_favor')",
@@ -1317,7 +1362,6 @@ def edit_proposal(proposal_id):
         amount = float(request.form["amount"])
         url = request.form.get("url", "").strip()
         basic_supplies = 1 if request.form.get("basic_supplies") else 0
-
         if amount <= 0:
             flash("Amount must be positive", "error")
             return redirect(url_for("edit_proposal", proposal_id=proposal_id))
@@ -1359,6 +1403,21 @@ def edit_proposal(proposal_id):
             ),
         )
         conn.commit()
+
+        if basic_supplies and amount > 20.0:
+            c.execute(
+                "UPDATE proposals SET basic_supplies = 0 WHERE id = ?", (proposal_id,)
+            )
+            c.execute(
+                "INSERT INTO comments (proposal_id, member_id, content) VALUES (?, ?, ?)",
+                (
+                    proposal_id,
+                    session["member_id"],
+                    "Auto-removed basic supplies flag: amount over €20",
+                ),
+            )
+            conn.commit()
+
         conn.close()
 
         flash("Proposal updated!", "success")

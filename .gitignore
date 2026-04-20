@@ -7,3 +7,4 @@ static/uploads/
 .ruff_cache/
 .DS_Store
 *.log
+cookies.txt

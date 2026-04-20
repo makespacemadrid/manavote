@@ -47,7 +47,7 @@
     </div>
     
     {% if total_count is defined and total_count != proposals|length %}
-    <p style="color: #888; margin-bottom: 10px; font-size: 0.9em;">{{ 'Showing X of Y proposals'|lang }}</p>
+    <p style="color: #888; margin-bottom: 10px; font-size: 0.9em;">{{ proposals|length }} of {{ total_count }} proposals</p>
     {% endif %}
     
     {% if proposals %}

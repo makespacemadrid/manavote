@@ -22,7 +22,30 @@
 
 <h2>{{ 'Admin'|lang }}</h2>
 
-<div class="card">
+<select id="adminTabSelect" onchange="showTab(this.value)" style="margin: 20px 0; padding: 10px; background: #0f3460; color: #eee; border: 1px solid #00d9ff; border-radius: 4px; font-size: 1em;">
+    <option value="">{{ 'Show All'|lang }}</option>
+    <option value="stats">{{ 'Stats'|lang }}</option>
+    <option value="add-member">{{ 'Add Member'|lang }}</option>
+    <option value="settings">{{ 'Settings'|lang }}</option>
+    <option value="members">{{ 'Members'|lang }}</option>
+    <option value="budget">{{ 'Budget'|lang }}</option>
+    <option value="thresholds">{{ 'Thresholds'|lang }}</option>
+    <option value="telegram">{{ 'Telegram'|lang }}</option>
+</select>
+
+<script>
+function showTab(tabId) {
+    if (!tabId) {
+        document.querySelectorAll('.card').forEach(function(el) { el.style.display = 'block'; });
+        return;
+    }
+    document.querySelectorAll('.card').forEach(function(el) { el.style.display = 'none'; });
+    var selected = document.getElementById(tabId);
+    if (selected) selected.style.display = 'block';
+}
+</script>
+
+<div id="stats" class="card">
     <h3>📊 {{ 'Member Statistics'|lang }}</h3>
     <table>
         <thead>
@@ -48,7 +71,7 @@
     </table>
 </div>
 
-<div class="card">
+<div id="add-member" class="card">
     <h3>{{ 'Add Member'|lang }}</h3>
     <form method="POST" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
         <input type="hidden" name="action" value="add_member">
@@ -69,7 +92,7 @@
     </form>
 </div>
 
-<div class="card">
+<div id="settings" class="card">
     <h3>{{ 'Registration Settings'|lang }}</h3>
     <form method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"
@@ -86,7 +109,7 @@
     </form>
 </div>
 
-<div class="card">
+<div id="members" class="card">
     <h3>{{ 'Members'|lang }} ({{ members|length }})</h3>
     <table>
         <thead>
@@ -125,7 +148,7 @@
     </table>
 </div>
 
-<div class="card">
+<div id="budget" class="card">
     <h3>{{ 'Budget'|lang }}</h3>
     <form method="POST" style="margin-bottom: 15px;">
         <input type="hidden" name="action" value="add_budget">
@@ -175,7 +198,7 @@
     </table>
 </div>
 
-<div class="card">
+<div id="thresholds" class="card">
     <h3>{{ 'Vote Thresholds'|lang }}</h3>
     <form method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"
@@ -198,7 +221,7 @@
     </form>
 </div>
 
-<div class="card">
+<div id="telegram" class="card">
     <h3>{{ 'Telegram Configuration'|lang }}</h3>
     <form method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"
