@@ -130,6 +130,8 @@ const cashInData = dailyData.map(d => d.cash_in || 0);
 const cashOutData = dailyData.map(d => d.cash_out || 0);
 const cashBalanceData = dailyData.map(d => d.cash_balance || 0);
 const proposalsData = dailyData.map(d => d.proposals || 0);
+const approvedData = dailyData.map(d => d.approved || 0);
+const unapprovedData = proposalsData.map((total, i) => Math.max(0, total - approvedData[i]));
 const pendingData = dailyData.map(d => d.pending || 0);
 const committedData = cashBalanceData.map((b, i) => b - pendingData[i]);
 
@@ -177,12 +179,23 @@ new Chart(ctx, {
             },
             {
                 type: 'bar',
-                label: 'Proposals',
-                data: proposalsData,
+                label: 'Proposals (Not Yet Accepted)',
+                data: unapprovedData,
                 borderColor: '#9932CC',
                 backgroundColor: '#9932CC88',
                 borderWidth: 1,
-                order: 0
+                order: 0,
+                stack: 'proposal_status'
+            },
+            {
+                type: 'bar',
+                label: 'Proposals (Approved)',
+                data: approvedData,
+                borderColor: '#00ff88',
+                backgroundColor: '#00ff8888',
+                borderWidth: 1,
+                order: 0,
+                stack: 'proposal_status'
             }
         ]
     },
@@ -196,10 +209,12 @@ new Chart(ctx, {
         },
         scales: {
             x: {
+                stacked: true,
                 ticks: { color: '#888' },
                 grid: { color: '#0f3460' }
             },
             y: {
+                stacked: true,
                 ticks: { 
                     color: '#888',
                     callback: function(value) { return '€' + value; }
