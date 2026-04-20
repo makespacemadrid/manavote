@@ -16,9 +16,11 @@
             
             <button type="submit" class="btn" style="width: 100%;">{{ 'Login'|lang }}</button>
         </form>
+
         <p style="text-align: center; margin-top: 20px; color: #888;">
-            {{ 'Register here'|lang }}
+            {{ 'No account yet'|lang }} <a href="{{ url_for('register') }}" style="color: #00d9ff;">{{ 'Register'|lang }}</a>
         </p>
+
         <div style="text-align: center; margin-top: 15px;">
             <a href="{{ url_for('set_language', lang='en') }}" style="color: #888; font-size: 0.85em;">English</a> |
             <a href="{{ url_for('set_language', lang='es') }}" style="color: #888; font-size: 0.85em;">Español</a>
