@@ -179,10 +179,10 @@ new Chart(ctx, {
             },
             {
                 type: 'bar',
-                label: 'Proposals (Not Yet Accepted)',
+                label: 'Proposals (Being Voted)',
                 data: unapprovedData,
-                borderColor: '#9932CC',
-                backgroundColor: '#9932CC88',
+                borderColor: '#ff69b4',
+                backgroundColor: '#ff69b488',
                 borderWidth: 1,
                 order: 0,
                 stack: 'proposal_status'
@@ -191,8 +191,8 @@ new Chart(ctx, {
                 type: 'bar',
                 label: 'Proposals (Approved)',
                 data: approvedData,
-                borderColor: '#00ff88',
-                backgroundColor: '#00ff8888',
+                borderColor: '#9932CC',
+                backgroundColor: '#9932CC88',
                 borderWidth: 1,
                 order: 0,
                 stack: 'proposal_status'

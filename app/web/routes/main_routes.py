@@ -599,7 +599,7 @@ def calendar():
 
     pending_by_day = {}
     c.execute(
-        "SELECT date(created_at) as day, COALESCE(SUM(amount), 0) as pending FROM proposals WHERE status = 'over_budget' GROUP BY day"
+        "SELECT date(processed_at) as day, COALESCE(SUM(amount), 0) as pending FROM proposals WHERE status = 'over_budget' AND processed_at IS NOT NULL GROUP BY day"
     )
     for row in c.fetchall():
         pending_by_day[row[0]] = row[1]
@@ -614,10 +614,7 @@ def calendar():
     """)
     budget_days = set(row[0] for row in c.fetchall())
 
-    c.execute(
-        "SELECT date(created_at) as day FROM proposals WHERE status = 'over_budget'"
-    )
-    over_budget_days = set(row[0] for row in c.fetchall())
+    over_budget_days = set(pending_by_day.keys())
 
     c.execute(
         "SELECT date(processed_at) as day, COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'approved' AND processed_at IS NOT NULL GROUP BY day"
