@@ -230,19 +230,35 @@ class TestCalendarBudgetData(unittest.TestCase):
         self.assertIn("approvedData", html)
 
     def test_calendar_committed_budget_label(self):
-        """Calendar shows Committed line"""
+        """Calendar shows Committed line label in English"""
         response = self.client.get("/calendar")
         self.assertEqual(response.status_code, 200)
         html = response.data.decode("utf-8")
-        self.assertIn("Approved", html)
+        self.assertIn("label: 'Committed'", html)
 
     def test_calendar_committed_budget_spanish(self):
-        """Calendar shows Committed in Spanish"""
+        """Calendar shows Committed line label in Spanish"""
         self.client.get("/set-language/es")
         response = self.client.get("/calendar")
+        self.assertEqual(response.status_code, 200)
         html = response.data.decode("utf-8")
-        self.assertIn("Approved", html)
+        self.assertIn("label: 'Comprometido'", html)
 
+
+    def test_calendar_committed_uses_cash_minus_pending_formula(self):
+        """Committed series is computed as cash_balance - pending"""
+        response = self.client.get("/calendar")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("const committedData = cashBalanceData.map((b, i) => b - pendingData[i]);", html)
+
+    def test_calendar_lines_do_not_stack_with_each_other(self):
+        """Budget Balance and Committed line datasets have separate stack keys"""
+        response = self.client.get("/calendar")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("stack: 'line_budget_balance'", html)
+        self.assertIn("stack: 'line_committed'", html)
 
 class TestDashboardFilters(unittest.TestCase):
     @classmethod

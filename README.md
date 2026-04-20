@@ -38,6 +38,11 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
   - Cash Out (red bar)
   - Proposals (Being Voted) (pink bar)
   - Proposals (Approved) (purple bar)
+- Committed series semantics:
+  - `Committed = cash_balance - pending_over_budget_total`.
+  - Positive values represent budget left after currently pending over-budget commitments.
+  - Negative values represent budget debt (pending commitments exceed available balance).
+  - Budget/Committed line datasets use separate Chart.js stack keys so lines are not cumulatively stacked with each other, while bar datasets remain stacked.
 
 ## Quick start
 

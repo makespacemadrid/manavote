@@ -108,6 +108,12 @@ Chart datasets:
 - **Proposals (Being Voted)**: pink bar (`#ff69b4`)
 - **Proposals (Approved)**: purple bar (`#9932CC`)
 
+Committed series behavior:
+- Computed as `cash_balance - pending_over_budget_total`.
+- Values above `0` mean budget still available after pending commitments.
+- Values below `0` represent "budget debt" (pending commitments exceed current budget).
+- The line datasets (`Budget Balance`, `Committed`) use separate Chart.js stack keys so they do not stack on top of each other; bar datasets remain stacked.
+
 ## 8) HTTP routes
 
 ### Public
