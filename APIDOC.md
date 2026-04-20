@@ -183,3 +183,13 @@ curl -X PATCH http://localhost:5000/api/proposals/12 \
 | 409 | Conflict |
 | 500 | Server error |
 | 503 | API not configured |
+
+---
+
+## Related UI budget chart note (non-API)
+
+Although not part of the REST API surface, the `/calendar` page renders a mixed Chart.js line/bar chart where:
+- `Committed = cash_balance - pending_over_budget_total`.
+- Positive committed values indicate remaining budget after pending commitments.
+- Negative committed values indicate budget debt.
+- `Budget Balance` and `Committed` lines are configured with different stack keys to prevent line-on-line visual stacking.

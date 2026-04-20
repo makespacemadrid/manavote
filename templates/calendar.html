@@ -148,7 +148,8 @@ new Chart(ctx, {
                 backgroundColor: '#00d9ff22',
                 fill: true,
                 tension: 0.3,
-                pointRadius: 4
+                pointRadius: 4,
+                stack: 'line_budget_balance'
             },
             {
                 label: '{{ 'Committed'|lang }}',
@@ -157,7 +158,8 @@ new Chart(ctx, {
                 backgroundColor: '#ffa50022',
                 fill: true,
                 tension: 0.3,
-                pointRadius: 4
+                pointRadius: 4,
+                stack: 'line_committed'
             },
             {
                 type: 'bar',
