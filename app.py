@@ -722,6 +722,8 @@ def calendar():
         return redirect(url_for("login"))
 
     sort_by = request.args.get("sort", "date_desc")
+    page = request.args.get("page", 1, type=int)
+    per_page = 20
 
     if sort_by == "date_asc":
         order_clause = "created_at ASC"
@@ -735,11 +737,21 @@ def calendar():
     conn = get_db()
     c = conn.cursor()
 
+    c.execute("SELECT COUNT(*) FROM proposals")
+    total_proposals = c.fetchone()[0]
+
+    c.execute("SELECT COUNT(*) FROM budget_log")
+    total_budget = c.fetchone()[0]
+
+    total_items = total_proposals + total_budget
+    total_pages = max(1, (total_items + per_page - 1) // per_page)
+    offset = (page - 1) * per_page
+
     c.execute(f"""
         SELECT id, title, amount, created_at, status, created_at as submitted_at
         FROM proposals 
         ORDER BY {order_clause}
-        LIMIT 200
+        LIMIT {per_page} OFFSET {offset}
     """)
     proposals = c.fetchall()
 
@@ -747,7 +759,7 @@ def calendar():
         SELECT id, amount, description, created_at
         FROM budget_log
         ORDER BY {order_clause}
-        LIMIT 100
+        LIMIT {per_page} OFFSET {offset}
     """)
     budget_logs = c.fetchall()
 
@@ -780,7 +792,12 @@ def calendar():
     for row in c.fetchall():
         approved_by_day[row[0]] = row[1]
 
-    all_days = sorted(budget_days | set(over_budget_days) | set(approved_by_day.keys()))
+    c.execute("SELECT date(created_at) as day, COALESCE(SUM(amount), 0) FROM proposals GROUP BY date(created_at)")
+    proposals_by_day = {}
+    for row in c.fetchall():
+        proposals_by_day[row[0]] = row[1]
+
+    all_days = sorted(budget_days | set(over_budget_days) | set(approved_by_day.keys()) | set(proposals_by_day.keys()))
 
     daily_budget = []
     cash_balance = 0
@@ -807,6 +824,8 @@ def calendar():
 
         approved = approved_by_day.get(day, 0)
 
+        proposals_count = proposals_by_day.get(day, 0)
+
         daily_budget.append(
             {
                 "day": day,
@@ -815,12 +834,11 @@ def calendar():
                 "approved": -approved if approved else 0,
                 "cash_balance": cash_balance,
                 "pending": pending_total,
+                "proposals": proposals_count,
             }
         )
 
     current_budget = get_current_budget()
-
-    conn.close()
 
     conn.close()
 
@@ -830,6 +848,8 @@ def calendar():
         budget_logs=budget_logs,
         daily_budget=daily_budget,
         session_lang=session.get("lang", "en"),
+        page=page,
+        total_pages=total_pages,
     )
 
 

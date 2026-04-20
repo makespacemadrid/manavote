@@ -291,21 +291,26 @@ Admins can adjust via admin panel:
 |--------|-----|-------------|
 | View calendar | Member | Timeline of proposals and budget |
 | Budget graph | Member | Chart.js chart with lines and bars |
+| Pagination | Member | Navigate through events (20 per page) |
 | Legend | Member | Colored category keys |
+
+**Calendar Layout:**
+1. Budget Over Time (chart)
+2. Activity Calendar + Recent Events (merged box)
 
 **Budget Chart Components:**
 - **Budget Balance** (line): Running cash balance from budget_log
 - **Committed** (line): Budget Balance minus over_budget pending items
-- **Approved** (bar): Items approved on each day (reduces available budget)
 - **Cash In** (bar): Money received (mercadillo, monthly top-up)
 - **Cash Out** (bar): Actual cash payments for purchased items
+- **Proposals** (bar): Total proposal amounts submitted on each day
 
 **Legend Colors:**
 - Budget Balance: Cyan (#00d9ff)
 - Committed: Orange (#ffa500)
-- Approved: Red (#e94560)
 - Cash In: Green (#00ff88)
 - Cash Out: Red (#e94560)
+- Proposals: Purple (#9932CC)
 - Proposal Submitted: Cyan (#00d9ff)
 - Proposal Approved: Green (#00ff88)
 - Proposal Rejected: Red (#e94560)
@@ -513,3 +518,6 @@ python3 -m pytest tests/ -v
 - [x] Upload validation (rejects spoofed image files)
 - [x] Secure session cookies (HttpOnly, SameSite=Lax)
 - [x] Basic supplies only under €20 (auto-removed if over €20)
+- [x] Budget Over Time chart with Proposals bar (purple)
+- [x] Calendar: Budget Over Time box first, Activity Calendar + Recent Events merged
+- [x] Calendar pagination (20 per page)

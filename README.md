@@ -8,6 +8,7 @@ A Flask web application for managing and voting on budget proposals in a hackers
 - **Password Change**: Members can change their own password
 - **REST API Registration**: Admins can register members programmatically
 - **30-day persistent sessions**: Login cookies last 30 days
+- **Calendar pagination**: Navigate through events (20 per page)
 
 ## Proposals
 - Create proposals with title, description, amount, URL, and image
@@ -30,8 +31,9 @@ A Flask web application for managing and voting on budget proposals in a hackers
 ![Dashboard](/static/img/dashboard.png)
 
 ## Calendar
-- Activity timeline: proposal submissions, approvals, rejections
+- Activity timeline: proposal submissions, approvals, rejections (with pagination)
 - Budget graph showing cash flow and commitments over time
+- Layout: Budget Over Time chart first, then Activity Calendar + Recent Events merged box
 - Colored category legend
 
 ![Calendar](/static/img/calendar.png)
@@ -40,9 +42,9 @@ A Flask web application for managing and voting on budget proposals in a hackers
 The calendar shows a budget graph with:
 - **Budget Balance** (cyan line): Running cash balance from transactions
 - **Committed** (orange line): Available budget after reserving over_budget items
-- **Approved** (red bar): Budget committed when items approved (reduces available budget)
 - **Cash In** (green bar): Money received (mercadillo sales, monthly top-up)
 - **Cash Out** (red bar): Actual cash payments for purchased items
+- **Proposals** (purple bar): Total proposal amounts submitted on each day
 
 ## Budget & Admin
 - Budget tracking with full transaction history

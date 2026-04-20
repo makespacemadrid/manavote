@@ -23,6 +23,11 @@
 </div>
 
 <div class="card">
+    <h3>📊 {{ 'Budget Over Time'|lang }}</h3>
+    <canvas id="budgetChart" style="max-height: 300px;"></canvas>
+</div>
+
+<div class="card">
     <h2>📅 {{ 'Activity Calendar'|lang }}</h2>
     <p style="color: #888; margin-bottom: 20px;">
         {{ 'View proposal submissions description'|lang }}
@@ -50,15 +55,7 @@
             {{ 'Budget Out'|lang }} (-)
         </span>
     </div>
-</div>
 
-<div class="card">
-    <h3>📊 {{ 'Budget Over Time'|lang }}</h3>
-    <canvas id="budgetChart" style="max-height: 300px;"></canvas>
-</div>
-
-<div class="card">
-    <h3>📋 {{ 'Recent Events'|lang }}</h3>
     <div style="margin-bottom: 15px; display: flex; gap: 15px; flex-wrap: wrap; font-size: 0.9em;">
         <span style="color: #888;">{{ 'Sort by'|lang }}:</span>
         <a href="{{ url_for('calendar', sort='date_desc') }}" style="color: {{ '#00d9ff' if request.args.get('sort') == 'date_desc' or not request.args.get('sort') else '#888' }};">{{ 'Date (Newest)'|lang }}</a>
@@ -112,6 +109,17 @@
             </tbody>
         </table>
     </div>
+
+    <div style="margin-top: 15px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
+        {% set sort = request.args.get('sort', 'date_desc') %}
+        {% if page > 1 %}
+        <a href="{{ url_for('calendar', page=page-1, sort=sort) }}" style="padding: 8px 12px; background: #0f3460; color: #00d9ff; border-radius: 4px;">&larr; Prev</a>
+        {% endif %}
+        <span style="padding: 8px 12px; color: #888;">{{ page }} / {{ total_pages }}</span>
+        {% if page < total_pages %}
+        <a href="{{ url_for('calendar', page=page+1, sort=sort) }}" style="padding: 8px 12px; background: #0f3460; color: #00d9ff; border-radius: 4px;">Next &rarr;</a>
+        {% endif %}
+    </div>
 </div>
 
 <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
@@ -120,8 +128,8 @@ const dailyData = {{ daily_budget|tojson }};
 const labels = dailyData.map(d => d.day);
 const cashInData = dailyData.map(d => d.cash_in || 0);
 const cashOutData = dailyData.map(d => d.cash_out || 0);
-const approvedData = dailyData.map(d => d.approved || 0);
 const cashBalanceData = dailyData.map(d => d.cash_balance || 0);
+const proposalsData = dailyData.map(d => d.proposals || 0);
 const pendingData = dailyData.map(d => d.pending || 0);
 const committedData = cashBalanceData.map((b, i) => b - pendingData[i]);
 
@@ -150,14 +158,6 @@ new Chart(ctx, {
                 pointRadius: 4
             },
             {
-                label: 'Approved',
-                data: approvedData,
-                borderColor: '#e94560',
-                backgroundColor: '#e9456044',
-                borderWidth: 1,
-                order: 1
-            },
-            {
                 type: 'bar',
                 label: 'Cash In',
                 data: cashInData,
@@ -174,6 +174,15 @@ new Chart(ctx, {
                 backgroundColor: '#e9456044',
                 borderWidth: 1,
                 order: 1
+            },
+            {
+                type: 'bar',
+                label: 'Proposals',
+                data: proposalsData,
+                borderColor: '#9932CC',
+                backgroundColor: '#9932CC88',
+                borderWidth: 1,
+                order: 0
             }
         ]
     },
