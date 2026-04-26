@@ -43,10 +43,6 @@
             {{ 'Approved'|lang }}
         </span>
         <span style="display: flex; align-items: center; gap: 6px;">
-            <span style="display: inline-block; width: 14px; height: 14px; background: #e94560; border-radius: 3px;"></span>
-            {{ 'Rejected'|lang }}
-        </span>
-        <span style="display: flex; align-items: center; gap: 6px;">
             <span style="display: inline-block; width: 14px; height: 14px; border: 2px solid #00ff88; border-radius: 3px;"></span>
             {{ 'Budget In'|lang }} (+)
         </span>
@@ -74,35 +70,33 @@
                 </tr>
             </thead>
             <tbody>
-                {% for p in proposals %}
+                {% for item in calendar_items %}
                 <tr>
-                    <td>{{ p.created_at[:10] }}</td>
+                    <td>{{ item.created_at[:10] }}</td>
                     <td>
-                        {% if p.status == 'approved' %}
-                        <span style="color: #9932CC;">✓ {{ 'Approved'|lang }}</span>
-                        {% elif p.status == 'rejected' %}
-                        <span style="color: #e94560;">✗ {{ 'Rejected'|lang }}</span>
-                        {% else %}
-                        <span style="color: #00d9ff;">○ {{ p.status|title }}</span>
-                        {% endif %}
-                    </td>
-                    <td><a href="{{ url_for('proposal_detail', proposal_id=p.id) }}" style="color: #00d9ff;">{{ p.title }}</a></td>
-                    <td class="{{ 'amount-negative' if p.amount < 0 else '' }}">€{{ "%.2f"|format(p.amount) }}</td>
-                </tr>
-                {% endfor %}
-                {% for b in activity_logs[:30] %}
-                <tr>
-                    <td>{{ b.created_at[:10] }}</td>
-                    <td>
-                        {% if b.amount > 0 %}
+                        {% if item.item_type == 'proposal' %}
+                            {% if item.status == 'approved' %}
+                            <span style="color: #9932CC;">✓ {{ 'Approved'|lang }}</span>
+                            {% elif item.status == 'rejected' %}
+                            <span style="color: #e94560;">✗ {{ 'Rejected'|lang }}</span>
+                            {% else %}
+                            <span style="color: #00d9ff;">○ {{ item.status|title }}</span>
+                            {% endif %}
+                        {% elif item.amount > 0 %}
                         <span style="color: #00ff88;">↑ {{ 'Budget In'|lang }}</span>
                         {% else %}
                         <span style="color: #e94560;">↓ {{ 'Budget Out'|lang }}</span>
                         {% endif %}
                     </td>
-                    <td>{{ b.description }}</td>
-                    <td class="{{ 'amount-positive' if b.amount > 0 else 'amount-negative' }}">
-                        {{ "+" if b.amount > 0 else "" }}€{{ "%.2f"|format(b.amount) }}
+                    <td>
+                        {% if item.item_type == 'proposal' %}
+                        <a href="{{ url_for('proposal_detail', proposal_id=item.id) }}" style="color: #00d9ff;">{{ item.title }}</a>
+                        {% else %}
+                        {{ item.description }}
+                        {% endif %}
+                    </td>
+                    <td class="{{ 'amount-positive' if item.amount > 0 else 'amount-negative' }}">
+                        {{ "+" if item.amount > 0 else "" }}€{{ "%.2f"|format(item.amount) }}
                     </td>
                 </tr>
                 {% endfor %}
@@ -131,7 +125,10 @@ const cashOutData = dailyData.map(d => d.cash_out || 0);
 const cashBalanceData = dailyData.map(d => d.cash_balance || 0);
 const proposalsData = dailyData.map(d => d.proposals || 0);
 const approvedData = dailyData.map(d => d.approved || 0);
-const unapprovedData = proposalsData.map((total, i) => Math.max(0, total - approvedData[i]));
+const unapprovedData = proposalsData.map((total, i) => {
+    const approvedAmount = Math.abs(approvedData[i] || 0);
+    return -Math.max(0, total - approvedAmount);
+});
 const pendingData = dailyData.map(d => d.pending || 0);
 const committedData = cashBalanceData.map((b, i) => b - pendingData[i]);
 
@@ -163,7 +160,7 @@ new Chart(ctx, {
             },
             {
                 type: 'bar',
-                label: 'Cash In',
+                label: '{{ 'Budget In'|lang }}',
                 data: cashInData,
                 borderColor: '#00ff88',
                 backgroundColor: '#00ff8844',
@@ -172,7 +169,7 @@ new Chart(ctx, {
             },
             {
                 type: 'bar',
-                label: 'Cash Out',
+                label: '{{ 'Budget Out'|lang }}',
                 data: cashOutData,
                 borderColor: '#e94560',
                 backgroundColor: '#e9456044',
