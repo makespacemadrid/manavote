@@ -112,6 +112,43 @@ class TestAuthentication(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
 
 
+class TestRouteAccessControl(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        budget_app.app.config["TESTING"] = True
+        cls.client = budget_app.app.test_client()
+
+    def test_index_redirects_to_login_when_logged_out(self):
+        """Root route redirects anonymous users to login"""
+        with self.client.session_transaction() as session:
+            session.clear()
+        response = self.client.get("/", follow_redirects=False)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login", response.headers.get("Location", ""))
+
+    def test_index_redirects_to_dashboard_when_logged_in(self):
+        """Root route redirects authenticated users to dashboard"""
+        _set_member_session(self.client)
+        response = self.client.get("/", follow_redirects=False)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/dashboard", response.headers.get("Location", ""))
+
+    def test_dashboard_requires_authentication(self):
+        """Dashboard requires login and redirects anonymous users"""
+        with self.client.session_transaction() as session:
+            session.clear()
+        response = self.client.get("/dashboard", follow_redirects=False)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/login", response.headers.get("Location", ""))
+
+    def test_admin_rejects_non_admin_members(self):
+        """Admin page redirects members without admin privileges"""
+        _set_member_session(self.client)
+        response = self.client.get("/admin", follow_redirects=False)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/dashboard", response.headers.get("Location", ""))
+
+
 class TestProposalCreation(unittest.TestCase):
     @classmethod
     def setUpClass(cls):

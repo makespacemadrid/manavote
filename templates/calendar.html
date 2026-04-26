@@ -43,10 +43,6 @@
             {{ 'Approved'|lang }}
         </span>
         <span style="display: flex; align-items: center; gap: 6px;">
-            <span style="display: inline-block; width: 14px; height: 14px; background: #e94560; border-radius: 3px;"></span>
-            {{ 'Rejected'|lang }}
-        </span>
-        <span style="display: flex; align-items: center; gap: 6px;">
             <span style="display: inline-block; width: 14px; height: 14px; border: 2px solid #00ff88; border-radius: 3px;"></span>
             {{ 'Budget In'|lang }} (+)
         </span>
@@ -79,7 +75,7 @@
                     <td>{{ p.created_at[:10] }}</td>
                     <td>
                         {% if p.status == 'approved' %}
-                        <span style="color: #00ff88;">✓ {{ 'Approved'|lang }}</span>
+                        <span style="color: #9932CC;">✓ {{ 'Approved'|lang }}</span>
                         {% elif p.status == 'rejected' %}
                         <span style="color: #e94560;">✗ {{ 'Rejected'|lang }}</span>
                         {% else %}
@@ -95,9 +91,9 @@
                     <td>{{ b.created_at[:10] }}</td>
                     <td>
                         {% if b.amount > 0 %}
-                        <span style="color: #00ff88;">↑ {{ 'Income'|lang }}</span>
+                        <span style="color: #00ff88;">↑ {{ 'Budget In'|lang }}</span>
                         {% else %}
-                        <span style="color: #e94560;">↓ {{ 'Expense'|lang }}</span>
+                        <span style="color: #e94560;">↓ {{ 'Budget Out'|lang }}</span>
                         {% endif %}
                     </td>
                     <td>{{ b.description }}</td>
