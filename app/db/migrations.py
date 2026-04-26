@@ -17,6 +17,8 @@ def run_migrations(cursor):
     add_column_if_missing(cursor, "proposals", "url TEXT")
     add_column_if_missing(cursor, "proposals", "image_filename TEXT")
     add_column_if_missing(cursor, "proposals", "purchased_at TEXT")
+    add_column_if_missing(cursor, "proposals", "over_budget_at TEXT")
+    add_column_if_missing(cursor, "activity_log", "created_by INTEGER")
     try:
         cursor.execute("UPDATE proposals SET basic_supplies = 0 WHERE basic_supplies = 1 AND amount > 20")
     except sqlite3.OperationalError:

@@ -16,6 +16,7 @@ CREATE TABLE IF NOT EXISTS proposals (
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     status TEXT DEFAULT 'active',
     processed_at TEXT,
+    over_budget_at TEXT,
     purchased_at TEXT,
     basic_supplies INTEGER DEFAULT 0
 );
@@ -34,10 +35,11 @@ CREATE TABLE IF NOT EXISTS comments (
     content TEXT NOT NULL,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
-CREATE TABLE IF NOT EXISTS budget_log (
+CREATE TABLE IF NOT EXISTS activity_log (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     amount REAL NOT NULL,
     description TEXT,
+    created_by INTEGER,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS settings (

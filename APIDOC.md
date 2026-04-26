@@ -189,7 +189,9 @@ curl -X PATCH http://localhost:5000/api/proposals/12 \
 ## Related UI budget chart note (non-API)
 
 Although not part of the REST API surface, the `/calendar` page renders a mixed Chart.js line/bar chart where:
-- `Committed = cash_balance - pending_over_budget_total`.
+- `pending` accumulates from proposals when they go over_budget (tracked by `over_budget_at`).
+- `pending` decreases when over_budget proposals get approved.
+- `Committed = cash_balance - pending`.
 - Positive committed values indicate remaining budget after pending commitments.
-- Negative committed values indicate budget debt.
+- Negative committed values indicate budget debt (pending commitments exceed cash).
 - `Budget Balance` and `Committed` lines are configured with different stack keys to prevent line-on-line visual stacking.

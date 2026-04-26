@@ -1,7 +1,7 @@
 import sqlite3
 from pathlib import Path
 
-DB_PATH = str(Path(__file__).resolve().parents[2] / "hackerspace.db")
+DB_PATH = str(Path(__file__).resolve().parents[2] / "app.db")
 
 
 def set_db_path(path: str) -> None:

@@ -18,7 +18,7 @@ class TestProposalService(unittest.TestCase):
 
         self.telegram_client = MagicMock()
         self.base_url_getter = lambda: "http://localhost:5000/"
-        self.service = ProposalService(self.conn, self.telegram_client, self.base_url_getter)
+        self.service = ProposalService(self.conn, self.telegram_client, self.base_url_getter, created_by=1)
 
     def tearDown(self):
         self.conn.close()
@@ -46,6 +46,7 @@ class TestProposalService(unittest.TestCase):
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP,
                 status TEXT DEFAULT 'active',
                 processed_at TEXT,
+                over_budget_at TEXT,
                 purchased_at TEXT,
                 basic_supplies INTEGER DEFAULT 0
             )
@@ -71,10 +72,11 @@ class TestProposalService(unittest.TestCase):
         )
         c.execute(
             """
-            CREATE TABLE budget_log (
+            CREATE TABLE activity_log (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 amount REAL NOT NULL,
                 description TEXT,
+                created_by INTEGER,
                 created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
             """
@@ -90,11 +92,11 @@ class TestProposalService(unittest.TestCase):
         c.execute("INSERT INTO settings (key, value) VALUES ('threshold_default', '10')")
         self.conn.commit()
 
-    def _insert_proposal(self, title, amount, basic_supplies=0, status="active"):
+    def _insert_proposal(self, title, amount, basic_supplies=0, status="active", over_budget_at=None):
         c = self.conn.cursor()
         c.execute(
-            "INSERT INTO proposals (title, amount, created_by, basic_supplies, status) VALUES (?, ?, 1, ?, ?)",
-            (title, amount, basic_supplies, status),
+            "INSERT INTO proposals (title, amount, created_by, basic_supplies, status, over_budget_at) VALUES (?, ?, 1, ?, ?, ?)",
+            (title, amount, basic_supplies, status, over_budget_at),
         )
         self.conn.commit()
         return c.lastrowid
@@ -109,7 +111,7 @@ class TestProposalService(unittest.TestCase):
 
     def _add_budget(self, amount, description="seed"):
         c = self.conn.cursor()
-        c.execute("INSERT INTO budget_log (amount, description) VALUES (?, ?)", (amount, description))
+        c.execute("INSERT INTO activity_log (amount, description) VALUES (?, ?)", (amount, description))
         self.conn.commit()
 
     def test_process_proposal_approves_and_logs_budget(self):
@@ -125,7 +127,7 @@ class TestProposalService(unittest.TestCase):
         self.assertEqual(status, "approved")
 
         latest_budget = c.execute(
-            "SELECT amount, description FROM budget_log ORDER BY id DESC LIMIT 1"
+            "SELECT amount, description FROM activity_log ORDER BY id DESC LIMIT 1"
         ).fetchone()
         self.assertEqual(latest_budget[0], -60)
         self.assertIn("Approved: 3D printer nozzles", latest_budget[1])
@@ -139,10 +141,11 @@ class TestProposalService(unittest.TestCase):
         result = self.service.process_proposal(proposal_id)
 
         self.assertEqual(result, "over_budget")
-        status = self.conn.execute(
-            "SELECT status FROM proposals WHERE id = ?", (proposal_id,)
-        ).fetchone()[0]
-        self.assertEqual(status, "over_budget")
+        c = self.conn.execute(
+            "SELECT status, over_budget_at FROM proposals WHERE id = ?", (proposal_id,)
+        ).fetchone()
+        self.assertEqual(c[0], "over_budget")
+        self.assertIsNotNone(c[1])
 
     def test_process_proposal_returns_none_when_votes_do_not_reach_threshold(self):
         proposal_id = self._insert_proposal("Workshop table", 30)
@@ -169,7 +172,7 @@ class TestProposalService(unittest.TestCase):
         self.assertEqual(row[0], "approved")
         self.assertIsNotNone(row[1])
 
-        remaining_budget = self.conn.execute("SELECT SUM(amount) FROM budget_log").fetchone()[0]
+        remaining_budget = self.conn.execute("SELECT SUM(amount) FROM activity_log").fetchone()[0]
         self.assertEqual(remaining_budget, 25)
         self.telegram_client.send_message.assert_called_once()
 

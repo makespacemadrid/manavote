@@ -29,6 +29,7 @@
     <option value="settings">{{ 'Settings'|lang }}</option>
     <option value="members">{{ 'Members'|lang }}</option>
     <option value="budget">{{ 'Budget'|lang }}</option>
+    <option value="backup">{{ 'Backup'|lang }}</option>
     <option value="thresholds">{{ 'Thresholds'|lang }}</option>
     <option value="telegram">{{ 'Telegram'|lang }}</option>
 </select>
@@ -170,7 +171,7 @@ function showTab(tabId) {
         <input type="hidden" name="action" value="trigger_monthly">
         <button type="submit" class="btn btn-secondary">{{ 'Trigger Monthly Top-up'|lang }} (+€50)</button>
     </form>
-    
+
     <h4 style="margin-top: 20px;">{{ 'Full Budget History'|lang }}</h4>
     <table>
         <thead>
@@ -196,6 +197,28 @@ function showTab(tabId) {
             {% endfor %}
         </tbody>
     </table>
+</div>
+
+<div id="backup" class="card">
+    <h3>{{ 'Backup Database'|lang }}</h3>
+    <p style="color: #888; margin-bottom: 15px;">
+        Backups are stored in the same directory as the database file.
+        Auto-backup runs every 24 hours (if APScheduler is installed).
+        Old backups (older than 7 days) are automatically pruned.
+    </p>
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="backup_db">
+        <button type="submit" class="btn">{{ 'Backup Now'|lang }}</button>
+    </form>
+    <h4 style="margin-top: 20px;">{{ 'Existing Backups'|lang }}</h4>
+    <ul style="color: #888; font-size: 0.9em; list-style: none;">
+        {% for f in backups %}
+        <li style="padding: 5px 0; border-bottom: 1px solid #0f3460;">
+            {{ f.name }} - {{ f.size }} bytes - {{ f.modified[:19] }}
+        </li>
+        {% endfor %}
+    </ul>
 </div>
 
 <div id="thresholds" class="card">

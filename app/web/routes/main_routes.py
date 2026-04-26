@@ -91,7 +91,7 @@ def get_lang(key):
     return TRANSLATIONS.get(lang, TRANSLATIONS["en"]).get(key, key)
 
 
-DB_PATH = os.path.join(BASE_DIR, "hackerspace.db")
+DB_PATH = os.path.join(BASE_DIR, "app.db")
 set_db_path(DB_PATH)
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
@@ -146,7 +146,7 @@ def init_db():
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )""")
 
-    c.execute("""CREATE TABLE IF NOT EXISTS budget_log (
+    c.execute("""CREATE TABLE IF NOT EXISTS activity_log (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         amount REAL NOT NULL,
         description TEXT,
@@ -177,7 +177,7 @@ def init_db():
             "INSERT INTO settings (key, value) VALUES ('threshold_default', '10')"
         )
         c.execute(
-            "INSERT INTO budget_log (amount, description) VALUES (300, 'Ventas mercadillo marzo')"
+            "INSERT INTO activity_log (amount, description) VALUES (300, 'Ventas mercadillo marzo')"
         )
         c.execute(
             "INSERT OR IGNORE INTO settings (key, value) VALUES ('registration_enabled', 'true')"
@@ -236,7 +236,7 @@ def get_base_url():
 def get_current_budget():
     conn = get_db()
     c = conn.cursor()
-    c.execute("SELECT SUM(amount) as total FROM budget_log")
+    c.execute("SELECT SUM(amount) as total FROM activity_log")
     total = c.fetchone()["total"]
     conn.close()
     return total if total else 0
@@ -574,7 +574,7 @@ def calendar():
     c.execute("SELECT COUNT(*) FROM proposals")
     total_proposals = c.fetchone()[0]
 
-    c.execute("SELECT COUNT(*) FROM budget_log")
+    c.execute("SELECT COUNT(*) FROM activity_log")
     total_budget = c.fetchone()[0]
 
     total_items = total_proposals + total_budget
@@ -591,15 +591,15 @@ def calendar():
 
     c.execute(f"""
         SELECT id, amount, description, created_at
-        FROM budget_log
+        FROM activity_log
         ORDER BY {order_clause}
         LIMIT {per_page} OFFSET {offset}
     """)
-    budget_logs = c.fetchall()
+    activity_logs = c.fetchall()
 
     pending_by_day = {}
     c.execute(
-        "SELECT date(processed_at) as day, COALESCE(SUM(amount), 0) as pending FROM proposals WHERE status = 'over_budget' AND processed_at IS NOT NULL GROUP BY day"
+        "SELECT date(over_budget_at) as day, COALESCE(SUM(amount), 0) as pending FROM proposals WHERE over_budget_at IS NOT NULL GROUP BY day"
     )
     for row in c.fetchall():
         pending_by_day[row[0]] = row[1]
@@ -609,17 +609,17 @@ def calendar():
             date(created_at) as day,
             SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as cash_in,
             SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as cash_out
-        FROM budget_log
+        FROM activity_log
         GROUP BY date(created_at)
     """)
     budget_days = set(row[0] for row in c.fetchall())
 
     over_budget_days = set(pending_by_day.keys())
 
-    c.execute(
-        "SELECT date(processed_at) as day, COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'approved' AND processed_at IS NOT NULL GROUP BY day"
-    )
     approved_by_day = {}
+    c.execute(
+        "SELECT date(processed_at) as day, COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'approved' AND processed_at IS NOT NULL AND over_budget_at IS NOT NULL GROUP BY day"
+    )
     for row in c.fetchall():
         approved_by_day[row[0]] = row[1]
 
@@ -642,7 +642,7 @@ def calendar():
         if day in budget_days:
             c.execute(
                 """SELECT SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END)
-                FROM budget_log WHERE date(created_at) = ?""",
+                FROM activity_log WHERE date(created_at) = ?""",
                 (day,),
             )
             row = c.fetchone()
@@ -653,7 +653,8 @@ def calendar():
         if day in over_budget_days:
             pending_total += pending_by_day_lookup.get(day, 0)
 
-        approved = approved_by_day.get(day, 0)
+        approved_today = approved_by_day.get(day, 0)
+        pending_total -= approved_today
 
         proposals_count = proposals_by_day.get(day, 0)
 
@@ -662,7 +663,7 @@ def calendar():
                 "day": day,
                 "cash_in": cash_in,
                 "cash_out": -cash_out if cash_out else 0,
-                "approved": -approved if approved else 0,
+                "approved": -approved_today if approved_today else 0,
                 "cash_balance": cash_balance,
                 "pending": pending_total,
                 "proposals": proposals_count,
@@ -676,7 +677,7 @@ def calendar():
     return render_template(
         "calendar.html",
         proposals=proposals,
-        budget_logs=budget_logs,
+        activity_logs=activity_logs,
         daily_budget=daily_budget,
         session_lang=session.get("lang", "en"),
         page=page,
@@ -848,7 +849,7 @@ def dashboard():
     c.execute("SELECT COUNT(*) FROM proposals")
     total_count = c.fetchone()[0]
 
-    c.execute("SELECT * FROM budget_log ORDER BY created_at ASC")
+    c.execute("SELECT * FROM activity_log ORDER BY created_at ASC")
     budget_history_asc = [dict(row) for row in c.fetchall()]
 
     running = 0
@@ -1359,7 +1360,7 @@ def undo_approve(proposal_id):
             (str(get_current_budget() + proposal["amount"]),),
         )
         c.execute(
-            "INSERT INTO budget_log (amount, description) VALUES (?, ?)",
+            "INSERT INTO activity_log (amount, description) VALUES (?, ?)",
             (proposal["amount"], f"Undo approval: {proposal['title']}"),
         )
         conn.commit()
@@ -1490,7 +1491,7 @@ def admin():
                 (str(current + monthly),),
             )
             c.execute(
-                "INSERT INTO budget_log (amount, description) VALUES (?, ?)",
+                "INSERT INTO activity_log (amount, description) VALUES (?, ?)",
                 (monthly, "Monthly top-up"),
             )
             conn.commit()
@@ -1512,7 +1513,7 @@ def admin():
                     (str(current + amount),),
                 )
                 c.execute(
-                    "INSERT INTO budget_log (amount, description) VALUES (?, ?)",
+                    "INSERT INTO activity_log (amount, description) VALUES (?, ?)",
                     (amount, description),
                 )
                 conn.commit()
@@ -1566,7 +1567,7 @@ def admin():
     c.execute("SELECT * FROM members ORDER BY created_at")
     members = c.fetchall()
 
-    c.execute("SELECT * FROM budget_log ORDER BY created_at ASC")
+    c.execute("SELECT * FROM activity_log ORDER BY created_at ASC")
     budget_history_asc = [dict(row) for row in c.fetchall()]
 
     running = 0

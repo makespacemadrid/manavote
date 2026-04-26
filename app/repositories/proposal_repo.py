@@ -13,7 +13,7 @@ class ProposalRepository:
 
     def mark_over_budget(self, proposal_id, processed_at):
         cur = self.conn.cursor()
-        cur.execute("UPDATE proposals SET status = 'over_budget', processed_at = ? WHERE id = ?", (processed_at, proposal_id))
+        cur.execute("UPDATE proposals SET status = 'over_budget', processed_at = ?, over_budget_at = ? WHERE id = ?", (processed_at, processed_at, proposal_id))
 
     def list_over_budget(self):
         cur = self.conn.cursor()

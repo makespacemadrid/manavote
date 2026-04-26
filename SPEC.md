@@ -31,7 +31,7 @@ At startup (`python app.py`):
 - `id`, `username` (unique), `password_hash`, `is_admin`, `created_at`
 
 ### `proposals`
-- `id`, `title`, `description`, `amount`, `url`, `image_filename`, `created_by`, `created_at`, `status`, `processed_at`, `purchased_at`, `basic_supplies`
+- `id`, `title`, `description`, `amount`, `url`, `image_filename`, `created_by`, `created_at`, `status`, `processed_at`, `over_budget_at`, `purchased_at`, `basic_supplies`
 - `status ∈ {active, approved, over_budget}`
 
 ### `votes`
@@ -41,14 +41,14 @@ At startup (`python app.py`):
 ### `comments`
 - `id`, `proposal_id`, `member_id`, `content`, `created_at`
 
-### `budget_log`
-- `id`, `amount`, `description`, `created_at`
+### `activity_log`
+- `id`, `amount`, `description`, `created_by`, `created_at`
 
 ### `settings`
 - `key`, `value`
 
 Default seeded settings:
-- `current_budget = 300` (legacy key; runtime budget is derived from `budget_log`)
+- `current_budget = 300` (legacy key; runtime budget is derived from `activity_log`)
 - `monthly_topup = 50`
 - `threshold_basic = 5`
 - `threshold_over50 = 20`
@@ -76,12 +76,12 @@ Threshold selection:
 ### 6.2 Approval criteria
 A proposal is approvable when both are true:
 1. `net_votes = in_favor - against >= min_backers`
-2. `amount <= current_budget` (where current budget = sum of `budget_log`)
+2. `amount <= current_budget` (where current budget = sum of `activity_log`)
 
 ### 6.3 Proposal lifecycle
 - New proposal starts `active`.
 - If threshold reached and budget available: `approved`, budget log gets negative entry.
-- If threshold reached but budget unavailable: `over_budget`.
+- If threshold reached but budget unavailable: `over_budget`. When marked over_budget, `over_budget_at` timestamp is set.
 - Over-budget proposals are reconsidered and auto-approved when funds appear.
 - Admin can undo approval, returning status to `active` and restoring budget.
 
@@ -109,7 +109,9 @@ Chart datasets:
 - **Proposals (Approved)**: purple bar (`#9932CC`)
 
 Committed series behavior:
-- Computed as `cash_balance - pending_over_budget_total`.
+- `pending` accumulates from proposals when they go over_budget (tracked by `over_budget_at`).
+- `pending` decreases when over_budget proposals get approved.
+- `Committed = cash_balance - pending`.
 - Values above `0` mean budget still available after pending commitments.
 - Values below `0` represent "budget debt" (pending commitments exceed current budget).
 - The line datasets (`Budget Balance`, `Committed`) use separate Chart.js stack keys so they do not stack on top of each other; bar datasets remain stacked.
@@ -159,4 +161,12 @@ Committed series behavior:
 ## 10) Known implementation notes
 
 - A template `csrf_token` helper currently returns an empty string; forms include the field but there is no active token validation path in templates/routes.
-- `current_budget` exists in settings for backward compatibility, while live balance is computed from `budget_log`.
+- `current_budget` exists in settings for backward compatibility, while live balance is computed from `activity_log`.
+- Auto-backup runs every 24 hours via APScheduler when the app starts, pruning backups older than 7 days.
+
+## 11) Backup
+
+- Manual: Admin page includes "Backup Database" button.
+- Auto: APScheduler runs `backup_db()` every 24 hours (if APScheduler is installed).
+- Prunes: Backups older than `keep_days` (default 7) are removed.
+- Filename format: `{db_name}_{timestamp}.db` (e.g., `app_20260426_120000.db`).

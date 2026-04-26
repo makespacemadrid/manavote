@@ -6,7 +6,7 @@ services:
     ports:
       - "5000:5000"
     volumes:
-      - ./hackerspace.db:/app/hackerspace.db:z
+      - ./app.db:/app/app.db:z
       - ./translations.py:/app/translations.py:z
       - ./static/uploads:/app/static/uploads:z
     environment:

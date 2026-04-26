@@ -21,10 +21,10 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 - Approved proposals can be marked/unmarked as purchased.
 
 ### Budget lifecycle
-- Budget is derived from `budget_log` (`SUM(amount)`).
+- Budget is derived from `activity_log` (`SUM(amount)`).
 - Proposals that meet voting threshold:
   - become `approved` if budget is sufficient,
-  - become `over_budget` if budget is insufficient.
+  - become `over_budget` if budget is insufficient (tracks `over_budget_at` timestamp).
 - `over_budget` proposals are auto-approved later when budget allows.
 - Admin can undo approvals to restore budget.
 
@@ -93,11 +93,17 @@ See [APIDOC.md](APIDOC.md) for request/response details.
 ## Project structure
 
 - `app/web/routes/main_routes.py` — routes, app setup, and request orchestration.
-- `app/services/` — business logic helpers (auth/budget/proposal/admin/vote).
+- `app/services/` — business logic helpers (auth/budget/proposal/admin/vote/backup).
 - `app/repositories/` — DB access helpers.
 - `app/db/` — schema + migrations + DB connection helper.
 - `templates/` — server-rendered HTML (Jinja2).
 - `tests/` — unit and functional tests.
+
+## Backup
+
+- Manual: Admin → Budget → "Backup Database" button
+- Auto: Runs every 24 hours via APScheduler (if installed), keeps last 7 backups
+- Backup files: `app.db`
 
 ## Testing
 ```bash
