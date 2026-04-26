@@ -290,6 +290,12 @@ class TestCalendarBudgetData(unittest.TestCase):
         html = response.data.decode("utf-8")
         self.assertIn("approvedData", html)
 
+    def test_calendar_approved_query_includes_all_approvals(self):
+        """Calendar approved bars include all approved proposals, not only over-budget ones"""
+        source = inspect.getsource(main_routes.calendar)
+        self.assertIn("status = 'approved' AND processed_at IS NOT NULL GROUP BY day", source)
+        self.assertIn("status = 'approved' AND processed_at IS NOT NULL AND over_budget_at IS NOT NULL GROUP BY day", source)
+
     def test_calendar_approved_type_uses_purple_color(self):
         """Calendar template styles approved proposal type in purple"""
         template = Path("templates/calendar.html").read_text(encoding="utf-8")
