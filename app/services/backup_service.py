@@ -1,5 +1,6 @@
 import os
 import shutil
+import logging
 from datetime import datetime, timedelta
 
 
@@ -29,6 +30,7 @@ def start_scheduler(app, db_path):
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
     except ImportError:
+        logging.getLogger(__name__).warning("APScheduler not installed; automatic backups disabled")
         return None
 
     scheduler = BackgroundScheduler()

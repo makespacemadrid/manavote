@@ -14,6 +14,9 @@ COPY static ./static
 COPY translations.py app.py ./
 
 RUN mkdir -p /app/static/uploads
+RUN useradd --create-home --shell /usr/sbin/nologin appuser && chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 5000
 

@@ -38,23 +38,43 @@
         .amount-active { color: #00d9ff; }
     </style>
 
-    <div style="margin-bottom: 25px; display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.9em;">
-        <span style="display: flex; align-items: center; gap: 6px;">
+    <style>
+        .calendar-legend-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            border: 1px solid #0f3460;
+            border-radius: 6px;
+            background: #0a1f3c;
+            color: #ccc;
+            padding: 6px 10px;
+            cursor: pointer;
+        }
+        .calendar-legend-btn.active {
+            border-color: #00d9ff;
+            color: #00d9ff;
+            box-shadow: 0 0 0 1px #00d9ff22 inset;
+        }
+    </style>
+
+    <div id="calendarLegendFilters" style="margin-bottom: 25px; display: flex; gap: 10px; flex-wrap: wrap; font-size: 0.9em;">
+        <button type="button" class="calendar-legend-btn active" data-filter="all">All</button>
+        <button type="button" class="calendar-legend-btn active" data-filter="proposal">
             <span style="display: inline-block; width: 14px; height: 14px; background: #00d9ff; border-radius: 3px;"></span>
             {{ 'Proposal Submitted'|lang }}
-        </span>
-        <span style="display: flex; align-items: center; gap: 6px;">
+        </button>
+        <button type="button" class="calendar-legend-btn active" data-filter="approved">
             <span style="display: inline-block; width: 14px; height: 14px; background: #9932CC; border-radius: 3px;"></span>
             {{ 'Approved'|lang }}
-        </span>
-        <span style="display: flex; align-items: center; gap: 6px;">
+        </button>
+        <button type="button" class="calendar-legend-btn active" data-filter="budget_in">
             <span style="display: inline-block; width: 14px; height: 14px; border: 2px solid #00ff88; border-radius: 3px;"></span>
             {{ 'Budget In'|lang }} (+)
-        </span>
-        <span style="display: flex; align-items: center; gap: 6px;">
+        </button>
+        <button type="button" class="calendar-legend-btn active" data-filter="budget_out">
             <span style="display: inline-block; width: 14px; height: 14px; border: 2px solid #e94560; border-radius: 3px;"></span>
             {{ 'Budget Out'|lang }} (-)
-        </span>
+        </button>
     </div>
 
     <div style="margin-bottom: 15px; display: flex; gap: 15px; flex-wrap: wrap; font-size: 0.9em;">
@@ -76,7 +96,8 @@
             </thead>
             <tbody>
                 {% for item in calendar_items %}
-                <tr>
+                {% set category = 'proposal' if item.item_type == 'proposal' and item.status != 'approved' else ('approved' if item.item_type == 'proposal' and item.status == 'approved' else ('budget_in' if item.amount > 0 else 'budget_out')) %}
+                <tr data-category="{{ category }}" class="calendar-row">
                     <td>{{ item.created_at[:10] }}</td>
                     <td>
                         {% if item.item_type == 'proposal' %}
@@ -234,5 +255,56 @@ new Chart(ctx, {
         }
     }
 });
+</script>
+<script>
+(() => {
+    const rows = Array.from(document.querySelectorAll('.calendar-row'));
+    const buttons = Array.from(document.querySelectorAll('#calendarLegendFilters .calendar-legend-btn'));
+    const activeFilters = new Set(['proposal', 'approved', 'budget_in', 'budget_out']);
+
+    function syncButtons() {
+        buttons.forEach(btn => {
+            const key = btn.dataset.filter;
+            if (key === 'all') {
+                btn.classList.toggle('active', activeFilters.size === 4);
+            } else {
+                btn.classList.toggle('active', activeFilters.has(key));
+            }
+        });
+    }
+
+    function applyFilter() {
+        rows.forEach(row => {
+            const category = row.dataset.category;
+            row.style.display = activeFilters.has(category) ? '' : 'none';
+        });
+    }
+
+    buttons.forEach(btn => {
+        btn.addEventListener('click', () => {
+            const filter = btn.dataset.filter;
+            if (filter === 'all') {
+                activeFilters.clear();
+                ['proposal', 'approved', 'budget_in', 'budget_out'].forEach(f => activeFilters.add(f));
+            } else {
+                if (activeFilters.has(filter)) {
+                    activeFilters.delete(filter);
+                } else {
+                    activeFilters.add(filter);
+                }
+
+                if (activeFilters.size === 0) {
+                    ['proposal', 'approved', 'budget_in', 'budget_out'].forEach(f => activeFilters.add(f));
+                }
+            }
+
+            syncButtons();
+            applyFilter();
+        });
+    });
+
+    syncButtons();
+    applyFilter();
+})();
 </script>
 {% endblock %}

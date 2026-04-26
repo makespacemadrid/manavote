@@ -8,7 +8,7 @@ try:
 
     load_dotenv()
 except ImportError:
-    pass
+    logging.getLogger(__name__).warning("python-dotenv not installed; skipping .env loading")
 
 from flask import (
     Flask,
@@ -19,9 +19,10 @@ from flask import (
     session,
     flash,
     send_file,
+    jsonify,
 )
 from app.config import Config
-from app.extensions import limiter
+from app.extensions import limiter, csrf
 from app.db.connection import get_db as repo_get_db, set_db_path
 from app.db.migrations import run_migrations
 from app.integrations.telegram_client import TelegramClient
@@ -55,15 +56,16 @@ if not app.debug:
     )
 else:
     logging.basicConfig(level=logging.DEBUG)
-app.secret_key = secrets.token_hex(32)
+app_env = os.getenv("FLASK_ENV", "").lower()
+is_production = app_env == "production"
+secret_key = app.config.get("SECRET_KEY")
+if is_production and (not secret_key or secret_key == "dev-insecure-secret-change-me"):
+    raise RuntimeError("SECRET_KEY must be set to a non-default value when FLASK_ENV=production")
+app.secret_key = secret_key
 app.permanent_session_lifetime = app.config["PERMANENT_SESSION_LIFETIME"]
 app.jinja_env.cache = None
 limiter.init_app(app)
-
-
-@app.context_processor
-def csrf_helper():
-    return dict(csrf_token=lambda: "")
+csrf.init_app(app)
 
 
 @app.template_filter("username")
@@ -162,7 +164,13 @@ def init_db():
 
     c.execute("SELECT COUNT(*) FROM members WHERE is_admin = 1")
     if c.fetchone()[0] == 0:
-        admin_password = generate_password_hash("carpediem42")
+        bootstrap_password = os.environ.get("ADMIN_BOOTSTRAP_PASSWORD")
+        if not bootstrap_password:
+            if app.config.get("TESTING"):
+                bootstrap_password = "test-admin-password"
+            else:
+                raise RuntimeError("ADMIN_BOOTSTRAP_PASSWORD must be set before first startup")
+        admin_password = generate_password_hash(bootstrap_password)
         c.execute(
             "INSERT INTO members (username, password_hash, is_admin) VALUES (?, ?, 1)",
             ("admin", admin_password),
@@ -310,6 +318,11 @@ def index():
     return redirect(url_for("login"))
 
 
+@app.route("/healthz")
+def healthz():
+    return {"status": "ok"}, 200
+
+
 @app.route("/login", methods=["GET", "POST"])
 @limiter.limit("5 per minute")
 def login():
@@ -345,18 +358,6 @@ def login():
                 session["lang"] = "en"
             session.permanent = True
 
-            default_pw = "carpediem42"
-            pw_is_default = False
-            expected_sha = hashlib.sha256(default_pw.encode()).hexdigest()
-            if stored_hash.startswith("pbkdf2:sha256:") or stored_hash.startswith("scrypt:"):
-                pw_is_default = check_password_hash(stored_hash, default_pw)
-            elif stored_hash == expected_sha:
-                pw_is_default = True
-
-            if member["is_admin"] and pw_is_default:
-                flash("Please change your default password", "warning")
-                return redirect(url_for("change_password"))
-
             return redirect(url_for("dashboard"))
         else:
             flash("Invalid credentials", "error")
@@ -366,6 +367,7 @@ def login():
 
 @app.route("/api/register", methods=["POST"])
 @limiter.limit("10 per minute")
+@csrf.exempt
 def api_register():
     if not ADMIN_API_KEY:
         return jsonify({"error": "API not configured"}), 503
@@ -374,7 +376,9 @@ def api_register():
     if provided_key != ADMIN_API_KEY:
         return jsonify({"error": "Unauthorized"}), 401
 
-    data = request.get_json()
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json"}), 415
+    data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "JSON body required"}), 400
 
@@ -424,13 +428,26 @@ def require_api_key():
     return None
 
 
+def _parse_positive_amount(value):
+    try:
+        amount = float(value)
+    except (TypeError, ValueError):
+        return None
+    if amount <= 0:
+        return None
+    return amount
+
+
 @app.route("/api/proposals", methods=["POST"])
+@csrf.exempt
 def api_create_proposal():
     auth_error = require_api_key()
     if auth_error:
         return auth_error
 
-    data = request.get_json()
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json"}), 415
+    data = request.get_json(silent=True)
     if not data:
         return jsonify({"error": "JSON body required"}), 400
 
@@ -444,7 +461,8 @@ def api_create_proposal():
     if not title or amount is None:
         return jsonify({"error": "title and amount are required"}), 400
 
-    if amount <= 0:
+    amount = _parse_positive_amount(amount)
+    if amount is None:
         return jsonify({"error": "amount must be positive"}), 400
 
     if not created_by:
@@ -494,6 +512,7 @@ def api_create_proposal():
 
 
 @app.route("/api/proposals/<int:proposal_id>", methods=["PUT", "PATCH"])
+@csrf.exempt
 def api_edit_proposal(proposal_id):
     auth_error = require_api_key()
     if auth_error:
@@ -513,7 +532,11 @@ def api_edit_proposal(proposal_id):
         conn.close()
         return jsonify({"error": "Cannot edit processed proposals"}), 400
 
-    data = request.get_json()
+    if not request.is_json:
+        conn.close()
+        return jsonify({"error": "Content-Type must be application/json"}), 415
+
+    data = request.get_json(silent=True)
     if not data:
         conn.close()
         return jsonify({"error": "JSON body required"}), 400
@@ -524,7 +547,8 @@ def api_edit_proposal(proposal_id):
     url = data.get("url", proposal["url"])
     basic_supplies = 1 if data.get("basic_supplies", proposal["basic_supplies"]) else 0
 
-    if amount <= 0:
+    amount = _parse_positive_amount(amount)
+    if amount is None:
         conn.close()
         return jsonify({"error": "amount must be positive"}), 400
 
@@ -1009,7 +1033,6 @@ def new_proposal():
         current_budget=current_budget,
         thresholds=thresholds,
         session_lang=session.get("lang", "en"),
-        backups=backups,
     )
 
 
