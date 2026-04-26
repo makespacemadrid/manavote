@@ -33,7 +33,7 @@
 function showSection(sectionId, buttonEl) {
     var sections = {
         members: ['add-member', 'members', 'stats'],
-        budget: ['thresholds', 'budget', 'budget-history'],
+        budget: ['thresholds', 'budget', 'budget-history', 'proposal-history'],
         settings: ['settings', 'backup', 'telegram']
     };
 
@@ -207,6 +207,34 @@ function showSection(sectionId, buttonEl) {
                 <td class="{{ 'amount-positive' if log.balance > 0 else 'amount-negative' }}">
                     €{{ "%.2f"|format(log.balance) }}
                 </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div id="proposal-history" class="card">
+    <h3>Full Proposal History</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>{{ 'Date'|lang }}</th>
+                <th>Event</th>
+                <th>Proposal</th>
+                <th>Details</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for event in proposal_history %}
+            <tr>
+                <td>{{ event.created_at[:16] }}</td>
+                <td>{{ event.event_label }}</td>
+                <td><a href="{{ url_for('proposal_detail', proposal_id=event.proposal_id) }}">#{{ event.proposal_id }} - {{ event.proposal_title }}</a></td>
+                <td>{{ event.details }}</td>
+            </tr>
+            {% else %}
+            <tr>
+                <td colspan="4" style="text-align: center; color: #888;">No proposal events yet.</td>
             </tr>
             {% endfor %}
         </tbody>

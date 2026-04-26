@@ -171,6 +171,21 @@ class TestProposalCreation(unittest.TestCase):
         self.assertIn("title", html)
         self.assertIn("amount", html)
 
+    def test_dashboard_expensive_filter_includes_active_proposals(self):
+        """Expensive filter includes expensive proposals still being voted (active)"""
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute(
+            "INSERT INTO proposals (title, description, amount, created_by, status) VALUES (?, ?, ?, ?, 'active')",
+            ("Active Expensive Filter Test", "desc", 99.0, 1),
+        )
+        conn.commit()
+        conn.close()
+
+        response = self.client.get("/dashboard?filter=expensive")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Active Expensive Filter Test", response.data.decode("utf-8"))
+
 
 class TestVoteFunctionality(unittest.TestCase):
     @classmethod
@@ -225,6 +240,60 @@ class TestAdminFunctionality(unittest.TestCase):
 
         for filename in created:
             os.remove(os.path.join(db_dir, filename))
+
+
+    def test_admin_update_url_persists_value_when_setting_missing(self):
+        """Update URL action inserts setting when missing and renders updated value"""
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("DELETE FROM settings WHERE key = 'url'")
+        conn.commit()
+        conn.close()
+
+        new_url = "https://5000--main--mana--luisriverag.coder.mksmad.org"
+        response = self.client.post(
+            "/admin",
+            data={"action": "update_url", "base_url": f"{new_url}/", "csrf_token": ""},
+            follow_redirects=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT value FROM settings WHERE key = 'url'")
+        saved_url = c.fetchone()[0]
+        conn.close()
+
+        self.assertEqual(saved_url, new_url)
+        self.assertIn(new_url, response.data.decode("utf-8"))
+
+    def test_admin_page_shows_full_proposal_history_events(self):
+        """Admin page renders Full Proposal History with proposal/vote/approval events"""
+        conn = budget_app.get_db()
+        c = conn.cursor()
+
+        c.execute(
+            "INSERT INTO proposals (title, description, amount, url, created_by, status, processed_at) VALUES (?, ?, ?, ?, ?, ?, datetime('now'))",
+            ("History Test Proposal", "desc", 10.0, "", 1, "approved"),
+        )
+        proposal_id = c.lastrowid
+        c.execute(
+            "INSERT INTO votes (proposal_id, member_id, vote) VALUES (?, ?, 'in_favor')",
+            (proposal_id, 1),
+        )
+        conn.commit()
+        conn.close()
+
+        response = self.client.get("/admin")
+        self.assertEqual(response.status_code, 200)
+
+        html = response.data.decode("utf-8")
+        self.assertIn("Full Proposal History", html)
+        self.assertIn("Proposal added", html)
+        self.assertIn("Member voted", html)
+        self.assertIn("Proposal approved", html)
+        self.assertIn(f"#{proposal_id} - History Test Proposal", html)
 
     def test_admin_page_lists_existing_backups(self):
         """Admin backup tab shows existing backup files"""

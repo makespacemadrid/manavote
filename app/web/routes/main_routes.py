@@ -861,7 +861,7 @@ def dashboard():
         )
     elif filter_type == "expensive":
         c.execute(
-            "SELECT * FROM proposals WHERE status = 'approved' AND amount > 50 ORDER BY created_at DESC"
+            "SELECT * FROM proposals WHERE amount > 50 AND status IN ('active', 'approved') ORDER BY created_at DESC"
         )
     elif filter_type == "standard":
         c.execute(
@@ -1577,7 +1577,7 @@ def admin():
             base_url = request.form.get("base_url", "").rstrip("/")
             if base_url:
                 c.execute(
-                    "UPDATE settings SET value = ? WHERE key = 'url'",
+                    "INSERT INTO settings (key, value) VALUES ('url', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
                     (base_url,),
                 )
             conn.commit()
@@ -1619,6 +1619,79 @@ def admin():
     budget_history = list(reversed(budget_history_asc))
 
     c.execute("""
+        SELECT * FROM (
+            SELECT
+                p.created_at as event_at,
+                'proposal_added' as event_type,
+                m.username as actor,
+                p.id as proposal_id,
+                p.title as proposal_title,
+                NULL as vote_value
+            FROM proposals p
+            JOIN members m ON m.id = p.created_by
+
+            UNION ALL
+
+            SELECT
+                v.created_at as event_at,
+                'member_voted' as event_type,
+                m.username as actor,
+                p.id as proposal_id,
+                p.title as proposal_title,
+                v.vote as vote_value
+            FROM votes v
+            JOIN members m ON m.id = v.member_id
+            JOIN proposals p ON p.id = v.proposal_id
+
+            UNION ALL
+
+            SELECT
+                p.processed_at as event_at,
+                'proposal_approved' as event_type,
+                NULL as actor,
+                p.id as proposal_id,
+                p.title as proposal_title,
+                NULL as vote_value
+            FROM proposals p
+            WHERE p.status = 'approved' AND p.processed_at IS NOT NULL
+        )
+        WHERE event_at IS NOT NULL
+        ORDER BY event_at DESC
+        LIMIT 300
+    """)
+    proposal_history_rows = c.fetchall()
+
+    proposal_history = []
+    for row in proposal_history_rows:
+        event_type = row["event_type"]
+        actor = row["actor"] or "System"
+        vote_value = row["vote_value"]
+
+        if event_type == "proposal_added":
+            event_label = "Proposal added"
+            details = f"Created by {actor}"
+        elif event_type == "member_voted":
+            event_label = "Member voted"
+            vote_label = "in favor" if vote_value == "in_favor" else "against"
+            details = f"{actor} voted {vote_label}"
+        elif event_type == "proposal_approved":
+            event_label = "Proposal approved"
+            details = "Approved automatically after reaching threshold"
+        else:
+            event_label = event_type
+            details = ""
+
+        proposal_history.append(
+            {
+                "created_at": row["event_at"],
+                "event_label": event_label,
+                "proposal_id": row["proposal_id"],
+                "proposal_title": row["proposal_title"],
+                "details": details,
+            }
+        )
+
+    c.execute("""
         SELECT 
             m.id,
             m.username,
@@ -1658,6 +1731,7 @@ def admin():
         members=members,
         member_stats=member_stats,
         budget_history=budget_history,
+        proposal_history=proposal_history,
         current_budget=current_budget,
         thresholds=thresholds,
         registration_enabled=registration_enabled,
