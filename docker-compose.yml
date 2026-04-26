@@ -5,10 +5,12 @@ services:
     build: .
     ports:
       - "5000:5000"
-    volumes:
-      - ./app.db:/app/app.db:z
-      - ./translations.py:/app/translations.py:z
-      - ./static/uploads:/app/static/uploads:z
+    env_file:
+      - .env
     environment:
-      - FLASK_ENV=development
+      FLASK_DEBUG: "false"
+      FLASK_SECURE_COOKIES: "false"
+    volumes:
+      - ./app.db:/app/app.db
+      - ./static/uploads:/app/static/uploads
     restart: unless-stopped

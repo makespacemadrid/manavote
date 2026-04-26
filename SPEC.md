@@ -25,6 +25,12 @@ At startup (`python app.py`):
 4. Migrations run (`app/db/migrations.py`).
 5. Flask starts on host `0.0.0.0`, port `5000`.
 
+Container runtime (`docker compose up --build`):
+1. Compose builds from `Dockerfile` and starts the `web` service.
+2. `.env` is loaded through `env_file`.
+3. `app.db` and `static/uploads` are bind-mounted for persistence.
+4. App is exposed on `http://localhost:5000`.
+
 ## 4) Data model
 
 ### `members`
@@ -115,6 +121,11 @@ Committed series behavior:
 - Values above `0` mean budget still available after pending commitments.
 - Values below `0` represent "budget debt" (pending commitments exceed current budget).
 - The line datasets (`Budget Balance`, `Committed`) use separate Chart.js stack keys so they do not stack on top of each other; bar datasets remain stacked.
+
+### About page
+- Content is fully localized (English/Spanish) via translation keys.
+- Explains proposal lifecycle, threshold rules, funding model, and transparency expectations.
+- Includes governance link to the public repository for proposing feature changes.
 
 ## 8) HTTP routes
 
