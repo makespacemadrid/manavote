@@ -63,11 +63,9 @@ python app.py
 
 App runs on `http://localhost:5000`.
 
-## Default credentials
+## Initial admin bootstrap
 - Username: `admin`
-- Password: `carpediem42`
-
-> On first login, admin is prompted to change the default password.
+- Password: set via `ADMIN_BOOTSTRAP_PASSWORD` on first startup (required when no admin exists)
 
 ## Configuration
 Environment variables are read from `.env` (see `sample.env`).
@@ -78,12 +76,22 @@ When running with Docker Compose:
 
 | Variable | Default | Purpose |
 |---|---:|---|
+| `FLASK_ENV` | _empty_ | Set to `production` to enable production-safe checks |
+| `SECRET_KEY` | _empty_ | Required when `FLASK_ENV=production`; used for session + CSRF signing |
 | `FLASK_DEBUG` | `false` | Flask debug mode |
-| `FLASK_CSRF` | `true` | Flask-WTF CSRF toggle (note: templates currently inject an empty `csrf_token`) |
-| `FLASK_SECURE_COOKIES` | `false` | Enables `SESSION_COOKIE_SECURE` |
+| `FLASK_CSRF` | `true` | Flask-WTF CSRF protection toggle (enabled by default) |
+| `FLASK_SECURE_COOKIES` | `true` | Enables `SESSION_COOKIE_SECURE` (recommended default) |
+| `ADMIN_BOOTSTRAP_PASSWORD` | _empty_ | Required for first-time admin creation when DB has no admin user |
 | `ADMIN_API_KEY` | _empty_ | Required for REST API endpoints |
 | `TELEGRAM_BOT_TOKEN` | _empty_ | Telegram integration token |
 | `TELEGRAM_CHAT_ID` | _empty_ | Telegram target chat |
+
+Additional operational notes:
+- Web forms are protected with Flask-WTF `CSRFProtect`.
+- API endpoints under `/api/*` are CSRF-exempt and authenticated with `X-Admin-Key`.
+- Docker image runs as a non-root user.
+- Health endpoint available at `GET /healthz` (used by compose healthcheck).
+- Set `SECRET_KEY` and `ADMIN_BOOTSTRAP_PASSWORD` in production deployments.
 
 ## REST API
 All API endpoints require `X-Admin-Key: <ADMIN_API_KEY>`.
@@ -116,5 +124,4 @@ pytest -q
 ```
 
 ## Additional documentation
-- Security review: [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md)
 - Technical specification: [`SPEC.md`](SPEC.md)

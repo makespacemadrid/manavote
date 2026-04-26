@@ -67,7 +67,7 @@ Default seeded settings:
 - Session lifetime: 30 days (`PERMANENT_SESSION_LIFETIME`).
 - Login is rate-limited (`5 per minute`).
 - Password hashes use Werkzeug helpers; legacy SHA-256 hashes are migrated on login.
-- If admin still uses the default password (`carpediem42`), user is redirected to password change.
+- Initial admin account is bootstrapped from `ADMIN_BOOTSTRAP_PASSWORD` when no admin exists.
 
 ## 6) Business rules
 
@@ -164,16 +164,19 @@ Committed series behavior:
 
 ## 9) Security notes
 
-- Secure cookie flags are configurable (`FLASK_SECURE_COOKIES`).
+- Secure cookie flags are configurable (`FLASK_SECURE_COOKIES`, default enabled).
+- CSRF is enforced via Flask-WTF `CSRFProtect` for browser form routes.
+- API endpoints are explicitly CSRF-exempt and protected by `X-Admin-Key`.
 - Rate limits enabled for login/API registration.
 - API endpoints require `X-Admin-Key` and return `503` if API key is not configured.
+- `SECRET_KEY` must be provided as a non-default value when running with `FLASK_ENV=production`.
 - Uploaded images are stored locally under `static/uploads/`.
 
 ## 10) Known implementation notes
 
-- A template `csrf_token` helper currently returns an empty string; forms include the field but there is no active token validation path in templates/routes.
 - `current_budget` exists in settings for backward compatibility, while live balance is computed from `activity_log`.
 - Auto-backup runs every 24 hours via APScheduler when the app starts, pruning backups older than 7 days.
+- `/healthz` returns service liveness for container health checks.
 
 ## 11) Backup
 

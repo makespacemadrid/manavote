@@ -13,6 +13,7 @@ class TestLanguageSwitch(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         budget_app.app.config["TESTING"] = True
+        budget_app.app.config["WTF_CSRF_ENABLED"] = False
         cls.client = budget_app.app.test_client()
 
     def setUp(self):
@@ -201,6 +202,7 @@ class TestDashboardFiltersAndStatus(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         budget_app.app.config["TESTING"] = True
+        budget_app.app.config["WTF_CSRF_ENABLED"] = False
         cls.client = budget_app.app.test_client()
 
     def setUp(self):
@@ -248,6 +250,7 @@ class TestCalendarBudgetData(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         budget_app.app.config["TESTING"] = True
+        budget_app.app.config["WTF_CSRF_ENABLED"] = False
         cls.client = budget_app.app.test_client()
 
     def setUp(self):
@@ -355,6 +358,7 @@ class TestDashboardFilters(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         budget_app.app.config["TESTING"] = True
+        budget_app.app.config["WTF_CSRF_ENABLED"] = False
         cls.client = budget_app.app.test_client()
 
     def setUp(self):
@@ -413,6 +417,7 @@ class TestBudgetHistory(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         budget_app.app.config["TESTING"] = True
+        budget_app.app.config["WTF_CSRF_ENABLED"] = False
         cls.client = budget_app.app.test_client()
 
     def setUp(self):
@@ -455,6 +460,7 @@ class TestProposalStatusTags(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         budget_app.app.config["TESTING"] = True
+        budget_app.app.config["WTF_CSRF_ENABLED"] = False
         cls.client = budget_app.app.test_client()
 
     def setUp(self):
@@ -532,6 +538,7 @@ class TestCalendarChartData(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         budget_app.app.config["TESTING"] = True
+        budget_app.app.config["WTF_CSRF_ENABLED"] = False
         cls.client = budget_app.app.test_client()
 
     def setUp(self):

@@ -1,3 +1,6 @@
+import sqlite3
+
+
 class BudgetRepository:
     def __init__(self, conn):
         self.conn = conn
@@ -10,7 +13,15 @@ class BudgetRepository:
 
     def add_log(self, amount, description, created_by=None, proposal_id=None):
         cur = self.conn.cursor()
-        cur.execute(
-            "INSERT INTO activity_log (amount, description, created_by, proposal_id) VALUES (?, ?, ?, ?)",
-            (amount, description, created_by, proposal_id),
-        )
+        try:
+            cur.execute(
+                "INSERT INTO activity_log (amount, description, created_by, proposal_id) VALUES (?, ?, ?, ?)",
+                (amount, description, created_by, proposal_id),
+            )
+        except sqlite3.OperationalError as exc:
+            if "no column named proposal_id" not in str(exc):
+                raise
+            cur.execute(
+                "INSERT INTO activity_log (amount, description, created_by) VALUES (?, ?, ?)",
+                (amount, description, created_by),
+            )

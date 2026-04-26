@@ -7,9 +7,15 @@ This project exposes a small admin-focused REST API.
 All endpoints require:
 - Header: `X-Admin-Key: <ADMIN_API_KEY>`
 - `ADMIN_API_KEY` must be configured in environment.
+- `Content-Type: application/json` for all request bodies.
 
 If API key is missing in server config: `503 {"error": "API not configured"}`.
 If header key is wrong/missing: `401 {"error": "Unauthorized"}`.
+
+## Behavior notes
+- API routes are authenticated by `X-Admin-Key` and are CSRF-exempt by design.
+- If `Content-Type` is not JSON, endpoints return `415`.
+- If JSON is missing/invalid, endpoints return `400`.
 
 ---
 
@@ -46,6 +52,7 @@ If header key is wrong/missing: `401 {"error": "Unauthorized"}`.
 ```
 
 ### Error responses
+- `415` content type is not `application/json`
 - `400` JSON body missing / required fields missing
 - `409` username already exists
 - `500` unexpected DB/runtime error
@@ -82,7 +89,7 @@ curl -X POST http://localhost:5000/api/register \
 
 ### Validation
 - `title` required
-- `amount` required and must be `> 0`
+- `amount` required, numeric, and must be `> 0`
 - `created_by` required and must exist in `members`
 - `description`, `url`, `basic_supplies` optional
 
@@ -97,6 +104,7 @@ curl -X POST http://localhost:5000/api/register \
 ```
 
 ### Error responses
+- `415` content type is not `application/json`
 - `400` invalid payload / missing required fields / non-positive amount
 - `404` creator member not found
 - `500` unexpected DB/runtime error
@@ -144,7 +152,7 @@ curl -X POST http://localhost:5000/api/proposals \
 ### Validation
 - Proposal must exist
 - Proposal must be in `active` status
-- If `amount` provided, it must be `> 0`
+- If `amount` provided, it must be numeric and `> 0`
 
 ### Success response
 **200 OK**
@@ -157,6 +165,7 @@ curl -X POST http://localhost:5000/api/proposals \
 ```
 
 ### Error responses
+- `415` content type is not `application/json`
 - `400` invalid payload, missing JSON body, non-positive amount, or editing non-active proposal
 - `404` proposal not found
 - `500` unexpected DB/runtime error
@@ -181,6 +190,7 @@ curl -X PATCH http://localhost:5000/api/proposals/12 \
 | 401 | Unauthorized (bad/missing key) |
 | 404 | Not found |
 | 409 | Conflict |
+| 415 | Unsupported media type |
 | 500 | Server error |
 | 503 | API not configured |
 

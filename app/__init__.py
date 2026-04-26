@@ -1,6 +1,7 @@
 """Application package and factory."""
 
 import os
+import logging
 from datetime import datetime, timedelta
 from .web.routes.main_routes import *  # noqa: F401,F403
 from .web.routes.main_routes import app as flask_app
@@ -15,13 +16,13 @@ def create_app():
     try:
         from .services.backup_service import start_scheduler
         start_scheduler(app, DB_PATH)
-    except Exception:
-        pass
+    except Exception as exc:
+        logging.warning("Failed to start scheduler: %s", exc)
 
     try:
         check_auto_backup(DB_PATH)
-    except Exception:
-        pass
+    except Exception as exc:
+        logging.warning("Auto backup check failed: %s", exc)
 
     return app
 
@@ -42,8 +43,8 @@ def check_auto_backup(db_path):
         backup_db(db_path, keep_days=7)
         with open(marker, "w") as f:
             f.write(str(now.timestamp()))
-    except Exception:
-        pass
+    except Exception as exc:
+        logging.warning("Backup process failed: %s", exc)
 
 
 app = create_app()
