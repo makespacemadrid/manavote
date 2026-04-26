@@ -24,35 +24,37 @@
 
 <div class="card">
     <h2>{{ 'About'|lang }}</h2>
-    
-    <p style="margin-bottom: 25px;">
-        This budget voting system was created to encourage member participation in our hackerspace.
-        It's an experiment in decentralized decision-making and community funding.
-    </p>
-    
+
+    <p style="margin-bottom: 14px;">{{ 'About intro 1'|lang }}</p>
+    <p style="margin-bottom: 25px;">{{ 'About intro 2'|lang }}</p>
+
     <h3>{{ 'How It Works'|lang }}</h3>
     <ul style="margin-bottom: 25px; padding-left: 20px;">
-        <li>{{ 'Any member can submit'|lang }}</li>
-        <li>{{ 'Members vote on proposals'|lang }}:
+        <li>{{ 'About flow submit vote'|lang }}</li>
+        <li>{{ 'Members vote on proposals'|lang }}
             <ul>
                 <li>{{ 'Basic supplies threshold'|lang }}</li>
-                <li>{{ 'Over 50 threshold'|lang }}</li>
-                <li>{{ 'Other proposals threshold'|lang }}</li>
+                <li>{{ 'Standard threshold'|lang }}</li>
+                <li>{{ 'Expensive threshold'|lang }}</li>
             </ul>
         </li>
-        <li>{{ 'Approved proposals are automatically funded'|lang }}</li>
-        <li>{{ 'Member given go ahead to purchase'|lang }}</li>
-        <li>{{ 'If item not purchased within 30 days'|lang }}</li>
+        <li>{{ 'About flow approved'|lang }}</li>
+        <li>{{ 'Over-budget proposals'|lang }}</li>
+        <li>{{ 'About flow undo'|lang }}</li>
     </ul>
-    
+
     <h3>{{ 'Funding'|lang }}</h3>
-    <p style="margin-bottom: 25px;">
-        The initial budget of <strong>€300</strong> was funded by <strong>the Mercadillo from Jairo's donations</strong>. Currently, the <strong>Association contributes €50 per month</strong> to keep the budget alive.
-    </p>
+    <p style="margin-bottom: 10px;">{{ 'About funding 1'|lang }}</p>
+    <p style="margin-bottom: 25px;">{{ 'About funding 2'|lang }}</p>
+
+    <h3>{{ 'Transparency and tracking'|lang }}</h3>
+    <ul style="margin-bottom: 25px; padding-left: 20px;">
+        <li>{{ 'About tracking 1'|lang }}</li>
+        <li>{{ 'About tracking 2'|lang }}</li>
+        <li>{{ 'About tracking 3'|lang }}</li>
+    </ul>
 
     <h3>{{ 'Features Governance'|lang }}</h3>
-    <p style="margin-bottom: 25px;"> 
-	Any member is welcome to suggest changes at <a href="https://github.com/makespacemadrid/manavote">https://github.com/makespacemadrid/manavote</a>, which will be voted at our next monthly meeting.
-    </p>
+    <p style="margin-bottom: 0;">{{ 'About governance'|lang }} <a href="https://github.com/makespacemadrid/manavote">https://github.com/makespacemadrid/manavote</a>.</p>
 </div>
 {% endblock %}

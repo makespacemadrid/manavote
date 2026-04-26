@@ -49,7 +49,7 @@ if not app.debug:
         level=logging.INFO,
         format="%(asctime)s %(levelname)s: %(message)s",
         handlers=[
-            logging.FileHandler("budget.log"),
+            logging.FileHandler("app.log"),
             logging.StreamHandler(),
         ],
     )

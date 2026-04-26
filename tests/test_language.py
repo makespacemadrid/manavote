@@ -1,9 +1,12 @@
 import unittest
 import sys
+import inspect
+from pathlib import Path
 
 sys.path.insert(0, ".")
 
 import app as budget_app
+from app.web.routes import main_routes
 
 
 class TestLanguageSwitch(unittest.TestCase):
@@ -67,6 +70,17 @@ class TestLanguageSwitch(unittest.TestCase):
         response = self.client.get("/calendar")
         self.assertIn(b"Calendario de Actividad", response.data)
 
+    def test_about_page_translations(self):
+        """About page content changes with language selection"""
+        response = self.client.get("/about")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Transparency and tracking", response.data)
+
+        self.client.get("/set-language/es")
+        response = self.client.get("/about")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn(b"Transparencia y seguimiento", response.data)
+
     def test_invalid_language_ignored(self):
         """Invalid language codes are ignored"""
         self.client.get("/set-language/fr")
@@ -86,6 +100,8 @@ class TestTranslations(unittest.TestCase):
         self.assertIn("Dashboard", budget_app.TRANSLATIONS["en"])
         self.assertIn("Proposals", budget_app.TRANSLATIONS["en"])
         self.assertIn("Budget", budget_app.TRANSLATIONS["en"])
+        self.assertIn("Funding", budget_app.TRANSLATIONS["en"])
+        self.assertIn("Transparency and tracking", budget_app.TRANSLATIONS["en"])
         self.assertIn("Make Admin", budget_app.TRANSLATIONS["en"])
         self.assertIn("Remove Admin", budget_app.TRANSLATIONS["en"])
 
@@ -94,6 +110,8 @@ class TestTranslations(unittest.TestCase):
         self.assertIn("Dashboard", budget_app.TRANSLATIONS["es"])
         self.assertIn("Proposals", budget_app.TRANSLATIONS["es"])
         self.assertIn("Budget", budget_app.TRANSLATIONS["es"])
+        self.assertIn("Funding", budget_app.TRANSLATIONS["es"])
+        self.assertIn("Transparency and tracking", budget_app.TRANSLATIONS["es"])
         self.assertIn("Make Admin", budget_app.TRANSLATIONS["es"])
         self.assertIn("Remove Admin", budget_app.TRANSLATIONS["es"])
 
@@ -102,6 +120,31 @@ class TestTranslations(unittest.TestCase):
         self.assertEqual(budget_app.TRANSLATIONS["es"]["Dashboard"], "Panel")
         self.assertEqual(budget_app.TRANSLATIONS["es"]["Proposals"], "Propuestas")
         self.assertEqual(budget_app.TRANSLATIONS["es"]["Budget"], "Presupuesto")
+
+    def test_about_page_translation_keys_are_complete(self):
+        """About-page specific keys exist and are non-empty in both locales"""
+        about_keys = [
+            "Funding",
+            "Transparency and tracking",
+            "About intro 1",
+            "About intro 2",
+            "About flow submit vote",
+            "About flow approved",
+            "About flow undo",
+            "About funding 1",
+            "About funding 2",
+            "About tracking 1",
+            "About tracking 2",
+            "About tracking 3",
+            "About governance",
+        ]
+        for locale in ("en", "es"):
+            translations = budget_app.TRANSLATIONS[locale]
+            for key in about_keys:
+                with self.subTest(locale=locale, key=key):
+                    self.assertIn(key, translations)
+                    self.assertTrue(str(translations[key]).strip())
+
 
     def test_filter_button_translations_title_case(self):
         """Filter buttons use Title Case translations"""
@@ -144,6 +187,14 @@ class TestTranslations(unittest.TestCase):
         self.assertEqual(es["approved"], "aprobado")
         self.assertEqual(es["pending_budget"], "pendiente_presupuesto")
         self.assertEqual(es["purchased"], "comprado")
+
+
+class TestLoggingConfiguration(unittest.TestCase):
+    def test_file_logging_targets_app_log_in_source(self):
+        """App logging configuration should target app.log (not budget.log)."""
+        source = inspect.getsource(main_routes)
+        self.assertIn('logging.FileHandler("app.log")', source)
+        self.assertNotIn('logging.FileHandler("budget.log")', source)
 
 
 class TestDashboardFiltersAndStatus(unittest.TestCase):
@@ -222,12 +273,27 @@ class TestCalendarBudgetData(unittest.TestCase):
         self.assertIn("cashInData", html)
         self.assertIn("cashOutData", html)
 
+    def test_calendar_table_uses_budget_in_out_labels(self):
+        """Calendar activity table uses Budget In/Out labels, not Income/Expense"""
+        response = self.client.get("/calendar")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("Budget In", html)
+        self.assertIn("Budget Out", html)
+        self.assertNotIn(">Income<", html)
+        self.assertNotIn(">Expense<", html)
+
     def test_calendar_approved_bar(self):
         """Calendar shows Approved bar for item approvals"""
         response = self.client.get("/calendar")
         self.assertEqual(response.status_code, 200)
         html = response.data.decode("utf-8")
         self.assertIn("approvedData", html)
+
+    def test_calendar_approved_type_uses_purple_color(self):
+        """Calendar template styles approved proposal type in purple"""
+        template = Path("templates/calendar.html").read_text(encoding="utf-8")
+        self.assertIn("color: #9932CC;", template)
 
     def test_calendar_committed_budget_label(self):
         """Calendar shows Committed line label in English"""
@@ -243,6 +309,15 @@ class TestCalendarBudgetData(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         html = response.data.decode("utf-8")
         self.assertIn("label: 'Comprometido'", html)
+
+    def test_calendar_table_labels_spanish(self):
+        """Calendar table labels are localized in Spanish for budget flows"""
+        self.client.get("/set-language/es")
+        response = self.client.get("/calendar")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("Entradas", html)
+        self.assertIn("Salidas", html)
 
 
     def test_calendar_committed_uses_cash_minus_pending_formula(self):

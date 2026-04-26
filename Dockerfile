@@ -1,15 +1,19 @@
 FROM python:3.11-slim
 
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
-COPY requirements.txt .
+COPY requirements.txt ./
 RUN pip install --no-cache-dir -r requirements.txt
 
-COPY translations.py app.py ./
+COPY app ./app
 COPY templates ./templates
 COPY static ./static
+COPY translations.py app.py ./
 
-RUN mkdir -p static/uploads
+RUN mkdir -p /app/static/uploads
 
 EXPOSE 5000
 

@@ -48,7 +48,8 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 
 ### Docker
 ```bash
-docker-compose up --build
+cp sample.env .env
+docker compose up --build
 ```
 
 ### Local
@@ -70,6 +71,10 @@ App runs on `http://localhost:5000`.
 
 ## Configuration
 Environment variables are read from `.env` (see `sample.env`).
+
+When running with Docker Compose:
+- `.env` is loaded via `env_file`.
+- Persistent data is mounted for `app.db` and `static/uploads`.
 
 | Variable | Default | Purpose |
 |---|---:|---|
@@ -109,3 +114,7 @@ See [APIDOC.md](APIDOC.md) for request/response details.
 ```bash
 pytest -q
 ```
+
+## Additional documentation
+- Security review: [`SECURITY_AUDIT.md`](SECURITY_AUDIT.md)
+- Technical specification: [`SPEC.md`](SPEC.md)
