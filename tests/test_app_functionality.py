@@ -2,6 +2,7 @@ import pathlib
 import sys
 import unittest
 import tempfile
+import os
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
@@ -201,6 +202,48 @@ class TestAdminFunctionality(unittest.TestCase):
         """Admin page loads for admin user"""
         response = self.client.get("/admin")
         self.assertEqual(response.status_code, 200)
+
+    def test_admin_backup_button_creates_backup_file(self):
+        """Backup action creates a DB backup file"""
+        db_dir = os.path.dirname(budget_app.DB_PATH) or "."
+        backup_base = os.path.basename(budget_app.DB_PATH).replace(".db", "")
+        before = set(f for f in os.listdir(db_dir) if f.startswith(f"{backup_base}_") and f.endswith(".db"))
+
+        response = self.client.post(
+            "/admin",
+            data={"action": "backup_db", "csrf_token": ""},
+            follow_redirects=True,
+        )
+
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("Backup created:", html)
+
+        after = set(f for f in os.listdir(db_dir) if f.startswith(f"{backup_base}_") and f.endswith(".db"))
+        created = after - before
+        self.assertTrue(created)
+
+        for filename in created:
+            os.remove(os.path.join(db_dir, filename))
+
+    def test_admin_page_lists_existing_backups(self):
+        """Admin backup tab shows existing backup files"""
+        db_dir = os.path.dirname(budget_app.DB_PATH) or "."
+        backup_base = os.path.basename(budget_app.DB_PATH).replace(".db", "")
+        sample_name = f"{backup_base}_19990101_000000.db"
+        sample_path = os.path.join(db_dir, sample_name)
+
+        with open(sample_path, "wb") as f:
+            f.write(b"test")
+
+        try:
+            response = self.client.get("/admin")
+            self.assertEqual(response.status_code, 200)
+            html = response.data.decode("utf-8")
+            self.assertIn(sample_name, html)
+        finally:
+            if os.path.exists(sample_path):
+                os.remove(sample_path)
 
 
 class TestNavigation(unittest.TestCase):

@@ -33,6 +33,11 @@
         {{ 'View proposal submissions description'|lang }}
     </p>
 
+    <style>
+        .amount-approved { color: #9932CC; }
+        .amount-active { color: #00d9ff; }
+    </style>
+
     <div style="margin-bottom: 25px; display: flex; gap: 20px; flex-wrap: wrap; font-size: 0.9em;">
         <span style="display: flex; align-items: center; gap: 6px;">
             <span style="display: inline-block; width: 14px; height: 14px; background: #00d9ff; border-radius: 3px;"></span>
@@ -95,8 +100,12 @@
                         {{ item.description }}
                         {% endif %}
                     </td>
-                    <td class="{{ 'amount-positive' if item.amount > 0 else 'amount-negative' }}">
+                    <td class="{% if item.item_type == 'proposal' and item.status == 'approved' %}amount-approved{% elif item.item_type == 'proposal' and item.status == 'active' %}amount-active{% else %}{{ 'amount-positive' if item.amount > 0 else 'amount-negative' }}{% endif %}">
+                        {% if item.item_type == 'proposal' and item.status in ['approved', 'active'] %}
+                        €{{ "%.2f"|format(item.amount|abs) }}
+                        {% else %}
                         {{ "+" if item.amount > 0 else "" }}€{{ "%.2f"|format(item.amount) }}
+                        {% endif %}
                     </td>
                 </tr>
                 {% endfor %}

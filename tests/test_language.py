@@ -301,6 +301,16 @@ class TestCalendarBudgetData(unittest.TestCase):
         template = Path("templates/calendar.html").read_text(encoding="utf-8")
         self.assertIn("color: #9932CC;", template)
 
+    def test_calendar_amounts_use_status_colors_for_proposals(self):
+        """Calendar proposal amounts use purple for approved and blue for active"""
+        template = Path("templates/calendar.html").read_text(encoding="utf-8")
+        self.assertIn(".amount-approved { color: #9932CC; }", template)
+        self.assertIn(".amount-active { color: #00d9ff; }", template)
+        self.assertIn("item.item_type == 'proposal' and item.status == 'approved'", template)
+        self.assertIn("item.item_type == 'proposal' and item.status == 'active'", template)
+        self.assertIn("item.status in ['approved', 'active']", template)
+        self.assertIn("item.amount|abs", template)
+
     def test_calendar_committed_budget_label(self):
         """Calendar shows Committed line label in English"""
         response = self.client.get("/calendar")
