@@ -150,7 +150,9 @@ def init_db():
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         amount REAL NOT NULL,
         description TEXT,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        created_by INTEGER,
+        proposal_id INTEGER
     )""")
 
     c.execute("""CREATE TABLE IF NOT EXISTS settings (
@@ -592,7 +594,8 @@ def calendar():
                 'proposal' AS item_type,
                 title,
                 status,
-                NULL AS description
+                NULL AS description,
+                id AS proposal_id
             FROM proposals
             UNION ALL
             SELECT
@@ -602,7 +605,8 @@ def calendar():
                 'activity' AS item_type,
                 NULL AS title,
                 NULL AS status,
-                description
+                description,
+                proposal_id
             FROM activity_log
         ) AS calendar_items
         ORDER BY {order_clause}
@@ -1385,8 +1389,8 @@ def undo_approve(proposal_id):
             (str(get_current_budget() + proposal["amount"]),),
         )
         c.execute(
-            "INSERT INTO activity_log (amount, description) VALUES (?, ?)",
-            (proposal["amount"], f"Undo approval: {proposal['title']}"),
+            "INSERT INTO activity_log (amount, description, proposal_id) VALUES (?, ?, ?)",
+            (proposal["amount"], f"Undo approval: {proposal['title']}", proposal_id),
         )
         conn.commit()
         check_over_budget_proposals()
