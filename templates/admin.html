@@ -24,7 +24,7 @@
 
 <div style="margin: 20px 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
     <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('members', this)">{{ 'Members'|lang }}</button>
-    <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('money', this)">{{ 'Money'|lang }}</button>
+    <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('budget', this)">{{ 'Budget'|lang }}</button>
     <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('settings', this)">{{ 'Settings'|lang }}</button>
     <button type="button" class="btn admin-tab-btn active" onclick="showSection('', this)">{{ 'Show All'|lang }}</button>
 </div>
@@ -33,7 +33,7 @@
 function showSection(sectionId, buttonEl) {
     var sections = {
         members: ['add-member', 'members', 'stats'],
-        money: ['budget', 'thresholds'],
+        budget: ['thresholds', 'budget', 'budget-history'],
         settings: ['settings', 'backup', 'telegram']
     };
 
@@ -137,30 +137,56 @@ function showSection(sectionId, buttonEl) {
     </table>
 </div>
 
+<div id="thresholds" class="card">
+    <h3>{{ 'Vote Thresholds'|lang }}</h3>
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="update_thresholds">
+        <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+            <div style="flex: 1; min-width: 120px;">
+                <label>{{ 'Basic'|lang }} (%)</label>
+                <input type="number" name="threshold_basic" value="{{ thresholds.basic }}" min="1" max="100" step="1" required>
+            </div>
+            <div style="flex: 1; min-width: 120px;">
+                <label>{{ 'Over €50'|lang }} (%)</label>
+                <input type="number" name="threshold_over50" value="{{ thresholds.over50 }}" min="1" max="100" step="1" required>
+            </div>
+            <div style="flex: 1; min-width: 120px;">
+                <label>{{ 'Default'|lang }} (%)</label>
+                <input type="number" name="threshold_default" value="{{ thresholds.default }}" min="1" max="100" step="1" required>
+            </div>
+            <button type="submit" class="btn">{{ 'Update'|lang }}</button>
+        </div>
+    </form>
+</div>
+
 <div id="budget" class="card">
     <h3>{{ 'Budget'|lang }}</h3>
     <form method="POST" style="margin-bottom: 15px;">
-        <input type="hidden" name="action" value="add_budget">
-        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
-            <div style="flex: 1; min-width: 120px;">
-                <label>{{ 'Amount'|lang }} (EUR)</label>
-                <input type="number" name="amount" step="0.01" min="0.01" required>
-            </div>
-            <div style="flex: 2; min-width: 200px;">
-                <label>{{ 'Description'|lang }}</label>
-                <input type="text" name="description" placeholder="{{ 'e.g. Donation, sponsorship'|lang }}" required>
-            </div>
-            <button type="submit" class="btn">{{ 'Add to Budget'|lang }}</button>
-        </div>
-    </form>
-    
-    <form method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="trigger_monthly">
         <button type="submit" class="btn btn-secondary">{{ 'Trigger Monthly Top-up'|lang }} (+€50)</button>
     </form>
 
-    <h4 style="margin-top: 20px;">{{ 'Full Budget History'|lang }}</h4>
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="add_budget">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
+            <div style="flex: 2; min-width: 200px;">
+                <label>{{ 'Description'|lang }}</label>
+                <input type="text" name="description" placeholder="{{ 'e.g. Donation, sponsorship'|lang }}" required>
+            </div>
+            <div style="flex: 1; min-width: 120px;">
+                <label>{{ 'Amount'|lang }} (EUR)</label>
+                <input type="number" name="amount" step="0.01" min="0.01" required>
+            </div>
+            <button type="submit" class="btn">{{ 'Add to Budget'|lang }}</button>
+        </div>
+    </form>
+</div>
+
+<div id="budget-history" class="card">
+    <h3>{{ 'Full Budget History'|lang }}</h3>
     <table>
         <thead>
             <tr>
@@ -187,33 +213,10 @@ function showSection(sectionId, buttonEl) {
     </table>
 </div>
 
-<div id="thresholds" class="card">
-    <h3>{{ 'Vote Thresholds'|lang }}</h3>
-    <form method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"
-        <input type="hidden" name="action" value="update_thresholds">
-        <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
-            <div style="flex: 1; min-width: 120px;">
-                <label>{{ 'Basic'|lang }} (%)</label>
-                <input type="number" name="threshold_basic" value="{{ thresholds.basic }}" min="1" max="100" step="1" required>
-            </div>
-            <div style="flex: 1; min-width: 120px;">
-                <label>{{ 'Over €50'|lang }} (%)</label>
-                <input type="number" name="threshold_over50" value="{{ thresholds.over50 }}" min="1" max="100" step="1" required>
-            </div>
-            <div style="flex: 1; min-width: 120px;">
-                <label>{{ 'Default'|lang }} (%)</label>
-                <input type="number" name="threshold_default" value="{{ thresholds.default }}" min="1" max="100" step="1" required>
-            </div>
-            <button type="submit" class="btn">{{ 'Update'|lang }}</button>
-        </div>
-    </form>
-</div>
-
 <div id="settings" class="card">
     <h3>{{ 'Registration'|lang }}</h3>
     <form method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="toggle_registration">
         <p style="margin-bottom: 10px;">
             <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
@@ -252,7 +255,7 @@ function showSection(sectionId, buttonEl) {
 <div id="telegram" class="card">
     <h3>{{ 'Telegram Configuration'|lang }}</h3>
     <form method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="update_url">
         <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
             <div style="flex: 2; min-width: 200px;">
