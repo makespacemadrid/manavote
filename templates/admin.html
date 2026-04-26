@@ -22,69 +22,34 @@
 
 <h2>{{ 'Admin'|lang }}</h2>
 
-<div style="margin: 20px 0; display: grid; gap: 12px;">
-    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-        <span style="font-weight: bold; color: #00d9ff; min-width: 90px;">Members</span>
-        <button type="button" class="btn btn-secondary admin-tab-btn" data-tab="add-member" onclick="showTab('add-member', this)">{{ 'Add Member'|lang }}</button>
-        <button type="button" class="btn btn-secondary admin-tab-btn" data-tab="members" onclick="showTab('members', this)">{{ 'Members'|lang }}</button>
-        <button type="button" class="btn btn-secondary admin-tab-btn" data-tab="stats" onclick="showTab('stats', this)">{{ 'Member Statistics'|lang }}</button>
-    </div>
-    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-        <span style="font-weight: bold; color: #00d9ff; min-width: 90px;">Money</span>
-        <button type="button" class="btn btn-secondary admin-tab-btn" data-tab="budget" onclick="showTab('budget', this)">{{ 'Budget'|lang }}</button>
-        <button type="button" class="btn btn-secondary admin-tab-btn" data-tab="thresholds" onclick="showTab('thresholds', this)">{{ 'Thresholds'|lang }}</button>
-    </div>
-    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
-        <span style="font-weight: bold; color: #00d9ff; min-width: 90px;">Settings</span>
-        <button type="button" class="btn btn-secondary admin-tab-btn" data-tab="settings" onclick="showTab('settings', this)">{{ 'Settings'|lang }}</button>
-        <button type="button" class="btn btn-secondary admin-tab-btn" data-tab="backup" onclick="showTab('backup', this)">{{ 'Backup'|lang }}</button>
-        <button type="button" class="btn btn-secondary admin-tab-btn" data-tab="telegram" onclick="showTab('telegram', this)">{{ 'Telegram'|lang }}</button>
-    </div>
-    <div>
-        <button type="button" class="btn admin-tab-btn active" data-tab="" onclick="showTab('', this)">{{ 'Show All'|lang }}</button>
-    </div>
+<div style="margin: 20px 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+    <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('members', this)">{{ 'Members'|lang }}</button>
+    <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('money', this)">{{ 'Money'|lang }}</button>
+    <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('settings', this)">{{ 'Settings'|lang }}</button>
+    <button type="button" class="btn admin-tab-btn active" onclick="showSection('', this)">{{ 'Show All'|lang }}</button>
 </div>
 
 <script>
-function showTab(tabId, buttonEl) {
+function showSection(sectionId, buttonEl) {
+    var sections = {
+        members: ['add-member', 'members', 'stats'],
+        money: ['budget', 'thresholds'],
+        settings: ['settings', 'backup', 'telegram']
+    };
+
     document.querySelectorAll('.admin-tab-btn').forEach(function(btn) { btn.classList.remove('active'); });
     if (buttonEl) buttonEl.classList.add('active');
 
-    if (!tabId) {
-        document.querySelectorAll('.card').forEach(function(el) { el.style.display = 'block'; });
-        return;
-    }
-    document.querySelectorAll('.card').forEach(function(el) { el.style.display = 'none'; });
-    var selected = document.getElementById(tabId);
-    if (selected) selected.style.display = 'block';
+    var selectedIds = sectionId ? (sections[sectionId] || []) : null;
+    document.querySelectorAll('.card').forEach(function(el) {
+        if (!selectedIds) {
+            el.style.display = 'block';
+            return;
+        }
+        el.style.display = selectedIds.includes(el.id) ? 'block' : 'none';
+    });
 }
 </script>
-
-<div id="stats" class="card">
-    <h3>📊 {{ 'Member Statistics'|lang }}</h3>
-    <table>
-        <thead>
-            <tr>
-                <th>{{ 'Member'|lang }}</th>
-                <th>{{ 'Votes'|lang }}</th>
-                <th>{{ 'Proposals'|lang }}</th>
-                <th>{{ 'Approved'|lang }}</th>
-                <th>{{ 'Comments'|lang }}</th>
-            </tr>
-        </thead>
-        <tbody>
-            {% for stat in member_stats %}
-            <tr>
-                <td>{{ stat.username|username }} {% if stat.is_admin %}({{ 'Admin'|lang|lower }}){% endif %}</td>
-                <td>{{ stat.vote_count }}</td>
-                <td>{{ stat.proposal_count }}</td>
-                <td>{{ stat.approved_count }}</td>
-                <td>{{ stat.comment_count }}</td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
-</div>
 
 <div id="add-member" class="card">
     <h3>{{ 'Add Member'|lang }}</h3>
@@ -104,23 +69,6 @@ function showTab(tabId, buttonEl) {
             </label>
         </div>
         <button type="submit" class="btn">{{ 'Add Member'|lang }}</button>
-    </form>
-</div>
-
-<div id="settings" class="card">
-    <h3>{{ 'Registration Settings'|lang }}</h3>
-    <form method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"
-        <input type="hidden" name="action" value="toggle_registration">
-        <p style="margin-bottom: 10px;">
-            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                <input type="checkbox" name="registration_enabled" value="1" 
-                    {{ 'checked' if registration_enabled else '' }}
-                    style="width: auto; height: 18px;">
-                <span><strong>{{ 'Enable self-registration'|lang }}</strong></span>
-            </label>
-        </p>
-        <button type="submit" class="btn">{{ 'Save Settings'|lang }}</button>
     </form>
 </div>
 
@@ -157,6 +105,32 @@ function showTab(tabId, buttonEl) {
                     <span style="color: #666;">{{ '(you)'|lang }}</span>
                     {% endif %}
                 </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div id="stats" class="card">
+    <h3>📊 {{ 'Member Statistics'|lang }}</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>{{ 'Member'|lang }}</th>
+                <th>{{ 'Votes'|lang }}</th>
+                <th>{{ 'Proposals'|lang }}</th>
+                <th>{{ 'Approved'|lang }}</th>
+                <th>{{ 'Comments'|lang }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for stat in member_stats %}
+            <tr>
+                <td>{{ stat.username|username }} {% if stat.is_admin %}({{ 'Admin'|lang|lower }}){% endif %}</td>
+                <td>{{ stat.vote_count }}</td>
+                <td>{{ stat.proposal_count }}</td>
+                <td>{{ stat.approved_count }}</td>
+                <td>{{ stat.comment_count }}</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -213,28 +187,6 @@ function showTab(tabId, buttonEl) {
     </table>
 </div>
 
-<div id="backup" class="card">
-    <h3>{{ 'Backup Database'|lang }}</h3>
-    <p style="color: #888; margin-bottom: 15px;">
-        Backups are stored in the same directory as the database file.
-        Auto-backup runs every 24 hours (if APScheduler is installed).
-        Old backups (older than 7 days) are automatically pruned.
-    </p>
-    <form method="POST">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="action" value="backup_db">
-        <button type="submit" class="btn">{{ 'Backup Now'|lang }}</button>
-    </form>
-    <h4 style="margin-top: 20px;">{{ 'Existing Backups'|lang }}</h4>
-    <ul style="color: #888; font-size: 0.9em; list-style: none;">
-        {% for f in backups %}
-        <li style="padding: 5px 0; border-bottom: 1px solid #0f3460;">
-            {{ f.name }} - {{ f.size }} bytes - {{ f.modified[:19] }}
-        </li>
-        {% endfor %}
-    </ul>
-</div>
-
 <div id="thresholds" class="card">
     <h3>{{ 'Vote Thresholds'|lang }}</h3>
     <form method="POST">
@@ -256,6 +208,45 @@ function showTab(tabId, buttonEl) {
             <button type="submit" class="btn">{{ 'Update'|lang }}</button>
         </div>
     </form>
+</div>
+
+<div id="settings" class="card">
+    <h3>{{ 'Registration'|lang }}</h3>
+    <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"
+        <input type="hidden" name="action" value="toggle_registration">
+        <p style="margin-bottom: 10px;">
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" name="registration_enabled" value="1" 
+                    {{ 'checked' if registration_enabled else '' }}
+                    style="width: auto; height: 18px;">
+                <span><strong>{{ 'Enable self-registration'|lang }}</strong></span>
+            </label>
+        </p>
+        <button type="submit" class="btn">{{ 'Save Settings'|lang }}</button>
+    </form>
+</div>
+
+<div id="backup" class="card">
+    <h3>{{ 'Backup Database'|lang }}</h3>
+    <p style="color: #888; margin-bottom: 15px;">
+        Backups are stored in the same directory as the database file.
+        Auto-backup runs every 24 hours (if APScheduler is installed).
+        Old backups (older than 7 days) are automatically pruned.
+    </p>
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="backup_db">
+        <button type="submit" class="btn">{{ 'Backup Now'|lang }}</button>
+    </form>
+    <h4 style="margin-top: 20px;">{{ 'Existing Backups'|lang }}</h4>
+    <ul style="color: #888; font-size: 0.9em; list-style: none;">
+        {% for f in backups %}
+        <li style="padding: 5px 0; border-bottom: 1px solid #0f3460;">
+            {{ f.name }} - {{ f.size }} bytes - {{ f.modified[:19] }}
+        </li>
+        {% endfor %}
+    </ul>
 </div>
 
 <div id="telegram" class="card">
