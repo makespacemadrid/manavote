@@ -1005,6 +1005,7 @@ def new_proposal():
         current_budget=current_budget,
         thresholds=thresholds,
         session_lang=session.get("lang", "en"),
+        backups=backups,
     )
 
 
@@ -1142,6 +1143,7 @@ def edit_comment(comment_id):
         "edit_comment.html",
         comment=comment,
         session_lang=session.get("lang", "en"),
+        backups=backups,
     )
 
 
@@ -1306,6 +1308,7 @@ def edit_proposal(proposal_id):
         current_budget=current_budget,
         thresholds=thresholds,
         session_lang=session.get("lang", "en"),
+        backups=backups,
     )
 
 
@@ -1586,6 +1589,18 @@ def admin():
             status = "enabled" if enabled == "true" else "disabled"
             flash(f"Self-registration {status}!", "success")
 
+        elif action == "backup_db":
+            try:
+                from app.services.backup_service import backup_db
+
+                backup_name, pruned_count = backup_db(DB_PATH, keep_days=7)
+                flash(
+                    f"Backup created: {backup_name} (pruned {pruned_count} old backup(s))",
+                    "success",
+                )
+            except Exception as exc:
+                flash(f"Backup failed: {exc}", "error")
+
     c.execute("SELECT * FROM members ORDER BY created_at")
     members = c.fetchall()
 
@@ -1617,6 +1632,21 @@ def admin():
     registration_enabled = is_registration_enabled()
     current_budget = get_current_budget()
 
+    backup_dir = os.path.dirname(DB_PATH) or "."
+    backup_base = os.path.basename(DB_PATH).replace(".db", "")
+    backups = []
+    for filename in os.listdir(backup_dir):
+        if filename.startswith(f"{backup_base}_") and filename.endswith(".db"):
+            backup_path = os.path.join(backup_dir, filename)
+            backups.append(
+                {
+                    "name": filename,
+                    "size": os.path.getsize(backup_path),
+                    "modified": datetime.fromtimestamp(os.path.getmtime(backup_path)).strftime("%Y-%m-%d %H:%M:%S"),
+                }
+            )
+    backups.sort(key=lambda item: item["modified"], reverse=True)
+
     conn.close()
 
     return render_template(
@@ -1629,6 +1659,7 @@ def admin():
         registration_enabled=registration_enabled,
         get_setting_value=get_setting_value,
         session_lang=session.get("lang", "en"),
+        backups=backups,
     )
 
 
