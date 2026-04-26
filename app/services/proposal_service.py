@@ -33,7 +33,7 @@ class ProposalService:
             self.proposals.mark_approved(proposal_id, datetime.now().isoformat())
             new_budget = current_budget - proposal["amount"]
             self.settings.set_value("current_budget", str(new_budget))
-            self.budget.add_log(-proposal["amount"], f"Approved: {proposal['title']}", self.created_by)
+            self.budget.add_log(-proposal["amount"], f"Approved: {proposal['title']}", self.created_by, proposal_id)
             self.conn.commit()
             self.telegram_client.send_message(
                 f"💰 *Budget Approved!*\n\n*Proposal:* {proposal['title']}\n*Amount:* €{proposal['amount']}\n*Net votes:* {approve_count} favor - {reject_count} against = {net_votes}\n*Remaining budget:* €{new_budget}\n\n👉 {self.base_url_getter()}proposal/{proposal_id}"
@@ -61,7 +61,7 @@ class ProposalService:
                 self.proposals.mark_approved(proposal["id"], datetime.now().isoformat())
                 new_budget = current_budget - proposal["amount"]
                 self.settings.set_value("current_budget", str(new_budget))
-                self.budget.add_log(-proposal["amount"], f"Approved: {proposal['title']}", self.created_by)
+                self.budget.add_log(-proposal["amount"], f"Approved: {proposal['title']}", self.created_by, proposal["id"])
                 self.conn.commit()
                 self.telegram_client.send_message(
                     f"💰 *Budget Approved!*\n\n*Proposal:* {proposal['title']}\n*Amount:* €{proposal['amount']}\n*Now has enough budget!*\n*Remaining budget:* €{new_budget}\n\n👉 {self.base_url_getter()}proposal/{proposal['id']}"

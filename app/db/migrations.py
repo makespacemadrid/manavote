@@ -19,6 +19,23 @@ def run_migrations(cursor):
     add_column_if_missing(cursor, "proposals", "purchased_at TEXT")
     add_column_if_missing(cursor, "proposals", "over_budget_at TEXT")
     add_column_if_missing(cursor, "activity_log", "created_by INTEGER")
+    add_column_if_missing(cursor, "activity_log", "proposal_id INTEGER")
+    cursor.execute(
+        """
+        UPDATE activity_log
+        SET proposal_id = (
+            SELECT p.id
+            FROM proposals p
+            WHERE p.title = TRIM(REPLACE(REPLACE(activity_log.description, 'Approved: ', ''), 'Undo approval: ', ''))
+            LIMIT 1
+        )
+        WHERE proposal_id IS NULL
+          AND (
+            description LIKE 'Approved: %'
+            OR description LIKE 'Undo approval: %'
+          )
+        """
+    )
     try:
         cursor.execute("UPDATE proposals SET basic_supplies = 0 WHERE basic_supplies = 1 AND amount > 20")
     except sqlite3.OperationalError:

@@ -44,7 +44,7 @@
             {{ 'Proposal Submitted'|lang }}
         </span>
         <span style="display: flex; align-items: center; gap: 6px;">
-            <span style="display: inline-block; width: 14px; height: 14px; background: #00ff88; border-radius: 3px;"></span>
+            <span style="display: inline-block; width: 14px; height: 14px; background: #9932CC; border-radius: 3px;"></span>
             {{ 'Approved'|lang }}
         </span>
         <span style="display: flex; align-items: center; gap: 6px;">
@@ -96,6 +96,8 @@
                     <td>
                         {% if item.item_type == 'proposal' %}
                         <a href="{{ url_for('proposal_detail', proposal_id=item.id) }}" style="color: #00d9ff;">{{ item.title }}</a>
+                        {% elif item.proposal_id %}
+                        <a href="{{ url_for('proposal_detail', proposal_id=item.proposal_id) }}" style="color: #00d9ff;">{{ item.description }}</a>
                         {% else %}
                         {{ item.description }}
                         {% endif %}

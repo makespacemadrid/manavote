@@ -22,20 +22,34 @@
 
 <h2>{{ 'Admin'|lang }}</h2>
 
-<select id="adminTabSelect" onchange="showTab(this.value)" style="margin: 20px 0; padding: 10px; background: #0f3460; color: #eee; border: 1px solid #00d9ff; border-radius: 4px; font-size: 1em;">
-    <option value="">{{ 'Show All'|lang }}</option>
-    <option value="stats">{{ 'Stats'|lang }}</option>
-    <option value="add-member">{{ 'Add Member'|lang }}</option>
-    <option value="settings">{{ 'Settings'|lang }}</option>
-    <option value="members">{{ 'Members'|lang }}</option>
-    <option value="budget">{{ 'Budget'|lang }}</option>
-    <option value="backup">{{ 'Backup'|lang }}</option>
-    <option value="thresholds">{{ 'Thresholds'|lang }}</option>
-    <option value="telegram">{{ 'Telegram'|lang }}</option>
-</select>
+<div style="margin: 20px 0; display: grid; gap: 12px;">
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+        <span style="font-weight: bold; color: #00d9ff; min-width: 90px;">Members</span>
+        <button type="button" class="btn btn-secondary admin-tab-btn" data-tab="add-member" onclick="showTab('add-member', this)">{{ 'Add Member'|lang }}</button>
+        <button type="button" class="btn btn-secondary admin-tab-btn" data-tab="members" onclick="showTab('members', this)">{{ 'Members'|lang }}</button>
+        <button type="button" class="btn btn-secondary admin-tab-btn" data-tab="stats" onclick="showTab('stats', this)">{{ 'Member Statistics'|lang }}</button>
+    </div>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+        <span style="font-weight: bold; color: #00d9ff; min-width: 90px;">Money</span>
+        <button type="button" class="btn btn-secondary admin-tab-btn" data-tab="budget" onclick="showTab('budget', this)">{{ 'Budget'|lang }}</button>
+        <button type="button" class="btn btn-secondary admin-tab-btn" data-tab="thresholds" onclick="showTab('thresholds', this)">{{ 'Thresholds'|lang }}</button>
+    </div>
+    <div style="display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+        <span style="font-weight: bold; color: #00d9ff; min-width: 90px;">Settings</span>
+        <button type="button" class="btn btn-secondary admin-tab-btn" data-tab="settings" onclick="showTab('settings', this)">{{ 'Settings'|lang }}</button>
+        <button type="button" class="btn btn-secondary admin-tab-btn" data-tab="backup" onclick="showTab('backup', this)">{{ 'Backup'|lang }}</button>
+        <button type="button" class="btn btn-secondary admin-tab-btn" data-tab="telegram" onclick="showTab('telegram', this)">{{ 'Telegram'|lang }}</button>
+    </div>
+    <div>
+        <button type="button" class="btn admin-tab-btn active" data-tab="" onclick="showTab('', this)">{{ 'Show All'|lang }}</button>
+    </div>
+</div>
 
 <script>
-function showTab(tabId) {
+function showTab(tabId, buttonEl) {
+    document.querySelectorAll('.admin-tab-btn').forEach(function(btn) { btn.classList.remove('active'); });
+    if (buttonEl) buttonEl.classList.add('active');
+
     if (!tabId) {
         document.querySelectorAll('.card').forEach(function(el) { el.style.display = 'block'; });
         return;
