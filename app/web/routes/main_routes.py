@@ -581,21 +581,36 @@ def calendar():
     total_pages = max(1, (total_items + per_page - 1) // per_page)
     offset = (page - 1) * per_page
 
-    c.execute(f"""
-        SELECT id, title, amount, created_at, status, created_at as submitted_at
-        FROM proposals 
+    c.execute(
+        f"""
+        SELECT *
+        FROM (
+            SELECT
+                id,
+                created_at,
+                amount,
+                'proposal' AS item_type,
+                title,
+                status,
+                NULL AS description
+            FROM proposals
+            UNION ALL
+            SELECT
+                id,
+                created_at,
+                amount,
+                'activity' AS item_type,
+                NULL AS title,
+                NULL AS status,
+                description
+            FROM activity_log
+        ) AS calendar_items
         ORDER BY {order_clause}
-        LIMIT {per_page} OFFSET {offset}
-    """)
-    proposals = c.fetchall()
-
-    c.execute(f"""
-        SELECT id, amount, description, created_at
-        FROM activity_log
-        ORDER BY {order_clause}
-        LIMIT {per_page} OFFSET {offset}
-    """)
-    activity_logs = c.fetchall()
+        LIMIT ? OFFSET ?
+    """,
+        (per_page, offset),
+    )
+    calendar_items = c.fetchall()
 
     pending_by_day = {}
     c.execute(
@@ -676,8 +691,7 @@ def calendar():
 
     return render_template(
         "calendar.html",
-        proposals=proposals,
-        activity_logs=activity_logs,
+        calendar_items=calendar_items,
         daily_budget=daily_budget,
         session_lang=session.get("lang", "en"),
         page=page,
