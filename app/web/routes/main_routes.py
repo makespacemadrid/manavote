@@ -633,10 +633,17 @@ def calendar():
 
     approved_by_day = {}
     c.execute(
-        "SELECT date(processed_at) as day, COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'approved' AND processed_at IS NOT NULL AND over_budget_at IS NOT NULL GROUP BY day"
+        "SELECT date(processed_at) as day, COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'approved' AND processed_at IS NOT NULL GROUP BY day"
     )
     for row in c.fetchall():
         approved_by_day[row[0]] = row[1]
+
+    approved_from_pending_by_day = {}
+    c.execute(
+        "SELECT date(processed_at) as day, COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'approved' AND processed_at IS NOT NULL AND over_budget_at IS NOT NULL GROUP BY day"
+    )
+    for row in c.fetchall():
+        approved_from_pending_by_day[row[0]] = row[1]
 
     c.execute("SELECT date(created_at) as day, COALESCE(SUM(amount), 0) FROM proposals GROUP BY date(created_at)")
     proposals_by_day = {}
@@ -669,7 +676,8 @@ def calendar():
             pending_total += pending_by_day_lookup.get(day, 0)
 
         approved_today = approved_by_day.get(day, 0)
-        pending_total -= approved_today
+        approved_from_pending_today = approved_from_pending_by_day.get(day, 0)
+        pending_total -= approved_from_pending_today
 
         proposals_count = proposals_by_day.get(day, 0)
 
