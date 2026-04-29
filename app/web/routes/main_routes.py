@@ -1584,7 +1584,7 @@ def admin():
             )
             c.execute(
                 "INSERT INTO activity_log (amount, description) VALUES (?, ?)",
-                (monthly, "Monthly top-up"),
+                (monthly, "Subvención mensual MakeSpace para juguetes nuevos"),
             )
             conn.commit()
             check_over_budget_proposals()
