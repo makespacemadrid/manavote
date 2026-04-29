@@ -60,6 +60,7 @@ Default seeded settings:
 - `threshold_over50 = 20`
 - `threshold_default = 10`
 - `registration_enabled = true`
+- `timezone = Europe/Madrid` (used for datetime display conversion)
 
 ## 5) Authentication and sessions
 
@@ -86,10 +87,10 @@ A proposal is approvable when both are true:
 
 ### 6.3 Proposal lifecycle
 - New proposal starts `active`.
-- If threshold reached and budget available: `approved`, budget log gets negative entry.
+- If threshold reached and budget available: `approved`, budget log gets negative entry, Telegram notification sent.
 - If threshold reached but budget unavailable: `over_budget`. When marked over_budget, `over_budget_at` timestamp is set.
 - Over-budget proposals are reconsidered and auto-approved when funds appear.
-- Admin can undo approval, returning status to `active` and restoring budget.
+- Admin can undo approval, returning status to `active`, restoring budget, and clearing `processed_at` and `purchased_at` timestamps.
 
 ### 6.4 Basic supplies guardrail
 If a proposal marked basic supplies has amount > €20, basic flag is auto-removed and a comment is inserted.
@@ -101,6 +102,7 @@ If a proposal marked basic supplies has amount > €20, basic flag is auto-remov
 - Inline quick voting.
 - Purchase confirmation actions for approved proposals.
 - Budget history table with running balance.
+- All datetimes displayed in configured timezone (default: Europe/Madrid).
 
 ### Calendar page
 - Budget-over-time chart + activity table.
@@ -126,6 +128,14 @@ Committed series behavior:
 - Content is fully localized (English/Spanish) via translation keys.
 - Explains proposal lifecycle, threshold rules, funding model, and transparency expectations.
 - Includes governance link to the public repository for proposing feature changes.
+
+### Admin panel
+- **Members tab**: Add/remove members, toggle admin role.
+- **Budget tab**: Trigger monthly top-up (€50, description: "Subvención mensual MakeSpace para juguetes nuevos"), add custom budget entries.
+- **Settings tab**: Registration toggle, timezone selector (UTC, Europe/London, Europe/Paris, Europe/Madrid, America/New_York, America/Chicago, America/Los_Angeles, Asia/Tokyo, Asia/Shanghai, Australia/Sydney).
+- **Timezone tab**: Configure display timezone for all datetime fields.
+- **Backup tab**: Manual backup, list existing backups.
+- **Telegram tab**: Configure base URL for proposal links.
 
 ## 8) HTTP routes
 
@@ -153,8 +163,8 @@ Committed series behavior:
 - `POST /unpurchase/<proposal_id>`
 
 ### Admin web actions
-- `GET|POST /admin`
-- `GET /undo/<proposal_id>`
+- `GET|POST /admin` (includes timezone selector, member management, budget controls)
+- `GET /undo/<proposal_id>` (undo approval, restore budget, clear timestamps)
 - `GET /check-overbudget`
 
 ### Admin-key REST API

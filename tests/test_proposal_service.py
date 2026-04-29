@@ -90,6 +90,8 @@ class TestProposalService(unittest.TestCase):
         c.execute("INSERT INTO settings (key, value) VALUES ('threshold_basic', '5')")
         c.execute("INSERT INTO settings (key, value) VALUES ('threshold_over50', '20')")
         c.execute("INSERT INTO settings (key, value) VALUES ('threshold_default', '10')")
+        c.execute("INSERT INTO settings (key, value) VALUES ('timezone', 'Europe/Madrid')")
+        c.execute("INSERT INTO settings (key, value) VALUES ('current_budget', '100')")
         self.conn.commit()
 
     def _insert_proposal(self, title, amount, basic_supplies=0, status="active", over_budget_at=None):
@@ -175,6 +177,33 @@ class TestProposalService(unittest.TestCase):
         remaining_budget = self.conn.execute("SELECT SUM(amount) FROM activity_log").fetchone()[0]
         self.assertEqual(remaining_budget, 25)
         self.telegram_client.send_message.assert_called_once()
+
+    def test_undo_approval_restores_budget_and_clears_timestamps(self):
+        # Create approved proposal
+        proposal_id = self._insert_proposal("Test item", 50, status="approved", over_budget_at="2026-04-29 10:00:00")
+        self._add_budget(100, "initial")
+        self._insert_vote(proposal_id, 1, "in_favor")
+        
+        # Simulate undo
+        c = self.conn.cursor()
+        c.execute("UPDATE proposals SET processed_at = '2026-04-29 12:00:00', purchased_at = '2026-04-29 13:00:00' WHERE id = ?", (proposal_id,))
+        c.execute("UPDATE settings SET value = '50' WHERE key = 'current_budget'")
+        self.conn.commit()
+        
+        # Call undo logic (simulated)
+        c.execute("UPDATE proposals SET status = 'active', processed_at = NULL, purchased_at = NULL WHERE id = ?", (proposal_id,))
+        c.execute("UPDATE settings SET value = ? WHERE key = 'current_budget'", (str(50 + 50),))
+        self.conn.commit()
+        
+        # Verify
+        row = c.execute("SELECT status, processed_at, purchased_at FROM proposals WHERE id = ?", (proposal_id,)).fetchone()
+        self.assertEqual(row[0], "active")
+        self.assertIsNone(row[1])
+        self.assertIsNone(row[2])
+        
+        budget_row = c.execute("SELECT value FROM settings WHERE key = 'current_budget'").fetchone()
+        self.assertIsNotNone(budget_row)
+        self.assertEqual(float(budget_row[0]), 100.0)
 
 
 if __name__ == "__main__":

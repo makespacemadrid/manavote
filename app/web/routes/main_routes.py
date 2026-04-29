@@ -1442,7 +1442,7 @@ def undo_approve(proposal_id):
 
     if proposal and proposal["status"] == "approved":
         c.execute(
-            "UPDATE proposals SET status = 'active', processed_at = NULL WHERE id = ?",
+            "UPDATE proposals SET status = 'active', processed_at = NULL, purchased_at = NULL WHERE id = ?",
             (proposal_id,),
         )
         c.execute(
