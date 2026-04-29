@@ -791,11 +791,10 @@ def set_language(lang):
 @login_required
 def change_password():
     if request.method == "POST":
-        current_password = request.form["current_password"]
         new_password = request.form["new_password"]
         confirm_password = request.form["confirm_password"]
 
-        if not current_password or not new_password or not confirm_password:
+        if not new_password or not confirm_password:
             flash("All fields are required", "error")
             return redirect(url_for("change_password"))
 
@@ -807,36 +806,9 @@ def change_password():
             flash("Password must be at least 4 characters", "error")
             return redirect(url_for("change_password"))
 
+        new_hash = generate_password_hash(new_password)
         conn = get_db()
         c = conn.cursor()
-        c.execute(
-            "SELECT password_hash FROM members WHERE id = ?",
-            (session["member_id"],),
-        )
-        row = c.fetchone()
-
-        if not row:
-            conn.close()
-            flash("Error", "error")
-            return redirect(url_for("change_password"))
-
-        stored_hash = row[0]
-
-        valid, migrated_hash = verify_and_migrate_password(stored_hash, current_password)
-        
-        if migrated_hash:
-            c.execute(
-                "UPDATE members SET password_hash = ? WHERE id = ?",
-                (migrated_hash, session["member_id"]),
-            )
-            conn.commit()
-
-        if not valid:
-            conn.close()
-            flash("Current password is incorrect", "error")
-            return redirect(url_for("change_password"))
-
-        new_hash = generate_password_hash(new_password)
         c.execute(
             "UPDATE members SET password_hash = ? WHERE id = ?",
             (new_hash, session["member_id"]),
