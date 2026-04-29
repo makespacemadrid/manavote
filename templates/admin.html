@@ -43,9 +43,9 @@
 <script>
 function showSection(sectionId, buttonEl) {
     var sections = {
-        members: ['add-member', 'members', 'stats'],
+        members: ['add-member', 'registration-settings', 'members', 'stats'],
         budget: ['thresholds', 'budget', 'budget-history', 'proposal-history'],
-        settings: ['settings', 'timezone', 'backup', 'telegram']
+        settings: ['timezone', 'backup', 'telegram']
     };
 
     document.querySelectorAll('.admin-tab-btn').forEach(function(btn) { btn.classList.remove('active'); });
@@ -80,6 +80,23 @@ function showSection(sectionId, buttonEl) {
             </label>
         </div>
         <button type="submit" class="btn">{{ 'Add Member'|lang }}</button>
+    </form>
+</div>
+
+<div id="registration-settings" class="card">
+    <h3>{{ 'Registration'|lang }}</h3>
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="toggle_registration">
+        <p style="margin-bottom: 10px;">
+            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
+                <input type="checkbox" name="registration_enabled" value="1" 
+                    {{ 'checked' if registration_enabled else '' }}
+                    style="width: auto; height: 18px;">
+                <span><strong>{{ 'Enable self-registration'|lang }}</strong></span>
+            </label>
+        </p>
+        <button type="submit" class="btn">{{ 'Save Settings'|lang }}</button>
     </form>
 </div>
 
@@ -256,20 +273,8 @@ function showSection(sectionId, buttonEl) {
 </div>
 
 <div id="settings" class="card">
-    <h3>{{ 'Registration'|lang }}</h3>
-    <form method="POST">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="action" value="toggle_registration">
-        <p style="margin-bottom: 10px;">
-            <label style="display: flex; align-items: center; gap: 10px; cursor: pointer;">
-                <input type="checkbox" name="registration_enabled" value="1" 
-                    {{ 'checked' if registration_enabled else '' }}
-                    style="width: auto; height: 18px;">
-                <span><strong>{{ 'Enable self-registration'|lang }}</strong></span>
-            </label>
-        </p>
-        <button type="submit" class="btn">{{ 'Save Settings'|lang }}</button>
-    </form>
+    <h3>{{ 'Settings'|lang }}</h3>
+    <p style="color: #888; margin-bottom: 15px;">{{ 'Other settings'|lang }}</p>
 </div>
 
 <div id="timezone" class="card">
