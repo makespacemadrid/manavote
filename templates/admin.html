@@ -22,12 +22,23 @@
 
 <h2>{{ 'Admin'|lang }}</h2>
 
-<div style="margin: 20px 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: center;">
+<div style="margin: 20px 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: center;">
     <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('members', this)">{{ 'Members'|lang }}</button>
     <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('budget', this)">{{ 'Budget'|lang }}</button>
     <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('settings', this)">{{ 'Settings'|lang }}</button>
     <button type="button" class="btn admin-tab-btn active" onclick="showSection('', this)">{{ 'Show All'|lang }}</button>
 </div>
+
+<style>
+@media (max-width: 768px) {
+    .admin-tab-btn { font-size: 0.85em; padding: 8px 12px; }
+    table { display: block; overflow-x: auto; white-space: nowrap; }
+    .card { padding: 15px; }
+    input[type="text"], input[type="password"], input[type="number"], input[type="url"], select, textarea {
+        font-size: 16px; /* Prevents iOS zoom */
+    }
+}
+</style>
 
 <script>
 function showSection(sectionId, buttonEl) {
@@ -91,19 +102,21 @@ function showSection(sectionId, buttonEl) {
                 <td>{{ m.created_at|localtime("%Y-%m-%d") }}</td>
                 <td>
                     {% if m.id != session.member_id %}
-                    <form method="POST" style="display: inline;">
-                        <input type="hidden" name="action" value="toggle_admin">
-                        <input type="hidden" name="member_id" value="{{ m.id }}">
-                        <button type="submit" class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.8em;">{{ 'Make Admin'|lang if not m.is_admin else 'Remove Admin'|lang }}</button>
-                    </form>
-                    <form method="POST" style="display: inline;">
-                        <input type="hidden" name="action" value="remove_member">
-                        <input type="hidden" name="member_id" value="{{ m.id }}">
-                        <button type="submit" class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.8em; margin-left: 5px;" onclick="return confirm('{{ 'Remove'|lang }} {{ m.username }}?')">{{ 'Remove'|lang }}</button>
-                    </form>
-                    <button type="button" class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.8em; margin-left: 5px;" onclick="showChangePassword({{ m.id }}, '{{ m.username }}')">{{ 'Change Password'|lang }}</button>
+                    <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                        <form method="POST" style="display: inline;">
+                            <input type="hidden" name="action" value="toggle_admin">
+                            <input type="hidden" name="member_id" value="{{ m.id }}">
+                            <button type="submit" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;">{{ 'Make Admin'|lang if not m.is_admin else 'Remove Admin'|lang }}</button>
+                        </form>
+                        <form method="POST" style="display: inline;">
+                            <input type="hidden" name="action" value="remove_member">
+                            <input type="hidden" name="member_id" value="{{ m.id }}">
+                            <button type="submit" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" onclick="return confirm('{{ 'Remove'|lang }} {{ m.username }}?')">{{ 'Remove'|lang }}</button>
+                        </form>
+                        <button type="button" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" onclick="showChangePassword({{ m.id }}, '{{ m.username }}')">{{ 'Change Password'|lang }}</button>
+                    </div>
                     {% else %}
-                    <span style="color: #666;">{{ '(you)'|lang }}</span>
+                    <span style="color: #666; font-size: 0.85em;">{{ '(you)'|lang }}</span>
                     {% endif %}
                 </td>
             </tr>
@@ -322,8 +335,9 @@ function showSection(sectionId, buttonEl) {
     </form>
 </div>
 
-<div id="changePasswordModal" style="display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); z-index:1000;">
-    <div style="max-width: 400px; margin: 100px auto; background: #1a1a2e; padding: 20px; border-radius: 8px;">
+<div id="changePasswordModal" style="display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); z-index:1000; overflow-y: auto;">
+    <div style="max-width: 400px; margin: 50px auto; background: #1a1a2e; padding: 20px; border-radius: 8px; width: 90%;">
+        <h3 style="margin-top: 0;">{{ 'Change Password'|lang }}</h3>
         <h3>{{ 'Change Password'|lang }}</h3>
         <p id="changePasswordUser" style="color: #888;"></p>
         <form method="POST">
