@@ -85,6 +85,7 @@ When running with Docker Compose:
 | `ADMIN_API_KEY` | _empty_ | Required for REST API endpoints |
 | `TELEGRAM_BOT_TOKEN` | _empty_ | Telegram integration token |
 | `TELEGRAM_CHAT_ID` | _empty_ | Telegram target chat |
+| `TELEGRAM_THREAD_ID` | _empty_ | Optional Telegram topic/thread id for forum chats |
 
 Additional operational notes:
 - Web forms are protected with Flask-WTF `CSRFProtect`.

@@ -101,6 +101,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
+TELEGRAM_THREAD_ID = os.environ.get("TELEGRAM_THREAD_ID", "")
 ADMIN_API_KEY = os.environ.get("ADMIN_API_KEY", "")
 
 
@@ -290,13 +291,13 @@ def is_registration_enabled():
 
 
 def send_telegram_message(message):
-    client = TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID)
+    client = TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_THREAD_ID)
     return client.send_message(message)
 
 
 def process_proposal(proposal_id):
     conn = get_db()
-    service = ProposalService(conn, TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID), get_base_url)
+    service = ProposalService(conn, TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_THREAD_ID), get_base_url)
     result = service.process_proposal(proposal_id)
     conn.close()
     if result is True:
@@ -306,7 +307,7 @@ def process_proposal(proposal_id):
 
 def check_over_budget_proposals():
     conn = get_db()
-    service = ProposalService(conn, TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID), get_base_url)
+    service = ProposalService(conn, TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_THREAD_ID), get_base_url)
     service.check_over_budget_proposals()
     conn.close()
 
