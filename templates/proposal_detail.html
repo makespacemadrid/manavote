@@ -44,6 +44,12 @@
                 {% if proposal.status == 'approved' and proposal.amount > 50 %}<span class="status" style="background: #9b59b622; color: #9b59b6; margin-left: 5px;">{{ 'expensive'|lang }}</span>{% endif %}
                 {% if proposal.status == 'approved' and not proposal.basic_supplies and proposal.amount <= 50 %}<span class="status" style="background: #00d9ff22; color: #00d9ff; margin-left: 5px;">{{ 'standard'|lang }}</span>{% endif %}
                 {% if proposal.purchased_at %}<span class="status" style="background: #4a4;">{{ 'purchased'|lang }}</span>{% endif %}
+                {% if session.is_admin and proposal.status == 'approved' %}
+                <form method="GET" action="{{ url_for('undo_approve', proposal_id=proposal.id) }}" style="display: inline;" onsubmit="return confirm('Undo approval? Budget will be restored.');">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                    <button type="submit" style="background: #e63946; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-left: 5px;">Undo Approval</button>
+                </form>
+                {% endif %}
             </p>
         </div>
         <div class="proposal-amount">€{{ "%.2f"|format(proposal.amount) }}</div>
