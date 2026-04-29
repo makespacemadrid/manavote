@@ -101,6 +101,7 @@ function showSection(sectionId, buttonEl) {
                         <input type="hidden" name="member_id" value="{{ m.id }}">
                         <button type="submit" class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.8em; margin-left: 5px;" onclick="return confirm('{{ 'Remove'|lang }} {{ m.username }}?')">{{ 'Remove'|lang }}</button>
                     </form>
+                    <button type="button" class="btn btn-secondary" style="padding: 5px 10px; font-size: 0.8em; margin-left: 5px;" onclick="showChangePassword({{ m.id }}, '{{ m.username }}')">{{ 'Change Password'|lang }}</button>
                     {% else %}
                     <span style="color: #666;">{{ '(you)'|lang }}</span>
                     {% endif %}
@@ -320,4 +321,46 @@ function showSection(sectionId, buttonEl) {
         </div>
     </form>
 </div>
+
+<div id="changePasswordModal" style="display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); z-index:1000;">
+    <div style="max-width: 400px; margin: 100px auto; background: #1a1a2e; padding: 20px; border-radius: 8px;">
+        <h3>{{ 'Change Password'|lang }}</h3>
+        <p id="changePasswordUser" style="color: #888;"></p>
+        <form method="POST">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="change_user_password">
+            <input type="hidden" id="changePasswordMemberId" name="member_id" value="">
+            <div style="margin-bottom: 10px;">
+                <label>{{ 'New Password'|lang }}</label>
+                <input type="password" name="new_password" id="newPassword" required autofocus>
+            </div>
+            <div style="margin-bottom: 15px;">
+                <label>{{ 'Confirm New Password'|lang }}</label>
+                <input type="password" name="confirm_password" id="confirmPassword" required>
+            </div>
+            <div style="display: flex; gap: 10px;">
+                <button type="submit" class="btn">{{ 'Change Password'|lang }}</button>
+                <button type="button" class="btn btn-secondary" onclick="hideChangePassword()">{{ 'Cancel'|lang }}</button>
+            </div>
+        </form>
+    </div>
+</div>
+
+<script>
+function showChangePassword(memberId, username) {
+    document.getElementById('changePasswordMemberId').value = memberId;
+    document.getElementById('changePasswordUser').textContent = '{{ 'Changing password for'|lang }} ' + username;
+    document.getElementById('changePasswordModal').style.display = 'block';
+    document.getElementById('newPassword').focus();
+}
+
+function hideChangePassword() {
+    document.getElementById('changePasswordModal').style.display = 'none';
+}
+
+// Close modal on outside click
+document.getElementById('changePasswordModal').addEventListener('click', function(e) {
+    if (e.target === this) hideChangePassword();
+});
+</script>
 {% endblock %}

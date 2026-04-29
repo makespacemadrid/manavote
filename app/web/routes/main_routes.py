@@ -822,12 +822,14 @@ def change_password():
 
         stored_hash = row[0]
 
-        if stored_hash.startswith("pbkdf2:sha256:"):
-            valid = check_password_hash(stored_hash, current_password)
-        elif stored_hash == hashlib.sha256(current_password.encode()).hexdigest():
-            valid = True
-        else:
-            valid = False
+        valid, migrated_hash = verify_and_migrate_password(stored_hash, current_password)
+        
+        if migrated_hash:
+            c.execute(
+                "UPDATE members SET password_hash = ? WHERE id = ?",
+                (migrated_hash, session["member_id"]),
+            )
+            conn.commit()
 
         if not valid:
             conn.close()
@@ -1655,6 +1657,26 @@ def admin():
             conn.commit()
             status = "enabled" if enabled == "true" else "disabled"
             flash(f"Self-registration {status}!", "success")
+
+        elif action == "change_user_password":
+            member_id = request.form.get("member_id", type=int)
+            new_password = request.form.get("new_password", "")
+            confirm_password = request.form.get("confirm_password", "")
+
+            if not member_id or not new_password or not confirm_password:
+                flash("All fields are required", "error")
+            elif new_password != confirm_password:
+                flash("Passwords do not match", "error")
+            elif len(new_password) < 4:
+                flash("Password must be at least 4 characters", "error")
+            else:
+                new_hash = generate_password_hash(new_password)
+                c.execute(
+                    "UPDATE members SET password_hash = ? WHERE id = ?",
+                    (new_hash, member_id),
+                )
+                conn.commit()
+                flash(f"Password changed successfully!", "success")
 
         elif action == "update_timezone":
             timezone = request.form.get("timezone", "Europe/Madrid")
