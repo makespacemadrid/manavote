@@ -79,7 +79,7 @@
                     {% if p.purchased_at %}<span class="status" style="background: #4a4; color: #fff; margin-left: 5px;">{{ 'purchased'|lang }}</span>{% endif %}
                 </h3>
                 <div class="proposal-meta">
-                    {{ 'by'|lang }} {{ p.username|username }} · {{ p.created_at[:10] }}
+                    {{ 'by'|lang }} {{ p.username|username }} · {{ p.created_at|localtime("%Y-%m-%d") }}
                     {% if p.user_vote %}
                     · {{ 'Your vote'|lang }}: <strong>{{ 'In Favor'|lang if p.user_vote == 'in_favor' else 'Against'|lang }}</strong>
                     {% endif %}
@@ -159,7 +159,7 @@
         <tbody>
             {% for log in budget_history %}
             <tr>
-                <td>{{ log.created_at[:16] }}</td>
+                <td>{{ log.created_at|localtime("%Y-%m-%d %H:%M") }}</td>
                 <td>{{ log.description }}</td>
                 <td class="{{ 'amount-positive' if log.amount > 0 else 'amount-negative' }}">
                     {{ "+" if log.amount > 0 else "" }}€{{ "%.2f"|format(log.amount) }}

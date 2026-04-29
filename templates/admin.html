@@ -34,7 +34,7 @@ function showSection(sectionId, buttonEl) {
     var sections = {
         members: ['add-member', 'members', 'stats'],
         budget: ['thresholds', 'budget', 'budget-history', 'proposal-history'],
-        settings: ['settings', 'backup', 'telegram']
+        settings: ['settings', 'timezone', 'backup', 'telegram']
     };
 
     document.querySelectorAll('.admin-tab-btn').forEach(function(btn) { btn.classList.remove('active'); });
@@ -88,7 +88,7 @@ function showSection(sectionId, buttonEl) {
             <tr>
                 <td>{{ m.username }}</td>
                 <td>{{ 'Admin'|lang if m.is_admin else 'Member'|lang }}</td>
-                <td>{{ m.created_at[:10] }}</td>
+                <td>{{ m.created_at|localtime("%Y-%m-%d") }}</td>
                 <td>
                     {% if m.id != session.member_id %}
                     <form method="POST" style="display: inline;">
@@ -199,7 +199,7 @@ function showSection(sectionId, buttonEl) {
         <tbody>
             {% for log in budget_history %}
             <tr>
-                <td>{{ log.created_at[:16] }}</td>
+                <td>{{ log.created_at|localtime("%Y-%m-%d %H:%M") }}</td>
                 <td>{{ log.description }}</td>
                 <td class="{{ 'amount-positive' if log.amount > 0 else 'amount-negative' }}">
                     {{ "+" if log.amount > 0 else "" }}€{{ "%.2f"|format(log.amount) }}
@@ -227,7 +227,7 @@ function showSection(sectionId, buttonEl) {
         <tbody>
             {% for event in proposal_history %}
             <tr>
-                <td>{{ event.created_at[:16] }}</td>
+                <td>{{ event.created_at|localtime("%Y-%m-%d %H:%M") }}</td>
                 <td>{{ event.event_label }}</td>
                 <td><a href="{{ url_for('proposal_detail', proposal_id=event.proposal_id) }}">#{{ event.proposal_id }} - {{ event.proposal_title }}</a></td>
                 <td>{{ event.details }}</td>
@@ -255,6 +255,32 @@ function showSection(sectionId, buttonEl) {
             </label>
         </p>
         <button type="submit" class="btn">{{ 'Save Settings'|lang }}</button>
+    </form>
+</div>
+
+<div id="timezone" class="card">
+    <h3>{{ 'Timezone'|lang }}</h3>
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="update_timezone">
+        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
+            <div style="flex: 1; min-width: 200px;">
+                <label>{{ 'Timezone'|lang }}</label>
+                <select name="timezone" required>
+                    <option value="UTC" {{ 'selected' if current_timezone == 'UTC' else '' }}>UTC</option>
+                    <option value="Europe/London" {{ 'selected' if current_timezone == 'Europe/London' else '' }}>Europe/London</option>
+                    <option value="Europe/Paris" {{ 'selected' if current_timezone == 'Europe/Paris' else '' }}>Europe/Paris</option>
+                    <option value="Europe/Madrid" {{ 'selected' if current_timezone == 'Europe/Madrid' else '' }}>Europe/Madrid</option>
+                    <option value="America/New_York" {{ 'selected' if current_timezone == 'America/New_York' else '' }}>America/New_York (EST/EDT)</option>
+                    <option value="America/Chicago" {{ 'selected' if current_timezone == 'America/Chicago' else '' }}>America/Chicago (CST/CDT)</option>
+                    <option value="America/Los_Angeles" {{ 'selected' if current_timezone == 'America/Los_Angeles' else '' }}>America/Los_Angeles (PST/PDT)</option>
+                    <option value="Asia/Tokyo" {{ 'selected' if current_timezone == 'Asia/Tokyo' else '' }}>Asia/Tokyo</option>
+                    <option value="Asia/Shanghai" {{ 'selected' if current_timezone == 'Asia/Shanghai' else '' }}>Asia/Shanghai</option>
+                    <option value="Australia/Sydney" {{ 'selected' if current_timezone == 'Australia/Sydney' else '' }}>Australia/Sydney</option>
+                </select>
+            </div>
+            <button type="submit" class="btn">{{ 'Update Timezone'|lang }}</button>
+        </div>
     </form>
 </div>
 

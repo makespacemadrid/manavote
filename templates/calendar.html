@@ -98,7 +98,7 @@
                 {% for item in calendar_items %}
                 {% set category = 'proposal' if item.item_type == 'proposal' and item.status != 'approved' else ('approved' if item.item_type == 'proposal' and item.status == 'approved' else ('budget_in' if item.amount > 0 else 'budget_out')) %}
                 <tr data-category="{{ category }}" class="calendar-row">
-                    <td>{{ item.created_at[:10] }}</td>
+                    <td>{{ item.created_at|localtime("%Y-%m-%d") }}</td>
                     <td>
                         {% if item.item_type == 'proposal' %}
                             {% if item.status == 'approved' %}

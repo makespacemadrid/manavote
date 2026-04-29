@@ -3,6 +3,7 @@ import sqlite3
 import hashlib
 import secrets
 from datetime import datetime, date, timedelta
+from zoneinfo import ZoneInfo
 try:
     from dotenv import load_dotenv
 
@@ -39,6 +40,36 @@ import imghdr
 import logging
 import warnings
 
+
+def get_app_timezone():
+    """Get the configured timezone from settings or default to Europe/Madrid"""
+    try:
+        conn = get_db()
+        c = conn.cursor()
+        c.execute("SELECT value FROM settings WHERE key = 'timezone'")
+        row = c.fetchone()
+        conn.close()
+        tz_name = row["value"] if row else "Europe/Madrid"
+        return ZoneInfo(tz_name)
+    except:
+        return ZoneInfo("Europe/Madrid")
+
+
+def format_datetime(dt_str, fmt="%Y-%m-%d %H:%M:%S"):
+    """Convert a datetime string to the configured timezone and format it"""
+    if not dt_str:
+        return ""
+    try:
+        # Parse the datetime string
+        dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
+        # Convert to configured timezone
+        tz = get_app_timezone()
+        dt_local = dt.astimezone(tz)
+        return dt_local.strftime(fmt)
+    except (ValueError, TypeError):
+        return dt_str
+
+
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
 app = Flask(__name__, template_folder=os.path.join(BASE_DIR, "templates"), static_folder=os.path.join(BASE_DIR, "static"))
 app.config.from_object(Config)
@@ -73,6 +104,12 @@ def truncate_username(username):
     if "@" in username:
         return username.split("@")[0]
     return username
+
+
+@app.template_filter("localtime")
+def localtime_filter(dt_str, fmt="%Y-%m-%d %H:%M"):
+    """Jinja2 filter to format datetime in configured timezone"""
+    return format_datetime(dt_str, fmt)
 
 
 from translations import TRANSLATIONS
@@ -1417,6 +1454,8 @@ def undo_approve(proposal_id):
             (proposal["amount"], f"Undo approval: {proposal['title']}", proposal_id),
         )
         conn.commit()
+        # Re-process the proposal (may re-approve if thresholds still met)
+        process_proposal(proposal_id)
         check_over_budget_proposals()
         flash("Approval undone, budget restored", "success")
 
@@ -1617,6 +1656,15 @@ def admin():
             status = "enabled" if enabled == "true" else "disabled"
             flash(f"Self-registration {status}!", "success")
 
+        elif action == "update_timezone":
+            timezone = request.form.get("timezone", "Europe/Madrid")
+            c.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES ('timezone', ?)",
+                (timezone,),
+            )
+            conn.commit()
+            flash(f"Timezone updated to {timezone}!", "success")
+
         elif action == "backup_db":
             try:
                 from app.services.backup_service import backup_db
@@ -1748,6 +1796,10 @@ def admin():
             )
     backups.sort(key=lambda item: item["modified"], reverse=True)
 
+    c.execute("SELECT value FROM settings WHERE key = 'timezone'")
+    tz_row = c.fetchone()
+    current_timezone = tz_row["value"] if tz_row else "Europe/Madrid"
+
     conn.close()
 
     return render_template(
@@ -1759,6 +1811,7 @@ def admin():
         current_budget=current_budget,
         thresholds=thresholds,
         registration_enabled=registration_enabled,
+        current_timezone=current_timezone,
         get_setting_value=get_setting_value,
         session_lang=session.get("lang", "en"),
         backups=backups,
