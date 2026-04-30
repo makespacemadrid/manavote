@@ -57,9 +57,9 @@ Container runtime (`docker compose up --build`):
 Default seeded settings:
 - `current_budget = 300` (legacy key; runtime budget is derived from `activity_log`)
 - `monthly_topup = 50`
-- `threshold_basic = 2` (absolute number of votes required)
-- `threshold_over50 = 8` (absolute number of votes required)
-- `threshold_default = 4` (absolute number of votes required)
+- `threshold_basic = 5` (percentage of member count)
+- `threshold_over50 = 20` (percentage of member count)
+- `threshold_default = 10` (percentage of member count)
 - `registration_enabled = true`
 - `timezone = Europe/Madrid` (used for datetime display conversion)
 

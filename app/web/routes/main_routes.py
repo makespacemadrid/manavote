@@ -925,10 +925,10 @@ def dashboard():
     member_count = get_member_count()
     thresholds = get_thresholds()
 
-    # Calculate actual vote requirements (thresholds are absolute numbers, not percentages)
-    basic_votes = max(1, int(thresholds.get("basic", 2)))
-    standard_votes = max(1, int(thresholds.get("default", 4)))
-    expensive_votes = max(1, int(thresholds.get("over50", 8)))
+    # Calculate actual vote requirements based on member count and percentage thresholds
+    basic_votes = max(1, int(member_count * (thresholds.get("basic", 2) / 100)))
+    standard_votes = max(1, int(member_count * (thresholds.get("default", 4) / 100)))
+    expensive_votes = max(1, int(member_count * (thresholds.get("over50", 8) / 100)))
 
     c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'active'")
     active_proposals_sum = c.fetchone()[0]

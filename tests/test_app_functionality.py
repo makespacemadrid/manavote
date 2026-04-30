@@ -55,34 +55,34 @@ class TestHelperFunctions(unittest.TestCase):
 
 class TestCalculateMinBackers(unittest.TestCase):
     def test_basic_supplies_threshold(self):
-        """Basic supplies uses basic threshold (absolute number)"""
-        thresholds = {"basic": 2, "over50": 8, "default": 4}
-        result = budget_app.calculate_min_backers(50, 100, 1, thresholds)
-        self.assertEqual(result, 2)
+        """Basic supplies uses basic threshold (percentage)"""
+        thresholds = {"basic": 5, "over50": 20, "default": 10}
+        result = budget_app.calculate_min_backers(100, 100, 1, thresholds)
+        self.assertEqual(result, 5)  # 5% of 100 = 5
 
     def test_over_50_threshold(self):
-        """Over 50 uses over50 threshold (absolute number)"""
-        thresholds = {"basic": 2, "over50": 8, "default": 4}
-        result = budget_app.calculate_min_backers(50, 75, 0, thresholds)
-        self.assertEqual(result, 8)
+        """Over 50 uses over50 threshold (percentage)"""
+        thresholds = {"basic": 5, "over50": 20, "default": 10}
+        result = budget_app.calculate_min_backers(100, 75, 0, thresholds)
+        self.assertEqual(result, 20)  # 20% of 100 = 20
 
     def test_default_threshold(self):
-        """Default uses default threshold (absolute number)"""
-        thresholds = {"basic": 2, "over50": 8, "default": 4}
-        result = budget_app.calculate_min_backers(50, 30, 0, thresholds)
-        self.assertEqual(result, 4)
+        """Default uses default threshold (percentage)"""
+        thresholds = {"basic": 5, "over50": 20, "default": 10}
+        result = budget_app.calculate_min_backers(100, 30, 0, thresholds)
+        self.assertEqual(result, 10)  # 10% of 100 = 10
 
     def test_min_one_backer(self):
         """Minimum is 1 backer regardless of calculation"""
-        thresholds = {"basic": 2, "over50": 8, "default": 4}
+        thresholds = {"basic": 1, "over50": 1, "default": 1}
         result = budget_app.calculate_min_backers(3, 25, 0, thresholds)
-        self.assertEqual(result, 4)
+        self.assertEqual(result, 1)  # 1% of 3 = 0.03, min 1
     
     def test_very_small_group_returns_at_least_one(self):
-        """Very small group with threshold 1 returns 1"""
+        """Very small group with low percentage returns 1"""
         thresholds = {"basic": 1, "over50": 1, "default": 1}
         result = budget_app.calculate_min_backers(1, 25, 0, thresholds)
-        self.assertEqual(result, 1)
+        self.assertEqual(result, 1)  # 1% of 1 = 0.01, min 1
 
 
 class TestSettings(unittest.TestCase):

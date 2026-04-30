@@ -20,7 +20,7 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 - Active proposals can be edited/deleted by creator or admin.
 - Approved proposals can be marked/unmarked as purchased.
 - Undo approval button available for admins (restores budget, clears timestamps).
-- Vote thresholds: Basic=2 votes, Standard=4 votes, Expensive=8 votes (absolute numbers, not percentages).
+- Vote thresholds: Basic=5%, Standard=10%, Expensive=20% of member count (percentages, not absolute numbers).
 
 ### Timezone support
 - Configurable timezone via admin panel (default: Europe/Madrid).
