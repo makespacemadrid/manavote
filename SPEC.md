@@ -38,7 +38,8 @@ Container runtime (`docker compose up --build`):
 
 ### `proposals`
 - `id`, `title`, `description`, `amount`, `url`, `image_filename`, `created_by`, `created_at`, `status`, `processed_at`, `over_budget_at`, `purchased_at`, `basic_supplies`
-- `status ∈ {active, approved, over_budget}`
+- `status ∈ {active, approved, over_budget, purchased}`
+- `purchased_at` timestamp set when proposal is marked as purchased
 
 ### `votes`
 - `id`, `proposal_id`, `member_id`, `vote`, `created_at`
@@ -56,9 +57,9 @@ Container runtime (`docker compose up --build`):
 Default seeded settings:
 - `current_budget = 300` (legacy key; runtime budget is derived from `activity_log`)
 - `monthly_topup = 50`
-- `threshold_basic = 5`
-- `threshold_over50 = 20`
-- `threshold_default = 10`
+- `threshold_basic = 2` (absolute number of votes required)
+- `threshold_over50 = 8` (absolute number of votes required)
+- `threshold_default = 4` (absolute number of votes required)
 - `registration_enabled = true`
 - `timezone = Europe/Madrid` (used for datetime display conversion)
 
@@ -76,9 +77,9 @@ Default seeded settings:
 `min_backers = max(1, int(member_count * threshold_percent / 100))`
 
 Threshold selection:
-1. `basic_supplies == 1` ⇒ `threshold_basic`
-2. `amount > 50` ⇒ `threshold_over50`
-3. otherwise ⇒ `threshold_default`
+1. `basic_supplies == 1` ⇒ `threshold_basic` (default: 2)
+2. `amount > 50` ⇒ `threshold_over50` (default: 8)
+3. otherwise ⇒ `threshold_default` (default: 4)
 
 ### 6.2 Approval criteria
 A proposal is approvable when both are true:
@@ -98,10 +99,13 @@ If a proposal marked basic supplies has amount > €20, basic flag is auto-remov
 ## 7) UI/feature behavior
 
 ### Dashboard
-- Proposal list with status/category filters.
-- Inline quick voting.
+- Budget card with current budget, member count, and vote requirements display.
+- Proposal list with status/category filters (filters inside Proposals card).
+- Filter buttons show amounts (no decimals) with color-coded styling.
+- Inline quick voting with vote counts and "votes out of Y required" display.
 - Purchase confirmation actions for approved proposals.
-- Budget history table with running balance.
+- Tags (Basic=Bronze, Standard=Silver, Expensive=Gold) displayed left of title.
+- Budget history table with running balance and horizontal scroll on mobile.
 - All datetimes displayed in configured timezone (default: Europe/Madrid).
 
 ### Calendar page

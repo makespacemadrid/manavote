@@ -22,139 +22,142 @@
     </div>
 </div>
 
-<div class="card">
-    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-        <h2>📋 {{ 'Proposals'|lang }}</h2>
-        <a href="{{ url_for('new_proposal') }}" class="btn">+ {{ 'New Proposal'|lang }}</a>
-    </div>
-    <div style="display: flex; gap: 20px; margin-bottom: 5px;">
-        <span>{{ 'Budget'|lang }}: <strong>€{{ "%.2f"|format(current_budget) }}</strong></span>
+<div class="card" style="margin-bottom: 15px; padding: 25px;">
+    <h2>💰 {{ 'Budget'|lang }}</h2>
+    <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: center; margin-top: 8px;">
+        <span><strong>€{{ "%.2f"|format(current_budget) }}</strong></span>
         <span style="color: #888;">· {{ member_count }} {{ 'members'|lang }}</span>
     </div>
-    <div style="display: flex; gap: 20px; margin-bottom: 15px;">
-        <span style="color: #00d9ff;">{{ 'Active'|lang }}: €{{ "%.2f"|format(active_proposals_sum) }}</span>
-        <span style="color: #ffa500;">{{ 'Committed'|lang }}: €{{ "%.2f"|format(committed) }}</span>
-        <span style="color: #ffd700;">{{ 'Pending Purchase'|lang }}: €{{ "%.2f"|format(pending_purchase_sum) }}</span>
-        <span style="color: #4a4;">{{ 'Purchased'|lang }}: €{{ "%.2f"|format(purchased_sum) }}</span>
+    <div style="margin-top: 8px; color: #888; font-size: 0.9em;">
+        {{ 'Votes required'|lang }}:
+        · {{ 'Basic'|lang }}: {{ basic_votes }}
+        · {{ 'Standard'|lang }}: {{ standard_votes }}
+        · {{ 'Expensive'|lang }}: {{ expensive_votes }}
     </div>
-    
-    <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
-        <a href="{{ url_for('dashboard') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em;">{{ 'All'|lang }}</a>
-        <a href="{{ url_for('dashboard', filter='active') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00d9ff22' if filter == 'active' else 'transparent' }}; color: #00d9ff; border: 1px solid #00d9ff;">{{ 'Active'|lang }}</a>
-        <a href="{{ url_for('dashboard', filter='approved') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00ff8822' if filter == 'approved' else 'transparent' }}; color: #00ff88; border: 1px solid #00ff88;">{{ 'Approved'|lang }}</a>
-        <a href="{{ url_for('dashboard', filter='over_budget') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#ffa50022' if filter == 'over_budget' else 'transparent' }}; color: #ffa500; border: 1px solid #ffa500;">{{ 'Pending Budget'|lang }}</a>
-        <a href="{{ url_for('dashboard', filter='not_purchased') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#ffd70022' if filter == 'not_purchased' else 'transparent' }}; color: #ffd700; border: 1px solid #ffd700;">{{ 'Pending Purchase'|lang }}</a>
-        <a href="{{ url_for('dashboard', filter='purchased') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#4a44' if filter == 'purchased' else 'transparent' }}; color: #4a4; border: 1px solid #4a4;">{{ 'Purchased'|lang }}</a>
-    </div>
-    <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
-        <a href="{{ url_for('dashboard', filter='basic') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#CD7F3222' if filter == 'basic' else 'transparent' }}; color: #CD7F32; border: 1px solid #CD7F32;">{{ 'Basic'|lang }}</a>
-        <a href="{{ url_for('dashboard', filter='standard') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#C0C0C022' if filter == 'standard' else 'transparent' }}; color: #C0C0C0; border: 1px solid #C0C0C0;">{{ 'Standard'|lang }}</a>
-        <a href="{{ url_for('dashboard', filter='expensive') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#FFD70022' if filter == 'expensive' else 'transparent' }}; color: #FFD700; border: 1px solid #FFD700;">{{ 'Expensive'|lang }}</a>
-    </div>
-    
-    {% if total_count is defined and total_count != proposals|length %}
-    <p style="color: #888; margin-bottom: 10px; font-size: 0.9em;">{{ proposals|length }} of {{ total_count }} proposals</p>
-    {% endif %}
-    
-    {% if proposals %}
-    <ul class="proposal-list">
-        {% for p in proposals %}
-        <li class="proposal-item">
-            <div style="flex-shrink: 0; margin-right: 15px;">
-                {% if p.image_filename %}
-                <a href="{{ url_for('proposal_detail', proposal_id=p.id) }}">
-                    <img src="{{ url_for('static', filename='uploads/' + p.image_filename) }}" style="width: 80px; height: 80px; object-fit: cover; border-radius: 4px;">
-                </a>
-                {% else %}
-                <div style="width: 80px; height: 80px; background: #0a0a1a; border-radius: 4px;"></div>
-                {% endif %}
-            </div>
-            <div class="proposal-info">
-                <h3>
-                    <a href="{{ url_for('proposal_detail', proposal_id=p.id) }}" style="color: #eee; text-decoration: none;">
-                        {{ p.title }}
-                    </a>
-                    {% if p.basic_supplies %}<span class="status" style="background: #CD7F32; color: #000; margin-left: 5px;">{{ 'basic'|lang }}</span>{% endif %}
-                    {% if p.status == 'approved' and p.amount > 50 %}<span class="status" style="background: #FFD70022; color: #FFD700; margin-left: 5px;">{{ 'expensive'|lang }}</span>{% endif %}
-                    {% if p.status == 'approved' and not p.basic_supplies and p.amount <= 50 %}<span class="status" style="background: #C0C0C022; color: #C0C0C0; margin-left: 5px;">{{ 'standard'|lang }}</span>{% endif %}
-                </h3>
-                <div class="proposal-meta">
-                    {{ 'by'|lang }} {{ p.creator|username }} · {{ p.created_at|localtime("%Y-%m-%d") }}
-                    {% if p.user_vote %}
-                    · {{ 'Your vote'|lang }}: <strong>{{ 'In Favor'|lang if p.user_vote == 'in_favor' else 'Against'|lang }}</strong>
-                    {% endif %}
-                </div>
-                <div class="vote-counts">
-                    {% if p.purchased_at %}<span class="status" style="background: #4a4; color: #fff; margin-right: 10px;">{{ 'purchased'|lang }}</span>
-                    {% elif p.status == 'approved' %}<span class="status" style="background: #ffd70022; color: #ffd700; margin-right: 10px;">{{ 'Pending Purchase'|lang }}</span>
-                    {% elif p.status == 'over_budget' %}<span class="status" style="background: #ffa50022; color: #ffa500; margin-right: 10px;">{{ 'pending_budget'|lang }}</span>
-                    {% elif p.status == 'active' %}<span class="status status-active" style="margin-right: 10px;">{{ 'active'|lang }}</span>{% endif %}
-                    <span style="color: #00ff88;">✓ {{ p.approve_count }} {{ 'in favor'|lang }}</span>
-                    <span class="vote-reject">✗ {{ p.reject_count }} {{ 'against'|lang }}</span>
-                    <span style="color: {{ '#00d9ff' if p.net_votes >= p.min_backers else '#888' }};">({{ p.net_votes }} {{ 'net'|lang }})</span>
-                </div>
-                {% if p.status == 'active' and (p.created_by == session.member_id or session.is_admin) %}
-                <div style="margin-top: 5px;">
-                    <a href="{{ url_for('edit_proposal', proposal_id=p.id) }}" style="color: #00d9ff; font-size: 0.75em;">{{ 'Edit'|lang }}</a>
-                </div>
-                {% endif %}
-                {% if p.status == 'active' and p.user_vote %}
-                {% endif %}
-                {% if p.status == 'active' and not p.user_vote %}
-                {% endif %}
-                {% if p.status == 'approved' and (p.created_by == session.member_id or session.is_admin) %}
-                <div style="margin-top: 5px; display: flex; gap: 10px; align-items: center;">
-                    {% if p.purchased_at %}
-                    <span style="color: #4a4; font-size: 0.75em;">✓ {{ 'purchased'|lang }}</span>
-                    {% if session.is_admin %}
-                    <form method="POST" action="{{ url_for('unmark_purchased', proposal_id=p.id) }}" style="display: inline;">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                        <button type="submit" style="background: none; border: none; color: #888; font-size: 0.75em; cursor: pointer; padding: 0;">{{ 'unmark'|lang }}</button>
-                    </form>
-                    {% endif %}
-                    {% else %}
-                    <form method="POST" action="{{ url_for('mark_purchased', proposal_id=p.id) }}" style="display: inline;" onsubmit="return confirm('{{ 'Mark as purchased?'|lang }}');">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                        <button type="submit" style="background: #00d9ff22; border: 1px solid #00d9ff; color: #00d9ff; font-size: 0.8em; cursor: pointer; padding: 4px 10px; border-radius: 4px;">✓ {{ 'confirm purchase'|lang }}</button>
-                    </form>
-                    {% endif %}
-                    {% if session.is_admin %}
-                    <a href="{{ url_for('undo_approve', proposal_id=p.id) }}" style="color: #e94560; font-size: 0.75em;">{{ 'undo'|lang }}</a>
-                    {% endif %}
-                </div>
-                {% endif %}
-            </div>
-            <div style="text-align: right;">
-                <div class="proposal-amount">€{{ "%.2f"|format(p.amount) }}</div>
-                {% if p.status == 'active' and p.user_vote %}
-                <div style="margin-top: 8px; display: flex; gap: 5px; justify-content: flex-end;">
-                    <form method="POST" action="{{ url_for('quick_vote', proposal_id=p.id) }}">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                        <button type="submit" name="vote" value="in_favor" class="vote-btn approve {{ 'active' if p.user_vote == 'in_favor' else '' }}" style="padding: 4px 8px; font-size: 0.75em; background: #00ff8822; color: #00ff88; border: 1px solid #00ff88;">✓ {{ 'In Favor'|lang }}</button>
-                        <button type="submit" name="vote" value="against" class="vote-btn reject {{ 'active' if p.user_vote == 'against' else '' }}" style="padding: 4px 8px; font-size: 0.75em;">✗ {{ 'Against'|lang }}</button>
-                    </form>
-                </div>
-                {% endif %}
-                {% if p.status == 'active' and not p.user_vote %}
-                <div style="margin-top: 8px; display: flex; gap: 5px; justify-content: flex-end;">
-                    <form method="POST" action="{{ url_for('quick_vote', proposal_id=p.id) }}">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                        <button type="submit" name="vote" value="in_favor" class="vote-btn approve" style="padding: 4px 8px; font-size: 0.75em; background: #00ff8822; color: #00ff88; border: 1px solid #00ff88;">✓ {{ 'In Favor'|lang }}</button>
-                        <button type="submit" name="vote" value="against" class="vote-btn reject" style="padding: 4px 8px; font-size: 0.75em;">✗ {{ 'Against'|lang }}</button>
-                    </form>
-                </div>
-                {% endif %}
-            </div>
-        </li>
-        {% endfor %}
-    </ul>
-    {% else %}
-    <p style="color: #666; text-align: center; padding: 40px;">{{ 'No proposals yet. Create one!'|lang }}</p>
-    {% endif %}
 </div>
 
+    <div class="card">
+        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+            <h2>📋 {{ 'Proposals'|lang }}</h2>
+            <a href="{{ url_for('new_proposal') }}" class="btn">+ {{ 'New Proposal'|lang }}</a>
+        </div>
+        
+        <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+            <a href="{{ url_for('dashboard') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: transparent; color: #fff; border: 1px solid #fff;">{{ 'All'|lang }} (€{{ "%.0f"|format(all_sum) }})</a>
+            <a href="{{ url_for('dashboard', filter='active') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00d9ff22' if filter == 'active' else 'transparent' }}; color: #00d9ff; border: 1px solid #00d9ff;">{{ 'Active'|lang }} (€{{ "%.0f"|format(active_proposals_sum) }})</a>
+            <a href="{{ url_for('dashboard', filter='approved') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00ff8822' if filter == 'approved' else 'transparent' }}; color: #00ff88; border: 1px solid #00ff88;">{{ 'Approved'|lang }} (€{{ "%.0f"|format(approved_sum) }})</a>
+            <a href="{{ url_for('dashboard', filter='over_budget') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#1a4a7a22' if filter == 'over_budget' else 'transparent' }}; color: #1a4a7a; border: 1px solid #1a4a7a;">{{ 'Pending Budget'|lang }} (€{{ "%.0f"|format(committed) }})</a>
+            <a href="{{ url_for('dashboard', filter='not_purchased') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00ff8822' if filter == 'not_purchased' else 'transparent' }}; color: #00ff88; border: 1px solid #00ff88;">{{ 'Pending Purchase'|lang }} (€{{ "%.0f"|format(pending_purchase_sum) }})</a>
+            <a href="{{ url_for('dashboard', filter='purchased') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#4a422' if filter == 'purchased' else 'transparent' }}; color: #4a4; border: 1px solid #4a4;">{{ 'Purchased'|lang }} (€{{ "%.0f"|format(purchased_sum) }})</a>
+        </div>
+        <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
+            <a href="{{ url_for('dashboard', filter='basic') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#CD7F3222' if filter == 'basic' else 'transparent' }}; color: #CD7F32; border: 1px solid #CD7F32;">{{ 'Basic'|lang }} (€{{ "%.0f"|format(basic_sum) }})</a>
+            <a href="{{ url_for('dashboard', filter='standard') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#C0C0C022' if filter == 'standard' else 'transparent' }}; color: #C0C0C0; border: 1px solid #C0C0C0;">{{ 'Standard'|lang }} (€{{ "%.0f"|format(standard_sum) }})</a>
+            <a href="{{ url_for('dashboard', filter='expensive') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#FFD70022' if filter == 'expensive' else 'transparent' }}; color: #FFD700; border: 1px solid #FFD700;">{{ 'Expensive'|lang }} (€{{ "%.0f"|format(expensive_sum) }})</a>
+        </div>
+
+        {% if total_count is defined and total_count != proposals|length %}
+        <p style="color: #888; margin-bottom: 10px; font-size: 0.9em;">{{ proposals|length }} of {{ total_count }} proposals</p>
+        {% endif %}
+        
+        {% if proposals %}
+        <ul class="proposal-list">
+            {% for p in proposals %}
+            <li class="proposal-item">
+                <div class="proposal-info">
+                    <div style="display: flex; align-items: center; width: 100%;">
+                        <div style="flex-shrink: 0; margin-right: 10px; display: flex; gap: 5px;">
+                            {% if p.basic_supplies %}<span class="status" style="background: #CD7F32; color: #000;">{{ 'basic'|lang }}</span>{% endif %}
+                            {% if p.amount > 50 %}<span class="status" style="background: #FFD70022; color: #FFD700;">{{ 'expensive'|lang }}</span>{% endif %}
+                            {% if not p.basic_supplies and p.amount <= 50 %}<span class="status" style="background: #C0C0C022; color: #C0C0C0;">{{ 'standard'|lang }}</span>{% endif %}
+                        </div>
+                        <div style="flex: 1; min-width: 0; overflow: hidden;">
+                            <a href="{{ url_for('proposal_detail', proposal_id=p.id) }}" style="color: #eee; text-decoration: none; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ p.title }}</a>
+                        </div>
+                    </div>
+                    <div style="flex-shrink: 0; margin: 10px 0; width: 80px; height: 80px;">
+                        {% if p.image_filename %}
+                        <a href="{{ url_for('proposal_detail', proposal_id=p.id) }}" style="display: block; width: 100%; height: 100%;">
+                            <img src="{{ url_for('static', filename='uploads/' + p.image_filename) }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 4px;">
+                        </a>
+                        {% else %}
+                        <div style="width: 100%; height: 100%; background: #0a0a1a; border-radius: 4px;"></div>
+                        {% endif %}
+                    </div>
+                    <div class="proposal-meta" style="margin-bottom: 8px;">
+                        {{ 'by'|lang }} {{ p.creator|username }} · {{ p.created_at|localtime("%Y-%m-%d") }}
+                        {% if p.user_vote %}
+                        · {{ 'Your vote'|lang }}: <strong>{{ 'In Favor'|lang if p.user_vote == 'in_favor' else 'Against'|lang }}</strong>
+                        {% endif %}
+                    </div>
+                    <div class="vote-counts">
+                        {% if p.purchased_at %}<span class="status" style="background: #4a4; color: #fff; margin-right: 10px;">{{ 'purchased'|lang }}</span>
+                        {% elif p.status == 'approved' %}<span class="status" style="background: #ffd70022; color: #ffd700; margin-right: 10px;">{{ 'Pending Purchase'|lang }}</span>
+                        {% elif p.status == 'over_budget' %}<span class="status" style="background: #ffa50022; color: #ffa500; margin-right: 10px;">{{ 'pending_budget'|lang }}</span>
+                        {% elif p.status == 'active' %}<span class="status status-active" style="margin-right: 10px;">{{ 'active'|lang }}</span>{% endif %}
+                        <span style="color: #00ff88;">✓ {{ p.approve_count }} {{ 'in favor'|lang }}</span>
+                        <span class="vote-reject">✗ {{ p.reject_count }} {{ 'against'|lang }}</span>
+                        <span style="color: {{ '#00d9ff' if p.net_votes >= p.min_backers else '#888' }};">({{ p.net_votes }} {{ 'net'|lang }})</span>
+                        <span style="color: #888;">({{ p.net_votes }} {{ 'votes out of'|lang }} {{ p.min_backers|int }} {{ 'required'|lang }})</span>
+                    </div>
+                    {% if p.status == 'active' and (p.created_by == session.member_id or session.is_admin) %}
+                    <div style="margin-top: 5px;">
+                        <a href="{{ url_for('edit_proposal', proposal_id=p.id) }}" style="color: #00d9ff; font-size: 0.75em;">{{ 'Edit'|lang }}</a>
+                    </div>
+                    {% endif %}
+                    {% if p.status == 'approved' and (p.created_by == session.member_id or session.is_admin) %}
+                    <div style="margin-top: 5px; display: flex; gap: 10px; align-items: center;">
+                        {% if p.purchased_at %}
+                            <span style="color: #4a4; font-size: 0.75em;">✓ {{ 'purchased'|lang }}</span>
+                            {% if session.is_admin %}
+                            <form method="POST" action="{{ url_for('unmark_purchased', proposal_id=p.id) }}" style="display: inline;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" style="background: none; border: none; color: #888; font-size: 0.75em; cursor: pointer; padding: 0;">{{ 'unmark'|lang }}</button>
+                            </form>
+                            {% endif %}
+                        {% else %}
+                            <form method="POST" action="{{ url_for('mark_purchased', proposal_id=p.id) }}" style="display: inline;" onsubmit="return confirm('{{ 'Mark as purchased?'|lang }}');">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                                <button type="submit" style="background: #00d9ff22; border: 1px solid #00d9ff; color: #00d9ff; font-size: 0.8em; cursor: pointer; padding: 4px 10px; border-radius: 4px;">✓ {{ 'confirm purchase'|lang }}</button>
+                            </form>
+                        {% endif %}
+                        {% if session.is_admin %}
+                        <a href="{{ url_for('undo_approve', proposal_id=p.id) }}" style="color: #e94560; font-size: 0.75em;">{{ 'undo'|lang }}</a>
+                        {% endif %}
+                    </div>
+                    {% endif %}
+                </div>
+                <div style="text-align: right;">
+                    <div class="proposal-amount">€{{ "%.2f"|format(p.amount) }}</div>
+                    {% if p.status == 'active' and p.user_vote %}
+                    <div style="margin-top: 8px; display: flex; gap: 5px; justify-content: flex-end;">
+                        <form method="POST" action="{{ url_for('quick_vote', proposal_id=p.id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" name="vote" value="in_favor" class="vote-btn approve {{ 'active' if p.user_vote == 'in_favor' else '' }}" style="padding: 4px 8px; font-size: 0.75em; background: #00ff8822; color: #00ff88; border: 1px solid #00ff88;">✓ {{ 'In Favor'|lang }}</button>
+                            <button type="submit" name="vote" value="against" class="vote-btn reject {{ 'active' if p.user_vote == 'against' else '' }}" style="padding: 4px 8px; font-size: 0.75em;">✗ {{ 'Against'|lang }}</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                    {% if p.status == 'active' and not p.user_vote %}
+                    <div style="margin-top: 8px; display: flex; gap: 5px; justify-content: flex-end;">
+                        <form method="POST" action="{{ url_for('quick_vote', proposal_id=p.id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" name="vote" value="in_favor" class="vote-btn approve" style="padding: 4px 8px; font-size: 0.75em; background: #00ff8822; color: #00ff88; border: 1px solid #00ff88;">✓ {{ 'In Favor'|lang }}</button>
+                            <button type="submit" name="vote" value="against" class="vote-btn reject" style="padding: 4px 8px; font-size: 0.75em;">✗ {{ 'Against'|lang }}</button>
+                        </form>
+                    </div>
+                    {% endif %}
+                </div>
+            </li>
+            {% endfor %}
+        </ul>
+        {% else %}
+        <p style="color: #666; text-align: center; padding: 40px;">{{ 'No proposals yet. Create one!'|lang }}</p>
+        {% endif %}
+    </div>
+
 <div class="card">
-    <h3>📜 {{ 'Budget History'|lang }}</h3>
+    <h2>📜 {{ 'Budget History'|lang }}</h2>
     <table>
         <thead>
             <tr>

@@ -26,8 +26,11 @@
         .flash.error { background: #e9456022; color: #e94560; border: 1px solid #e94560; }
         .budget { font-size: 2.5em; color: #00d9ff; font-weight: bold; }
         .proposal-list { list-style: none; }
-        .proposal-item { display: flex; justify-content: space-between; align-items: center; padding: 15px; background: #0f3460; border-radius: 6px; margin-bottom: 10px; }
-        .proposal-info { flex: 1; min-width: 0; }
+        .proposal-item { display: flex; padding: 15px; background: #0f3460; border-radius: 6px; margin-bottom: 10px; }
+        .proposal-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
+        .title-row { display: flex; align-items: center; justify-content: space-between; width: 100%; }
+        .title-row a { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #eee; text-decoration: none; }
+        .tags-right { display: flex; gap: 5px; flex-shrink: 0; }
         .proposal-info h3 { margin: 0 0 5px 0; font-size: 1.1em; }
         .proposal-meta { color: #888; font-size: 0.85em; }
         .proposal-amount { font-size: 1.3em; color: #e94560; font-weight: bold; }
@@ -62,6 +65,14 @@
         .settings-dropdown:hover .settings-menu { display: block; }
         .settings-menu a { display: block; padding: 5px 10px; color: #00d9ff; text-decoration: none; }
         .settings-menu a:hover { background: #0f3460; }
+        @media (max-width: 600px) {
+            .proposal-item { flex-direction: column; }
+            .proposal-info { width: 100%; }
+            .proposal-info > div:first-child { margin: 10px auto; text-align: center; }
+            .proposal-item > div:last-child { margin-top: 10px; width: 100%; text-align: center; }
+            table { display: block; overflow-x: auto; white-space: nowrap; }
+            div[style*="gap: 20px"][style*="margin-bottom: 15px"] { overflow-x: auto; white-space: nowrap; }
+        }
     </style>
 </head>
 <body>

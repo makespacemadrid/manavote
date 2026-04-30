@@ -876,7 +876,7 @@ def dashboard():
     conn = get_db()
     c = conn.cursor()
 
-    filter_type = request.args.get("filter", "")
+    filter_type = request.args.get("filter", "active")
 
     if filter_type == "basic":
         c.execute(
@@ -925,6 +925,11 @@ def dashboard():
     member_count = get_member_count()
     thresholds = get_thresholds()
 
+    # Calculate actual vote requirements (thresholds are absolute numbers, not percentages)
+    basic_votes = max(1, int(thresholds.get("basic", 2)))
+    standard_votes = max(1, int(thresholds.get("default", 4)))
+    expensive_votes = max(1, int(thresholds.get("over50", 8)))
+
     c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'active'")
     active_proposals_sum = c.fetchone()[0]
     c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'over_budget'")
@@ -933,6 +938,16 @@ def dashboard():
     pending_purchase_sum = c.fetchone()[0]
     c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE purchased_at IS NOT NULL")
     purchased_sum = c.fetchone()[0]
+    c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'approved'")
+    approved_sum = c.fetchone()[0]
+    c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE basic_supplies = 1")
+    basic_sum = c.fetchone()[0]
+    c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'approved' AND basic_supplies = 0 AND amount <= 50")
+    standard_sum = c.fetchone()[0]
+    c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE amount > 50")
+    expensive_sum = c.fetchone()[0]
+    c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals")
+    all_sum = c.fetchone()[0]
 
     for p in proposals:
         p["min_backers"] = calculate_min_backers(
@@ -963,10 +978,18 @@ def dashboard():
         budget_history=budget_history,
         member_count=member_count,
         active_proposals_sum=active_proposals_sum,
+        approved_sum=approved_sum,
         committed=committed,
         pending_purchase_sum=pending_purchase_sum,
         purchased_sum=purchased_sum,
+        basic_sum=basic_sum,
+        standard_sum=standard_sum,
+        expensive_sum=expensive_sum,
+        all_sum=all_sum,
         thresholds=thresholds,
+        basic_votes=basic_votes,
+        standard_votes=standard_votes,
+        expensive_votes=expensive_votes,
         session_lang=lang,
     )
 

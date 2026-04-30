@@ -20,6 +20,7 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 - Active proposals can be edited/deleted by creator or admin.
 - Approved proposals can be marked/unmarked as purchased.
 - Undo approval button available for admins (restores budget, clears timestamps).
+- Vote thresholds: Basic=2 votes, Standard=4 votes, Expensive=8 votes (absolute numbers, not percentages).
 
 ### Timezone support
 - Configurable timezone via admin panel (default: Europe/Madrid).
@@ -33,10 +34,15 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
   - become `over_budget` if budget is insufficient (tracks `over_budget_at` timestamp).
 - `over_budget` proposals are auto-approved later when budget allows.
 - Admin can undo approvals to restore budget, clearing `processed_at` and `purchased_at` timestamps.
+- Approved proposals can be marked as `purchased` with timestamp.
 - Monthly top-up defaults to €50 with description "Subvención mensual MakeSpace para juguetes nuevos".
 
 ### Dashboard and calendar
-- Dashboard includes filters for status and categories.
+- Dashboard includes Budget card with current budget, member count, and vote requirements.
+- Filter buttons show amounts (no decimals) with color-coded styling (All=white, Active=cyan, Approved/Pending Purchase=green, Pending Budget=light blue).
+- Tags displayed left of proposal title (Basic=Bronze, Standard=Silver, Expensive=Gold).
+- Vote counts show "X votes out of Y required" with green color for in-favor votes.
+- Proposals card contains filters, proposal list, and vote buttons.
 - Calendar includes an activity table and a "Budget Over Time" Chart.js chart.
 - Budget chart datasets:
   - Budget Balance (cyan line)
