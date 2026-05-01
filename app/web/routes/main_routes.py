@@ -2,6 +2,7 @@ import os
 import sqlite3
 import hashlib
 import secrets
+import hmac
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 try:
@@ -39,6 +40,7 @@ import markdown
 import imghdr
 import logging
 import warnings
+import json
 
 
 def get_app_timezone():
@@ -139,6 +141,8 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 TELEGRAM_THREAD_ID = os.environ.get("TELEGRAM_THREAD_ID", "")
+TELEGRAM_ADMIN_ID = os.environ.get("TELEGRAM_ADMIN_ID", "")
+TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
 ADMIN_API_KEY = os.environ.get("ADMIN_API_KEY", "")
 
 
@@ -198,6 +202,25 @@ def init_db():
     c.execute("""CREATE TABLE IF NOT EXISTS settings (
         key TEXT PRIMARY KEY,
         value TEXT
+    )""")
+
+    c.execute("""CREATE TABLE IF NOT EXISTS polls (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        question TEXT NOT NULL,
+        options_json TEXT NOT NULL,
+        created_by INTEGER NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        status TEXT DEFAULT 'open',
+        closes_at TEXT
+    )""")
+
+    c.execute("""CREATE TABLE IF NOT EXISTS poll_votes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        poll_id INTEGER NOT NULL,
+        member_id INTEGER NOT NULL,
+        option_index INTEGER NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(poll_id, member_id)
     )""")
 
     c.execute("SELECT COUNT(*) FROM members WHERE is_admin = 1")
@@ -335,6 +358,56 @@ def is_registration_enabled():
 def send_telegram_message(message):
     client = TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_THREAD_ID)
     return client.send_message(message)
+
+
+def send_telegram_admin_test_message(message):
+    client = TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_ADMIN_ID, "")
+    return client.send_message(message)
+
+
+def process_telegram_vote_command(telegram_username, command_text):
+    command = (command_text or "").strip()
+    parts = command.split()
+    if len(parts) != 3 or parts[0].lower() != "/vote":
+        return False, "invalid_format"
+
+    try:
+        poll_id = int(parts[1])
+        option_number = int(parts[2])
+    except ValueError:
+        return False, "invalid_numbers"
+
+    conn = get_db()
+    c = conn.cursor()
+    try:
+        c.execute(
+            "SELECT id FROM members WHERE lower(username) IN (?, ?)",
+            (telegram_username.lower(), f"@{telegram_username.lower()}"),
+        )
+        member = c.fetchone()
+        if not member:
+            return False, "unknown_member"
+
+        c.execute("SELECT options_json, status FROM polls WHERE id = ?", (poll_id,))
+        poll = c.fetchone()
+        if not poll:
+            return False, "poll_not_found"
+        if poll["status"] != "open":
+            return False, "poll_closed"
+
+        options = json.loads(poll["options_json"])
+        option_index = option_number - 1
+        if option_index < 0 or option_index >= len(options):
+            return False, "invalid_option"
+
+        c.execute(
+            "INSERT OR REPLACE INTO poll_votes (poll_id, member_id, option_index) VALUES (?, ?, ?)",
+            (poll_id, member["id"], option_index),
+        )
+        conn.commit()
+        return True, "ok"
+    finally:
+        conn.close()
 
 
 def process_proposal(proposal_id):
@@ -636,6 +709,41 @@ def api_edit_proposal(proposal_id):
     except Exception as e:
         conn.close()
         return jsonify({"error": str(e)}), 500
+
+
+@app.route("/telegram/webhook/<secret>", methods=["POST"])
+@csrf.exempt
+def telegram_webhook(secret):
+    if not TELEGRAM_WEBHOOK_SECRET or not hmac.compare_digest(secret, TELEGRAM_WEBHOOK_SECRET):
+        return {"ok": False}, 403
+
+    payload = request.get_json(silent=True) or {}
+    message = payload.get("message") or payload.get("edited_message") or {}
+    text = (message.get("text") or "").strip()
+    from_user = message.get("from") or {}
+    telegram_username = (from_user.get("username") or "").strip()
+    chat_id = message.get("chat", {}).get("id")
+
+    if not text or not telegram_username:
+        return {"ok": True}, 200
+
+    success, reason = process_telegram_vote_command(telegram_username, text)
+    if text.lower().startswith("/vote") and TELEGRAM_BOT_TOKEN and chat_id:
+        if success:
+            response_text = "✅ Vote recorded in ManaVote."
+        elif reason == "unknown_member":
+            response_text = "❌ Your Telegram username is not linked to a member account."
+        elif reason == "poll_closed":
+            response_text = "❌ Poll is closed."
+        elif reason == "poll_not_found":
+            response_text = "❌ Poll not found."
+        elif reason == "invalid_option":
+            response_text = "❌ Invalid option number."
+        else:
+            response_text = "❌ Invalid command. Use: /vote <poll_id> <option_number>"
+        TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "").send_message(response_text)
+
+    return {"ok": True}, 200
 
 
 @app.route("/about")
@@ -1248,6 +1356,7 @@ def edit_comment(comment_id):
         comment=comment,
         session_lang=session.get("lang", "en"),
         backups=backups,
+        polls=polls,
     )
 
 
@@ -1413,6 +1522,7 @@ def edit_proposal(proposal_id):
         thresholds=thresholds,
         session_lang=session.get("lang", "en"),
         backups=backups,
+        polls=polls,
     )
 
 
@@ -1724,6 +1834,71 @@ def admin():
             conn.commit()
             flash(f"Timezone updated to {timezone}!", "success")
 
+
+        elif action == "create_poll":
+            question = request.form.get("question", "").strip()
+            raw_options = request.form.get("options", "")
+            options = [line.strip() for line in raw_options.splitlines() if line.strip()]
+            if len(question) < 5:
+                flash("Poll question must be at least 5 characters", "error")
+            elif len(question) > 200:
+                flash("Poll question must be 200 characters or fewer", "error")
+            elif len(options) < 2:
+                flash("Please provide at least 2 poll options", "error")
+            elif len(options) > 12:
+                flash("Please provide at most 12 poll options", "error")
+            elif any(len(o) > 120 for o in options):
+                flash("Each option must be 120 characters or fewer", "error")
+            else:
+                c.execute(
+                    "INSERT INTO polls (question, options_json, created_by, status) VALUES (?, ?, ?, 'open')",
+                    (question, json.dumps(options), session["member_id"]),
+                )
+                conn.commit()
+                flash("Poll created!", "success")
+
+        elif action == "close_poll":
+            poll_id = request.form.get("poll_id", type=int)
+            c.execute(
+                "UPDATE polls SET status = 'closed', closes_at = ? WHERE id = ?",
+                (datetime.now().isoformat(), poll_id),
+            )
+            conn.commit()
+            flash("Poll closed", "success")
+
+        elif action == "reopen_poll":
+            poll_id = request.form.get("poll_id", type=int)
+            c.execute(
+                "UPDATE polls SET status = 'open', closes_at = NULL WHERE id = ?",
+                (poll_id,),
+            )
+            conn.commit()
+            flash("Poll reopened", "success")
+
+        elif action in ("send_poll_telegram", "send_poll_telegram_test"):
+            poll_id = request.form.get("poll_id", type=int)
+            c.execute("SELECT p.*, m.username as creator FROM polls p JOIN members m ON m.id = p.created_by WHERE p.id = ?", (poll_id,))
+            poll = c.fetchone()
+            if not poll:
+                flash("Poll not found", "error")
+            else:
+                options = json.loads(poll["options_json"])
+                lines = [f"📊 *New Poll*", f"", f"*{poll['question']}*", ""]
+                for idx, option in enumerate(options, 1):
+                    lines.append(f"{idx}. {option}")
+                lines.append("")
+                lines.append(f"Vote in Telegram: /vote {poll['id']} <option_number>")
+
+                if action == "send_poll_telegram_test":
+                    if not TELEGRAM_ADMIN_ID:
+                        flash("TELEGRAM_ADMIN_ID is not configured", "error")
+                    else:
+                        sent = send_telegram_admin_test_message("\n".join(lines))
+                        flash("Poll test sent to TELEGRAM_ADMIN_ID!" if sent else "Failed to send poll test message", "success" if sent else "error")
+                else:
+                    sent = send_telegram_message("\n".join(lines))
+                    flash("Poll sent to Telegram!" if sent else "Failed to send poll to Telegram", "success" if sent else "error")
+
         elif action == "backup_db":
             try:
                 from app.services.backup_service import backup_db
@@ -1855,6 +2030,16 @@ def admin():
             )
     backups.sort(key=lambda item: item["modified"], reverse=True)
 
+    c.execute("""
+        SELECT p.*, m.username as creator,
+               (SELECT COUNT(*) FROM poll_votes pv WHERE pv.poll_id = p.id) as total_votes
+        FROM polls p
+        JOIN members m ON m.id = p.created_by
+        ORDER BY p.created_at DESC
+        LIMIT 50
+    """)
+    polls = [dict(row) for row in c.fetchall()]
+
     c.execute("SELECT value FROM settings WHERE key = 'timezone'")
     tz_row = c.fetchone()
     current_timezone = tz_row["value"] if tz_row else "Europe/Madrid"
@@ -1874,7 +2059,66 @@ def admin():
         get_setting_value=get_setting_value,
         session_lang=session.get("lang", "en"),
         backups=backups,
+        polls=polls,
     )
+
+
+@app.route("/polls", methods=["GET", "POST"])
+@login_required
+def polls_page():
+    conn = get_db()
+    c = conn.cursor()
+
+    if request.method == "POST":
+        poll_id = request.form.get("poll_id", type=int)
+        option_index = request.form.get("option_index", type=int)
+        if poll_id is None or option_index is None:
+            flash("Invalid vote", "error")
+        else:
+            c.execute("SELECT options_json, status FROM polls WHERE id = ?", (poll_id,))
+            poll_row = c.fetchone()
+            if not poll_row:
+                flash("Poll not found", "error")
+            else:
+                options = json.loads(poll_row["options_json"])
+                if poll_row["status"] != "open":
+                    flash("Poll is closed", "error")
+                elif option_index < 0 or option_index >= len(options):
+                    flash("Invalid poll option", "error")
+                else:
+                    c.execute(
+                        "INSERT OR REPLACE INTO poll_votes (poll_id, member_id, option_index) VALUES (?, ?, ?)",
+                        (poll_id, session["member_id"], option_index),
+                    )
+                    conn.commit()
+                    flash("Poll vote recorded!", "success")
+
+    c.execute("""
+        SELECT p.*, m.username as creator
+        FROM polls p
+        JOIN members m ON m.id = p.created_by
+        ORDER BY p.created_at DESC
+    """)
+    polls = []
+    for row in c.fetchall():
+        poll = dict(row)
+        options = json.loads(poll["options_json"])
+        c.execute("SELECT pv.option_index, pv.created_at, mm.username FROM poll_votes pv JOIN members mm ON mm.id = pv.member_id WHERE pv.poll_id = ? ORDER BY pv.created_at ASC", (poll["id"],))
+        votes = [dict(v) for v in c.fetchall()]
+        counts = {idx: 0 for idx in range(len(options))}
+        for v in votes:
+            if v["option_index"] in counts:
+                counts[v["option_index"]] += 1
+        c.execute("SELECT option_index FROM poll_votes WHERE poll_id = ? AND member_id = ?", (poll["id"], session["member_id"]))
+        own = c.fetchone()
+        poll["options"] = options
+        poll["votes"] = votes
+        poll["counts"] = counts
+        poll["user_vote"] = own["option_index"] if own else None
+        polls.append(poll)
+
+    conn.close()
+    return render_template("polls.html", polls=polls, session_lang=session.get("lang", "en"))
 
 
 @app.route("/check-overbudget")

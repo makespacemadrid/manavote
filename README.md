@@ -5,6 +5,7 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 ## What it does
 
 - Members can create, discuss, and vote on proposals.
+- Members can participate in transparent polls inside the web app.
 - Proposals are auto-processed based on vote thresholds and available budget.
 - Admins can manage members, thresholds, settings, and budget movements.
 - API endpoints allow admin-key-based automation for member/proposal creation.
@@ -21,6 +22,15 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 - Approved proposals can be marked/unmarked as purchased.
 - Undo approval button available for admins (restores budget, clears timestamps).
 - Vote thresholds: Basic=5%, Standard=10%, Expensive=20% of member count (percentages, not absolute numbers).
+
+### Polls (transparent by design)
+- Admins can create polls with 2..12 options from the Admin panel.
+- Members vote from Telegram using `/vote <poll_id> <option_number>` (one active vote per member per poll; changing vote overwrites previous choice).
+- The app tracks and displays all poll state/results on `/polls`.
+- Polls are transparent: the page shows totals and “who voted what”.
+- Polls can be closed/reopened by admins.
+- Admins can send poll text to the main chat or as a test to `TELEGRAM_ADMIN_ID`.
+- Telegram webhook endpoint: `POST /telegram/webhook/<TELEGRAM_WEBHOOK_SECRET>` (set secret in env and configure in BotFather webhook URL).
 
 ### Timezone support
 - Configurable timezone via admin panel (default: Europe/Madrid).
@@ -100,6 +110,8 @@ When running with Docker Compose:
 | `TELEGRAM_BOT_TOKEN` | _empty_ | Telegram integration token |
 | `TELEGRAM_CHAT_ID` | _empty_ | Telegram target chat |
 | `TELEGRAM_THREAD_ID` | _empty_ | Optional Telegram topic/thread id for forum chats |
+| `TELEGRAM_ADMIN_ID` | _empty_ | Optional Telegram user/chat id for poll test messages from admin panel |
+| `TELEGRAM_WEBHOOK_SECRET` | _empty_ | Secret path segment used by Telegram webhook endpoint for command-based voting |
 
 Additional operational notes:
 - Web forms are protected with Flask-WTF `CSRFProtect`.

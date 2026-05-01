@@ -1,0 +1,48 @@
+{% extends "base.html" %}
+
+{% block content %}
+<div class="nav">
+    <span>{{ 'Logged in as'|lang }}: <strong>{{ session.username|username }}</strong></span>
+    <a href="{{ url_for('dashboard') }}">{{ 'Dashboard'|lang }}</a>
+    <a href="{{ url_for('polls_page') }}">Polls</a>
+    <a href="{{ url_for('calendar') }}">{{ 'Calendar'|lang }}</a>
+    {% if session.is_admin %}<a href="{{ url_for('admin') }}">{{ 'Admin'|lang }}</a>{% endif %}
+</div>
+
+<div class="card">
+    <h2>📊 Polls</h2>
+    {% if polls %}
+        {% for p in polls %}
+        <div style="border:1px solid #333;padding:12px;margin-bottom:16px;border-radius:8px;">
+            <h3 style="margin-top:0;">{{ p.question }} {% if p.status == "closed" %}<span class="status" style="background:#444;">Closed</span>{% endif %}</h3>
+            <p style="color:#888;">By {{ p.creator|username }} · {{ p.created_at|localtime("%Y-%m-%d %H:%M") }}</p>
+            <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="poll_id" value="{{ p.id }}">
+                {% for option in p.options %}
+                <label style="display:block;margin:6px 0;">
+                    <input type="radio" name="option_index" value="{{ loop.index0 }}" {{ 'checked' if p.user_vote == loop.index0 else '' }}>
+                    {{ option }} <span style="color:#888;">({{ p.counts[loop.index0] }})</span>
+                </label>
+                {% endfor %}
+                {% if p.status == "open" %}
+                <button class="btn" type="submit">Vote</button>
+                {% else %}
+                <button class="btn btn-secondary" type="button" disabled>Voting closed</button>
+                {% endif %}
+            </form>
+            <details style="margin-top:8px;">
+                <summary>Who voted what</summary>
+                <ul>
+                    {% for vote in p.votes %}
+                    <li>{{ vote.username|username }} → {{ p.options[vote.option_index] if vote.option_index < p.options|length else 'Unknown' }}</li>
+                    {% endfor %}
+                </ul>
+            </details>
+        </div>
+        {% endfor %}
+    {% else %}
+        <p>No polls yet.</p>
+    {% endif %}
+</div>
+{% endblock %}

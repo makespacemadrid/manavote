@@ -26,6 +26,7 @@
     <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('members', this)">{{ 'Members'|lang }}</button>
     <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('budget', this)">{{ 'Budget'|lang }}</button>
     <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('settings', this)">{{ 'Settings'|lang }}</button>
+    <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('polls', this)">Polls</button>
     <button type="button" class="btn admin-tab-btn active" onclick="showSection('', this)">{{ 'Show All'|lang }}</button>
 </div>
 
@@ -45,7 +46,8 @@ function showSection(sectionId, buttonEl) {
     var sections = {
         members: ['add-member', 'registration-settings', 'members', 'stats'],
         budget: ['thresholds', 'budget', 'budget-history', 'proposal-history'],
-        settings: ['timezone', 'backup', 'telegram']
+        settings: ['timezone', 'backup', 'telegram'],
+        polls: ['polls']
     };
 
     document.querySelectorAll('.admin-tab-btn').forEach(function(btn) { btn.classList.remove('active'); });
@@ -338,6 +340,56 @@ function showSection(sectionId, buttonEl) {
             <button type="submit" class="btn">{{ 'Update URL'|lang }}</button>
         </div>
     </form>
+</div>
+
+
+<div id="polls" class="card">
+    <h3>Polls</h3>
+    <form method="POST" style="margin-bottom: 15px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="create_poll">
+        <label>Question</label>
+        <input type="text" name="question" required>
+        <label>Options (one per line)</label>
+        <textarea name="options" rows="4" required></textarea>
+        <button type="submit" class="btn">Create Poll</button>
+    </form>
+
+    <h4>Recent Polls</h4>
+    <table>
+        <thead><tr><th>Date</th><th>Question</th><th>Status</th><th>By</th><th>Votes</th><th>Action</th></tr></thead>
+        <tbody>
+            {% for poll in polls %}
+            <tr>
+                <td>{{ poll.created_at|localtime("%Y-%m-%d %H:%M") }}</td>
+                <td>{{ poll.question }}</td>
+                <td>{{ poll.status }}</td>
+                <td>{{ poll.creator|username }}</td>
+                <td>{{ poll.total_votes }}</td>
+                <td>
+                    <form method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="send_poll_telegram">
+                        <input type="hidden" name="poll_id" value="{{ poll.id }}">
+                        <button type="submit" class="btn btn-secondary">Send to Telegram</button>
+                    </form>
+                    <form method="POST" style="margin-top: 6px;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="{{ 'close_poll' if poll.status == 'open' else 'reopen_poll' }}">
+                        <input type="hidden" name="poll_id" value="{{ poll.id }}">
+                        <button type="submit" class="btn btn-secondary">{{ 'Close Poll' if poll.status == 'open' else 'Reopen Poll' }}</button>
+                    </form>
+                    <form method="POST" style="margin-top: 6px;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="send_poll_telegram_test">
+                        <input type="hidden" name="poll_id" value="{{ poll.id }}">
+                        <button type="submit" class="btn btn-secondary">Send Test to Admin</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
 </div>
 
 <div id="changePasswordModal" style="display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); z-index:1000; overflow-y: auto;">

@@ -15,6 +15,7 @@ Primary goals:
 - SQLite database
 - Chart.js for budget visualization
 - Optional Telegram notifications for proposal events
+- Optional Telegram notifications for proposals and poll announcements
 
 ## 3) Runtime behavior
 
@@ -53,6 +54,14 @@ Container runtime (`docker compose up --build`):
 
 ### `settings`
 - `key`, `value`
+
+### `polls`
+- `id`, `question`, `options_json`, `created_by`, `created_at`, `status`, `closes_at`
+- `status ∈ {open, closed}`
+
+### `poll_votes`
+- `id`, `poll_id`, `member_id`, `option_index`, `created_at`
+- Unique pair: `(poll_id, member_id)` (latest vote replaces prior vote)
 
 Default seeded settings:
 - `current_budget = 300` (legacy key; runtime budget is derived from `activity_log`)
@@ -140,6 +149,16 @@ Committed series behavior:
 - **Timezone tab**: Configure display timezone for all datetime fields.
 - **Backup tab**: Manual backup, list existing backups.
 - **Telegram tab**: Configure base URL for proposal links.
+- **Polls tab**:
+  - create polls,
+  - close/reopen polls,
+  - send poll announcement to Telegram chat,
+  - send poll test announcement to `TELEGRAM_ADMIN_ID`.
+
+### Polls page (`/polls`)
+- Members vote in Telegram with `/vote <poll_id> <option_number>`.
+- Open polls accept votes; closed polls are read-only.
+- Results are transparent by design (counts and voter-choice list are visible).
 
 ## 8) HTTP routes
 
@@ -151,6 +170,7 @@ Committed series behavior:
 ### Authenticated member
 - `GET /dashboard`
 - `GET /calendar`
+- `GET|POST /polls`
 - `GET /about`
 - `GET /logout`
 - `GET /set-language/<lang>`
@@ -166,8 +186,13 @@ Committed series behavior:
 - `POST /purchase/<proposal_id>`
 - `POST /unpurchase/<proposal_id>`
 
+### Telegram integration
+- `POST /telegram/webhook/<secret>` receives Telegram updates and processes `/vote` commands.
+- Webhook security requires `TELEGRAM_WEBHOOK_SECRET` to match `<secret>`.
+- Vote-to-member mapping uses Telegram username matched against `members.username` (`username` or `@username`, case-insensitive).
+
 ### Admin web actions
-- `GET|POST /admin` (includes timezone selector, member management, budget controls)
+- `GET|POST /admin` (includes timezone selector, member management, budget controls, and poll actions)
 - `GET /undo/<proposal_id>` (undo approval, restore budget, clear timestamps)
 - `GET /check-overbudget`
 
