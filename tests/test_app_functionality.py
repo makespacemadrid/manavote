@@ -520,3 +520,37 @@ class TestPasswordChange(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
+
+
+class TestBootstrapSafety(unittest.TestCase):
+    def test_init_db_requires_bootstrap_password_in_production(self):
+        """Production mode enforces ADMIN_BOOTSTRAP_PASSWORD when creating first admin"""
+        source = pathlib.Path("app/web/routes/main_routes.py").read_text(encoding="utf-8")
+        self.assertIn("elif is_production:", source)
+        self.assertIn("ADMIN_BOOTSTRAP_PASSWORD must be set before first startup in production", source)
+
+
+
+class TestApiGetProposal(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        budget_app.app.config["TESTING"] = True
+        cls.client = budget_app.app.test_client()
+
+    def test_get_proposal_requires_api_key(self):
+        response = self.client.get("/api/proposals/1")
+        self.assertIn(response.status_code, (401, 503))
+
+    def test_get_proposal_returns_not_found(self):
+        from app.web.routes import main_routes
+
+        old = main_routes.ADMIN_API_KEY
+        main_routes.ADMIN_API_KEY = "test-key"
+        try:
+            response = self.client.get(
+                "/api/proposals/999999", headers={"X-Admin-Key": "test-key"}
+            )
+        finally:
+            main_routes.ADMIN_API_KEY = old
+
+        self.assertEqual(response.status_code, 404)

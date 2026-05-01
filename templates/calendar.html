@@ -58,7 +58,7 @@
     </style>
 
     <div id="calendarLegendFilters" style="margin-bottom: 25px; display: flex; gap: 10px; flex-wrap: wrap; font-size: 0.9em;">
-        <button type="button" class="calendar-legend-btn active" data-filter="all">All</button>
+        <button type="button" class="calendar-legend-btn active" data-filter="all">{{ 'All'|lang }}</button>
         <button type="button" class="calendar-legend-btn active" data-filter="proposal">
             <span style="display: inline-block; width: 14px; height: 14px; background: #00d9ff; border-radius: 3px;"></span>
             {{ 'Proposal Submitted'|lang }}
@@ -106,7 +106,7 @@
                             {% elif item.status == 'rejected' %}
                             <span style="color: #e94560;">✗ {{ 'Rejected'|lang }}</span>
                             {% else %}
-                            <span style="color: #00d9ff;">○ {{ item.status|title }}</span>
+                            <span style="color: #00d9ff;">○ {{ item.status|lang|title }}</span>
                             {% endif %}
                         {% elif item.amount > 0 %}
                         <span style="color: #00ff88;">↑ {{ 'Budget In'|lang }}</span>
@@ -139,11 +139,11 @@
     <div style="margin-top: 15px; display: flex; justify-content: center; gap: 10px; flex-wrap: wrap;">
         {% set sort = request.args.get('sort', 'date_desc') %}
         {% if page > 1 %}
-        <a href="{{ url_for('calendar', page=page-1, sort=sort) }}" style="padding: 8px 12px; background: #0f3460; color: #00d9ff; border-radius: 4px;">&larr; Prev</a>
+        <a href="{{ url_for('calendar', page=page-1, sort=sort) }}" style="padding: 8px 12px; background: #0f3460; color: #00d9ff; border-radius: 4px;">&larr; {{ 'Previous'|lang }}</a>
         {% endif %}
         <span style="padding: 8px 12px; color: #888;">{{ page }} / {{ total_pages }}</span>
         {% if page < total_pages %}
-        <a href="{{ url_for('calendar', page=page+1, sort=sort) }}" style="padding: 8px 12px; background: #0f3460; color: #00d9ff; border-radius: 4px;">Next &rarr;</a>
+        <a href="{{ url_for('calendar', page=page+1, sort=sort) }}" style="padding: 8px 12px; background: #0f3460; color: #00d9ff; border-radius: 4px;">{{ 'Next'|lang }} &rarr;</a>
         {% endif %}
     </div>
 </div>
@@ -212,7 +212,7 @@ new Chart(ctx, {
             },
             {
                 type: 'bar',
-                label: 'Proposals (Being Voted)',
+                label: '{{ 'Proposals (Being Voted)'|lang }}',
                 data: unapprovedData,
                 borderColor: '#ff69b4',
                 backgroundColor: '#ff69b488',
@@ -222,7 +222,7 @@ new Chart(ctx, {
             },
             {
                 type: 'bar',
-                label: 'Proposals (Approved)',
+                label: '{{ 'Proposals (Approved)'|lang }}',
                 data: approvedData,
                 borderColor: '#9932CC',
                 backgroundColor: '#9932CC88',

@@ -130,7 +130,7 @@ def get_lang(key):
     return TRANSLATIONS.get(lang, TRANSLATIONS["en"]).get(key, key)
 
 
-DB_PATH = os.path.join(BASE_DIR, "app.db")
+DB_PATH = os.getenv("APP_DB_PATH", os.path.join(BASE_DIR, "app.db"))
 set_db_path(DB_PATH)
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
@@ -206,8 +206,13 @@ def init_db():
         if not bootstrap_password:
             if app.config.get("TESTING"):
                 bootstrap_password = "test-admin-password"
+            elif is_production:
+                raise RuntimeError("ADMIN_BOOTSTRAP_PASSWORD must be set before first startup in production")
             else:
-                raise RuntimeError("ADMIN_BOOTSTRAP_PASSWORD must be set before first startup")
+                bootstrap_password = "change-me-admin-password"
+                app.logger.warning(
+                    "ADMIN_BOOTSTRAP_PASSWORD is not set; using insecure default for bootstrap admin"
+                )
         admin_password = generate_password_hash(bootstrap_password)
         c.execute(
             "INSERT INTO members (username, password_hash, is_admin) VALUES (?, ?, 1)",
@@ -547,6 +552,30 @@ def api_create_proposal():
     except Exception as e:
         conn.close()
         return jsonify({"error": str(e)}), 500
+
+
+
+
+@app.route("/api/proposals/<int:proposal_id>", methods=["GET"])
+@csrf.exempt
+def api_get_proposal(proposal_id):
+    auth_error = require_api_key()
+    if auth_error:
+        return auth_error
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(
+        "SELECT id, title, description, amount, url, created_by, status, created_at, basic_supplies FROM proposals WHERE id = ?",
+        (proposal_id,),
+    )
+    row = c.fetchone()
+    conn.close()
+
+    if not row:
+        return jsonify({"error": "Proposal not found"}), 404
+
+    return jsonify({"success": True, "proposal": dict(row)})
 
 
 @app.route("/api/proposals/<int:proposal_id>", methods=["PUT", "PATCH"])
@@ -1594,7 +1623,7 @@ def admin():
             )
             c.execute(
                 "INSERT INTO activity_log (amount, description) VALUES (?, ?)",
-                (monthly, "Subvención mensual MakeSpace para juguetes nuevos"),
+                (monthly, "Monthly top-up"),
             )
             conn.commit()
             check_over_budget_proposals()
@@ -1884,9 +1913,8 @@ def migrate_password_if_needed(user_id, plaintext_password):
     return False
 
 
-init_db()
-
 if __name__ == "__main__":
+    ensure_db_ready()
     check_over_budget_proposals()
     debug = os.getenv("FLASK_DEBUG", "false").lower() == "true"
     app.run(debug=debug, host="0.0.0.0", port=5000)

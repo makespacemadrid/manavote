@@ -14,6 +14,11 @@ def create_app():
     app = flask_app
 
     try:
+        ensure_db_ready()
+    except Exception as exc:
+        logging.warning("DB initialization check failed: %s", exc)
+
+    try:
         from .services.backup_service import start_scheduler
         start_scheduler(app, DB_PATH)
     except Exception as exc:
