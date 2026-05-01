@@ -78,7 +78,7 @@ App runs on `http://localhost:5000`.
 
 ## Initial admin bootstrap
 - Username: `admin`
-- Password: set via `ADMIN_BOOTSTRAP_PASSWORD` on first startup (required when no admin exists)
+- Password: set via `ADMIN_BOOTSTRAP_PASSWORD` on first startup (required in production; in non-production it falls back to an insecure default and logs a warning)
 
 ## Configuration
 Environment variables are read from `.env` (see `sample.env`).
@@ -94,8 +94,9 @@ When running with Docker Compose:
 | `FLASK_DEBUG` | `false` | Flask debug mode |
 | `FLASK_CSRF` | `true` | Flask-WTF CSRF protection toggle (enabled by default) |
 | `FLASK_SECURE_COOKIES` | `true` | Enables `SESSION_COOKIE_SECURE` (recommended default) |
-| `ADMIN_BOOTSTRAP_PASSWORD` | _empty_ | Required for first-time admin creation when DB has no admin user |
+| `ADMIN_BOOTSTRAP_PASSWORD` | _empty_ | Required for first-time admin creation in production; non-production falls back to insecure default with warning |
 | `ADMIN_API_KEY` | _empty_ | Required for REST API endpoints |
+| `APP_DB_PATH` | `<repo>/app.db` | Optional SQLite path override (useful for test isolation) |
 | `TELEGRAM_BOT_TOKEN` | _empty_ | Telegram integration token |
 | `TELEGRAM_CHAT_ID` | _empty_ | Telegram target chat |
 | `TELEGRAM_THREAD_ID` | _empty_ | Optional Telegram topic/thread id for forum chats |
@@ -105,7 +106,7 @@ Additional operational notes:
 - API endpoints under `/api/*` are CSRF-exempt and authenticated with `X-Admin-Key`.
 - Docker image runs as a non-root user.
 - Health endpoint available at `GET /healthz` (used by compose healthcheck).
-- Set `SECRET_KEY` and `ADMIN_BOOTSTRAP_PASSWORD` in production deployments.
+- Set `SECRET_KEY` and `ADMIN_BOOTSTRAP_PASSWORD` explicitly in production deployments (do not rely on fallback defaults).
 
 ## REST API
 All API endpoints require `X-Admin-Key: <ADMIN_API_KEY>`.
@@ -113,6 +114,7 @@ All API endpoints require `X-Admin-Key: <ADMIN_API_KEY>`.
 Implemented endpoints:
 - `POST /api/register`
 - `POST /api/proposals`
+- `GET /api/proposals/<proposal_id>`
 - `PUT|PATCH /api/proposals/<proposal_id>`
 
 See [APIDOC.md](APIDOC.md) for request/response details.

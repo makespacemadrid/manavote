@@ -69,7 +69,7 @@ Default seeded settings:
 - Session lifetime: 30 days (`PERMANENT_SESSION_LIFETIME`).
 - Login is rate-limited (`5 per minute`).
 - Password hashes use Werkzeug helpers; legacy SHA-256 hashes are migrated on login.
-- Initial admin account is bootstrapped from `ADMIN_BOOTSTRAP_PASSWORD` when no admin exists.
+- Initial admin account is bootstrapped from `ADMIN_BOOTSTRAP_PASSWORD` when no admin exists; in production, missing value is a startup error, while non-production falls back to an insecure default with warning.
 
 ## 6) Business rules
 
@@ -174,6 +174,7 @@ Committed series behavior:
 ### Admin-key REST API
 - `POST /api/register`
 - `POST /api/proposals`
+- `GET /api/proposals/<proposal_id>`
 - `PUT|PATCH /api/proposals/<proposal_id>`
 
 ## 9) Security notes

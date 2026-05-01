@@ -130,7 +130,44 @@ curl -X POST http://localhost:5000/api/proposals \
 
 ---
 
-## 3) Edit Proposal
+## 3) Get Proposal
+
+**Endpoint**: `GET /api/proposals/<proposal_id>`
+
+### Request headers
+- `X-Admin-Key: <ADMIN_API_KEY>`
+
+### Success response
+**200 OK**
+```json
+{
+  "success": true,
+  "proposal": {
+    "id": 12,
+    "title": "LED Strips",
+    "description": "RGB LED strips for workshop",
+    "amount": 75.5,
+    "url": "https://example.com/led",
+    "created_by": 1,
+    "status": "active",
+    "created_at": "2026-05-01 10:00:00",
+    "basic_supplies": 0
+  }
+}
+```
+
+### Error responses
+- `404` proposal not found
+
+### Example
+```bash
+curl http://localhost:5000/api/proposals/12 \
+  -H "X-Admin-Key: your_api_key"
+```
+
+---
+
+## 4) Edit Proposal
 
 **Endpoint**: `PUT /api/proposals/<proposal_id>` or `PATCH /api/proposals/<proposal_id>`
 

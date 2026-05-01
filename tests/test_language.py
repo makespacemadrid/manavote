@@ -339,6 +339,22 @@ class TestCalendarBudgetData(unittest.TestCase):
         self.assertIn("Salidas", html)
 
 
+
+    def test_calendar_chart_proposal_labels_spanish(self):
+        """Calendar chart proposal series labels are localized in Spanish"""
+        self.client.get("/set-language/es")
+        response = self.client.get("/calendar")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("label: 'Propuestas (En votación)'", html)
+        self.assertIn("label: 'Propuestas (Aprobadas)'", html)
+
+    def test_calendar_pagination_uses_translation_keys(self):
+        """Calendar pagination uses localized Previous/Next keys in template"""
+        template = Path("templates/calendar.html").read_text(encoding="utf-8")
+        self.assertIn("{{ 'Previous'|lang }}", template)
+        self.assertIn("{{ 'Next'|lang }}", template)
+
     def test_calendar_committed_uses_cash_minus_pending_formula(self):
         """Committed series is computed as cash_balance - pending"""
         response = self.client.get("/calendar")
