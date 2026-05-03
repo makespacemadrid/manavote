@@ -518,6 +518,233 @@ class TestPasswordChange(unittest.TestCase):
         self.assertIn("Change Password", html)
 
 
+class TestPollTelegramActions(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        budget_app.app.config["TESTING"] = True
+        budget_app.app.config["WTF_CSRF_ENABLED"] = False
+        cls.client = budget_app.app.test_client()
+
+    def setUp(self):
+        _set_admin_session(self.client)
+        self.client.post(
+            "/admin",
+            data={
+                "action": "create_poll",
+                "question": "Where should we meet?",
+                "options": "Room A\nRoom B",
+                "csrf_token": "",
+            },
+            follow_redirects=True,
+        )
+
+    def _latest_poll_id(self):
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT id FROM polls ORDER BY id DESC LIMIT 1")
+        poll_id = c.fetchone()["id"]
+        conn.close()
+        return poll_id
+
+    def test_send_poll_telegram_uses_sender_and_reports_success(self):
+        poll_id = self._latest_poll_id()
+
+        from unittest.mock import patch
+        from app.web.routes import main_routes
+        with patch.object(main_routes, "send_telegram_message", return_value=True) as mock_send:
+            response = self.client.post(
+                "/admin",
+                data={"action": "send_poll_telegram", "poll_id": poll_id, "csrf_token": ""},
+                follow_redirects=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(mock_send.called)
+        self.assertIn("Poll sent to Telegram!", response.data.decode("utf-8"))
+
+    def test_send_poll_telegram_test_requires_admin_id(self):
+        poll_id = self._latest_poll_id()
+
+        from app.web.routes import main_routes
+        original_admin_id = main_routes.TELEGRAM_ADMIN_ID
+        main_routes.TELEGRAM_ADMIN_ID = ""
+        try:
+            response = self.client.post(
+                "/admin",
+                data={"action": "send_poll_telegram_test", "poll_id": poll_id, "csrf_token": ""},
+                follow_redirects=True,
+            )
+        finally:
+            main_routes.TELEGRAM_ADMIN_ID = original_admin_id
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("TELEGRAM_ADMIN_ID is not configured", response.data.decode("utf-8"))
+
+    def test_send_poll_telegram_test_uses_test_sender(self):
+        poll_id = self._latest_poll_id()
+
+        from app.web.routes import main_routes
+        original_admin_id = main_routes.TELEGRAM_ADMIN_ID
+        main_routes.TELEGRAM_ADMIN_ID = "123456"
+        try:
+            from unittest.mock import patch
+            with patch.object(main_routes, "send_telegram_admin_test_message", return_value=True) as mock_send:
+                response = self.client.post(
+                    "/admin",
+                    data={"action": "send_poll_telegram_test", "poll_id": poll_id, "csrf_token": ""},
+                    follow_redirects=True,
+                )
+        finally:
+            main_routes.TELEGRAM_ADMIN_ID = original_admin_id
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(mock_send.called)
+        self.assertIn("Poll test sent to TELEGRAM_ADMIN_ID!", response.data.decode("utf-8"))
+
+    def test_telegram_webhook_records_vote(self):
+        poll_id = self._latest_poll_id()
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            response = self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={
+                    "message": {
+                        "text": f"/vote {poll_id} 2",
+                        "from": {"username": "admin"},
+                        "chat": {"id": 12345},
+                    }
+                },
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        self.assertEqual(response.status_code, 200)
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT option_index FROM poll_votes WHERE poll_id = ? AND member_id = 1", (poll_id,))
+        row = c.fetchone()
+        conn.close()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["option_index"], 1)
+
+    def test_telegram_webhook_rejects_bad_secret(self):
+        response = self.client.post("/telegram/webhook/wrong", json={"message": {"text": "/vote 1 1"}})
+        self.assertEqual(response.status_code, 403)
+
+    def test_telegram_webhook_unknown_member_does_not_record_vote(self):
+        poll_id = self._latest_poll_id()
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={
+                    "message": {
+                        "text": f"/vote {poll_id} 1",
+                        "from": {"username": "not_a_member"},
+                        "chat": {"id": 12345},
+                    }
+                },
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) as total FROM poll_votes WHERE poll_id = ?", (poll_id,))
+        total = c.fetchone()["total"]
+        conn.close()
+        self.assertEqual(total, 0)
+
+    def test_telegram_webhook_rejects_vote_for_closed_poll(self):
+        poll_id = self._latest_poll_id()
+        self.client.post(
+            "/admin",
+            data={"action": "close_poll", "poll_id": poll_id, "csrf_token": ""},
+            follow_redirects=True,
+        )
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={
+                    "message": {
+                        "text": f"/vote {poll_id} 1",
+                        "from": {"username": "admin"},
+                        "chat": {"id": 12345},
+                    }
+                },
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) as total FROM poll_votes WHERE poll_id = ? AND member_id = 1", (poll_id,))
+        total = c.fetchone()["total"]
+        conn.close()
+        self.assertEqual(total, 0)
+
+    def test_telegram_webhook_invalid_option_is_ignored(self):
+        poll_id = self._latest_poll_id()
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={
+                    "message": {
+                        "text": f"/vote {poll_id} 99",
+                        "from": {"username": "admin"},
+                        "chat": {"id": 12345},
+                    }
+                },
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) as total FROM poll_votes WHERE poll_id = ? AND member_id = 1", (poll_id,))
+        total = c.fetchone()["total"]
+        conn.close()
+        self.assertEqual(total, 0)
+
+    def test_telegram_webhook_supports_edited_message_payload(self):
+        poll_id = self._latest_poll_id()
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            response = self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={
+                    "edited_message": {
+                        "text": f"/vote {poll_id} 1",
+                        "from": {"username": "admin"},
+                        "chat": {"id": 12345},
+                    }
+                },
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        self.assertEqual(response.status_code, 200)
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT option_index FROM poll_votes WHERE poll_id = ? AND member_id = 1", (poll_id,))
+        row = c.fetchone()
+        conn.close()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["option_index"], 0)
+
+
 if __name__ == "__main__":
     unittest.main(verbosity=2)
 
@@ -554,3 +781,100 @@ class TestApiGetProposal(unittest.TestCase):
             main_routes.ADMIN_API_KEY = old
 
         self.assertEqual(response.status_code, 404)
+
+
+class TestPollsFunctionality(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        budget_app.app.config["TESTING"] = True
+        budget_app.app.config["WTF_CSRF_ENABLED"] = False
+        cls.client = budget_app.app.test_client()
+
+    def setUp(self):
+        _set_admin_session(self.client)
+        self.client.post(
+            "/admin",
+            data={
+                "action": "create_poll",
+                "question": "Lunch option?",
+                "options": "Pizza\nPasta\nSalad",
+                "csrf_token": "",
+            },
+            follow_redirects=True,
+        )
+
+    def _latest_poll_id(self):
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT id FROM polls ORDER BY id DESC LIMIT 1")
+        poll_id = c.fetchone()["id"]
+        conn.close()
+        return poll_id
+
+    def test_polls_page_shows_results_and_votes(self):
+        poll_id = self._latest_poll_id()
+        self.client.post("/polls", data={"poll_id": poll_id, "option_index": 1, "csrf_token": ""}, follow_redirects=True)
+
+        response = self.client.get("/polls")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("Lunch option?", html)
+        self.assertIn("(1)", html)
+        self.assertIn("Who voted what", html)
+
+    def test_polls_reject_invalid_option_index(self):
+        poll_id = self._latest_poll_id()
+        response = self.client.post(
+            "/polls",
+            data={"poll_id": poll_id, "option_index": 99, "csrf_token": ""},
+            follow_redirects=True,
+        )
+        html = response.data.decode("utf-8")
+        self.assertIn("Invalid poll option", html)
+
+    def test_vote_replaces_previous_choice(self):
+        poll_id = self._latest_poll_id()
+        self.client.post("/polls", data={"poll_id": poll_id, "option_index": 0, "csrf_token": ""}, follow_redirects=True)
+        self.client.post("/polls", data={"poll_id": poll_id, "option_index": 2, "csrf_token": ""}, follow_redirects=True)
+
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) as total, MAX(option_index) as option_index FROM poll_votes WHERE poll_id = ? AND member_id = 1", (poll_id,))
+        row = c.fetchone()
+        conn.close()
+
+        self.assertEqual(row["total"], 1)
+        self.assertEqual(row["option_index"], 2)
+
+    def test_closed_poll_rejects_votes(self):
+        poll_id = self._latest_poll_id()
+        self.client.post(
+            "/admin",
+            data={"action": "close_poll", "poll_id": poll_id, "csrf_token": ""},
+            follow_redirects=True,
+        )
+        response = self.client.post(
+            "/polls",
+            data={"poll_id": poll_id, "option_index": 0, "csrf_token": ""},
+            follow_redirects=True,
+        )
+        self.assertIn("Poll is closed", response.data.decode("utf-8"))
+
+    def test_admin_can_reopen_closed_poll(self):
+        poll_id = self._latest_poll_id()
+        self.client.post(
+            "/admin",
+            data={"action": "close_poll", "poll_id": poll_id, "csrf_token": ""},
+            follow_redirects=True,
+        )
+        self.client.post(
+            "/admin",
+            data={"action": "reopen_poll", "poll_id": poll_id, "csrf_token": ""},
+            follow_redirects=True,
+        )
+        response = self.client.post(
+            "/polls",
+            data={"poll_id": poll_id, "option_index": 0, "csrf_token": ""},
+            follow_redirects=True,
+        )
+        self.assertIn("Poll vote recorded!", response.data.decode("utf-8"))

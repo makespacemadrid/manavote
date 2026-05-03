@@ -13,6 +13,25 @@ def add_column_if_missing(cursor, table_name, ddl):
 
 
 def run_migrations(cursor):
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS polls (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        question TEXT NOT NULL,
+        options_json TEXT NOT NULL,
+        created_by INTEGER NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS poll_votes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        poll_id INTEGER NOT NULL,
+        member_id INTEGER NOT NULL,
+        option_index INTEGER NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        UNIQUE(poll_id, member_id)
+    )
+    """)
     add_column_if_missing(cursor, "settings", "url TEXT")
     add_column_if_missing(cursor, "proposals", "url TEXT")
     add_column_if_missing(cursor, "proposals", "image_filename TEXT")
@@ -20,6 +39,8 @@ def run_migrations(cursor):
     add_column_if_missing(cursor, "proposals", "over_budget_at TEXT")
     add_column_if_missing(cursor, "activity_log", "created_by INTEGER")
     add_column_if_missing(cursor, "activity_log", "proposal_id INTEGER")
+    add_column_if_missing(cursor, "polls", "status TEXT DEFAULT 'open'")
+    add_column_if_missing(cursor, "polls", "closes_at TEXT")
     cursor.execute(
         """
         UPDATE activity_log
