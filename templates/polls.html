@@ -7,6 +7,18 @@
     <a href="{{ url_for('polls_page') }}">{{ 'Polls'|lang }}</a>
     <a href="{{ url_for('calendar') }}">{{ 'Calendar'|lang }}</a>
     {% if session.is_admin %}<a href="{{ url_for('admin') }}">{{ 'Admin'|lang }}</a>{% endif %}
+    <a href="{{ url_for('about') }}">{{ 'About'|lang }}</a>
+    <div class="settings-dropdown">
+        <span style="cursor: pointer; color: #00d9ff;">{{ 'Settings'|lang }} ▼</span>
+        <div class="settings-menu">
+            <a href="{{ url_for('change_password') }}">{{ 'Change Password'|lang }}</a>
+            <a href="{{ url_for('logout') }}">{{ 'Logout'|lang }}</a>
+            <div style="border-top: 1px solid #333; margin: 5px 0;"></div>
+            <span style="color: #888; font-size: 0.85em;">{{ 'Language'|lang }}:</span>
+            <a href="{{ url_for('set_language', lang='en') }}" class="{{ 'active' if session_lang == 'en' else '' }}">English</a>
+            <a href="{{ url_for('set_language', lang='es') }}" class="{{ 'active' if session_lang == 'es' else '' }}">Español</a>
+        </div>
+    </div>
 </div>
 
 <div class="card">
@@ -16,21 +28,6 @@
         <div style="border:1px solid #333;padding:12px;margin-bottom:16px;border-radius:8px;">
             <h3 style="margin-top:0;">{{ p.question }} {% if p.status == "closed" %}<span class="status" style="background:#444;">{{ 'Closed'|lang }}</span>{% endif %}</h3>
             <p style="color:#888;">{{ 'By'|lang }} {{ p.creator|username }} · {{ p.created_at|localtime("%Y-%m-%d %H:%M") }}</p>
-            <form method="POST">
-                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="hidden" name="poll_id" value="{{ p.id }}">
-                {% for option in p.options %}
-                <label style="display:block;margin:6px 0;">
-                    <input type="radio" name="option_index" value="{{ loop.index0 }}" {{ 'checked' if p.user_vote == loop.index0 else '' }}>
-                    {{ option }} <span style="color:#888;">({{ p.counts[loop.index0] }})</span>
-                </label>
-                {% endfor %}
-                {% if p.status == "open" %}
-                <button class="btn" type="submit">{{ 'Vote'|lang }}</button>
-                {% else %}
-                <button class="btn btn-secondary" type="button" disabled>{{ 'Voting closed'|lang }}</button>
-                {% endif %}
-            </form>
             {% set total_votes = p.counts|sum %}
             <div style="margin-top: 12px;">
                 {% for option in p.options %}
@@ -55,6 +52,21 @@
                     {% endfor %}
                 </ul>
             </details>
+            <form method="POST" style="margin-top: 12px;">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="poll_id" value="{{ p.id }}">
+                {% for option in p.options %}
+                <label style="display:block;margin:6px 0;">
+                    <input type="radio" name="option_index" value="{{ loop.index0 }}" {{ 'checked' if p.user_vote == loop.index0 else '' }}>
+                    {{ option }} <span style="color:#888;">({{ p.counts[loop.index0] }})</span>
+                </label>
+                {% endfor %}
+                {% if p.status == "open" %}
+                <button class="btn" type="submit">{{ 'Vote'|lang }}</button>
+                {% else %}
+                <button class="btn btn-secondary" type="button" disabled>{{ 'Voting closed'|lang }}</button>
+                {% endif %}
+            </form>
         </div>
         {% endfor %}
     {% else %}

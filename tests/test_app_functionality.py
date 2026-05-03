@@ -645,6 +645,73 @@ class TestPollTelegramActions(unittest.TestCase):
         self.assertIsNotNone(row)
         self.assertEqual(row["option_index"], 1)
 
+    def test_telegram_webhook_records_vote_with_short_vote_command(self):
+        poll_id = self._latest_poll_id()
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            response = self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={
+                    "message": {
+                        "text": "/vote 2",
+                        "from": {"username": "admin"},
+                        "chat": {"id": 12345},
+                    }
+                },
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        self.assertEqual(response.status_code, 200)
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT option_index FROM poll_votes WHERE poll_id = ? AND member_id = 1", (poll_id,))
+        row = c.fetchone()
+        conn.close()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["option_index"], 1)
+
+    def test_telegram_webhook_short_vote_command_targets_latest_open_poll(self):
+        self.client.post(
+            "/admin",
+            data={
+                "action": "create_poll",
+                "question": "Another open poll?",
+                "options": "Yes\nNo",
+                "csrf_token": "",
+            },
+            follow_redirects=True,
+        )
+
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            response = self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={
+                    "message": {
+                        "text": "/vote 1",
+                        "from": {"username": "admin"},
+                        "chat": {"id": 12345},
+                    }
+                },
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        self.assertEqual(response.status_code, 200)
+        poll_id = self._latest_poll_id()
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT option_index FROM poll_votes WHERE poll_id = ? AND member_id = 1", (poll_id,))
+        row = c.fetchone()
+        conn.close()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["option_index"], 0)
+
     def test_telegram_webhook_rejects_bad_secret(self):
         response = self.client.post("/telegram/webhook/wrong", json={"message": {"text": "/vote 1 1"}})
         self.assertEqual(response.status_code, 403)

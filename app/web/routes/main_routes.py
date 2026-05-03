@@ -395,12 +395,16 @@ def process_telegram_vote_command(telegram_username, command_text):
         return False, "telegram_disabled"
     command = (command_text or "").strip()
     parts = command.split()
-    if len(parts) != 3 or parts[0].lower() != "/vote":
+    if len(parts) not in (2, 3) or parts[0].lower() != "/vote":
         return False, "invalid_format"
 
     try:
-        poll_id = int(parts[1])
-        option_number = int(parts[2])
+        if len(parts) == 3:
+            poll_id = int(parts[1])
+            option_number = int(parts[2])
+        else:
+            option_number = int(parts[1])
+            poll_id = None
     except ValueError:
         return False, "invalid_numbers"
 
@@ -415,8 +419,15 @@ def process_telegram_vote_command(telegram_username, command_text):
         if not member:
             return False, "unknown_member"
 
-        c.execute("SELECT options_json, status FROM polls WHERE id = ?", (poll_id,))
-        poll = c.fetchone()
+        if poll_id is None:
+            c.execute("SELECT id, options_json, status FROM polls WHERE status = 'open' ORDER BY id DESC LIMIT 1")
+            poll = c.fetchone()
+            if not poll:
+                return False, "poll_not_found"
+            poll_id = poll["id"]
+        else:
+            c.execute("SELECT id, options_json, status FROM polls WHERE id = ?", (poll_id,))
+            poll = c.fetchone()
         if not poll:
             return False, "poll_not_found"
         if poll["status"] != "open":
@@ -877,7 +888,7 @@ def telegram_webhook(secret):
         elif reason == "invalid_option":
             response_text = "❌ Invalid option number."
         else:
-            response_text = "❌ Invalid command. Use: /vote <poll_id> <option_number>"
+            response_text = "❌ Invalid command. Use: /vote <option_number>"
         TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "").send_message(response_text)
 
     return {"ok": True}, 200
@@ -2026,7 +2037,8 @@ def admin():
                         for idx, option in enumerate(options, 1):
                             lines.append(f"{idx}. {option}")
                         lines.append("")
-                        lines.append(f"Vote in Telegram: /vote {poll_id} <option_number>")
+                        lines.append("Tap a button below to vote.")
+                        lines.append("Fallback command: /vote <option_number>")
                         sent = send_telegram_admin_test_message("\n".join(lines))
                         flash(
                             "Poll test sent to TELEGRAM_ADMIN_ID!" if sent else "Failed to send poll test message",
@@ -2080,7 +2092,8 @@ def admin():
                 for idx, option in enumerate(options, 1):
                     lines.append(f"{idx}. {option}")
                 lines.append("")
-                lines.append("Tap a button below to vote, or use /vote <poll_id> <option_number>")
+                lines.append("Tap a button below to vote.")
+                lines.append("Fallback command: /vote <option_number>")
 
                 if action == "send_poll_telegram_test":
                     if not TELEGRAM_ADMIN_ID:
