@@ -26,8 +26,8 @@
 <div style="margin: 20px 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: center;">
     <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('members', this)">{{ 'Members'|lang }}</button>
     <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('budget', this)">{{ 'Budget'|lang }}</button>
-    <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('settings', this)">{{ 'Settings'|lang }}</button>
     <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('polls', this)">{{ 'Polls'|lang }}</button>
+    <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('settings', this)">{{ 'Settings'|lang }}</button>
     <button type="button" class="btn admin-tab-btn active" onclick="showSection('', this)">{{ 'Show All'|lang }}</button>
 </div>
 
@@ -47,8 +47,8 @@ function showSection(sectionId, buttonEl) {
     var sections = {
         members: ['add-member', 'registration-settings', 'members', 'stats'],
         budget: ['thresholds', 'budget', 'budget-history', 'proposal-history'],
-        settings: ['timezone', 'backup', 'telegram'],
-        polls: ['polls']
+        polls: ['settings', 'polls'],
+        settings: ['timezone', 'backup', 'telegram']
     };
 
     document.querySelectorAll('.admin-tab-btn').forEach(function(btn) { btn.classList.remove('active'); });

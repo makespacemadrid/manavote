@@ -645,6 +645,34 @@ class TestPollTelegramActions(unittest.TestCase):
         self.assertIsNotNone(row)
         self.assertEqual(row["option_index"], 1)
 
+
+    def test_telegram_webhook_accepts_vote_command_with_bot_suffix(self):
+        poll_id = self._latest_poll_id()
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            response = self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={
+                    "message": {
+                        "text": f"/vote@manavote_bot {poll_id} 1",
+                        "from": {"username": "admin"},
+                        "chat": {"id": 12345},
+                    }
+                },
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        self.assertEqual(response.status_code, 200)
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT option_index FROM poll_votes WHERE poll_id = ? AND member_id = 1", (poll_id,))
+        row = c.fetchone()
+        conn.close()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["option_index"], 0)
     def test_telegram_webhook_records_vote_with_short_vote_command(self):
         poll_id = self._latest_poll_id()
         from app.web.routes import main_routes
