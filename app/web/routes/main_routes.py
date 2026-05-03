@@ -274,11 +274,17 @@ def ensure_db_ready():
         has_members = c.fetchone() is not None
         c.execute("SELECT name FROM sqlite_master WHERE type='table' AND name='settings'")
         has_settings = c.fetchone() is not None
+
+        if not (has_members and has_settings):
+            init_db()
+            return
+
+        # Always run migrations for existing databases so newly introduced
+        # tables/columns (for example polls) are created before route handlers use them.
+        run_migrations(c)
+        conn.commit()
     finally:
         conn.close()
-
-    if not (has_members and has_settings):
-        init_db()
 
 
 def get_db():
@@ -1860,8 +1866,24 @@ def admin():
                     "INSERT INTO polls (question, options_json, created_by, status) VALUES (?, ?, ?, 'open')",
                     (question, json.dumps(options), session["member_id"]),
                 )
+                poll_id = c.lastrowid
                 conn.commit()
                 flash("Poll created!", "success")
+
+                if request.form.get("send_test_admin"):
+                    if not TELEGRAM_ADMIN_ID:
+                        flash("TELEGRAM_ADMIN_ID is not configured", "error")
+                    else:
+                        lines = ["📊 *New Poll*", "", f"*{question}*", ""]
+                        for idx, option in enumerate(options, 1):
+                            lines.append(f"{idx}. {option}")
+                        lines.append("")
+                        lines.append(f"Vote in Telegram: /vote {poll_id} <option_number>")
+                        sent = send_telegram_admin_test_message("\n".join(lines))
+                        flash(
+                            "Poll test sent to TELEGRAM_ADMIN_ID!" if sent else "Failed to send poll test message",
+                            "success" if sent else "error",
+                        )
 
         elif action == "close_poll":
             poll_id = request.form.get("poll_id", type=int)

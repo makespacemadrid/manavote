@@ -5,7 +5,7 @@
     <span>{{ 'Logged in as'|lang }}: <strong>{{ session.username|username }}</strong></span>
     <a href="{{ url_for('dashboard') }}">{{ 'Dashboard'|lang }}</a>
     <a href="{{ url_for('calendar') }}">{{ 'Calendar'|lang }}</a>
-    <a href="{{ url_for('polls_page') }}">Polls</a>
+    <a href="{{ url_for('polls_page') }}">{{ 'Polls'|lang }}</a>
     <a href="{{ url_for('admin') }}">{{ 'Admin'|lang }}</a>
     <a href="{{ url_for('about') }}">{{ 'About'|lang }}</a>
     <div class="settings-dropdown">
@@ -27,7 +27,7 @@
     <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('members', this)">{{ 'Members'|lang }}</button>
     <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('budget', this)">{{ 'Budget'|lang }}</button>
     <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('settings', this)">{{ 'Settings'|lang }}</button>
-    <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('polls', this)">Polls</button>
+    <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('polls', this)">{{ 'Polls'|lang }}</button>
     <button type="button" class="btn admin-tab-btn active" onclick="showSection('', this)">{{ 'Show All'|lang }}</button>
 </div>
 
@@ -345,20 +345,24 @@ function showSection(sectionId, buttonEl) {
 
 
 <div id="polls" class="card">
-    <h3>Polls</h3>
+    <h3>{{ 'Polls'|lang }}</h3>
     <form method="POST" style="margin-bottom: 15px;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="create_poll">
-        <label>Question</label>
+        <label>{{ 'Question'|lang }}</label>
         <input type="text" name="question" required>
-        <label>Options (one per line)</label>
-        <textarea name="options" rows="4" required></textarea>
-        <button type="submit" class="btn">Create Poll</button>
+        <label>{{ 'Options (one per line)'|lang }}</label>
+        <textarea name="options" rows="4" required placeholder="{{ 'Option examples'|lang }}"></textarea>
+        <small style="color:#888; display:block; margin-top:6px;">{{ 'Options format help'|lang }}</small>
+        <label style="display:flex; align-items:center; gap:8px; margin:10px 0;">
+            <input type="checkbox" name="send_test_admin" value="1" style="width:auto;"> {{ 'Send test to admin after create'|lang }}
+        </label>
+        <button type="submit" class="btn">{{ 'Create Poll'|lang }}</button>
     </form>
 
-    <h4>Recent Polls</h4>
+    <h4>{{ 'Recent Polls'|lang }}</h4>
     <table>
-        <thead><tr><th>Date</th><th>Question</th><th>Status</th><th>By</th><th>Votes</th><th>Action</th></tr></thead>
+        <thead><tr><th>{{ 'Date'|lang }}</th><th>{{ 'Question'|lang }}</th><th>{{ 'Status'|lang }}</th><th>{{ 'By'|lang }}</th><th>{{ 'Votes'|lang }}</th><th>{{ 'Action'|lang }}</th></tr></thead>
         <tbody>
             {% for poll in polls %}
             <tr>
@@ -372,19 +376,19 @@ function showSection(sectionId, buttonEl) {
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="send_poll_telegram">
                         <input type="hidden" name="poll_id" value="{{ poll.id }}">
-                        <button type="submit" class="btn btn-secondary">Send to Telegram</button>
+                        <button type="submit" class="btn btn-secondary">{{ 'Send to Telegram'|lang }}</button>
                     </form>
                     <form method="POST" style="margin-top: 6px;">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="{{ 'close_poll' if poll.status == 'open' else 'reopen_poll' }}">
                         <input type="hidden" name="poll_id" value="{{ poll.id }}">
-                        <button type="submit" class="btn btn-secondary">{{ 'Close Poll' if poll.status == 'open' else 'Reopen Poll' }}</button>
+                        <button type="submit" class="btn btn-secondary">{{ 'Close Poll'|lang if poll.status == 'open' else 'Reopen Poll'|lang }}</button>
                     </form>
                     <form method="POST" style="margin-top: 6px;">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="send_poll_telegram_test">
                         <input type="hidden" name="poll_id" value="{{ poll.id }}">
-                        <button type="submit" class="btn btn-secondary">Send Test to Admin</button>
+                        <button type="submit" class="btn btn-secondary">{{ 'Send Test to Admin'|lang }}</button>
                     </form>
                 </td>
             </tr>
