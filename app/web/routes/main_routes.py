@@ -395,7 +395,11 @@ def process_telegram_vote_command(telegram_username, command_text):
         return False, "telegram_disabled"
     command = (command_text or "").strip()
     parts = command.split()
-    if len(parts) not in (2, 3) or parts[0].lower() != "/vote":
+    if len(parts) not in (2, 3):
+        return False, "invalid_format"
+
+    command_name = parts[0].lower()
+    if not (command_name == "/vote" or command_name.startswith("/vote@")):
         return False, "invalid_format"
 
     try:
