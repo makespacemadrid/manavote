@@ -103,6 +103,8 @@ csrf.init_app(app)
 
 @app.template_filter("username")
 def truncate_username(username):
+    if not username:
+        return "unknown"
     if "@" in username:
         return username.split("@")[0]
     return username
@@ -395,7 +397,10 @@ def process_telegram_vote_command(telegram_username, command_text):
         if poll["status"] != "open":
             return False, "poll_closed"
 
-        options = json.loads(poll["options_json"])
+        try:
+            options = json.loads(poll["options_json"] or "[]")
+        except (TypeError, json.JSONDecodeError):
+            options = []
         option_index = option_number - 1
         if option_index < 0 or option_index >= len(options):
             return False, "invalid_option"
@@ -1882,7 +1887,10 @@ def admin():
             if not poll:
                 flash("Poll not found", "error")
             else:
-                options = json.loads(poll["options_json"])
+                try:
+                    options = json.loads(poll["options_json"] or "[]")
+                except (TypeError, json.JSONDecodeError):
+                    options = []
                 lines = [f"📊 *New Poll*", f"", f"*{poll['question']}*", ""]
                 for idx, option in enumerate(options, 1):
                     lines.append(f"{idx}. {option}")
@@ -2080,11 +2088,16 @@ def polls_page():
             if not poll_row:
                 flash("Poll not found", "error")
             else:
-                options = json.loads(poll_row["options_json"])
+                try:
+                    options = json.loads(poll_row["options_json"] or "[]")
+                except (TypeError, json.JSONDecodeError):
+                    options = []
                 if poll_row["status"] != "open":
                     flash("Poll is closed", "error")
                 elif option_index < 0 or option_index >= len(options):
                     flash("Invalid poll option", "error")
+                elif not options:
+                    flash("Poll has invalid options", "error")
                 else:
                     c.execute(
                         "INSERT OR REPLACE INTO poll_votes (poll_id, member_id, option_index) VALUES (?, ?, ?)",
@@ -2102,7 +2115,10 @@ def polls_page():
     polls = []
     for row in c.fetchall():
         poll = dict(row)
-        options = json.loads(poll["options_json"])
+        try:
+            options = json.loads(poll["options_json"] or "[]")
+        except (TypeError, json.JSONDecodeError):
+            options = []
         c.execute("SELECT pv.option_index, pv.created_at, mm.username FROM poll_votes pv JOIN members mm ON mm.id = pv.member_id WHERE pv.poll_id = ? ORDER BY pv.created_at ASC", (poll["id"],))
         votes = [dict(v) for v in c.fetchall()]
         counts = {idx: 0 for idx in range(len(options))}
