@@ -152,13 +152,16 @@ Committed series behavior:
 - **Polls tab**:
   - create polls,
   - close/reopen polls,
+  - delete polls,
+  - set poll voting mode (`both`, `web_only`, `telegram_only`),
   - send poll announcement to Telegram chat,
   - send poll test announcement to `TELEGRAM_ADMIN_ID`.
 
 ### Polls page (`/polls`)
-- Members vote in Telegram with `/vote <poll_id> <option_number>`.
+- Members vote in Telegram with inline poll buttons (or `/vote <poll_id> <option_number>` fallback).
+- Web voting can be disabled by admin via poll vote mode.
 - Open polls accept votes; closed polls are read-only.
-- Results are transparent by design (counts and voter-choice list are visible).
+- Results are transparent by design (counts, horizontal bars, and voter-choice list are visible).
 
 ## 8) HTTP routes
 
@@ -187,7 +190,7 @@ Committed series behavior:
 - `POST /unpurchase/<proposal_id>`
 
 ### Telegram integration
-- `POST /telegram/webhook/<secret>` receives Telegram updates and processes `/vote` commands.
+- `POST /telegram/webhook/<secret>` receives Telegram updates and processes `/vote` commands and inline-button `callback_query` votes.
 - Webhook security requires `TELEGRAM_WEBHOOK_SECRET` to match `<secret>`.
 - Vote-to-member mapping uses Telegram username matched against `members.username` (`username` or `@username`, case-insensitive).
 
@@ -201,6 +204,8 @@ Committed series behavior:
 - `POST /api/proposals`
 - `GET /api/proposals/<proposal_id>`
 - `PUT|PATCH /api/proposals/<proposal_id>`
+- `GET /api/polls`
+- `POST /api/polls`
 
 ## 9) Security notes
 

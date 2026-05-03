@@ -217,6 +217,93 @@ curl -X PATCH http://localhost:5000/api/proposals/12 \
 
 ---
 
+## 5) List Polls
+
+**Endpoint**: `GET /api/polls`
+
+### Request headers
+- `X-Admin-Key: <ADMIN_API_KEY>`
+
+### Success response
+**200 OK**
+```json
+{
+  "success": true,
+  "polls": [
+    {
+      "id": 3,
+      "question": "Where should we meet?",
+      "status": "open",
+      "created_at": "2026-05-03 18:20:00",
+      "created_by": 1,
+      "total_votes": 4,
+      "options": ["Room A", "Room B"]
+    }
+  ]
+}
+```
+
+### Example
+```bash
+curl http://localhost:5000/api/polls \
+  -H "X-Admin-Key: your_api_key"
+```
+
+### Error responses
+- `401` unauthorized (missing or wrong `X-Admin-Key`)
+- `503` API not configured (`ADMIN_API_KEY` missing)
+
+---
+
+## 6) Create Poll
+
+**Endpoint**: `POST /api/polls`
+
+### Request headers
+- `Content-Type: application/json`
+- `X-Admin-Key: <ADMIN_API_KEY>`
+
+### Request body
+```json
+{
+  "question": "Where should we meet?",
+  "options": ["Room A", "Room B"],
+  "created_by": 1
+}
+```
+
+### Validation
+- `question` required, 5..200 chars
+- `options` required, array with 2..12 non-empty entries, max 120 chars each
+- `created_by` required and must exist in `members`
+
+### Success response
+**201 Created**
+```json
+{
+  "success": true,
+  "message": "Poll created",
+  "poll_id": 3
+}
+```
+
+### Error responses
+- `401` unauthorized (missing or wrong `X-Admin-Key`)
+- `503` API not configured (`ADMIN_API_KEY` missing)
+- `415` content type is not `application/json`
+- `400` invalid payload / validation failure
+- `404` creator member not found
+
+### Example
+```bash
+curl -X POST http://localhost:5000/api/polls \
+  -H "X-Admin-Key: your_api_key" \
+  -H "Content-Type: application/json" \
+  -d '{"question":"Where should we meet?","options":["Room A","Room B"],"created_by":1}'
+```
+
+---
+
 ## Common status codes
 
 | Code | Meaning |

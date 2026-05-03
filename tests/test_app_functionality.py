@@ -180,6 +180,22 @@ class TestProposalCreation(unittest.TestCase):
         self.assertIn("title", html)
         self.assertIn("amount", html)
 
+    def test_proposal_rejects_invalid_voting_deadline(self):
+        response = self.client.post(
+            "/proposal/new",
+            data={
+                "title": "Deadline test",
+                "description": "desc",
+                "amount": "10.00",
+                "url": "",
+                "voting_deadline": "not-a-date",
+                "csrf_token": "",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Invalid voting deadline", response.data.decode("utf-8"))
+
 
 class TestVoteFunctionality(unittest.TestCase):
     @classmethod
@@ -744,6 +760,34 @@ class TestPollTelegramActions(unittest.TestCase):
         self.assertIsNotNone(row)
         self.assertEqual(row["option_index"], 0)
 
+    def test_telegram_webhook_callback_query_records_vote(self):
+        poll_id = self._latest_poll_id()
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            response = self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={
+                    "callback_query": {
+                        "id": "cbq-1",
+                        "data": f"pollvote:{poll_id}:1",
+                        "from": {"username": "admin"},
+                    }
+                },
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        self.assertEqual(response.status_code, 200)
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT option_index FROM poll_votes WHERE poll_id = ? AND member_id = 1", (poll_id,))
+        row = c.fetchone()
+        conn.close()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["option_index"], 1)
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
@@ -781,6 +825,125 @@ class TestApiGetProposal(unittest.TestCase):
             main_routes.ADMIN_API_KEY = old
 
         self.assertEqual(response.status_code, 404)
+
+
+class TestApiPolls(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        budget_app.app.config["TESTING"] = True
+        budget_app.app.config["WTF_CSRF_ENABLED"] = False
+        cls.client = budget_app.app.test_client()
+
+    def test_create_poll_requires_api_key(self):
+        response = self.client.post("/api/polls", json={"question": "Q?", "options": ["A", "B"], "created_by": 1})
+        self.assertIn(response.status_code, (401, 503))
+
+    def test_create_poll_rejects_wrong_api_key(self):
+        from app.web.routes import main_routes
+
+        old = main_routes.ADMIN_API_KEY
+        main_routes.ADMIN_API_KEY = "test-key"
+        try:
+            response = self.client.post(
+                "/api/polls",
+                headers={"X-Admin-Key": "wrong-key"},
+                json={"question": "Valid question", "options": ["A", "B"], "created_by": 1},
+            )
+        finally:
+            main_routes.ADMIN_API_KEY = old
+        self.assertEqual(response.status_code, 401)
+
+    def test_create_poll_rejects_invalid_options_payload(self):
+        from app.web.routes import main_routes
+
+        old = main_routes.ADMIN_API_KEY
+        main_routes.ADMIN_API_KEY = "test-key"
+        try:
+            response = self.client.post(
+                "/api/polls",
+                headers={"X-Admin-Key": "test-key"},
+                json={"question": "Valid question", "options": "A,B", "created_by": 1},
+            )
+        finally:
+            main_routes.ADMIN_API_KEY = old
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("options must be an array", response.get_json().get("error", ""))
+
+    def test_create_poll_rejects_invalid_question_length(self):
+        from app.web.routes import main_routes
+
+        old = main_routes.ADMIN_API_KEY
+        main_routes.ADMIN_API_KEY = "test-key"
+        try:
+            response = self.client.post(
+                "/api/polls",
+                headers={"X-Admin-Key": "test-key"},
+                json={"question": "Shrt", "options": ["A", "B"], "created_by": 1},
+            )
+        finally:
+            main_routes.ADMIN_API_KEY = old
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("question must be between 5 and 200 characters", response.get_json().get("error", ""))
+
+    def test_create_poll_requires_created_by(self):
+        from app.web.routes import main_routes
+
+        old = main_routes.ADMIN_API_KEY
+        main_routes.ADMIN_API_KEY = "test-key"
+        try:
+            response = self.client.post(
+                "/api/polls",
+                headers={"X-Admin-Key": "test-key"},
+                json={"question": "Valid question", "options": ["A", "B"]},
+            )
+        finally:
+            main_routes.ADMIN_API_KEY = old
+        self.assertEqual(response.status_code, 400)
+        self.assertIn("created_by is required", response.get_json().get("error", ""))
+
+    def test_create_poll_rejects_unknown_created_by(self):
+        from app.web.routes import main_routes
+
+        old = main_routes.ADMIN_API_KEY
+        main_routes.ADMIN_API_KEY = "test-key"
+        try:
+            response = self.client.post(
+                "/api/polls",
+                headers={"X-Admin-Key": "test-key"},
+                json={"question": "Valid question", "options": ["A", "B"], "created_by": 999999},
+            )
+        finally:
+            main_routes.ADMIN_API_KEY = old
+        self.assertEqual(response.status_code, 404)
+        self.assertIn("Creator member not found", response.get_json().get("error", ""))
+
+    def test_create_and_list_polls(self):
+        from app.web.routes import main_routes
+
+        old = main_routes.ADMIN_API_KEY
+        main_routes.ADMIN_API_KEY = "test-key"
+        try:
+            create_response = self.client.post(
+                "/api/polls",
+                headers={"X-Admin-Key": "test-key"},
+                json={
+                    "question": "API poll question",
+                    "options": ["Option 1", "Option 2"],
+                    "created_by": 1,
+                },
+            )
+            self.assertEqual(create_response.status_code, 201)
+            body = create_response.get_json()
+            self.assertTrue(body.get("success"))
+            self.assertIsNotNone(body.get("poll_id"))
+
+            list_response = self.client.get("/api/polls", headers={"X-Admin-Key": "test-key"})
+            self.assertEqual(list_response.status_code, 200)
+            data = list_response.get_json()
+            self.assertTrue(data.get("success"))
+            self.assertTrue(any(p.get("question") == "API poll question" for p in data.get("polls", [])))
+        finally:
+            main_routes.ADMIN_API_KEY = old
 
 
 class TestPollsFunctionality(unittest.TestCase):
@@ -878,3 +1041,17 @@ class TestPollsFunctionality(unittest.TestCase):
             follow_redirects=True,
         )
         self.assertIn("Poll vote recorded!", response.data.decode("utf-8"))
+
+    def test_web_votes_disabled_when_mode_is_telegram_only(self):
+        poll_id = self._latest_poll_id()
+        self.client.post(
+            "/admin",
+            data={"action": "update_poll_vote_mode", "poll_vote_mode": "telegram_only", "csrf_token": ""},
+            follow_redirects=True,
+        )
+        response = self.client.post(
+            "/polls",
+            data={"poll_id": poll_id, "option_index": 0, "csrf_token": ""},
+            follow_redirects=True,
+        )
+        self.assertIn("Web voting is disabled by admin", response.data.decode("utf-8"))
