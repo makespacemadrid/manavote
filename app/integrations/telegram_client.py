@@ -29,3 +29,35 @@ class TelegramClient:
             return response.status_code == 200
         except RequestException:
             return False
+
+    def send_poll_message(self, message: str, poll_id: int, options: list[str]) -> bool:
+        if not self.bot_token or not self.chat_id:
+            return False
+        url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+        try:
+            payload = {"chat_id": self.chat_id, "text": message}
+            thread_id = self._thread_id()
+            if thread_id is not None:
+                payload["message_thread_id"] = thread_id
+            payload["reply_markup"] = {
+                "inline_keyboard": [
+                    [{"text": option, "callback_data": f"pollvote:{poll_id}:{idx}"}]
+                    for idx, option in enumerate(options)
+                ]
+            }
+            response = requests.post(url, json=payload, timeout=10)
+            return response.status_code == 200
+        except RequestException:
+            return False
+
+    def answer_callback_query(self, callback_query_id: str, text: str) -> bool:
+        if not self.bot_token or not callback_query_id:
+            return False
+        url = f"https://api.telegram.org/bot{self.bot_token}/answerCallbackQuery"
+        try:
+            response = requests.post(
+                url, json={"callback_query_id": callback_query_id, "text": text}, timeout=10
+            )
+            return response.status_code == 200
+        except RequestException:
+            return False

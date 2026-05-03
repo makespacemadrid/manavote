@@ -278,6 +278,17 @@ function showSection(sectionId, buttonEl) {
 <div id="settings" class="card">
     <h3>{{ 'Settings'|lang }}</h3>
     <p style="color: #888; margin-bottom: 15px;">{{ 'Other settings'|lang }}</p>
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="update_poll_vote_mode">
+        <label>Poll voting mode</label>
+        <select name="poll_vote_mode" required>
+            <option value="both" {{ 'selected' if get_setting_value('poll_vote_mode', 'both') == 'both' else '' }}>Web + Telegram</option>
+            <option value="web_only" {{ 'selected' if get_setting_value('poll_vote_mode', 'both') == 'web_only' else '' }}>Web only</option>
+            <option value="telegram_only" {{ 'selected' if get_setting_value('poll_vote_mode', 'both') == 'telegram_only' else '' }}>Telegram only</option>
+        </select>
+        <button type="submit" class="btn" style="margin-top: 8px;">Update vote mode</button>
+    </form>
 </div>
 
 <div id="timezone" class="card">
@@ -374,6 +385,12 @@ function showSection(sectionId, buttonEl) {
                 <td>
                     <form method="POST">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="send_poll_telegram_test">
+                        <input type="hidden" name="poll_id" value="{{ poll.id }}">
+                        <button type="submit" class="btn btn-secondary">{{ 'Send Test to Admin'|lang }}</button>
+                    </form>
+                    <form method="POST" style="margin-top: 6px;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="send_poll_telegram">
                         <input type="hidden" name="poll_id" value="{{ poll.id }}">
                         <button type="submit" class="btn btn-secondary">{{ 'Send to Telegram'|lang }}</button>
@@ -386,9 +403,9 @@ function showSection(sectionId, buttonEl) {
                     </form>
                     <form method="POST" style="margin-top: 6px;">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="action" value="send_poll_telegram_test">
+                        <input type="hidden" name="action" value="delete_poll">
                         <input type="hidden" name="poll_id" value="{{ poll.id }}">
-                        <button type="submit" class="btn btn-secondary">{{ 'Send Test to Admin'|lang }}</button>
+                        <button type="submit" class="btn btn-secondary" onclick="return confirm('{{ 'Delete this poll?'|lang }}');">{{ 'Delete Poll'|lang }}</button>
                     </form>
                 </td>
             </tr>

@@ -15,6 +15,7 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 
 ### Proposals and voting
 - Create proposals with title, description, amount, optional URL, optional image, and basic-supplies flag.
+- Optional voting deadline can be included when sending proposal announcement to Telegram.
 - Proposal creator gets an automatic `in_favor` vote on web-created proposals.
 - Vote options: `in_favor` / `against`.
 - Votes are upserted (one vote per member per proposal).
@@ -25,10 +26,12 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 
 ### Polls (transparent by design)
 - Admins can create polls with 2..12 options from the Admin panel.
-- Members vote from Telegram using `/vote <poll_id> <option_number>` (one active vote per member per poll; changing vote overwrites previous choice).
+- Members can vote from Telegram by tapping inline poll buttons (or using `/vote <poll_id> <option_number>` as fallback).
+- Admins can restrict poll voting channel to `Web + Telegram`, `Web only`, or `Telegram only`.
 - The app tracks and displays all poll state/results on `/polls`.
-- Polls are transparent: the page shows totals and “who voted what”.
+- Polls are transparent: the page shows totals, horizontal result bars, and “who voted what”.
 - Polls can be closed/reopened by admins.
+- Polls can be deleted by admins.
 - Admins can send poll text to the main chat or as a test to `TELEGRAM_ADMIN_ID`.
 - Telegram webhook endpoint: `POST /telegram/webhook/<TELEGRAM_WEBHOOK_SECRET>` (set secret in env and configure in BotFather webhook URL).
 
@@ -95,7 +98,9 @@ Environment variables are read from `.env` (see `sample.env`).
 
 When running with Docker Compose:
 - `.env` is loaded via `env_file`.
-- Persistent data is mounted for `app.db` and `static/uploads`.
+- Persistent data uses Docker named volumes:
+  - `app_data` → `/data` (database at `/data/app.db`)
+  - `uploads_data` → `/app/static/uploads`
 
 | Variable | Default | Purpose |
 |---|---:|---|
@@ -111,7 +116,7 @@ When running with Docker Compose:
 | `TELEGRAM_CHAT_ID` | _empty_ | Telegram target chat |
 | `TELEGRAM_THREAD_ID` | _empty_ | Optional Telegram topic/thread id for forum chats |
 | `TELEGRAM_ADMIN_ID` | _empty_ | Optional Telegram user/chat id for poll test messages from admin panel |
-| `TELEGRAM_WEBHOOK_SECRET` | _empty_ | Secret path segment used by Telegram webhook endpoint for command-based voting |
+| `TELEGRAM_WEBHOOK_SECRET` | _empty_ | Secret path segment used by Telegram webhook endpoint for command/inline-button poll voting |
 
 Additional operational notes:
 - Web forms are protected with Flask-WTF `CSRFProtect`.
@@ -128,6 +133,8 @@ Implemented endpoints:
 - `POST /api/proposals`
 - `GET /api/proposals/<proposal_id>`
 - `PUT|PATCH /api/proposals/<proposal_id>`
+- `GET /api/polls`
+- `POST /api/polls`
 
 See [APIDOC.md](APIDOC.md) for request/response details.
 

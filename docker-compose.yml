@@ -10,9 +10,10 @@ services:
     environment:
       FLASK_DEBUG: "false"
       FLASK_SECURE_COOKIES: "false"
+      APP_DB_PATH: "/data/app.db"
     volumes:
-      - ./app.db:/app/app.db
-      - ./static/uploads:/app/static/uploads
+      - app_data:/data
+      - uploads_data:/app/static/uploads
     healthcheck:
       test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/healthz', timeout=3)"]
       interval: 30s
@@ -20,3 +21,7 @@ services:
       retries: 3
       start_period: 15s
     restart: unless-stopped
+
+volumes:
+  app_data:
+  uploads_data:

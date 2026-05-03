@@ -363,8 +363,25 @@ def is_registration_enabled():
     return str(value).lower() == "true"
 
 
-def send_telegram_message(message):
+def get_poll_vote_mode():
+    mode = str(get_setting_value("poll_vote_mode", "both")).lower()
+    if mode not in {"both", "web_only", "telegram_only"}:
+        return "both"
+    return mode
+
+
+def is_web_poll_voting_enabled():
+    return get_poll_vote_mode() in {"both", "web_only"}
+
+
+def is_telegram_poll_voting_enabled():
+    return get_poll_vote_mode() in {"both", "telegram_only"}
+
+
+def send_telegram_message(message, poll_id=None, options=None):
     client = TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_THREAD_ID)
+    if poll_id is not None and options:
+        return client.send_poll_message(message, poll_id, options)
     return client.send_message(message)
 
 
@@ -374,6 +391,8 @@ def send_telegram_admin_test_message(message):
 
 
 def process_telegram_vote_command(telegram_username, command_text):
+    if not is_telegram_poll_voting_enabled():
+        return False, "telegram_disabled"
     command = (command_text or "").strip()
     parts = command.split()
     if len(parts) != 3 or parts[0].lower() != "/vote":
@@ -419,6 +438,18 @@ def process_telegram_vote_command(telegram_username, command_text):
         return True, "ok"
     finally:
         conn.close()
+
+
+def process_telegram_vote_callback(telegram_username, callback_data):
+    data = (callback_data or "").strip()
+    parts = data.split(":")
+    if len(parts) != 3 or parts[0] != "pollvote":
+        return False, "invalid_format"
+    try:
+        option_number = int(parts[2]) + 1
+    except ValueError:
+        return False, "invalid_numbers"
+    return process_telegram_vote_command(telegram_username, f"/vote {parts[1]} {option_number}")
 
 
 def process_proposal(proposal_id):
@@ -563,6 +594,17 @@ def _parse_positive_amount(value):
     if amount <= 0:
         return None
     return amount
+
+
+def _normalize_poll_options(raw_options):
+    if not isinstance(raw_options, list):
+        return None
+    options = [str(item).strip() for item in raw_options if str(item).strip()]
+    if len(options) < 2 or len(options) > 12:
+        return None
+    if any(len(option) > 120 for option in options):
+        return None
+    return options
 
 
 @app.route("/api/proposals", methods=["POST"])
@@ -722,6 +764,75 @@ def api_edit_proposal(proposal_id):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/polls", methods=["GET"])
+@csrf.exempt
+def api_list_polls():
+    auth_error = require_api_key()
+    if auth_error:
+        return auth_error
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(
+        """
+        SELECT p.id, p.question, p.options_json, p.status, p.created_at, p.created_by,
+               (SELECT COUNT(*) FROM poll_votes pv WHERE pv.poll_id = p.id) AS total_votes
+        FROM polls p
+        ORDER BY p.created_at DESC
+        LIMIT 100
+        """
+    )
+    rows = c.fetchall()
+    conn.close()
+    polls = []
+    for row in rows:
+        poll = dict(row)
+        try:
+            poll["options"] = json.loads(poll.pop("options_json") or "[]")
+        except (TypeError, json.JSONDecodeError):
+            poll["options"] = []
+        polls.append(poll)
+    return jsonify({"success": True, "polls": polls})
+
+
+@app.route("/api/polls", methods=["POST"])
+@csrf.exempt
+def api_create_poll():
+    auth_error = require_api_key()
+    if auth_error:
+        return auth_error
+    if not request.is_json:
+        return jsonify({"error": "Content-Type must be application/json"}), 415
+    data = request.get_json(silent=True)
+    if not data:
+        return jsonify({"error": "JSON body required"}), 400
+
+    question = str(data.get("question", "")).strip()
+    options = _normalize_poll_options(data.get("options"))
+    created_by = data.get("created_by")
+    if len(question) < 5 or len(question) > 200:
+        return jsonify({"error": "question must be between 5 and 200 characters"}), 400
+    if options is None:
+        return jsonify({"error": "options must be an array with 2..12 non-empty items (max 120 chars each)"}), 400
+    if not created_by:
+        return jsonify({"error": "created_by is required"}), 400
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute("SELECT id FROM members WHERE id = ?", (created_by,))
+    if not c.fetchone():
+        conn.close()
+        return jsonify({"error": "Creator member not found"}), 404
+    c.execute(
+        "INSERT INTO polls (question, options_json, created_by, status) VALUES (?, ?, ?, 'open')",
+        (question, json.dumps(options), created_by),
+    )
+    conn.commit()
+    poll_id = c.lastrowid
+    conn.close()
+    return jsonify({"success": True, "message": "Poll created", "poll_id": poll_id}), 201
+
+
 @app.route("/telegram/webhook/<secret>", methods=["POST"])
 @csrf.exempt
 def telegram_webhook(secret):
@@ -729,12 +840,25 @@ def telegram_webhook(secret):
         return {"ok": False}, 403
 
     payload = request.get_json(silent=True) or {}
+    callback_query = payload.get("callback_query") or {}
+    if callback_query:
+        from_user = callback_query.get("from") or {}
+        telegram_username = (from_user.get("username") or "").strip()
+        callback_data = callback_query.get("data") or ""
+        callback_query_id = callback_query.get("id") or ""
+        success, reason = process_telegram_vote_callback(telegram_username, callback_data)
+        if TELEGRAM_BOT_TOKEN and callback_query_id:
+            text = "✅ Vote recorded in ManaVote." if success else "❌ Could not record vote."
+            if reason == "telegram_disabled":
+                text = "❌ Telegram voting is disabled by admin."
+            TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(callback_query_id, text)
+        return {"ok": True}, 200
+
     message = payload.get("message") or payload.get("edited_message") or {}
     text = (message.get("text") or "").strip()
     from_user = message.get("from") or {}
     telegram_username = (from_user.get("username") or "").strip()
     chat_id = message.get("chat", {}).get("id")
-
     if not text or not telegram_username:
         return {"ok": True}, 200
 
@@ -742,6 +866,8 @@ def telegram_webhook(secret):
     if text.lower().startswith("/vote") and TELEGRAM_BOT_TOKEN and chat_id:
         if success:
             response_text = "✅ Vote recorded in ManaVote."
+        elif reason == "telegram_disabled":
+            response_text = "❌ Telegram voting is disabled by admin."
         elif reason == "unknown_member":
             response_text = "❌ Your Telegram username is not linked to a member account."
         elif reason == "poll_closed":
@@ -1150,10 +1276,19 @@ def new_proposal():
         description = request.form["description"]
         amount = float(request.form["amount"])
         url = request.form.get("url", "").strip()
+        voting_deadline = request.form.get("voting_deadline", "").strip()
         basic_supplies = 1 if request.form.get("basic_supplies") else 0
         if amount <= 0:
             flash("Amount must be positive", "error")
             return redirect(url_for("new_proposal"))
+        deadline_text = ""
+        if voting_deadline:
+            try:
+                deadline_dt = datetime.fromisoformat(voting_deadline)
+                deadline_text = deadline_dt.strftime("%Y-%m-%d %H:%M")
+            except ValueError:
+                flash("Invalid voting deadline", "error")
+                return redirect(url_for("new_proposal"))
 
         image_filename = None
         if "image" in request.files:
@@ -1216,7 +1351,8 @@ def new_proposal():
 
         base_url = get_base_url()
 
-        message = f"🆕 *New Proposal!*\n\n*{title}*\nBy: {creator.split('@')[0]}\nAmount: €{amount}\n\n{description[:200]}{'...' if len(description) > 200 else ''}\n\n👉 {url if url else 'No link'}\n🔗 {base_url}proposal/{proposal_id}"
+        deadline_line = f"\n⏰ Vote by: {deadline_text}" if deadline_text else ""
+        message = f"🆕 *New Proposal!*\n\n*{title}*\nBy: {creator.split('@')[0]}\nAmount: €{amount}{deadline_line}\n\n{description[:200]}{'...' if len(description) > 200 else ''}\n\n👉 {url if url else 'No link'}\n🔗 {base_url}proposal/{proposal_id}"
         send_telegram_message(message)
 
         flash("Proposal created!", "success")
@@ -1846,6 +1982,18 @@ def admin():
             conn.commit()
             flash(f"Timezone updated to {timezone}!", "success")
 
+        elif action == "update_poll_vote_mode":
+            poll_vote_mode = request.form.get("poll_vote_mode", "both")
+            if poll_vote_mode not in ("both", "web_only", "telegram_only"):
+                flash("Invalid vote mode", "error")
+            else:
+                c.execute(
+                    "INSERT OR REPLACE INTO settings (key, value) VALUES ('poll_vote_mode', ?)",
+                    (poll_vote_mode,),
+                )
+                conn.commit()
+                flash("Poll vote mode updated", "success")
+
 
         elif action == "create_poll":
             question = request.form.get("question", "").strip()
@@ -1903,6 +2051,20 @@ def admin():
             conn.commit()
             flash("Poll reopened", "success")
 
+        elif action == "delete_poll":
+            poll_id = request.form.get("poll_id", type=int)
+            if not poll_id:
+                flash("Poll not found", "error")
+            else:
+                c.execute("DELETE FROM poll_votes WHERE poll_id = ?", (poll_id,))
+                c.execute("DELETE FROM polls WHERE id = ?", (poll_id,))
+                if c.rowcount == 0:
+                    conn.rollback()
+                    flash("Poll not found", "error")
+                else:
+                    conn.commit()
+                    flash("Poll deleted", "success")
+
         elif action in ("send_poll_telegram", "send_poll_telegram_test"):
             poll_id = request.form.get("poll_id", type=int)
             c.execute("SELECT p.*, m.username as creator FROM polls p JOIN members m ON m.id = p.created_by WHERE p.id = ?", (poll_id,))
@@ -1918,7 +2080,7 @@ def admin():
                 for idx, option in enumerate(options, 1):
                     lines.append(f"{idx}. {option}")
                 lines.append("")
-                lines.append(f"Vote in Telegram: /vote {poll['id']} <option_number>")
+                lines.append("Tap a button below to vote, or use /vote <poll_id> <option_number>")
 
                 if action == "send_poll_telegram_test":
                     if not TELEGRAM_ADMIN_ID:
@@ -1927,7 +2089,7 @@ def admin():
                         sent = send_telegram_admin_test_message("\n".join(lines))
                         flash("Poll test sent to TELEGRAM_ADMIN_ID!" if sent else "Failed to send poll test message", "success" if sent else "error")
                 else:
-                    sent = send_telegram_message("\n".join(lines))
+                    sent = send_telegram_message("\n".join(lines), poll["id"], options)
                     flash("Poll sent to Telegram!" if sent else "Failed to send poll to Telegram", "success" if sent else "error")
 
         elif action == "backup_db":
@@ -2105,6 +2267,10 @@ def polls_page():
     c = conn.cursor()
 
     if request.method == "POST":
+        if not is_web_poll_voting_enabled():
+            flash("Web voting is disabled by admin", "error")
+            conn.close()
+            return redirect(url_for("polls_page"))
         poll_id = request.form.get("poll_id", type=int)
         option_index = request.form.get("option_index", type=int)
         if poll_id is None or option_index is None:
