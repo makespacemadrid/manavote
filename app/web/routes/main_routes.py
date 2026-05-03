@@ -1680,6 +1680,7 @@ def unmark_purchased(proposal_id):
 @app.route("/admin", methods=["GET", "POST"])
 @admin_required
 def admin():
+    ensure_db_ready()
     conn = get_db()
     c = conn.cursor()
 
@@ -2038,15 +2039,18 @@ def admin():
             )
     backups.sort(key=lambda item: item["modified"], reverse=True)
 
-    c.execute("""
-        SELECT p.*, m.username as creator,
-               (SELECT COUNT(*) FROM poll_votes pv WHERE pv.poll_id = p.id) as total_votes
-        FROM polls p
-        JOIN members m ON m.id = p.created_by
-        ORDER BY p.created_at DESC
-        LIMIT 50
-    """)
-    polls = [dict(row) for row in c.fetchall()]
+    try:
+        c.execute("""
+            SELECT p.*, m.username as creator,
+                   (SELECT COUNT(*) FROM poll_votes pv WHERE pv.poll_id = p.id) as total_votes
+            FROM polls p
+            JOIN members m ON m.id = p.created_by
+            ORDER BY p.created_at DESC
+            LIMIT 50
+        """)
+        polls = [dict(row) for row in c.fetchall()]
+    except Exception:
+        polls = []
 
     c.execute("SELECT value FROM settings WHERE key = 'timezone'")
     tz_row = c.fetchone()
@@ -2074,6 +2078,7 @@ def admin():
 @app.route("/polls", methods=["GET", "POST"])
 @login_required
 def polls_page():
+    ensure_db_ready()
     conn = get_db()
     c = conn.cursor()
 
@@ -2083,10 +2088,14 @@ def polls_page():
         if poll_id is None or option_index is None:
             flash("Invalid vote", "error")
         else:
-            c.execute("SELECT options_json, status FROM polls WHERE id = ?", (poll_id,))
-            poll_row = c.fetchone()
-            if not poll_row:
-                flash("Poll not found", "error")
+            try:
+                c.execute("SELECT options_json, status FROM polls WHERE id = ?", (poll_id,))
+                poll_row = c.fetchone()
+            except Exception:
+                poll_row = None
+                flash("Polls are temporarily unavailable", "error")
+            if poll_row is None:
+                pass
             else:
                 try:
                     options = json.loads(poll_row["options_json"] or "[]")
@@ -2106,27 +2115,37 @@ def polls_page():
                     conn.commit()
                     flash("Poll vote recorded!", "success")
 
-    c.execute("""
-        SELECT p.*, m.username as creator
-        FROM polls p
-        JOIN members m ON m.id = p.created_by
-        ORDER BY p.created_at DESC
-    """)
+    try:
+        c.execute("""
+            SELECT p.*, m.username as creator
+            FROM polls p
+            JOIN members m ON m.id = p.created_by
+            ORDER BY p.created_at DESC
+        """)
+        poll_rows = c.fetchall()
+    except Exception:
+        poll_rows = []
+        flash("Polls are temporarily unavailable", "error")
+
     polls = []
-    for row in c.fetchall():
+    for row in poll_rows:
         poll = dict(row)
         try:
             options = json.loads(poll["options_json"] or "[]")
         except (TypeError, json.JSONDecodeError):
             options = []
-        c.execute("SELECT pv.option_index, pv.created_at, mm.username FROM poll_votes pv JOIN members mm ON mm.id = pv.member_id WHERE pv.poll_id = ? ORDER BY pv.created_at ASC", (poll["id"],))
-        votes = [dict(v) for v in c.fetchall()]
+        try:
+            c.execute("SELECT pv.option_index, pv.created_at, mm.username FROM poll_votes pv JOIN members mm ON mm.id = pv.member_id WHERE pv.poll_id = ? ORDER BY pv.created_at ASC", (poll["id"],))
+            votes = [dict(v) for v in c.fetchall()]
+            c.execute("SELECT option_index FROM poll_votes WHERE poll_id = ? AND member_id = ?", (poll["id"], session["member_id"]))
+            own = c.fetchone()
+        except Exception:
+            votes = []
+            own = None
         counts = {idx: 0 for idx in range(len(options))}
         for v in votes:
             if v["option_index"] in counts:
                 counts[v["option_index"]] += 1
-        c.execute("SELECT option_index FROM poll_votes WHERE poll_id = ? AND member_id = ?", (poll["id"], session["member_id"]))
-        own = c.fetchone()
         poll["options"] = options
         poll["votes"] = votes
         poll["counts"] = counts
