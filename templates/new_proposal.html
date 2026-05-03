@@ -5,7 +5,7 @@
     <span>{{ 'Logged in as'|lang }}: <strong>{{ session.username|username }}</strong></span>
     <a href="{{ url_for('dashboard') }}">{{ 'Dashboard'|lang }}</a>
     <a href="{{ url_for('calendar') }}">{{ 'Calendar'|lang }}</a>
-    <a href="{{ url_for('polls_page') }}">Polls</a>
+    <a href="{{ url_for('polls_page') }}">{{ 'Polls'|lang }}</a>
     {% if session.is_admin %}
     <a href="{{ url_for('admin') }}">{{ 'Admin'|lang }}</a>
     {% endif %}
