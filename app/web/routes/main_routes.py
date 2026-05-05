@@ -2381,9 +2381,9 @@ def polls_page():
         except Exception:
             votes = []
             own = None
-        counts = {idx: 0 for idx in range(len(options))}
+        counts = [0] * len(options)
         for v in votes:
-            if v["option_index"] in counts:
+            if v["option_index"] < len(counts):
                 counts[v["option_index"]] += 1
         poll["options"] = options
         poll["votes"] = votes
