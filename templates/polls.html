@@ -33,7 +33,7 @@
             {# Card 1: Votes so far with bars #}
             <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;">
                 <div style="flex:1;min-width:200px;background:#1b1f3a;padding:12px;border-radius:8px;border:1px solid #2d335f;">
-                    <h4 style="margin:0 0 8px 0;font-size:0.95em;">📊 {{ 'Votes so far'|lang }} ({{ total_votes }})</h4>
+                    <h4 style="margin:0 0 8px 0;font-size:0.95em;">📊 {{ 'Votes so far'|lang }} ({{ p.counts|sum }})</h4>
                     {% for option in p.options %}
                         {% set option_votes = p.counts[loop.index0] %}
                         {% set pct = ((option_votes * 100.0) / total_votes) if total_votes > 0 else 0 %}
