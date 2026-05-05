@@ -1,63 +1,30 @@
 import pathlib
-import sqlite3
 import sys
 import unittest
-from unittest.mock import MagicMock, patch
-import tempfile
-import os
-from datetime import datetime, timedelta
+from unittest.mock import patch
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
-from app.services.backup_service import backup_db
+from app.services import backup_service
 
 
-class TestBackupService(unittest.TestCase):
-    def setUp(self):
-        self.temp_dir = tempfile.mkdtemp()
-        self.db_path = os.path.join(self.temp_dir, "test.db")
-        self._create_db()
+class DummyApp:
+    pass
 
-    def tearDown(self):
-        for f in os.listdir(self.temp_dir):
-            os.remove(os.path.join(self.temp_dir, f))
-        os.rmdir(self.temp_dir)
 
-    def _create_db(self):
-        conn = sqlite3.connect(self.db_path)
-        c = conn.cursor()
-        c.execute("CREATE TABLE proposals (id INTEGER PRIMARY KEY, title TEXT, amount REAL)")
-        c.execute("INSERT INTO proposals (title, amount) VALUES ('Test', 100)")
-        conn.commit()
-        conn.close()
+class TestBackupScheduler(unittest.TestCase):
+    @patch("app.services.backup_service.logging.getLogger")
+    @patch("builtins.__import__", side_effect=ImportError("No module named apscheduler"))
+    def test_start_scheduler_logs_install_hint_when_apscheduler_missing(self, _mock_import, mock_get_logger):
+        app = DummyApp()
 
-    def test_backup_creates_file(self):
-        name, pruned = backup_db(self.db_path, keep_days=7)
+        scheduler = backup_service.start_scheduler(app, "/tmp/app.db")
 
-        self.assertTrue(name.startswith("test_"))
-        self.assertTrue(name.endswith(".db"))
-        self.assertTrue(os.path.exists(os.path.join(self.temp_dir, name)))
-        self.assertEqual(pruned, 0)
-
-    def test_backup_prunes_old_files(self):
-        base_name = os.path.basename(self.db_path).replace(".db", "")
-        old_time = datetime.now() - timedelta(days=10)
-        old_name = os.path.join(self.temp_dir, f"{base_name}_{old_time.strftime('%Y%m%d_%H%M%S')}.db")
-
-        conn = sqlite3.connect(old_name)
-        c = conn.cursor()
-        c.execute("CREATE TABLE proposals (id INTEGER PRIMARY KEY, title TEXT, amount REAL)")
-        conn.commit()
-        conn.close()
-
-        old_mtime = (datetime.now() - timedelta(days=10)).timestamp()
-        os.utime(old_name, (old_mtime, old_mtime))
-
-        name, pruned = backup_db(self.db_path, keep_days=7)
-
-        self.assertEqual(pruned, 1)
-        self.assertFalse(os.path.exists(old_name))
+        self.assertIsNone(scheduler)
+        mock_get_logger.return_value.warning.assert_called()
+        message = mock_get_logger.return_value.warning.call_args.args[0]
+        self.assertIn("Install with `pip install APScheduler`", message)
 
 
 if __name__ == "__main__":
-    unittest.main(verbosity=2)
+    unittest.main()

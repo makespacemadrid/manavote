@@ -189,6 +189,14 @@ class TestTranslations(unittest.TestCase):
         self.assertEqual(es["pending_budget"], "pendiente_presupuesto")
         self.assertEqual(es["purchased"], "comprado")
 
+    def test_proposal_detail_translation_keys_exist(self):
+        """Proposal detail confirm/button labels exist in both locales"""
+        keys = ("Delete proposal confirm", "Undo approval confirm", "Undo Approval", "of")
+        for locale in ("en", "es"):
+            for key in keys:
+                with self.subTest(locale=locale, key=key):
+                    self.assertIn(key, budget_app.TRANSLATIONS[locale])
+
 
 class TestLoggingConfiguration(unittest.TestCase):
     def test_file_logging_targets_app_log_in_source(self):

@@ -27,6 +27,7 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 ### Polls (transparent by design)
 - Admins can create polls with 2..12 options from the Admin panel.
 - Members can vote from Telegram by tapping inline poll buttons (or using `/vote <poll_id> <option_number>` as fallback).
+- Telegram poll announcements include a **Vote** button (`showvote:<poll_id>`) that expands into one button per option (`pollvote:<poll_id>:<index>`).
 - Admins can restrict poll voting channel to `Web + Telegram`, `Web only`, or `Telegram only`.
 - The app tracks and displays all poll state/results on `/polls`.
 - Polls are transparent: the page shows totals, horizontal result bars, and “who voted what”.
@@ -34,6 +35,7 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 - Polls can be deleted by admins.
 - Admins can send poll text to the main chat or as a test to `TELEGRAM_ADMIN_ID`.
 - Telegram webhook endpoint: `POST /telegram/webhook/<TELEGRAM_WEBHOOK_SECRET>` (set secret in env and configure in BotFather webhook URL).
+- Telegram API responses are treated as successful only when both HTTP status is `200` and JSON response contains `"ok": true`.
 
 ### Timezone support
 - Configurable timezone via admin panel (default: Europe/Madrid).
@@ -117,6 +119,33 @@ When running with Docker Compose:
 | `TELEGRAM_THREAD_ID` | _empty_ | Optional Telegram topic/thread id for forum chats |
 | `TELEGRAM_ADMIN_ID` | _empty_ | Optional Telegram user/chat id for poll test messages from admin panel |
 | `TELEGRAM_WEBHOOK_SECRET` | _empty_ | Secret path segment used by Telegram webhook endpoint for command/inline-button poll voting |
+
+### Telegram poll delivery notes (important)
+- Poll text is sent as plain text (no forced Markdown parse mode) to avoid Telegram rejecting messages with unescaped markdown-like characters.
+- If users report "buttons missing", check:
+  1. bot is admin in the target chat,
+  2. webhook URL includes the exact `TELEGRAM_WEBHOOK_SECRET`,
+  3. bot can receive callback queries in that chat/topic,
+  4. app logs for failed `editMessageReplyMarkup` / `answerCallbackQuery`.
+
+### Telegram webhook is app-managed
+You do **not** need to run `/setwebhook` manually in BotFather.
+
+1. Set `TELEGRAM_BOT_TOKEN`, `TELEGRAM_WEBHOOK_SECRET`, and Base URL in Admin → Telegram Configuration.
+2. Click **Sync Telegram Webhook** (or save Base URL; the app auto-attempts sync).
+3. Ensure app is reachable via public HTTPS URL.
+4. Keep bot in target chat with required permissions.
+
+The app configures webhook URL as:
+`https://<base-url>/telegram/webhook/<TELEGRAM_WEBHOOK_SECRET>`
+
+If webhook is missing/misconfigured, poll messages may appear but inline button taps will not record votes.
+
+### Auto-backup scheduler notes
+- Auto-backup uses APScheduler (`apscheduler.schedulers.background.BackgroundScheduler`).
+- If logs show APScheduler unavailable, install it in the same runtime environment used by the app:
+  - `pip install APScheduler`
+  - verify with: `python -c "import apscheduler; print(apscheduler.__version__)"`
 
 Additional operational notes:
 - Web forms are protected with Flask-WTF `CSRFProtect`.

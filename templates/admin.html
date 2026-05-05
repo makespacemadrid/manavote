@@ -355,6 +355,11 @@ function showSection(sectionId, buttonEl) {
             <button type="submit" class="btn">{{ 'Update URL'|lang }}</button>
         </div>
     </form>
+    <form method="POST" style="margin-top:10px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="sync_telegram_webhook">
+        <button type="submit" class="btn btn-secondary">{{ 'Sync Telegram Webhook'|lang }}</button>
+    </form>
 </div>
 
 

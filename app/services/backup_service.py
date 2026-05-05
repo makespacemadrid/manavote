@@ -29,8 +29,12 @@ def backup_db(db_path, keep_days=7):
 def start_scheduler(app, db_path):
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
-    except ImportError:
-        logging.getLogger(__name__).warning("APScheduler not installed; automatic backups disabled")
+    except Exception as exc:
+        logging.getLogger(__name__).warning(
+            "APScheduler unavailable (%s); automatic backups disabled. "
+            "Install with `pip install APScheduler` and verify the same Python environment is used at runtime.",
+            exc,
+        )
         return None
 
     scheduler = BackgroundScheduler()
@@ -42,6 +46,10 @@ def start_scheduler(app, db_path):
         id="daily_backup",
         replace_existing=True,
     )
-    scheduler.start()
+    try:
+        scheduler.start()
+    except Exception as exc:
+        logging.getLogger(__name__).warning("APScheduler failed to start: %s", exc)
+        return None
     app.scheduler = scheduler
     return scheduler
