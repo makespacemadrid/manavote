@@ -3,6 +3,7 @@ import sqlite3
 import hashlib
 import secrets
 import hmac
+import logging
 from datetime import datetime, date, timedelta
 from zoneinfo import ZoneInfo
 try:
@@ -13,7 +14,6 @@ except ImportError:
     logging.getLogger(__name__).warning("python-dotenv not installed; skipping .env loading")
 
 from flask import (
-    Flask,
     render_template,
     request,
     redirect,
@@ -23,7 +23,6 @@ from flask import (
     send_file,
     jsonify,
 )
-from app.config import Config
 from app.extensions import limiter, csrf
 from app.db.connection import get_db as repo_get_db, set_db_path
 from app.db.migrations import run_migrations
@@ -32,13 +31,13 @@ from app.repositories.settings_repo import SettingsRepository
 from app.services.auth_service import verify_and_migrate_password
 from app.services.budget_service import calculate_min_backers
 from app.services.proposal_service import ProposalService
+from app.web.app_setup import app, BASE_DIR, is_production
 from app.web.decorators import login_required, admin_required
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 import requests
 import markdown
 import imghdr
-import logging
 import warnings
 import json
 
@@ -70,35 +69,6 @@ def format_datetime(dt_str, fmt="%Y-%m-%d %H:%M:%S"):
         return dt_local.strftime(fmt)
     except (ValueError, TypeError):
         return dt_str
-
-
-BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(os.path.dirname(__file__))))
-app = Flask(__name__, template_folder=os.path.join(BASE_DIR, "templates"), static_folder=os.path.join(BASE_DIR, "static"))
-app.config.from_object(Config)
-
-warnings.filterwarnings("ignore", category=DeprecationWarning, module="imghdr")
-
-if not app.debug:
-    logging.basicConfig(
-        level=logging.INFO,
-        format="%(asctime)s %(levelname)s: %(message)s",
-        handlers=[
-            logging.FileHandler("app.log"),
-            logging.StreamHandler(),
-        ],
-    )
-else:
-    logging.basicConfig(level=logging.DEBUG)
-app_env = os.getenv("FLASK_ENV", "").lower()
-is_production = app_env == "production"
-secret_key = app.config.get("SECRET_KEY")
-if is_production and (not secret_key or secret_key == "dev-insecure-secret-change-me"):
-    raise RuntimeError("SECRET_KEY must be set to a non-default value when FLASK_ENV=production")
-app.secret_key = secret_key
-app.permanent_session_lifetime = app.config["PERMANENT_SESSION_LIFETIME"]
-app.jinja_env.cache = None
-limiter.init_app(app)
-csrf.init_app(app)
 
 
 @app.template_filter("username")

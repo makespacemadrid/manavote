@@ -20,11 +20,12 @@ Primary goals:
 ## 3) Runtime behavior
 
 At startup (`python app.py`):
-1. App initializes DB path and upload folder.
-2. DB tables are created if missing.
-3. Default admin/settings are seeded if needed.
-4. Migrations run (`app/db/migrations.py`).
-5. Flask starts on host `0.0.0.0`, port `5000`.
+1. Flask app is constructed in `app/web/app_setup.py` (config load, logging, warnings, extension init).
+2. App initializes DB path and upload folder.
+3. DB tables are created if missing.
+4. Default admin/settings are seeded if needed.
+5. Migrations run (`app/db/migrations.py`).
+6. Flask starts on host `0.0.0.0`, port `5000`.
 
 Container runtime (`docker compose up --build`):
 1. Compose builds from `Dockerfile` and starts the `web` service.

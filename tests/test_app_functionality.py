@@ -1298,6 +1298,8 @@ class TestPollsFunctionality(unittest.TestCase):
         self.assertIn("Lunch option?", html)
         self.assertIn("(1)", html)
         self.assertIn("Who voted what", html)
+        self.assertIn('data-mobile-nav', html)
+        self.assertIn('data-nav-toggle', html)
 
     def test_polls_page_uses_linked_telegram_username_in_vote_list(self):
         poll_id = self._latest_poll_id()

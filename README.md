@@ -173,7 +173,8 @@ See [APIDOC.md](APIDOC.md) for request/response details.
 
 ## Project structure
 
-- `app/web/routes/main_routes.py` — routes, app setup, and request orchestration.
+- `app/web/app_setup.py` — Flask app construction/config, logging, and extension initialization.
+- `app/web/routes/main_routes.py` — routes and request orchestration.
 - `app/services/` — business logic helpers (auth/budget/proposal/admin/vote/backup).
 - `app/repositories/` — DB access helpers.
 - `app/db/` — schema + migrations + DB connection helper.

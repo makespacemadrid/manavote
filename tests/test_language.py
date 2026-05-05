@@ -7,6 +7,7 @@ sys.path.insert(0, ".")
 
 import app as budget_app
 from app.web.routes import main_routes
+from app.web import app_setup
 
 
 class TestLanguageSwitch(unittest.TestCase):
@@ -207,7 +208,7 @@ class TestTranslations(unittest.TestCase):
 class TestLoggingConfiguration(unittest.TestCase):
     def test_file_logging_targets_app_log_in_source(self):
         """App logging configuration should target app.log (not budget.log)."""
-        source = inspect.getsource(main_routes)
+        source = inspect.getsource(app_setup)
         self.assertIn('logging.FileHandler("app.log")', source)
         self.assertNotIn('logging.FileHandler("budget.log")', source)
 
