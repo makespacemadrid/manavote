@@ -36,7 +36,7 @@ class ProposalService:
             self.budget.add_log(-proposal["amount"], f"Approved: {proposal['title']}", self.created_by, proposal_id)
             self.conn.commit()
             self.telegram_client.send_message(
-                f"💰 *Budget Approved!*\n\n*Proposal:* {proposal['title']}\n*Amount:* €{proposal['amount']}\n*Net votes:* {approve_count} favor - {reject_count} against = {net_votes}\n*Remaining budget:* €{new_budget}\n\n👉 {self.base_url_getter()}proposal/{proposal_id}"
+                f"💰 *Budget Approved!*\n\n*Proposal:* {proposal['title']}\n*Amount:* €{proposal['amount']}\n*Net votes:* {approve_count} favor - {reject_count} against = {net_votes}\n*Remaining budget:* €{new_budget}\n\n👉 {self.base_url_getter()}/proposal/{proposal_id}"
             )
             return True
 
@@ -64,6 +64,6 @@ class ProposalService:
                 self.budget.add_log(-proposal["amount"], f"Approved: {proposal['title']}", self.created_by, proposal["id"])
                 self.conn.commit()
                 self.telegram_client.send_message(
-                    f"💰 *Budget Approved!*\n\n*Proposal:* {proposal['title']}\n*Amount:* €{proposal['amount']}\n*Now has enough budget!*\n*Remaining budget:* €{new_budget}\n\n👉 {self.base_url_getter()}proposal/{proposal['id']}"
+                    f"💰 *Budget Approved!*\n\n*Proposal:* {proposal['title']}\n*Amount:* €{proposal['amount']}\n*Now has enough budget!*\n*Remaining budget:* €{new_budget}\n\n👉 {self.base_url_getter()}/proposal/{proposal['id']}"
                 )
                 current_budget = new_budget

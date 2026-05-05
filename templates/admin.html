@@ -85,6 +85,7 @@ function showSection(sectionId, buttonEl) {
 <div id="add-member" class="card">
     <h3>{{ 'Add Member'|lang }}</h3>
     <form method="POST" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="add_member">
         <div style="flex: 1; min-width: 150px;">
             <label>{{ 'Username'|lang }}</label>
@@ -124,11 +125,13 @@ function showSection(sectionId, buttonEl) {
                     {% if m.id != session.member_id %}
                     <div style="display: flex; flex-wrap: wrap; gap: 5px;">
                         <form method="POST" style="display: inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="action" value="toggle_admin">
                             <input type="hidden" name="member_id" value="{{ m.id }}">
                             <button type="submit" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;">{{ 'Make Admin'|lang if not m.is_admin else 'Remove Admin'|lang }}</button>
                         </form>
                         <form method="POST" style="display: inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="action" value="remove_member">
                             <input type="hidden" name="member_id" value="{{ m.id }}">
                             <button type="submit" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" onclick="return confirm('{{ 'Remove'|lang }} {{ m.username }}?')">{{ 'Remove'|lang }}</button>

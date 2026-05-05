@@ -380,13 +380,15 @@ def is_telegram_poll_voting_enabled():
 
 def send_telegram_message(message, poll_id=None, options=None):
     client = TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_THREAD_ID)
-    if poll_id is not None and options:
+    if poll_id is not None and options is not None:
         return client.send_poll_message(message, poll_id, options)
     return client.send_message(message)
 
 
-def send_telegram_admin_test_message(message):
+def send_telegram_admin_test_message(message, poll_id=None, options=None):
     client = TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_ADMIN_ID, "")
+    if poll_id is not None and options is not None:
+        return client.send_poll_message(message, poll_id, options)
     return client.send_message(message)
 
 
@@ -861,12 +863,37 @@ def telegram_webhook(secret):
         telegram_username = (from_user.get("username") or "").strip()
         callback_data = callback_query.get("data") or ""
         callback_query_id = callback_query.get("id") or ""
-        success, reason = process_telegram_vote_callback(telegram_username, callback_data)
-        if TELEGRAM_BOT_TOKEN and callback_query_id:
-            text = "✅ Vote recorded in ManaVote." if success else "❌ Could not record vote."
-            if reason == "telegram_disabled":
-                text = "❌ Telegram voting is disabled by admin."
-            TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(callback_query_id, text)
+        message = callback_query.get("message") or {}
+        chat_id = message.get("chat", {}).get("id")
+        message_id = message.get("message_id")
+
+        if callback_data.startswith("showvote:"):
+            parts = callback_data.split(":")
+            if len(parts) == 2:
+                try:
+                    poll_id = int(parts[1])
+                    conn = get_db()
+                    c = conn.cursor()
+                    c.execute("SELECT options_json FROM polls WHERE id = ? AND status = 'open'", (poll_id,))
+                    poll = c.fetchone()
+                    conn.close()
+                    if poll and TELEGRAM_BOT_TOKEN and chat_id and message_id:
+                        options = json.loads(poll["options_json"] or "[]")
+                        client = TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "")
+                        client.edit_message_with_vote_options(str(chat_id), message_id, poll_id, options)
+                        TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(callback_query_id, "✅ Vote options shown")
+                    else:
+                        TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(callback_query_id, "❌ Poll not found or closed")
+                except (ValueError, json.JSONDecodeError):
+                    TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(callback_query_id, "❌ Invalid poll")
+        else:
+            success, reason = process_telegram_vote_callback(telegram_username, callback_data)
+            if TELEGRAM_BOT_TOKEN and callback_query_id:
+                text = "✅ Vote recorded in ManaVote." if success else "❌ Could not record vote."
+                if reason == "telegram_disabled":
+                    text = "❌ Telegram voting is disabled by admin."
+                TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(callback_query_id, text)
+
         return {"ok": True}, 200
 
     message = payload.get("message") or payload.get("edited_message") or {}
@@ -1367,7 +1394,7 @@ def new_proposal():
         base_url = get_base_url()
 
         deadline_line = f"\n⏰ Vote by: {deadline_text}" if deadline_text else ""
-        message = f"🆕 *New Proposal!*\n\n*{title}*\nBy: {creator.split('@')[0]}\nAmount: €{amount}{deadline_line}\n\n{description[:200]}{'...' if len(description) > 200 else ''}\n\n👉 {url if url else 'No link'}\n🔗 {base_url}proposal/{proposal_id}"
+        message = f"🆕 *New Proposal!*\n\n*{title}*\nBy: {creator.split('@')[0]}\nAmount: €{amount}{deadline_line}\n\n{description[:200]}{'...' if len(description) > 200 else ''}\n\n👉 {url if url else 'No link'}\n🔗 {base_url}/proposal/{proposal_id}"
         send_telegram_message(message)
 
         flash("Proposal created!", "success")
@@ -2090,6 +2117,8 @@ def admin():
             else:
                 try:
                     options = json.loads(poll["options_json"] or "[]")
+                    if options is None:
+                        options = []
                 except (TypeError, json.JSONDecodeError):
                     options = []
                 lines = [f"📊 *New Poll*", f"", f"*{poll['question']}*", ""]
@@ -2103,7 +2132,7 @@ def admin():
                     if not TELEGRAM_ADMIN_ID:
                         flash("TELEGRAM_ADMIN_ID is not configured", "error")
                     else:
-                        sent = send_telegram_admin_test_message("\n".join(lines))
+                        sent = send_telegram_admin_test_message("\n".join(lines), poll["id"], options)
                         flash("Poll test sent to TELEGRAM_ADMIN_ID!" if sent else "Failed to send poll test message", "success" if sent else "error")
                 else:
                     sent = send_telegram_message("\n".join(lines), poll["id"], options)
@@ -2212,10 +2241,10 @@ def admin():
             m.id,
             m.username,
             m.is_admin,
-            (SELECT COUNT(*) FROM votes v WHERE v.member_id = m.id) as vote_count,
+            (SELECT COUNT(*) FROM votes v JOIN proposals p ON v.proposal_id = p.id WHERE v.member_id = m.id) as vote_count,
             (SELECT COUNT(*) FROM proposals p WHERE p.created_by = m.id) as proposal_count,
             (SELECT COUNT(*) FROM proposals p WHERE p.created_by = m.id AND p.status = 'approved') as approved_count,
-            (SELECT COUNT(*) FROM comments c WHERE c.member_id = m.id) as comment_count
+            (SELECT COUNT(*) FROM comments c JOIN proposals p ON c.proposal_id = p.id WHERE c.member_id = m.id) as comment_count
         FROM members m
         ORDER BY vote_count DESC, proposal_count DESC
     """)
@@ -2358,7 +2387,13 @@ def polls_page():
         polls.append(poll)
 
     conn.close()
-    return render_template("polls.html", polls=polls, session_lang=session.get("lang", "en"))
+    return render_template(
+        "polls.html", 
+        polls=polls, 
+        session_lang=session.get("lang", "en"),
+        is_telegram_vote_enabled=is_telegram_poll_voting_enabled(),
+        is_web_vote_enabled=is_web_poll_voting_enabled()
+    )
 
 
 @app.route("/check-overbudget")
