@@ -3,6 +3,8 @@ CREATE TABLE IF NOT EXISTS members (
     username TEXT UNIQUE NOT NULL,
     password_hash TEXT NOT NULL,
     is_admin INTEGER DEFAULT 0,
+    telegram_username TEXT,
+    telegram_user_id INTEGER,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS proposals (

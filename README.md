@@ -7,7 +7,7 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 - Members can create, discuss, and vote on proposals.
 - Members can participate in transparent polls inside the web app.
 - Proposals are auto-processed based on vote thresholds and available budget.
-- Admins can manage members, thresholds, settings, and budget movements.
+- Admins can manage members, thresholds, settings, and budget movements (including Telegram link visibility in Members table).
 - API endpoints allow admin-key-based automation for member/proposal creation.
 - UI supports English and Spanish.
 
@@ -27,6 +27,7 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 ### Polls (transparent by design)
 - Admins can create polls with 2..12 options from the Admin panel.
 - Members can vote from Telegram by tapping inline poll buttons (or using `/vote <poll_id> <option_number>` as fallback).
+- Members can pre-link Telegram identity with `/link <app_username> <app_password>` to bind Telegram account to their app member record.
 - Telegram poll announcements include a **Vote** button (`showvote:<poll_id>`) that expands into one button per option (`pollvote:<poll_id>:<index>`).
 - Admins can restrict poll voting channel to `Web + Telegram`, `Web only`, or `Telegram only`.
 - The app tracks and displays all poll state/results on `/polls`.

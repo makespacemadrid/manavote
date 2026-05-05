@@ -40,6 +40,9 @@ def run_migrations(cursor):
     add_column_if_missing(cursor, "activity_log", "created_by INTEGER")
     add_column_if_missing(cursor, "activity_log", "proposal_id INTEGER")
     add_column_if_missing(cursor, "polls", "status TEXT DEFAULT 'open'")
+    add_column_if_missing(cursor, "members", "telegram_username TEXT")
+    add_column_if_missing(cursor, "members", "telegram_user_id INTEGER")
+    cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_members_telegram_user_id ON members(telegram_user_id) WHERE telegram_user_id IS NOT NULL")
     add_column_if_missing(cursor, "polls", "closes_at TEXT")
     cursor.execute(
         """

@@ -745,7 +745,7 @@ class TestPollTelegramActions(unittest.TestCase):
         response = self.client.post("/telegram/webhook/wrong", json={"message": {"text": "/vote 1 1"}})
         self.assertEqual(response.status_code, 403)
 
-    def test_telegram_webhook_unknown_member_does_not_record_vote(self):
+    def test_telegram_webhook_unknown_member_with_user_id_records_vote_as_unlinked(self):
         poll_id = self._latest_poll_id()
         from app.web.routes import main_routes
         old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
@@ -756,7 +756,7 @@ class TestPollTelegramActions(unittest.TestCase):
                 json={
                     "message": {
                         "text": f"/vote {poll_id} 1",
-                        "from": {"username": "not_a_member"},
+                        "from": {"username": "not_a_member", "id": 999001},
                         "chat": {"id": 12345},
                     }
                 },
@@ -766,10 +766,54 @@ class TestPollTelegramActions(unittest.TestCase):
 
         conn = budget_app.get_db()
         c = conn.cursor()
-        c.execute("SELECT COUNT(*) as total FROM poll_votes WHERE poll_id = ?", (poll_id,))
-        total = c.fetchone()["total"]
+        c.execute("SELECT member_id, option_index FROM poll_votes WHERE poll_id = ?", (poll_id,))
+        row = c.fetchone()
         conn.close()
-        self.assertEqual(total, 0)
+        self.assertIsNotNone(row)
+        self.assertEqual(row["member_id"], -999001)
+        self.assertEqual(row["option_index"], 0)
+
+
+    def test_telegram_webhook_link_command_links_member(self):
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            response = self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={
+                    "message": {
+                        "text": "/link admin adminpass",
+                        "from": {"username": "admin_tg", "id": 555001},
+                        "chat": {"id": 12345},
+                    }
+                },
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        self.assertEqual(response.status_code, 200)
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT telegram_username, telegram_user_id FROM members WHERE id = 1")
+        row = c.fetchone()
+        conn.close()
+        self.assertEqual(row["telegram_username"], "admin_tg")
+        self.assertEqual(row["telegram_user_id"], 555001)
+
+    def test_admin_page_shows_linked_telegram_fields(self):
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("UPDATE members SET telegram_username = ?, telegram_user_id = ? WHERE id = 1", ("admin_tg", 555001))
+        conn.commit()
+        conn.close()
+
+        response = self.client.get('/admin')
+        html = response.data.decode('utf-8')
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('Telegram', html)
+        self.assertIn('admin_tg', html)
+        self.assertIn('555001', html)
 
     def test_telegram_webhook_rejects_vote_for_closed_poll(self):
         poll_id = self._latest_poll_id()
