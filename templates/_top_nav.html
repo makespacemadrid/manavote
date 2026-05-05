@@ -1,0 +1,16 @@
+<div class="nav" data-mobile-nav>
+    <div class="nav-header">
+        <span>{{ 'Logged in as'|lang }}: <strong>{{ session.username|username }}</strong></span>
+        <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" data-nav-toggle>☰</button>
+    </div>
+    <div class="nav-links" data-nav-links>
+        <a href="{{ url_for('dashboard') }}">{{ 'Dashboard'|lang }}</a>
+        <a href="{{ url_for('calendar') }}">{{ 'Calendar'|lang }}</a>
+        <a href="{{ url_for('polls_page') }}">{{ 'Polls'|lang }}</a>
+        {% if session.is_admin %}
+        <a href="{{ url_for('admin') }}">{{ 'Admin'|lang }}</a>
+        {% endif %}
+        <a href="{{ url_for('about') }}">{{ 'About'|lang }}</a>
+        <a href="{{ url_for('settings_page') }}">{{ 'Settings'|lang }}</a>
+    </div>
+</div>

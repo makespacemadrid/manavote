@@ -2279,6 +2279,17 @@ def admin():
                 )
             except Exception as exc:
                 flash(f"Backup failed: {exc}", "error")
+        elif action == "backup_images":
+            try:
+                from app.services.backup_service import backup_uploads
+
+                backup_name, pruned_count = backup_uploads(app.config["UPLOAD_FOLDER"], keep_days=7)
+                flash(
+                    f"Image backup created: {backup_name} (pruned {pruned_count} old backup(s))",
+                    "success",
+                )
+            except Exception as exc:
+                flash(f"Image backup failed: {exc}", "error")
 
     c.execute("SELECT * FROM members ORDER BY created_at")
     members = c.fetchall()
@@ -2399,6 +2410,21 @@ def admin():
             )
     backups.sort(key=lambda item: item["modified"], reverse=True)
 
+    image_backup_dir = os.path.join(os.path.dirname(app.config["UPLOAD_FOLDER"]), "uploads_backups")
+    image_backups = []
+    if os.path.isdir(image_backup_dir):
+        for filename in os.listdir(image_backup_dir):
+            if filename.startswith("uploads_") and filename.endswith(".zip"):
+                backup_path = os.path.join(image_backup_dir, filename)
+                image_backups.append(
+                    {
+                        "name": filename,
+                        "size": os.path.getsize(backup_path),
+                        "modified": datetime.fromtimestamp(os.path.getmtime(backup_path)).strftime("%Y-%m-%d %H:%M:%S"),
+                    }
+                )
+    image_backups.sort(key=lambda item: item["modified"], reverse=True)
+
     try:
         c.execute("""
             SELECT p.*, m.username as creator,
@@ -2431,6 +2457,7 @@ def admin():
         get_setting_value=get_setting_value,
         session_lang=session.get("lang", "en"),
         backups=backups,
+        image_backups=image_backups,
         polls=polls,
     )
 

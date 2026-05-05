@@ -26,7 +26,31 @@ def backup_db(db_path, keep_days=7):
     return backup_name, count
 
 
-def start_scheduler(app, db_path):
+def backup_uploads(upload_dir, keep_days=7):
+    """Create timestamped uploads snapshot and prune old snapshots."""
+    parent_dir = os.path.dirname(upload_dir.rstrip(os.sep)) or "."
+    backup_dir = os.path.join(parent_dir, "uploads_backups")
+    os.makedirs(backup_dir, exist_ok=True)
+
+    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+    backup_name = f"uploads_{timestamp}.zip"
+    archive_base = os.path.join(backup_dir, backup_name[:-4])
+
+    shutil.make_archive(archive_base, "zip", upload_dir)
+
+    cutoff = datetime.now() - timedelta(days=keep_days)
+    count = 0
+    for filename in os.listdir(backup_dir):
+        if filename.startswith("uploads_") and filename.endswith(".zip"):
+            filepath = os.path.join(backup_dir, filename)
+            if datetime.fromtimestamp(os.path.getmtime(filepath)) < cutoff:
+                os.remove(filepath)
+                count += 1
+
+    return backup_name, count
+
+
+def start_scheduler(app, db_path, upload_dir=None):
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
     except Exception as exc:
@@ -46,6 +70,15 @@ def start_scheduler(app, db_path):
         id="daily_backup",
         replace_existing=True,
     )
+    if upload_dir:
+        scheduler.add_job(
+            backup_uploads,
+            "interval",
+            hours=24,
+            args=[upload_dir, 7],
+            id="daily_uploads_backup",
+            replace_existing=True,
+        )
     try:
         scheduler.start()
     except Exception as exc:
