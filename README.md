@@ -6,6 +6,7 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 
 - Members can create, discuss, and vote on proposals.
 - Members can participate in transparent polls inside the web app.
+- Members can manage Telegram account-link details from Settings (Telegram username + Telegram user ID).
 - Proposals are auto-processed based on vote thresholds and available budget.
 - Admins can manage members, thresholds, settings, and budget movements (including Telegram link visibility in Members table).
 - API endpoints allow admin-key-based automation for member/proposal creation.
@@ -55,18 +56,18 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 
 ### Dashboard and calendar
 - Dashboard includes Budget card with current budget, member count, and vote requirements.
-- Filter buttons show amounts (no decimals) with color-coded styling (All=white, Active=cyan, Approved/Pending Purchase=green, Pending Budget=light blue).
+- Filter buttons show amounts (no decimals) with color-coded styling (All=white, Active=cyan, Approved/Pending Purchase=green, Pending Budget=purple).
 - Tags displayed left of proposal title (Basic=Bronze, Standard=Silver, Expensive=Gold).
 - Vote counts show "X votes out of Y required" with green color for in-favor votes.
 - Proposals card contains filters, proposal list, and vote buttons.
 - Calendar includes an activity table and a "Budget Over Time" Chart.js chart.
 - Budget chart datasets:
-  - Budget Balance (cyan line)
-  - Committed (orange line)
-  - Cash In (green bar)
-  - Cash Out (red bar)
+  - Budget Balance (white line)
+  - Pending Budget (purple line)
+  - Cash In (white bar)
+  - Cash Out (gray bar)
   - Proposals (Being Voted) (pink bar)
-  - Proposals (Approved) (purple bar)
+  - Proposals (Approved) (dark blue bar)
 - Committed series semantics:
   - `Committed = cash_balance - pending_over_budget_total`.
   - Positive values represent budget left after currently pending over-budget commitments.

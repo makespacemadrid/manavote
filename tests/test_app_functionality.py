@@ -528,11 +528,11 @@ class TestPasswordChange(unittest.TestCase):
         response = self.client.get("/change-password")
         self.assertEqual(response.status_code, 200)
 
-    def test_change_password_menu_item_displays(self):
-        """Change Password link appears in navigation"""
+    def test_settings_menu_item_displays(self):
+        """Settings link appears in top navigation"""
         response = self.client.get("/dashboard")
         html = response.data.decode("utf-8")
-        self.assertIn("Change Password", html)
+        self.assertIn(">Settings<", html)
 
 
 class TestPollTelegramActions(unittest.TestCase):
@@ -1034,6 +1034,47 @@ class TestAdminTelegramWebhookSync(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         mock_sync.assert_called_once_with("https://example.org")
 
+
+class TestTelegramSettingsPage(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        budget_app.app.config["TESTING"] = True
+        budget_app.app.config["WTF_CSRF_ENABLED"] = False
+        cls.client = budget_app.app.test_client()
+
+    def setUp(self):
+        _set_member_session(self.client)
+
+    def test_telegram_settings_page_loads(self):
+        response = self.client.get("/telegram-settings")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Telegram Settings", response.data.decode("utf-8"))
+
+    def test_telegram_settings_update_persists_values(self):
+        response = self.client.post(
+            "/telegram-settings",
+            data={"telegram_username": "@my_tg", "telegram_user_id": "777001", "csrf_token": ""},
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT telegram_username, telegram_user_id FROM members WHERE id = 1")
+        row = c.fetchone()
+        conn.close()
+
+        self.assertEqual(row["telegram_username"], "my_tg")
+        self.assertEqual(row["telegram_user_id"], 777001)
+
+    def test_telegram_settings_rejects_non_numeric_user_id(self):
+        response = self.client.post(
+            "/telegram-settings",
+            data={"telegram_username": "my_tg", "telegram_user_id": "abc", "csrf_token": ""},
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Telegram user ID must be numeric", response.data.decode("utf-8"))
 
 class TestApiPolls(unittest.TestCase):
     @classmethod

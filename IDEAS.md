@@ -71,13 +71,17 @@ This document captures concrete, incremental improvements identified during a de
 
 ## 5) Internationalization (i18n)
 
-14. **Add i18n completeness checks**
-    - Test that all keys used by templates exist in both `en` and `es`.
-    - Fail CI on missing keys.
+14. ✅ **Add i18n completeness checks** *(implemented)*
+    - Added tests to keep `en` and `es` keysets in sync.
+    - Prevents silent translation drift during UI changes.
 
 15. **Clean duplicated translation entries**
     - Translation file has repeated keys and mixed casing patterns.
     - Normalize keys and enforce a style guide.
+
+16. **Localize remaining hardcoded UI strings**
+    - Some new settings-related labels are still hardcoded in templates.
+    - Move to translation keys to keep EN/ES coverage complete.
 
 ## 6) Testing
 
@@ -118,18 +122,27 @@ This document captures concrete, incremental improvements identified during a de
 25. **Document environment variable matrix**
     - One table showing defaults and behavior by environment (dev/test/prod).
 
+26. **Extract shared navigation/settings partial**
+    - Navigation markup is duplicated across many templates.
+    - Recent settings UX changes required touching many files and can introduce inconsistencies.
+    - Create a shared Jinja partial/macro for top navigation to reduce churn and regressions.
+
+27. **Template validation tests for malformed HTML snippets**
+    - Add lightweight checks that critical forms include complete CSRF input tags and valid key markup.
+    - Helps catch accidental template breakage during repetitive find/replace edits.
+
 ---
 
-## Suggested priority order
+## Suggested priority order (next sprint)
 
-1. Security/compatibility quick wins:
-   - Replace `imghdr`
-   - API key rotation support
-   - production-mode config tests
-2. Structural cleanup:
-   - app factory / blueprint split
-   - service/repository extraction for API routes
-3. API maturity:
-   - OpenAPI + standardized errors + list/search endpoint
-4. Observability and ops:
-   - structured logs + metrics + backup verification
+1. **Stabilize UI maintainability**
+   - Extract shared nav/settings partial (#26)
+   - Add template validation guard tests (#27)
+2. **Security/compatibility quick wins**
+   - Replace `imghdr` (#7)
+   - Production-mode config tests (#17)
+3. **i18n cleanup**
+   - Deduplicate/normalize keys (#15)
+   - Localize remaining hardcoded strings (#16)
+4. **Structural cleanup**
+   - app factory / blueprint split (#1)
