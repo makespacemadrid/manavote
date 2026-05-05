@@ -4,12 +4,9 @@ This document captures concrete, incremental improvements identified during a de
 
 ## 1) Reliability / Startup
 
-1. **Move app wiring out of `main_routes.py`**
-   - Route module currently owns app creation, configuration, DB setup, limiter/CSRF wiring, and route definitions.
-   - Split into:
-     - `app/factory.py` for app initialization and extension wiring.
-     - `app/web/routes/*.py` for blueprints only.
-   - Benefit: cleaner imports, fewer side effects, easier testing.
+1. ✅ **Move app wiring out of `main_routes.py`** *(implemented)*
+   - Flask app construction/config now lives in `app/web/app_setup.py`.
+   - Follow-up opportunity: complete the split to blueprints so routes can be registered lazily per module.
 
 2. **Avoid broad `except Exception` in startup paths**
    - Several startup operations swallow all exceptions and log warnings.
@@ -69,80 +66,131 @@ This document captures concrete, incremental improvements identified during a de
     - `GET /api/proposals?status=active&page=1&page_size=20`.
     - Useful for admin tooling and integrations.
 
+## 4.1) Proposal voting channel refactor plan (Telegram / Web / Both)
+
+14. **Introduce configurable proposal vote mode**
+    - Add setting key: `proposal_vote_mode ∈ {web_only, telegram_only, both}`.
+    - Admin UI control under Settings/Admin with clear help text and safe default (`both`).
+    - Reuse current poll vote-mode UX patterns to minimize surprise.
+
+15. **Unify proposal vote ingestion paths**
+    - Define one service entrypoint (e.g., `VoteService.record_proposal_vote(source=web|telegram, ...)`) used by both `/vote/<id>` and Telegram webhook handlers.
+    - Keep idempotency invariant: one member, one vote per proposal; repeated votes replace previous value.
+    - Centralize validation + eligibility checks (proposal state, member mapping, option validity).
+
+16. **Channel policy enforcement matrix**
+    - `web_only`: accept web votes, reject Telegram votes with user-facing guidance.
+    - `telegram_only`: reject web form submissions with flash message, accept Telegram commands/buttons.
+    - `both`: accept either channel; latest vote wins.
+    - Emit structured audit log per rejection/acceptance with channel + reason code.
+
+17. **Telegram identity mapping hardening for proposal votes**
+    - Reuse existing poll identity-linking behavior (`telegram_user_id` preferred, username fallback, placeholder strategy if needed).
+    - Ensure unlinked users get deterministic guidance (`/link <app_username> <app_password>`).
+
+18. **UI updates**
+    - Dashboard/proposal detail should reflect current vote mode:
+      - hide/disable web vote controls when not allowed,
+      - show contextual banner when Telegram-only is active,
+      - preserve counts/status visibility regardless of channel.
+
+19. **Migration + backward compatibility**
+    - Add migration to seed `proposal_vote_mode = both` when missing.
+    - Preserve current behavior for existing deployments until admin changes setting.
+
+20. **Test plan (frontend + backend)**
+    - Unit: service-level policy checks for each mode/channel combination.
+    - Functional: web route rejects/accepts by mode; Telegram webhook path rejects/accepts by mode.
+    - Frontend: template assertions for hidden/disabled vote buttons + explanatory messages.
+    - Regression: existing approval/budget transition logic remains unchanged across channels.
+
 ## 5) Internationalization (i18n)
 
-14. ✅ **Add i18n completeness checks** *(implemented)*
+21. ✅ **Add i18n completeness checks** *(implemented)*
     - Added tests to keep `en` and `es` keysets in sync.
     - Prevents silent translation drift during UI changes.
 
-15. **Clean duplicated translation entries**
+22. **Clean duplicated translation entries**
     - Translation file has repeated keys and mixed casing patterns.
     - Normalize keys and enforce a style guide.
 
-16. **Localize remaining hardcoded UI strings**
+23. **Localize remaining hardcoded UI strings**
     - Some new settings-related labels are still hardcoded in templates.
     - Move to translation keys to keep EN/ES coverage complete.
 
 ## 6) Testing
 
-16. **Add dedicated integration test DB fixture**
-    - Current `APP_DB_PATH` session override is good; extend with transactional fixtures for isolation speed.
+24. **Add dedicated integration test DB fixture**
+   - Current `APP_DB_PATH` session override is good; extend with transactional fixtures for isolation speed.
 
-17. **Add production-mode configuration tests**
-    - Assert startup failures for missing `SECRET_KEY` and missing bootstrap password when `FLASK_ENV=production`.
+25. **Add production-mode configuration tests**
+   - Assert startup failures for missing `SECRET_KEY` and missing bootstrap password when `FLASK_ENV=production`.
 
-18. **Add API contract tests**
-    - Verify status codes, payload schema, and edge cases for all API endpoints.
+26. **Add API contract tests**
+   - Verify status codes, payload schema, and edge cases for all API endpoints.
 
-19. **Add regression tests for import-time side effects**
-    - Ensure importing modules does not mutate DB or schedule jobs unexpectedly.
+27. **Add regression tests for import-time side effects**
+   - Ensure importing modules does not mutate DB or schedule jobs unexpectedly.
 
 ## 7) Observability / Operations
 
-20. **Structured logging**
-    - JSON logs with request id/user id where available.
+28. **Structured logging**
+   - JSON logs with request id/user id where available.
 
-21. **Metrics endpoint / instrumentation**
-    - Request latency, DB timings, error rates, proposal throughput.
+29. **Metrics endpoint / instrumentation**
+   - Request latency, DB timings, error rates, proposal throughput.
 
-22. **Backup validation job**
-    - Periodically verify backups are readable and recent.
+30. **Backup validation job**
+   - Periodically verify backups are readable and recent.
 
 ## 8) Developer Experience
 
-23. **Pre-commit checks**
-    - `ruff`/`black`/`isort` + simple static checks for translation keys.
+31. **Pre-commit checks**
+   - `ruff`/`black`/`isort` + simple static checks for translation keys.
 
-24. **Architecture notes**
-    - Add short ADRs for key decisions:
+32. **Architecture notes**
+   - Add short ADRs for key decisions:
       - bootstrap strategy
       - API auth model
       - budget/committed calculation semantics
 
-25. **Document environment variable matrix**
-    - One table showing defaults and behavior by environment (dev/test/prod).
+33. **Document environment variable matrix**
+   - One table showing defaults and behavior by environment (dev/test/prod).
 
-26. **Extract shared navigation/settings partial**
-    - Navigation markup is duplicated across many templates.
-    - Recent settings UX changes required touching many files and can introduce inconsistencies.
-    - Create a shared Jinja partial/macro for top navigation to reduce churn and regressions.
+34. **Extract shared navigation/settings partial**
+   - Navigation markup is duplicated across many templates.
+   - Recent settings UX changes required touching many files and can introduce inconsistencies.
+   - Create a shared Jinja partial/macro for top navigation to reduce churn and regressions.
 
-27. **Template validation tests for malformed HTML snippets**
-    - Add lightweight checks that critical forms include complete CSRF input tags and valid key markup.
-    - Helps catch accidental template breakage during repetitive find/replace edits.
+35. **Template validation tests for malformed HTML snippets**
+   - Add lightweight checks that critical forms include complete CSRF input tags and valid key markup.
+   - Helps catch accidental template breakage during repetitive find/replace edits.
+
+36. **Reduce global state in `main_routes.py`**
+   - `main_routes.py` still mixes many concerns (DB bootstrap, Telegram settings globals, template filters, API endpoints, admin actions).
+   - Split into modules (`auth_routes.py`, `proposal_routes.py`, `poll_routes.py`, `admin_routes.py`) and shared services/helpers.
+   - Benefit: lower import cost, easier ownership boundaries, simpler tests.
+
+37. **Unify startup bootstrap path**
+   - There are multiple startup steps spread across `app_setup`, `main_routes`, and `app.__init__.create_app()`.
+   - Create a single explicit startup orchestration function that runs in a defined order (config → DB/migrations → services/scheduler).
+   - Benefit: less surprise from import-time behavior and clearer lifecycle for tests/WSGI.
 
 ---
 
 ## Suggested priority order (next sprint)
 
 1. **Stabilize UI maintainability**
-   - Extract shared nav/settings partial (#26)
-   - Add template validation guard tests (#27)
+   - Extract shared nav/settings partial (#34)
+   - Add template validation guard tests (#35)
 2. **Security/compatibility quick wins**
    - Replace `imghdr` (#7)
-   - Production-mode config tests (#17)
-3. **i18n cleanup**
-   - Deduplicate/normalize keys (#15)
-   - Localize remaining hardcoded strings (#16)
-4. **Structural cleanup**
+   - Production-mode config tests (#25)
+3. **Proposal vote channel refactor**
+   - Add configurable proposal vote mode + policy enforcement (#14-#20)
+   - Unify service ingestion for web/Telegram proposal votes (#15)
+4. **i18n cleanup**
+   - Deduplicate/normalize keys (#22)
+   - Localize remaining hardcoded strings (#23)
+5. **Structural cleanup**
    - app factory / blueprint split (#1)

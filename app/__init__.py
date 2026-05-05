@@ -4,7 +4,7 @@ import os
 import logging
 from datetime import datetime, timedelta
 from .web.routes.main_routes import *  # noqa: F401,F403
-from .web.routes.main_routes import app as flask_app
+from .web.app_setup import app as flask_app
 
 
 def create_app():
