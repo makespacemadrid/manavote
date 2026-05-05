@@ -2132,7 +2132,6 @@ def admin():
                     lines.append(f"{idx}. {option}")
                 lines.append("")
                 lines.append("Tap a button below to vote.")
-                lines.append("Fallback command: /vote <option_number>")
 
                 if action == "send_poll_telegram_test":
                     if not TELEGRAM_ADMIN_ID:
