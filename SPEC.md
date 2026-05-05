@@ -159,6 +159,10 @@ Committed series behavior:
 
 ### Polls page (`/polls`)
 - Members vote in Telegram with inline poll buttons (or `/vote <poll_id> <option_number>` fallback).
+- Poll message interaction flow:
+  1. Poll announcement shows a `Vote` button with callback `showvote:<poll_id>`.
+  2. Webhook resolves open poll and edits message reply markup into option buttons.
+  3. Option callbacks use `pollvote:<poll_id>:<option_index>` and are translated to the same backend vote path as `/vote`.
 - Web voting can be disabled by admin via poll vote mode.
 - Open polls accept votes; closed polls are read-only.
 - Results are transparent by design (counts, horizontal bars, and voter-choice list are visible).
@@ -191,8 +195,12 @@ Committed series behavior:
 
 ### Telegram integration
 - `POST /telegram/webhook/<secret>` receives Telegram updates and processes `/vote` commands and inline-button `callback_query` votes.
+- Poll inline callbacks:
+  - `showvote:<poll_id>` expands message keyboard to option buttons.
+  - `pollvote:<poll_id>:<option_index>` records vote.
 - Webhook security requires `TELEGRAM_WEBHOOK_SECRET` to match `<secret>`.
 - Vote-to-member mapping uses Telegram username matched against `members.username` (`username` or `@username`, case-insensitive).
+- Telegram client calls are considered successful only when HTTP status is `200` and Telegram API responds with `"ok": true` (when JSON is returned).
 
 ### Admin web actions
 - `GET|POST /admin` (includes timezone selector, member management, budget controls, and poll actions)

@@ -12,7 +12,7 @@
     <a href="{{ url_for('polls_page') }}">{{ 'Polls'|lang }}</a>
     {% if proposal.status == 'active' and (proposal.created_by == session.member_id or session.is_admin) %}
     <a href="{{ url_for('edit_proposal', proposal_id=proposal.id) }}">{{ t('Edit') }}</a>
-    <form method="POST" action="{{ url_for('delete_proposal', proposal_id=proposal.id) }}" style="display: inline;" onsubmit="return confirm('Delete this proposal? This cannot be undone.');">
+    <form method="POST" action="{{ url_for('delete_proposal', proposal_id=proposal.id) }}" style="display: inline;" onsubmit="return confirm('{{ 'Delete proposal confirm'|lang }}');">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
             <button type="submit" style="background: none; border: none; color: #e63946; cursor: pointer; padding: 0; font-size: inherit;">{{ t('Delete') }}</button>
         </form>
@@ -46,9 +46,9 @@
                 {% if proposal.status == 'approved' and not proposal.basic_supplies and proposal.amount <= 50 %}<span class="status" style="background: #00d9ff22; color: #00d9ff; margin-left: 5px;">{{ 'standard'|lang }}</span>{% endif %}
                 {% if proposal.purchased_at %}<span class="status" style="background: #4a4;">{{ 'purchased'|lang }}</span>{% endif %}
                 {% if session.is_admin and proposal.status == 'approved' %}
-                <form method="GET" action="{{ url_for('undo_approve', proposal_id=proposal.id) }}" style="display: inline;" onsubmit="return confirm('Undo approval? Budget will be restored.');">
+                <form method="GET" action="{{ url_for('undo_approve', proposal_id=proposal.id) }}" style="display: inline;" onsubmit="return confirm('{{ 'Undo approval confirm'|lang }}');">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    <button type="submit" style="background: #e63946; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-left: 5px;">Undo Approval</button>
+                    <button type="submit" style="background: #e63946; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-left: 5px;">{{ 'Undo Approval'|lang }}</button>
                 </form>
                 {% endif %}
             </p>
@@ -81,7 +81,7 @@
         </div>
         <div>
             <div style="color: #888; font-size: 0.85em;">{{ t('Minimum Backers') }}</div>
-            <div style="font-size: 1.3em;">{{ min_backers }} ({{ thresholds.basic if proposal.basic_supplies else (thresholds.over50 if proposal.amount > 50 else thresholds.default) }}% of {{ member_count }})</div>
+            <div style="font-size: 1.3em;">{{ min_backers }} ({{ thresholds.basic if proposal.basic_supplies else (thresholds.over50 if proposal.amount > 50 else thresholds.default) }}% {{ 'of'|lang }} {{ member_count }})</div>
         </div>
         <div>
             <div style="color: #888; font-size: 0.85em;">{{ t('In Favor') }}</div>

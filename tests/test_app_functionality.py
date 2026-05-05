@@ -3,6 +3,7 @@ import sys
 import unittest
 import tempfile
 import os
+from unittest.mock import patch
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
@@ -883,6 +884,33 @@ class TestPollTelegramActions(unittest.TestCase):
         self.assertIsNotNone(row)
         self.assertEqual(row["option_index"], 1)
 
+    def test_telegram_webhook_showvote_callback_edits_message_markup(self):
+        poll_id = self._latest_poll_id()
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        old_token = main_routes.TELEGRAM_BOT_TOKEN
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        main_routes.TELEGRAM_BOT_TOKEN = "token"
+        try:
+            with patch.object(main_routes.TelegramClient, "edit_message_with_vote_options", return_value=True) as mock_edit:
+                response = self.client.post(
+                    "/telegram/webhook/hook-secret",
+                    json={
+                        "callback_query": {
+                            "id": "cbq-2",
+                            "data": f"showvote:{poll_id}",
+                            "from": {"username": "admin"},
+                            "message": {"message_id": 12, "chat": {"id": -100123}},
+                        }
+                    },
+                )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+            main_routes.TELEGRAM_BOT_TOKEN = old_token
+
+        self.assertEqual(response.status_code, 200)
+        mock_edit.assert_called_once()
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)
@@ -918,8 +946,49 @@ class TestApiGetProposal(unittest.TestCase):
             )
         finally:
             main_routes.ADMIN_API_KEY = old
-
         self.assertEqual(response.status_code, 404)
+
+
+class TestAdminTelegramWebhookSync(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        budget_app.app.config["TESTING"] = True
+        budget_app.app.config["WTF_CSRF_ENABLED"] = False
+        cls.client = budget_app.app.test_client()
+
+    def setUp(self):
+        with self.client.session_transaction() as session:
+            session["member_id"] = 1
+            session["username"] = "admin"
+            session["is_admin"] = 1
+
+    def test_update_url_attempts_webhook_sync(self):
+        from app.web.routes import main_routes
+
+        with patch.object(main_routes, "sync_telegram_webhook", return_value=True) as mock_sync:
+            response = self.client.post(
+                "/admin",
+                data={"action": "update_url", "base_url": "https://example.org", "csrf_token": ""},
+                follow_redirects=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        mock_sync.assert_called_once_with("https://example.org")
+
+    def test_sync_telegram_webhook_action_calls_sync(self):
+        from app.web.routes import main_routes
+
+        with patch.object(main_routes, "get_setting_value", return_value="https://example.org"), patch.object(
+            main_routes, "sync_telegram_webhook", return_value=True
+        ) as mock_sync:
+            response = self.client.post(
+                "/admin",
+                data={"action": "sync_telegram_webhook", "csrf_token": ""},
+                follow_redirects=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        mock_sync.assert_called_once_with("https://example.org")
 
 
 class TestApiPolls(unittest.TestCase):

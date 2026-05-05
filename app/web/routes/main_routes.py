@@ -392,6 +392,14 @@ def send_telegram_admin_test_message(message, poll_id=None, options=None):
     return client.send_message(message)
 
 
+def sync_telegram_webhook(base_url: str) -> bool:
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_WEBHOOK_SECRET or not base_url:
+        return False
+    webhook_url = f"{base_url.rstrip('/')}/telegram/webhook/{TELEGRAM_WEBHOOK_SECRET}"
+    client = TelegramClient(TELEGRAM_BOT_TOKEN, "", "")
+    return client.set_webhook(webhook_url)
+
+
 def process_telegram_vote_command(telegram_username, command_text):
     if not is_telegram_poll_voting_enabled():
         return False, "telegram_disabled"
@@ -880,8 +888,9 @@ def telegram_webhook(secret):
                     if poll and TELEGRAM_BOT_TOKEN and chat_id and message_id:
                         options = json.loads(poll["options_json"] or "[]")
                         client = TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "")
-                        client.edit_message_with_vote_options(str(chat_id), message_id, poll_id, options)
-                        TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(callback_query_id, "✅ Vote options shown")
+                        updated = client.edit_message_with_vote_options(str(chat_id), message_id, poll_id, options)
+                        callback_text = "✅ Vote options shown" if updated else "❌ Couldn't show vote options"
+                        TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(callback_query_id, callback_text)
                     else:
                         TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(callback_query_id, "❌ Poll not found or closed")
                 except (ValueError, json.JSONDecodeError):
@@ -1983,7 +1992,19 @@ def admin():
                     (base_url,),
                 )
             conn.commit()
-            flash("Base URL updated!", "success")
+            synced = sync_telegram_webhook(base_url) if base_url else False
+            if synced:
+                flash("Base URL updated and Telegram webhook synced!", "success")
+            else:
+                flash("Base URL updated!", "success")
+
+        elif action == "sync_telegram_webhook":
+            base_url = get_setting_value("url", "").rstrip("/")
+            synced = sync_telegram_webhook(base_url)
+            if synced:
+                flash("Telegram webhook synced!", "success")
+            else:
+                flash("Could not sync Telegram webhook. Check TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, and Base URL.", "error")
 
         elif action == "toggle_registration":
             enabled = "true" if request.form.get("registration_enabled") else "false"

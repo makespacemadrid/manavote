@@ -25,8 +25,7 @@ class TelegramClient:
             thread_id = self._thread_id()
             if thread_id is not None:
                 payload["message_thread_id"] = thread_id
-            response = requests.post(url, json=payload, timeout=10)
-            return response.status_code == 200
+            return self._telegram_ok(url, payload)
         except RequestException:
             return False
 
@@ -38,7 +37,6 @@ class TelegramClient:
             payload = {
                 "chat_id": self.chat_id,
                 "text": message,
-                "parse_mode": "Markdown",
             }
             thread_id = self._thread_id()
             if thread_id is not None:
@@ -48,8 +46,7 @@ class TelegramClient:
                     [{"text": "Vote", "callback_data": f"showvote:{poll_id}"}]
                 ]
             }
-            response = requests.post(url, json=payload, timeout=10)
-            return response.status_code == 200
+            return self._telegram_ok(url, payload)
         except RequestException:
             return False
 
@@ -68,8 +65,7 @@ class TelegramClient:
                     ]
                 }
             }
-            response = requests.post(url, json=payload, timeout=10)
-            return response.status_code == 200
+            return self._telegram_ok(url, payload)
         except RequestException:
             return False
 
@@ -78,9 +74,24 @@ class TelegramClient:
             return False
         url = f"https://api.telegram.org/bot{self.bot_token}/answerCallbackQuery"
         try:
-            response = requests.post(
-                url, json={"callback_query_id": callback_query_id, "text": text}, timeout=10
+            return self._telegram_ok(
+                url, {"callback_query_id": callback_query_id, "text": text}
             )
-            return response.status_code == 200
         except RequestException:
             return False
+
+    def _telegram_ok(self, url: str, payload: dict) -> bool:
+        response = requests.post(url, json=payload, timeout=10)
+        if response.status_code != 200:
+            return False
+        try:
+            body = response.json()
+            return bool(body.get("ok", False))
+        except ValueError:
+            return True
+
+    def set_webhook(self, webhook_url: str) -> bool:
+        if not self.bot_token or not webhook_url:
+            return False
+        url = f"https://api.telegram.org/bot{self.bot_token}/setWebhook"
+        return self._telegram_ok(url, {"url": webhook_url})
