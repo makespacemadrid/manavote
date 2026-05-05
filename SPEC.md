@@ -143,7 +143,7 @@ Committed series behavior:
 - Includes governance link to the public repository for proposing feature changes.
 
 ### Admin panel
-- **Members tab**: Add/remove members, toggle admin role, change passwords, and view linked Telegram username/ID when available.
+- **Members tab**: Add/remove members, toggle admin role, change passwords, and view linked Telegram username/ID when available (including partial links where only one value exists).
 - **Budget tab**: Trigger monthly top-up (€50, description: "Subvención mensual MakeSpace para juguetes nuevos"), add custom budget entries.
 - **Settings tab**: Registration toggle, timezone selector (UTC, Europe/London, Europe/Paris, Europe/Madrid, America/New_York, America/Chicago, America/Los_Angeles, Asia/Tokyo, Asia/Shanghai, Australia/Sydney).
 - **Timezone tab**: Configure display timezone for all datetime fields.
@@ -159,6 +159,8 @@ Committed series behavior:
 
 ### Polls page (`/polls`)
 - Members vote in Telegram with inline poll buttons (or `/vote <poll_id> <option_number>` fallback).
+- "Who voted what" displays linked Telegram usernames when available (from `/link`), and falls back to app usernames for unlinked accounts.
+- If the current member is not linked to Telegram, page shows a `/link <app_username> <app_password>` reminder.
 - Poll message interaction flow:
   1. Poll announcement shows a `Vote` button with callback `showvote:<poll_id>`.
   2. Webhook resolves open poll and edits message reply markup into option buttons.
@@ -183,6 +185,8 @@ Committed series behavior:
 - `GET /set-language/<lang>`
 - `GET|POST /change-password`
 - `GET|POST /telegram-settings`
+  - `telegram_username` and `telegram_user_id` are read-only in UI.
+  - Both fields are linked only from Telegram via `/link <app_username> <app_password>`.
 - `GET|POST /proposal/new`
 - `GET|POST /proposal/<proposal_id>`
 - `GET|POST /proposal/<proposal_id>/edit`

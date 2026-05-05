@@ -13,6 +13,11 @@
 
 <div class="card">
     <h2>📊 {{ 'Polls'|lang }}</h2>
+    {% if not is_telegram_linked %}
+    <div style="margin:10px 0 14px;padding:10px;background:#f59e0b22;border:1px solid #f59e0b;border-radius:8px;font-size:0.9em;color:#fcd34d;">
+        Telegram account not linked yet. To link it, send <code>/link &lt;app_username&gt; &lt;app_password&gt;</code> to the bot.
+    </div>
+    {% endif %}
     {% if polls %}
         {% for p in polls %}
         <div style="border:1px solid #333;padding:12px;margin-bottom:16px;border-radius:8px;">
@@ -47,7 +52,7 @@
                             <summary style="cursor:pointer;color:#00d9ff;font-size:0.9em;">{{ 'Show votes'|lang }} ({{ p.votes|length }})</summary>
                             <ul style="margin:8px 0 0 0;padding-left:20px;font-size:0.85em;max-height:150px;overflow-y:auto;">
                                 {% for vote in p.votes %}
-                                    <li style="margin:4px 0;">{{ vote.username|username }} → {{ p.options[vote.option_index] if vote.option_index < p.options|length else 'Unknown'|lang }}</li>
+                                    <li style="margin:4px 0;">{{ vote.username|username }}{% if not vote.is_linked_username %} (not linked, use /link){% endif %} → {{ p.options[vote.option_index] if vote.option_index < p.options|length else 'Unknown'|lang }}</li>
                                 {% endfor %}
                             </ul>
                         </details>

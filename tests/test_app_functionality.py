@@ -231,6 +231,19 @@ class TestAdminFunctionality(unittest.TestCase):
         response = self.client.get("/admin")
         self.assertEqual(response.status_code, 200)
 
+    def test_admin_page_shows_member_proposal_statistics_title(self):
+        response = self.client.get("/admin")
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Member Proposal Statistics", response.data.decode("utf-8"))
+
+    def test_admin_page_shows_member_poll_statistics_card(self):
+        response = self.client.get("/admin")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("Member Poll Statistics", html)
+        self.assertIn("Poll Votes", html)
+        self.assertIn("Polls Created", html)
+
     def test_admin_backup_button_creates_backup_file(self):
         """Backup action creates a DB backup file"""
         db_dir = os.path.dirname(budget_app.DB_PATH) or "."
@@ -253,6 +266,41 @@ class TestAdminFunctionality(unittest.TestCase):
 
         for filename in created:
             os.remove(os.path.join(db_dir, filename))
+
+    def test_admin_members_show_telegram_username_without_id(self):
+        """Admin members table shows Telegram username even if ID is missing"""
+        conn = budget_app.get_db()
+        try:
+            conn.execute(
+                "UPDATE members SET telegram_username = ?, telegram_user_id = NULL WHERE id = ?",
+                ("telegram_only_user", 1),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        response = self.client.get("/admin")
+        html = response.data.decode("utf-8")
+        self.assertIn("telegram_only_user", html)
+        self.assertIn("(no ID)", html)
+
+    def test_admin_members_show_telegram_id_without_username(self):
+        """Admin members table shows Telegram ID even if username is missing"""
+        conn = budget_app.get_db()
+        try:
+            conn.execute(
+                "UPDATE members SET telegram_username = NULL, telegram_user_id = ? WHERE id = ?",
+                (987654321, 1),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        response = self.client.get("/admin")
+        html = response.data.decode("utf-8")
+        self.assertIn("987654321", html)
+        self.assertIn("(no username)", html)
+
 
 
 class TestNavigation(unittest.TestCase):
@@ -1050,13 +1098,22 @@ class TestTelegramSettingsPage(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Telegram Settings", response.data.decode("utf-8"))
 
-    def test_telegram_settings_update_persists_values(self):
+    def test_telegram_settings_post_does_not_change_linked_values(self):
+        conn = budget_app.get_db()
+        conn.execute(
+            "UPDATE members SET telegram_username = ?, telegram_user_id = ? WHERE id = ?",
+            ("linked_user", 777001, 1),
+        )
+        conn.commit()
+        conn.close()
+
         response = self.client.post(
             "/telegram-settings",
-            data={"telegram_username": "@my_tg", "telegram_user_id": "777001", "csrf_token": ""},
+            data={"telegram_username": "@attempted_override", "telegram_user_id": "999999", "csrf_token": ""},
             follow_redirects=True,
         )
         self.assertEqual(response.status_code, 200)
+        self.assertIn("read-only", response.data.decode("utf-8"))
 
         conn = budget_app.get_db()
         c = conn.cursor()
@@ -1064,17 +1121,25 @@ class TestTelegramSettingsPage(unittest.TestCase):
         row = c.fetchone()
         conn.close()
 
-        self.assertEqual(row["telegram_username"], "my_tg")
+        self.assertEqual(row["telegram_username"], "linked_user")
         self.assertEqual(row["telegram_user_id"], 777001)
 
-    def test_telegram_settings_rejects_non_numeric_user_id(self):
-        response = self.client.post(
-            "/telegram-settings",
-            data={"telegram_username": "my_tg", "telegram_user_id": "abc", "csrf_token": ""},
-            follow_redirects=True,
-        )
+    def test_telegram_settings_page_fields_are_read_only(self):
+        response = self.client.get("/telegram-settings")
         self.assertEqual(response.status_code, 200)
-        self.assertIn("Telegram user ID must be numeric", response.data.decode("utf-8"))
+        html = response.data.decode("utf-8")
+        self.assertIn("Telegram Username (auto-linked from Telegram)", html)
+        self.assertIn("Telegram User ID (auto-linked from Telegram)", html)
+        self.assertIn("readonly disabled", html)
+
+    def test_telegram_settings_page_inputs_are_not_submitted(self):
+        response = self.client.get("/telegram-settings")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertNotIn('name="telegram_user_id"', html)
+        self.assertNotIn('name="telegram_username"', html)
+
+
 
 class TestApiPolls(unittest.TestCase):
     @classmethod
@@ -1233,6 +1298,51 @@ class TestPollsFunctionality(unittest.TestCase):
         self.assertIn("Lunch option?", html)
         self.assertIn("(1)", html)
         self.assertIn("Who voted what", html)
+
+    def test_polls_page_uses_linked_telegram_username_in_vote_list(self):
+        poll_id = self._latest_poll_id()
+        conn = budget_app.get_db()
+        conn.execute(
+            "UPDATE members SET telegram_username = ?, telegram_user_id = ? WHERE id = ?",
+            ("linked_admin", 123456789, 1),
+        )
+        conn.commit()
+        conn.close()
+
+        self.client.post("/polls", data={"poll_id": poll_id, "option_index": 1, "csrf_token": ""}, follow_redirects=True)
+        response = self.client.get("/polls")
+        html = response.data.decode("utf-8")
+        self.assertIn("linked_admin", html)
+        self.assertNotIn("(not linked, use /link)", html)
+
+    def test_polls_page_suggests_link_when_account_not_linked(self):
+        conn = budget_app.get_db()
+        conn.execute(
+            "UPDATE members SET telegram_username = NULL, telegram_user_id = NULL WHERE id = ?",
+            (1,),
+        )
+        conn.commit()
+        conn.close()
+
+        response = self.client.get("/polls")
+        html = response.data.decode("utf-8")
+        self.assertIn("Telegram account not linked yet", html)
+        self.assertIn("/link &lt;app_username&gt; &lt;app_password&gt;", html)
+
+    def test_polls_page_marks_unlinked_vote_entries(self):
+        poll_id = self._latest_poll_id()
+        conn = budget_app.get_db()
+        conn.execute(
+            "UPDATE members SET telegram_username = NULL, telegram_user_id = NULL WHERE id = ?",
+            (1,),
+        )
+        conn.commit()
+        conn.close()
+
+        self.client.post("/polls", data={"poll_id": poll_id, "option_index": 0, "csrf_token": ""}, follow_redirects=True)
+        response = self.client.get("/polls")
+        html = response.data.decode("utf-8")
+        self.assertIn("(not linked, use /link)", html)
 
     def test_polls_reject_invalid_option_index(self):
         poll_id = self._latest_poll_id()
