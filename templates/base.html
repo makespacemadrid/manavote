@@ -49,9 +49,12 @@
         .vote-btn.approve:hover, .vote-btn.approve.active { background: #00d9ff; color: #1a1a2e; }
         .vote-btn.reject { border-color: #e94560; color: #e94560; }
         .vote-btn.reject:hover, .vote-btn.reject.active { background: #e94560; color: white; }
-        .nav { display: flex; gap: 15px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #0f3460; }
+        .nav { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #0f3460; }
+        .nav-header { display: contents; }
+        .nav-links { display: flex; flex-wrap: wrap; gap: 15px; }
         .nav a { color: #00d9ff; text-decoration: none; }
         .nav a:hover { text-decoration: underline; }
+        .nav-toggle { display: none; margin-left: auto; background: #0f3460; color: #00d9ff; border: 1px solid #1a4a7a; border-radius: 4px; padding: 4px 10px; font-size: 1.1em; cursor: pointer; }
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 10px; text-align: left; border-bottom: 1px solid #0f3460; }
         th { color: #888; }
@@ -66,6 +69,11 @@
         .settings-menu a { display: block; padding: 5px 10px; color: #00d9ff; text-decoration: none; }
         .settings-menu a:hover { background: #0f3460; }
         @media (max-width: 600px) {
+            .nav { display: block; }
+            .nav-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
+            .nav-toggle { display: inline-block; }
+            .nav-links { display: none; flex-direction: column; gap: 10px; }
+            .nav.mobile-open .nav-links { display: flex; }
             .proposal-item { flex-direction: column; }
             .proposal-info { width: 100%; }
             .proposal-info > div:first-child { margin: 10px auto; text-align: center; }
@@ -87,5 +95,17 @@
         
         {% block content %}{% endblock %}
     </div>
+    <script>
+        document.addEventListener('DOMContentLoaded', function () {
+            document.querySelectorAll('[data-mobile-nav]').forEach(function (nav) {
+                var toggle = nav.querySelector('[data-nav-toggle]');
+                if (!toggle) return;
+                toggle.addEventListener('click', function () {
+                    var isOpen = nav.classList.toggle('mobile-open');
+                    toggle.setAttribute('aria-expanded', isOpen ? 'true' : 'false');
+                });
+            });
+        });
+    </script>
 </body>
 </html>

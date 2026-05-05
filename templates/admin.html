@@ -337,6 +337,28 @@ function showSection(sectionId, buttonEl) {
         <li style="padding: 5px 0; border-bottom: 1px solid #0f3460;">
             {{ f.name }} - {{ f.size }} bytes - {{ f.modified[:19] }}
         </li>
+        {% else %}
+        <li style="padding: 5px 0;">No database backups yet.</li>
+        {% endfor %}
+    </ul>
+
+    <h3 style="margin-top: 20px;">Backup Uploaded Images</h3>
+    <p style="color: #888; margin-bottom: 15px;">
+        Image backups are stored as zip files in <code>static/uploads_backups</code>.
+    </p>
+    <form method="POST">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="backup_images">
+        <button type="submit" class="btn btn-secondary">Backup Images Now</button>
+    </form>
+    <h4 style="margin-top: 20px;">Latest Image Backups</h4>
+    <ul style="color: #888; font-size: 0.9em; list-style: none;">
+        {% for f in image_backups[:10] %}
+        <li style="padding: 5px 0; border-bottom: 1px solid #0f3460;">
+            {{ f.name }} - {{ f.size }} bytes - {{ f.modified[:19] }}
+        </li>
+        {% else %}
+        <li style="padding: 5px 0;">No image backups yet.</li>
         {% endfor %}
     </ul>
 </div>

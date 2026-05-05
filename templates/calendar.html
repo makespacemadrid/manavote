@@ -1,17 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="nav">
-    <span>{{ 'Logged in as'|lang }}: <strong>{{ session.username|username }}</strong></span>
-    <a href="{{ url_for('dashboard') }}">{{ 'Dashboard'|lang }}</a>
-    <a href="{{ url_for('calendar') }}">{{ 'Calendar'|lang }}</a>
-    <a href="{{ url_for('polls_page') }}">{{ 'Polls'|lang }}</a>
-    {% if session.is_admin %}
-    <a href="{{ url_for('admin') }}">{{ 'Admin'|lang }}</a>
-    {% endif %}
-    <a href="{{ url_for('about') }}">{{ 'About'|lang }}</a>
-    <a href="{{ url_for('settings_page') }}">{{ 'Settings'|lang }}</a>
-</div>
+{% include "_top_nav.html" %}
 
 <div class="card">
     <h3>📊 {{ 'Budget Over Time'|lang }}</h3>
@@ -25,7 +15,7 @@
     </p>
 
     <style>
-        .amount-approved { color: #9932CC; }
+        .amount-approved { color: #1a4a7a; }
         .amount-active { color: #00d9ff; }
     </style>
 
@@ -55,15 +45,15 @@
             {{ 'Proposal Submitted'|lang }}
         </button>
         <button type="button" class="calendar-legend-btn active" data-filter="approved">
-            <span style="display: inline-block; width: 14px; height: 14px; background: #9932CC; border-radius: 3px;"></span>
+            <span style="display: inline-block; width: 14px; height: 14px; background: #1a4a7a; border-radius: 3px;"></span>
             {{ 'Approved'|lang }}
         </button>
         <button type="button" class="calendar-legend-btn active" data-filter="budget_in">
-            <span style="display: inline-block; width: 14px; height: 14px; border: 2px solid #00ff88; border-radius: 3px;"></span>
+            <span style="display: inline-block; width: 14px; height: 14px; border: 2px solid #ffffff; border-radius: 3px;"></span>
             {{ 'Budget In'|lang }} (+)
         </button>
         <button type="button" class="calendar-legend-btn active" data-filter="budget_out">
-            <span style="display: inline-block; width: 14px; height: 14px; border: 2px solid #e94560; border-radius: 3px;"></span>
+            <span style="display: inline-block; width: 14px; height: 14px; border: 2px solid #888888; border-radius: 3px;"></span>
             {{ 'Budget Out'|lang }} (-)
         </button>
     </div>
@@ -205,8 +195,8 @@ new Chart(ctx, {
                 type: 'bar',
                 label: '{{ 'Proposals (Being Voted)'|lang }}',
                 data: unapprovedData,
-                borderColor: '#ff69b4',
-                backgroundColor: '#ff69b488',
+                borderColor: '#87cefa',
+                backgroundColor: '#87cefa88',
                 borderWidth: 1,
                 order: 0,
                 stack: 'proposal_being_voted'
