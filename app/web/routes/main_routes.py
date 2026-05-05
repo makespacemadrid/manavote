@@ -157,6 +157,8 @@ def init_db():
         username TEXT UNIQUE NOT NULL,
         password_hash TEXT NOT NULL,
         is_admin INTEGER DEFAULT 0,
+        telegram_username TEXT,
+        telegram_user_id INTEGER,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP
     )""")
 
@@ -400,7 +402,43 @@ def sync_telegram_webhook(base_url: str) -> bool:
     return client.set_webhook(webhook_url)
 
 
-def process_telegram_vote_command(telegram_username, command_text):
+def process_telegram_link_command(telegram_username, telegram_user_id, command_text):
+    command = (command_text or "").strip()
+    parts = command.split(maxsplit=2)
+    if len(parts) != 3:
+        return False, "invalid_format"
+
+    app_username = parts[1].strip()
+    password = parts[2]
+    conn = get_db()
+    c = conn.cursor()
+    try:
+        c.execute("SELECT id, password_hash FROM members WHERE lower(username) = lower(?)", (app_username,))
+        member = c.fetchone()
+        if not member:
+            return False, "unknown_member"
+        ok, new_hash = verify_and_migrate_password(member["password_hash"], password)
+        if not ok:
+            return False, "invalid_credentials"
+        if new_hash:
+            c.execute("UPDATE members SET password_hash = ? WHERE id = ?", (new_hash, member["id"]))
+
+        c.execute("SELECT id FROM members WHERE telegram_user_id = ? AND id != ?", (telegram_user_id, member["id"]))
+        linked = c.fetchone()
+        if linked:
+            return False, "already_linked"
+
+        c.execute(
+            "UPDATE members SET telegram_username = ?, telegram_user_id = ? WHERE id = ?",
+            (telegram_username, int(telegram_user_id), member["id"]),
+        )
+        conn.commit()
+        return True, "ok"
+    finally:
+        conn.close()
+
+
+def process_telegram_vote_command(telegram_username, command_text, telegram_user_id=None):
     if not is_telegram_poll_voting_enabled():
         return False, "telegram_disabled"
     command = (command_text or "").strip()
@@ -426,11 +464,21 @@ def process_telegram_vote_command(telegram_username, command_text):
     c = conn.cursor()
     try:
         c.execute(
-            "SELECT id FROM members WHERE lower(username) IN (?, ?)",
-            (telegram_username.lower(), f"@{telegram_username.lower()}"),
+            "SELECT id FROM members WHERE telegram_user_id = ? OR lower(username) IN (?, ?) OR lower(telegram_username) IN (?, ?)",
+            (
+                telegram_user_id,
+                telegram_username.lower(),
+                f"@{telegram_username.lower()}",
+                telegram_username.lower(),
+                f"@{telegram_username.lower()}",
+            ),
         )
         member = c.fetchone()
-        if not member:
+        if member:
+            voter_member_id = member["id"]
+        elif telegram_user_id is not None:
+            voter_member_id = -abs(int(telegram_user_id))
+        else:
             return False, "unknown_member"
 
         if poll_id is None:
@@ -457,7 +505,7 @@ def process_telegram_vote_command(telegram_username, command_text):
 
         c.execute(
             "INSERT OR REPLACE INTO poll_votes (poll_id, member_id, option_index) VALUES (?, ?, ?)",
-            (poll_id, member["id"], option_index),
+            (poll_id, voter_member_id, option_index),
         )
         conn.commit()
         return True, "ok"
@@ -465,7 +513,7 @@ def process_telegram_vote_command(telegram_username, command_text):
         conn.close()
 
 
-def process_telegram_vote_callback(telegram_username, callback_data):
+def process_telegram_vote_callback(telegram_username, callback_data, telegram_user_id=None):
     data = (callback_data or "").strip()
     parts = data.split(":")
     if len(parts) != 3 or parts[0] != "pollvote":
@@ -474,7 +522,7 @@ def process_telegram_vote_callback(telegram_username, callback_data):
         option_number = int(parts[2]) + 1
     except ValueError:
         return False, "invalid_numbers"
-    return process_telegram_vote_command(telegram_username, f"/vote {parts[1]} {option_number}")
+    return process_telegram_vote_command(telegram_username, f"/vote {parts[1]} {option_number}", telegram_user_id)
 
 
 def process_proposal(proposal_id):
@@ -896,7 +944,8 @@ def telegram_webhook(secret):
                 except (ValueError, json.JSONDecodeError):
                     TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(callback_query_id, "❌ Invalid poll")
         else:
-            success, reason = process_telegram_vote_callback(telegram_username, callback_data)
+            telegram_user_id = from_user.get("id")
+            success, reason = process_telegram_vote_callback(telegram_username, callback_data, telegram_user_id)
             if TELEGRAM_BOT_TOKEN and callback_query_id:
                 text = "✅ Your vote has been recorded." if success else "❌ Could not record vote."
                 if reason == "telegram_disabled":
@@ -909,11 +958,30 @@ def telegram_webhook(secret):
     text = (message.get("text") or "").strip()
     from_user = message.get("from") or {}
     telegram_username = (from_user.get("username") or "").strip()
+    telegram_user_id = from_user.get("id")
     chat_id = message.get("chat", {}).get("id")
-    if not text or not telegram_username:
+    if not text:
         return {"ok": True}, 200
 
-    success, reason = process_telegram_vote_command(telegram_username, text)
+    if text.lower().startswith("/link"):
+        if telegram_user_id is None:
+            return {"ok": True}, 200
+        success, reason = process_telegram_link_command(telegram_username, telegram_user_id, text)
+        if TELEGRAM_BOT_TOKEN and chat_id:
+            if success:
+                response_text = "✅ Your Telegram account is now linked."
+            elif reason == "invalid_format":
+                response_text = "❌ Usage: /link <app_username> <app_password>"
+            elif reason == "invalid_credentials":
+                response_text = "❌ Invalid username or password."
+            elif reason == "already_linked":
+                response_text = "❌ This Telegram account is already linked to another member."
+            else:
+                response_text = "❌ Could not link this Telegram account."
+            TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "").send_message(response_text)
+        return {"ok": True}, 200
+
+    success, reason = process_telegram_vote_command(telegram_username, text, telegram_user_id)
     if text.lower().startswith("/vote") and TELEGRAM_BOT_TOKEN and chat_id:
         if success:
             response_text = "✅ Your vote has been recorded."
@@ -2374,7 +2442,13 @@ def polls_page():
         except (TypeError, json.JSONDecodeError):
             options = []
         try:
-            c.execute("SELECT pv.option_index, pv.created_at, mm.username FROM poll_votes pv JOIN members mm ON mm.id = pv.member_id WHERE pv.poll_id = ? ORDER BY pv.created_at ASC", (poll["id"],))
+            c.execute("""
+                SELECT pv.option_index, pv.created_at, COALESCE(mm.username, '') AS username
+                FROM poll_votes pv
+                LEFT JOIN members mm ON mm.id = pv.member_id
+                WHERE pv.poll_id = ?
+                ORDER BY pv.created_at ASC
+            """, (poll["id"],))
             votes = [dict(v) for v in c.fetchall()]
             c.execute("SELECT option_index FROM poll_votes WHERE poll_id = ? AND member_id = ?", (poll["id"], session["member_id"]))
             own = c.fetchone()

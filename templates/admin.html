@@ -112,6 +112,7 @@ function showSection(sectionId, buttonEl) {
                 <th>{{ 'Username'|lang }}</th>
                 <th>{{ 'Role'|lang }}</th>
                 <th>{{ 'Joined'|lang }}</th>
+                <th>Telegram</th>
                 <th>{{ 'Action'|lang }}</th>
             </tr>
         </thead>
@@ -121,6 +122,14 @@ function showSection(sectionId, buttonEl) {
                 <td>{{ m.username }}</td>
                 <td>{{ 'Admin'|lang if m.is_admin else 'Member'|lang }}</td>
                 <td>{{ m.created_at|localtime("%Y-%m-%d") }}</td>
+                <td style="font-size: 0.85em;">
+                    {% if m.telegram_user_id %}
+                        <div><strong>User:</strong> {{ m.telegram_username if m.telegram_username else "(no username)" }}</div>
+                        <div><strong>ID:</strong> {{ m.telegram_user_id }}</div>
+                    {% else %}
+                        <span style="color: #666;">Not linked</span>
+                    {% endif %}
+                </td>
                 <td>
                     {% if m.id != session.member_id %}
                     <div style="display: flex; flex-wrap: wrap; gap: 5px;">

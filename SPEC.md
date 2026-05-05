@@ -35,7 +35,7 @@ Container runtime (`docker compose up --build`):
 ## 4) Data model
 
 ### `members`
-- `id`, `username` (unique), `password_hash`, `is_admin`, `created_at`
+- `id`, `username` (unique), `password_hash`, `is_admin`, `telegram_username` (nullable), `telegram_user_id` (nullable), `created_at`
 
 ### `proposals`
 - `id`, `title`, `description`, `amount`, `url`, `image_filename`, `created_by`, `created_at`, `status`, `processed_at`, `over_budget_at`, `purchased_at`, `basic_supplies`
@@ -143,7 +143,7 @@ Committed series behavior:
 - Includes governance link to the public repository for proposing feature changes.
 
 ### Admin panel
-- **Members tab**: Add/remove members, toggle admin role.
+- **Members tab**: Add/remove members, toggle admin role, change passwords, and view linked Telegram username/ID when available.
 - **Budget tab**: Trigger monthly top-up (€50, description: "Subvención mensual MakeSpace para juguetes nuevos"), add custom budget entries.
 - **Settings tab**: Registration toggle, timezone selector (UTC, Europe/London, Europe/Paris, Europe/Madrid, America/New_York, America/Chicago, America/Los_Angeles, Asia/Tokyo, Asia/Shanghai, Australia/Sydney).
 - **Timezone tab**: Configure display timezone for all datetime fields.
@@ -194,12 +194,13 @@ Committed series behavior:
 - `POST /unpurchase/<proposal_id>`
 
 ### Telegram integration
-- `POST /telegram/webhook/<secret>` receives Telegram updates and processes `/vote` commands and inline-button `callback_query` votes.
+- `POST /telegram/webhook/<secret>` receives Telegram updates and processes `/vote` commands, `/link <app_username> <app_password>` account-linking commands, and inline-button `callback_query` votes.
 - Poll inline callbacks:
   - `showvote:<poll_id>` expands message keyboard to option buttons.
   - `pollvote:<poll_id>:<option_index>` records vote.
 - Webhook security requires `TELEGRAM_WEBHOOK_SECRET` to match `<secret>`.
-- Vote-to-member mapping uses Telegram username matched against `members.username` (`username` or `@username`, case-insensitive).
+- Vote-to-member mapping prefers `members.telegram_user_id`, then falls back to username matching against `members.username` and `members.telegram_username` (`username` or `@username`, case-insensitive).
+- If no linked member is found but Telegram provides numeric user id, vote is stored under a deterministic negative `member_id` placeholder (`-telegram_user_id`) so one Telegram user still maps to one vote.
 - Telegram client calls are considered successful only when HTTP status is `200` and Telegram API responds with `"ok": true` (when JSON is returned).
 
 ### Admin web actions
