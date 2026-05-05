@@ -170,6 +170,11 @@ TRANSLATIONS = {
         "Undo approval confirm": "Undo approval? Budget will be restored.",
         "Undo Approval": "Undo Approval",
         "of": "of",
+        "Timezone": "Timezone",
+        "Save Timezone": "Save Timezone",
+        "Thresholds": "Thresholds",
+        "Stats": "Stats",
+        "Show All": "Show All",
     },
     "es": {
         "active": "activo",

@@ -10,17 +10,7 @@
     <a href="{{ url_for('admin') }}">{{ 'Admin'|lang }}</a>
     {% endif %}
     <a href="{{ url_for('about') }}">{{ 'About'|lang }}</a>
-    <div class="settings-dropdown">
-        <span style="cursor: pointer; color: #00d9ff;">{{ 'Settings'|lang }} ▼</span>
-        <div class="settings-menu">
-            <a href="{{ url_for('change_password') }}">{{ 'Change Password'|lang }}</a>
-            <a href="{{ url_for('logout') }}">{{ 'Logout'|lang }}</a>
-            <div style="border-top: 1px solid #333; margin: 5px 0;"></div>
-            <span style="color: #888; font-size: 0.85em;">{{ 'Language'|lang }}:</span>
-            <a href="{{ url_for('set_language', lang='en') }}" class="{{ 'active' if session_lang == 'en' else '' }}">English</a>
-            <a href="{{ url_for('set_language', lang='es') }}" class="{{ 'active' if session_lang == 'es' else '' }}">Español</a>
-        </div>
-    </div>
+    <a href="{{ url_for('settings_page') }}">{{ 'Settings'|lang }}</a>
 </div>
 
 <div class="card">
@@ -103,16 +93,16 @@
                     <td>
                         {% if item.item_type == 'proposal' %}
                             {% if item.status == 'approved' %}
-                            <span style="color: #9932CC;">✓ {{ 'Approved'|lang }}</span>
+                            <span style="color: #1a4a7a;">✓ {{ 'Approved'|lang }}</span>
                             {% elif item.status == 'rejected' %}
                             <span style="color: #e94560;">✗ {{ 'Rejected'|lang }}</span>
                             {% else %}
                             <span style="color: #00d9ff;">○ {{ item.status|lang|title }}</span>
                             {% endif %}
                         {% elif item.amount > 0 %}
-                        <span style="color: #00ff88;">↑ {{ 'Budget In'|lang }}</span>
+                        <span style="color: #ffffff;">↑ {{ 'Budget In'|lang }}</span>
                         {% else %}
-                        <span style="color: #e94560;">↓ {{ 'Budget Out'|lang }}</span>
+                        <span style="color: #888888;">↓ {{ 'Budget Out'|lang }}</span>
                         {% endif %}
                     </td>
                     <td>
@@ -184,10 +174,10 @@ new Chart(ctx, {
                 stack: 'line_budget_balance'
             },
             {
-                label: '{{ 'Committed'|lang }}',
+                label: '{{ 'Pending Budget'|lang }}',
                 data: committedData,
-                borderColor: '#ffa500',
-                backgroundColor: '#ffa50022',
+                borderColor: '#9932CC',
+                backgroundColor: '#9932CC22',
                 fill: true,
                 tension: 0.3,
                 pointRadius: 4,
@@ -197,8 +187,8 @@ new Chart(ctx, {
                 type: 'bar',
                 label: '{{ 'Budget In'|lang }}',
                 data: cashInData,
-                borderColor: '#00ff88',
-                backgroundColor: '#00ff8844',
+                borderColor: '#ffffff',
+                backgroundColor: '#ffffff44',
                 borderWidth: 1,
                 order: 1
             },
@@ -206,8 +196,8 @@ new Chart(ctx, {
                 type: 'bar',
                 label: '{{ 'Budget Out'|lang }}',
                 data: cashOutData,
-                borderColor: '#e94560',
-                backgroundColor: '#e9456044',
+                borderColor: '#888888',
+                backgroundColor: '#88888844',
                 borderWidth: 1,
                 order: 1
             },
@@ -225,8 +215,8 @@ new Chart(ctx, {
                 type: 'bar',
                 label: '{{ 'Proposals (Approved)'|lang }}',
                 data: approvedData,
-                borderColor: '#9932CC',
-                backgroundColor: '#9932CC88',
+                borderColor: '#1a4a7a',
+                backgroundColor: '#1a4a7a88',
                 borderWidth: 1,
                 order: 0,
                 stack: 'proposal_approved'

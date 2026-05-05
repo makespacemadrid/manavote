@@ -122,12 +122,12 @@ If a proposal marked basic supplies has amount > €20, basic flag is auto-remov
 - Sorting and pagination (`20` rows/page across proposals + budget logs).
 
 Chart datasets:
-- **Budget Balance**: cyan line
-- **Committed**: orange line
-- **Cash In**: green bar
-- **Cash Out**: red bar
+- **Budget Balance**: white line
+- **Pending Budget**: purple line
+- **Cash In**: white bar
+- **Cash Out**: gray bar
 - **Proposals (Being Voted)**: pink bar (`#ff69b4`)
-- **Proposals (Approved)**: purple bar (`#9932CC`)
+- **Proposals (Approved)**: dark blue bar (`#1a4a7a`)
 
 Committed series behavior:
 - `pending` accumulates from proposals when they go over_budget (tracked by `over_budget_at`).
@@ -182,6 +182,7 @@ Committed series behavior:
 - `GET /logout`
 - `GET /set-language/<lang>`
 - `GET|POST /change-password`
+- `GET|POST /telegram-settings`
 - `GET|POST /proposal/new`
 - `GET|POST /proposal/<proposal_id>`
 - `GET|POST /proposal/<proposal_id>/edit`

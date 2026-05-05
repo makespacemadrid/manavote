@@ -1217,6 +1217,63 @@ def change_password():
     )
 
 
+@app.route("/settings")
+@login_required
+def settings_page():
+    return render_template("settings.html", session_lang=session.get("lang", "en"))
+
+
+@app.route("/telegram-settings", methods=["GET", "POST"])
+@login_required
+def telegram_settings():
+    conn = get_db()
+    c = conn.cursor()
+
+    if request.method == "POST":
+        raw_username = (request.form.get("telegram_username") or "").strip()
+        raw_user_id = (request.form.get("telegram_user_id") or "").strip()
+
+        telegram_username = raw_username.lstrip("@") if raw_username else None
+        telegram_user_id = None
+
+        if raw_user_id:
+            if not raw_user_id.isdigit():
+                flash("Telegram user ID must be numeric", "error")
+                conn.close()
+                return redirect(url_for("telegram_settings"))
+            telegram_user_id = int(raw_user_id)
+
+            c.execute(
+                "SELECT id FROM members WHERE telegram_user_id = ? AND id != ?",
+                (telegram_user_id, session["member_id"]),
+            )
+            if c.fetchone():
+                flash("That Telegram user ID is already linked to another account", "error")
+                conn.close()
+                return redirect(url_for("telegram_settings"))
+
+        c.execute(
+            "UPDATE members SET telegram_username = ?, telegram_user_id = ? WHERE id = ?",
+            (telegram_username, telegram_user_id, session["member_id"]),
+        )
+        conn.commit()
+        flash("Telegram settings updated", "success")
+        conn.close()
+        return redirect(url_for("telegram_settings"))
+
+    c.execute(
+        "SELECT telegram_username, telegram_user_id FROM members WHERE id = ?",
+        (session["member_id"],),
+    )
+    member = c.fetchone()
+    conn.close()
+
+    return render_template(
+        "telegram_settings.html",
+        telegram_username=(member["telegram_username"] if member else None),
+        telegram_user_id=(member["telegram_user_id"] if member else None),
+        session_lang=session.get("lang", "en"),
+    )
 @app.route("/register", methods=["GET", "POST"])
 def register():
     if not is_registration_enabled():

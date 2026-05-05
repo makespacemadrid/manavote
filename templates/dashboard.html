@@ -10,17 +10,7 @@
     <a href="{{ url_for('admin') }}">{{ 'Admin'|lang }}</a>
     {% endif %}
     <a href="{{ url_for('about') }}">{{ 'About'|lang }}</a>
-    <div class="settings-dropdown">
-        <span style="cursor: pointer; color: #00d9ff;">{{ 'Settings'|lang }} ▼</span>
-        <div class="settings-menu">
-            <a href="{{ url_for('change_password') }}">{{ 'Change Password'|lang }}</a>
-            <a href="{{ url_for('logout') }}">{{ 'Logout'|lang }}</a>
-            <div style="border-top: 1px solid #333; margin: 5px 0;"></div>
-            <span style="color: #888; font-size: 0.85em;">{{ 'Language'|lang }}:</span>
-            <a href="{{ url_for('set_language', lang='en') }}" class="{{ 'active' if session_lang == 'en' else '' }}">English</a>
-            <a href="{{ url_for('set_language', lang='es') }}" class="{{ 'active' if session_lang == 'es' else '' }}">Español</a>
-        </div>
-    </div>
+    <a href="{{ url_for('settings_page') }}">{{ 'Settings'|lang }}</a>
 </div>
 
 <div class="card" style="margin-bottom: 15px; padding: 25px;">
@@ -46,7 +36,7 @@
         <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
             <a href="{{ url_for('dashboard') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: transparent; color: #fff; border: 1px solid #fff;">{{ 'All'|lang }} (€{{ "%.0f"|format(all_sum) }})</a>
             <a href="{{ url_for('dashboard', filter='active') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00d9ff22' if filter == 'active' else 'transparent' }}; color: #00d9ff; border: 1px solid #00d9ff;">{{ 'Active'|lang }} (€{{ "%.0f"|format(active_proposals_sum) }})</a>
-            <a href="{{ url_for('dashboard', filter='over_budget') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#1a4a7a22' if filter == 'over_budget' else 'transparent' }}; color: #1a4a7a; border: 1px solid #1a4a7a;">{{ 'Pending Budget'|lang }} (€{{ "%.0f"|format(committed) }})</a>
+            <a href="{{ url_for('dashboard', filter='over_budget') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#9932CC22' if filter == 'over_budget' else 'transparent' }}; color: #9932CC; border: 1px solid #9932CC;">{{ 'Pending Budget'|lang }} (€{{ "%.0f"|format(committed) }})</a>
             <a href="{{ url_for('dashboard', filter='approved') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00ff8822' if filter == 'approved' else 'transparent' }}; color: #00ff88; border: 1px solid #00ff88;">{{ 'Approved'|lang }} (€{{ "%.0f"|format(approved_sum) }})</a>
             <a href="{{ url_for('dashboard', filter='not_purchased') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00cc6622' if filter == 'not_purchased' else 'transparent' }}; color: #00cc66; border: 1px solid #00cc66;">{{ 'Pending Purchase'|lang }} (€{{ "%.0f"|format(pending_purchase_sum) }})</a>
             <a href="{{ url_for('dashboard', filter='purchased') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#4a422' if filter == 'purchased' else 'transparent' }}; color: #4a4; border: 1px solid #4a4;">{{ 'Purchased'|lang }} (€{{ "%.0f"|format(purchased_sum) }})</a>

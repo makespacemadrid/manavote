@@ -197,6 +197,12 @@ class TestTranslations(unittest.TestCase):
                 with self.subTest(locale=locale, key=key):
                     self.assertIn(key, budget_app.TRANSLATIONS[locale])
 
+    def test_translation_locales_have_same_keyset(self):
+        """English and Spanish translations should define the same keys."""
+        en_keys = set(budget_app.TRANSLATIONS["en"].keys())
+        es_keys = set(budget_app.TRANSLATIONS["es"].keys())
+        self.assertSetEqual(en_keys, es_keys)
+
 
 class TestLoggingConfiguration(unittest.TestCase):
     def test_file_logging_targets_app_log_in_source(self):
@@ -323,19 +329,19 @@ class TestCalendarBudgetData(unittest.TestCase):
         self.assertIn("item.amount|abs", template)
 
     def test_calendar_committed_budget_label(self):
-        """Calendar shows Committed line label in English"""
+        """Calendar shows Pending Budget line label in English"""
         response = self.client.get("/calendar")
         self.assertEqual(response.status_code, 200)
         html = response.data.decode("utf-8")
-        self.assertIn("label: 'Committed'", html)
+        self.assertIn("label: 'Pending Budget'", html)
 
     def test_calendar_committed_budget_spanish(self):
-        """Calendar shows Committed line label in Spanish"""
+        """Calendar shows Pending Budget line label in Spanish"""
         self.client.get("/set-language/es")
         response = self.client.get("/calendar")
         self.assertEqual(response.status_code, 200)
         html = response.data.decode("utf-8")
-        self.assertIn("label: 'Comprometido'", html)
+        self.assertIn("label: 'Presupuesto Pendiente'", html)
 
     def test_calendar_table_labels_spanish(self):
         """Calendar table labels are localized in Spanish for budget flows"""

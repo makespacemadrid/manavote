@@ -8,17 +8,7 @@
     <a href="{{ url_for('polls_page') }}">{{ 'Polls'|lang }}</a>
     {% if session.is_admin %}<a href="{{ url_for('admin') }}">{{ 'Admin'|lang }}</a>{% endif %}
     <a href="{{ url_for('about') }}">{{ 'About'|lang }}</a>
-    <div class="settings-dropdown">
-        <span style="cursor: pointer; color: #00d9ff;">{{ 'Settings'|lang }} ▼</span>
-        <div class="settings-menu">
-            <a href="{{ url_for('change_password') }}">{{ 'Change Password'|lang }}</a>
-            <a href="{{ url_for('logout') }}">{{ 'Logout'|lang }}</a>
-            <div style="border-top: 1px solid #333; margin: 5px 0;"></div>
-            <span style="color: #888; font-size: 0.85em;">{{ 'Language'|lang }}:</span>
-            <a href="{{ url_for('set_language', lang='en') }}" class="{{ 'active' if session_lang == 'en' else '' }}">English</a>
-            <a href="{{ url_for('set_language', lang='es') }}" class="{{ 'active' if session_lang == 'es' else '' }}">Español</a>
-        </div>
-    </div>
+    <a href="{{ url_for('settings_page') }}">{{ 'Settings'|lang }}</a>
 </div>
 
 <div class="card">
