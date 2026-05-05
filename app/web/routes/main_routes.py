@@ -898,7 +898,7 @@ def telegram_webhook(secret):
         else:
             success, reason = process_telegram_vote_callback(telegram_username, callback_data)
             if TELEGRAM_BOT_TOKEN and callback_query_id:
-                text = "✅ Vote recorded in ManaVote." if success else "❌ Could not record vote."
+                text = "✅ Your vote has been recorded." if success else "❌ Could not record vote."
                 if reason == "telegram_disabled":
                     text = "❌ Telegram voting is disabled by admin."
                 TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(callback_query_id, text)
@@ -916,7 +916,7 @@ def telegram_webhook(secret):
     success, reason = process_telegram_vote_command(telegram_username, text)
     if text.lower().startswith("/vote") and TELEGRAM_BOT_TOKEN and chat_id:
         if success:
-            response_text = "✅ Vote recorded in ManaVote."
+            response_text = "✅ Your vote has been recorded."
         elif reason == "telegram_disabled":
             response_text = "❌ Telegram voting is disabled by admin."
         elif reason == "unknown_member":
@@ -2081,21 +2081,6 @@ def admin():
                 conn.commit()
                 flash("Poll created!", "success")
 
-                if request.form.get("send_test_admin"):
-                    if not TELEGRAM_ADMIN_ID:
-                        flash("TELEGRAM_ADMIN_ID is not configured", "error")
-                    else:
-                        lines = ["📊 *New Poll*", "", f"*{question}*", ""]
-                        for idx, option in enumerate(options, 1):
-                            lines.append(f"{idx}. {option}")
-                        lines.append("")
-                        lines.append("Tap a button below to vote.")
-                        lines.append("Fallback command: /vote <option_number>")
-                        sent = send_telegram_admin_test_message("\n".join(lines))
-                        flash(
-                            "Poll test sent to TELEGRAM_ADMIN_ID!" if sent else "Failed to send poll test message",
-                            "success" if sent else "error",
-                        )
 
         elif action == "close_poll":
             poll_id = request.form.get("poll_id", type=int)
