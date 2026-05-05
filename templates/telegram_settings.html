@@ -5,18 +5,14 @@
 
 <div class="card">
     <h2>📱 Telegram Settings</h2>
-    <p style="color: #888; margin-bottom: 15px;">Add your Telegram username and user ID to link your account for Telegram voting.</p>
+    <p style="color: #888; margin-bottom: 15px;">Telegram username and user ID are linked automatically from Telegram when you use the /link command with the bot.</p>
 
-    <form method="POST">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+    <label>Telegram Username (auto-linked from Telegram)</label>
+    <input type="text" value="{{ telegram_username or '' }}" placeholder="Use /link in Telegram to set this" readonly disabled>
 
-        <label>Telegram Username (optional, without @)</label>
-        <input type="text" name="telegram_username" value="{{ telegram_username or '' }}" placeholder="example_user" maxlength="64">
+    <label>Telegram User ID (auto-linked from Telegram)</label>
+    <input type="text" value="{{ telegram_user_id or '' }}" placeholder="Use /link in Telegram to set this" readonly disabled>
 
-        <label>Telegram User ID (optional)</label>
-        <input type="text" name="telegram_user_id" value="{{ telegram_user_id or '' }}" placeholder="123456789">
-
-        <button type="submit" class="btn">Save Telegram Settings</button>
-    </form>
+    <small style="color:#888; display:block; margin-top:8px;">In Telegram, send <code>/link &lt;app_username&gt; &lt;app_password&gt;</code> to the bot.</small>
 </div>
 {% endblock %}

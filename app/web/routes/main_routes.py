@@ -1230,34 +1230,7 @@ def telegram_settings():
     c = conn.cursor()
 
     if request.method == "POST":
-        raw_username = (request.form.get("telegram_username") or "").strip()
-        raw_user_id = (request.form.get("telegram_user_id") or "").strip()
-
-        telegram_username = raw_username.lstrip("@") if raw_username else None
-        telegram_user_id = None
-
-        if raw_user_id:
-            if not raw_user_id.isdigit():
-                flash("Telegram user ID must be numeric", "error")
-                conn.close()
-                return redirect(url_for("telegram_settings"))
-            telegram_user_id = int(raw_user_id)
-
-            c.execute(
-                "SELECT id FROM members WHERE telegram_user_id = ? AND id != ?",
-                (telegram_user_id, session["member_id"]),
-            )
-            if c.fetchone():
-                flash("That Telegram user ID is already linked to another account", "error")
-                conn.close()
-                return redirect(url_for("telegram_settings"))
-
-        c.execute(
-            "UPDATE members SET telegram_username = ?, telegram_user_id = ? WHERE id = ?",
-            (telegram_username, telegram_user_id, session["member_id"]),
-        )
-        conn.commit()
-        flash("Telegram settings updated", "success")
+        flash("Telegram account fields are read-only here. Use /link <app_username> <app_password> in Telegram.", "info")
         conn.close()
         return redirect(url_for("telegram_settings"))
 
@@ -2391,6 +2364,18 @@ def admin():
     """)
     member_stats = c.fetchall()
 
+    c.execute("""
+        SELECT
+            m.id,
+            m.username,
+            m.is_admin,
+            (SELECT COUNT(*) FROM poll_votes pv WHERE pv.member_id = m.id) AS poll_vote_count,
+            (SELECT COUNT(*) FROM polls p WHERE p.created_by = m.id) AS poll_created_count
+        FROM members m
+        ORDER BY poll_vote_count DESC, poll_created_count DESC, m.username ASC
+    """)
+    member_poll_stats = c.fetchall()
+
     thresholds = get_thresholds()
     registration_enabled = is_registration_enabled()
     current_budget = get_current_budget()
@@ -2448,6 +2433,7 @@ def admin():
         "admin.html",
         members=members,
         member_stats=member_stats,
+        member_poll_stats=member_poll_stats,
         budget_history=budget_history,
         proposal_history=proposal_history,
         current_budget=current_budget,
@@ -2519,6 +2505,19 @@ def polls_page():
         flash("Polls are temporarily unavailable", "error")
 
     polls = []
+    c.execute(
+        "SELECT telegram_username, telegram_user_id FROM members WHERE id = ?",
+        (session["member_id"],),
+    )
+    current_member = c.fetchone()
+    is_telegram_linked = bool(
+        current_member
+        and (
+            current_member["telegram_username"]
+            or current_member["telegram_user_id"] is not None
+        )
+    )
+
     for row in poll_rows:
         poll = dict(row)
         try:
@@ -2527,7 +2526,14 @@ def polls_page():
             options = []
         try:
             c.execute("""
-                SELECT pv.option_index, pv.created_at, COALESCE(mm.username, '') AS username
+                SELECT
+                    pv.option_index,
+                    pv.created_at,
+                    COALESCE(NULLIF(mm.telegram_username, ''), mm.username, '') AS username,
+                    CASE
+                        WHEN COALESCE(NULLIF(mm.telegram_username, ''), '') = '' THEN 0
+                        ELSE 1
+                    END AS is_linked_username
                 FROM poll_votes pv
                 LEFT JOIN members mm ON mm.id = pv.member_id
                 WHERE pv.poll_id = ?
@@ -2555,7 +2561,8 @@ def polls_page():
         polls=polls, 
         session_lang=session.get("lang", "en"),
         is_telegram_vote_enabled=is_telegram_poll_voting_enabled(),
-        is_web_vote_enabled=is_web_poll_voting_enabled()
+        is_web_vote_enabled=is_web_poll_voting_enabled(),
+        is_telegram_linked=is_telegram_linked,
     )
 
 

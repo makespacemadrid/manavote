@@ -6,7 +6,7 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 
 - Members can create, discuss, and vote on proposals.
 - Members can participate in transparent polls inside the web app.
-- Members can manage Telegram account-link details from Settings (Telegram username + Telegram user ID).
+- Members can view Telegram account-link details from Settings (Telegram username and Telegram user ID are read-only).
 - Proposals are auto-processed based on vote thresholds and available budget.
 - Admins can manage members, thresholds, settings, and budget movements (including Telegram link visibility in Members table).
 - API endpoints allow admin-key-based automation for member/proposal creation.
@@ -28,7 +28,9 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 ### Polls (transparent by design)
 - Admins can create polls with 2..12 options from the Admin panel.
 - Members can vote from Telegram by tapping inline poll buttons (or using `/vote <poll_id> <option_number>` as fallback).
-- Members can pre-link Telegram identity with `/link <app_username> <app_password>` to bind Telegram account to their app member record.
+- Members can pre-link Telegram identity with `/link <app_username> <app_password>` to bind Telegram account to their app member record. This command is the only way `telegram_username` and `telegram_user_id` are set.
+- On `/polls`, the “Who voted what” list prefers linked Telegram usernames (from `/link`) and falls back to app usernames only when Telegram link data is missing.
+- If your account is not linked, `/polls` shows a reminder banner with `/link <app_username> <app_password>`.
 - Telegram poll announcements include a **Vote** button (`showvote:<poll_id>`) that expands into one button per option (`pollvote:<poll_id>:<index>`).
 - Admins can restrict poll voting channel to `Web + Telegram`, `Web only`, or `Telegram only`.
 - The app tracks and displays all poll state/results on `/polls`.

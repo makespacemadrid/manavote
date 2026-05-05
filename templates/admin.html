@@ -35,7 +35,7 @@
 <script>
 function showSection(sectionId, buttonEl) {
     var sections = {
-        members: ['add-member', 'registration-settings', 'members', 'stats'],
+        members: ['add-member', 'registration-settings', 'members', 'stats', 'poll-stats'],
         budget: ['thresholds', 'budget', 'budget-history', 'proposal-history'],
         polls: ['settings', 'polls'],
         settings: ['timezone', 'backup', 'telegram']
@@ -113,9 +113,9 @@ function showSection(sectionId, buttonEl) {
                 <td>{{ 'Admin'|lang if m.is_admin else 'Member'|lang }}</td>
                 <td>{{ m.created_at|localtime("%Y-%m-%d") }}</td>
                 <td style="font-size: 0.85em;">
-                    {% if m.telegram_user_id %}
+                    {% if m.telegram_username or m.telegram_user_id %}
                         <div><strong>User:</strong> {{ m.telegram_username if m.telegram_username else "(no username)" }}</div>
-                        <div><strong>ID:</strong> {{ m.telegram_user_id }}</div>
+                        <div><strong>ID:</strong> {{ m.telegram_user_id if m.telegram_user_id else "(no ID)" }}</div>
                     {% else %}
                         <span style="color: #666;">Not linked</span>
                     {% endif %}
@@ -148,7 +148,7 @@ function showSection(sectionId, buttonEl) {
 </div>
 
 <div id="stats" class="card">
-    <h3>📊 {{ 'Member Statistics'|lang }}</h3>
+    <h3>📊 Member Proposal Statistics</h3>
     <table>
         <thead>
             <tr>
@@ -167,6 +167,28 @@ function showSection(sectionId, buttonEl) {
                 <td>{{ stat.proposal_count }}</td>
                 <td>{{ stat.approved_count }}</td>
                 <td>{{ stat.comment_count }}</td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+<div id="poll-stats" class="card">
+    <h3>📊 Member Poll Statistics</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>{{ 'Member'|lang }}</th>
+                <th>Poll Votes</th>
+                <th>Polls Created</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for stat in member_poll_stats %}
+            <tr>
+                <td>{{ stat.username|username }} {% if stat.is_admin %}({{ 'Admin'|lang|lower }}){% endif %}</td>
+                <td>{{ stat.poll_vote_count }}</td>
+                <td>{{ stat.poll_created_count }}</td>
             </tr>
             {% endfor %}
         </tbody>
