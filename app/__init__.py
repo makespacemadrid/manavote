@@ -1,10 +1,12 @@
 """Application package and factory."""
 
-import os
 import logging
-from datetime import datetime, timedelta
-from .web.routes.main_routes import *  # noqa: F401,F403
+import os
+import sqlite3
+
+from .startup import run_startup_steps
 from .web.app_setup import app as flask_app
+from .web.routes.main_routes import *  # noqa: F401,F403
 
 
 def create_app():
@@ -12,46 +14,14 @@ def create_app():
     from .web.routes.main_routes import DB_PATH, UPLOAD_FOLDER
 
     app = flask_app
-
     try:
-        ensure_db_ready()
-    except Exception as exc:
-        logging.warning("DB initialization check failed: %s", exc)
-
-    try:
-        from .services.backup_service import start_scheduler
-        start_scheduler(app, DB_PATH, UPLOAD_FOLDER)
-    except Exception as exc:
-        logging.warning("Failed to start scheduler: %s", exc)
-
-    try:
-        check_auto_backup(DB_PATH, UPLOAD_FOLDER)
-    except Exception as exc:
-        logging.warning("Auto backup check failed: %s", exc)
+        run_startup_steps(app, DB_PATH, UPLOAD_FOLDER, os.getenv("FLASK_ENV", ""))
+    except (sqlite3.Error, OSError, ValueError) as exc:
+        raise RuntimeError("Database initialization failed") from exc
+    except ImportError as exc:
+        logging.warning("Failed to initialize optional scheduler integrations: %s", exc)
 
     return app
-
-
-def check_auto_backup(db_path, upload_dir=None):
-    """Simple auto-backup check without APScheduler."""
-    db_dir = os.path.dirname(db_path) or "."
-    marker = os.path.join(db_dir, ".last_backup")
-    now = datetime.now()
-    
-    if os.path.exists(marker):
-        last = datetime.fromtimestamp(os.path.getmtime(marker))
-        if now - last < timedelta(hours=24):
-            return
-    
-    try:
-        from .services.backup_service import backup_db, backup_uploads
-        backup_db(db_path, keep_days=7)
-        if upload_dir:
-            backup_uploads(upload_dir, keep_days=7)
-        with open(marker, "w") as f:
-            f.write(str(now.timestamp()))
-    except Exception as exc:
-        logging.warning("Backup process failed: %s", exc)
 
 
 app = create_app()

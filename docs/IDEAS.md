@@ -226,16 +226,20 @@ This document captures concrete, incremental improvements identified during a de
 ### B) Startup / architecture reliability (#2, #3, #37)
 
 - **Milestone B1 — exception hardening**
-  - [ ] Replace broad startup exception handlers with targeted exceptions.
+  - [~] Replace broad startup exception handlers with targeted exceptions. *(in progress: app factory startup now narrows startup exception handling and fails fast on DB initialization errors)*
   - [ ] Fail fast for critical dependencies; log warnings only for optional integrations.
 
 - **Milestone B2 — explicit startup policy**
-  - [ ] Implement a single environment-policy helper that validates required secrets/settings.
-  - [ ] Enforce documented behavior for dev/test/prod before app starts serving requests.
+  - [~] Implement a single environment-policy helper that validates required secrets/settings. *(in progress: `validate_startup_policy` added and wired into `app_setup` for production secret validation)*
+  - [~] Enforce documented behavior for dev/test/prod before app starts serving requests. *(in progress: test environment now disables optional scheduler/auto-backup startup jobs via runtime policy helper)*
 
 - **Milestone B3 — unified bootstrap orchestration**
-  - [ ] Create one orchestrator function for startup order: config → DB/migrations → scheduler/services.
-  - [ ] Move scattered bootstrap steps into that orchestrator and call it from app factory.
+  - [~] Create one orchestrator function for startup order: config → DB/migrations → scheduler/services. *(in progress: app factory now uses a single `_run_startup_steps` function for deterministic startup sequencing)*
+  - [x] Move scattered bootstrap steps into that orchestrator and call it from app factory. ✅ `create_app()` now delegates startup sequence to startup orchestration helper (`run_startup_steps` in `app/startup.py`)
+
+- **Milestone B4 — startup regression tests**
+  - [x] Add tests for deterministic startup order. ✅ covered in `tests/test_app_startup.py`
+  - [x] Add tests for optional-startup warning behavior (`ImportError`, scheduler/backup warnings). ✅ covered in `tests/test_app_startup.py`
 
 ### C) API/domain maintainability (#8, #9)
 
@@ -270,3 +274,100 @@ This document captures concrete, incremental improvements identified during a de
 - Wire Telegram **proposal** vote ingestion into shared proposal vote service path. ✅ implemented via `/pvote <proposal_id> <yes|no>` command path
 - Add functional webhook tests for proposal vote behavior by mode (`web_only`, `telegram_only`, `both`). ✅ added for `both` and `web_only`; `telegram_only` functional mode test now added; plus bot-suffix, unknown-member, and callback-query regression checks
 - Add channel-level audit logging for accepted/rejected proposal votes with reason codes. ✅ implemented (`proposal_vote_accepted` / `proposal_vote_rejected`)
+
+
+## Focused review notes (May 6, 2026)
+
+After another pass through routes/services/tests, these are the most actionable near-term improvements:
+
+1. **Extract Telegram webhook handling from `main_routes.py` into a dedicated adapter module**
+   - Keep webhook parsing + command dispatch in `app/integrations/telegram_*` and leave HTTP concerns in routes only.
+   - This will reduce route complexity and make message-flow tests cheaper to maintain.
+   - ✅ progress: extracted payload parsing, command classification, and callback/proposal/poll/link response text mapping into `app/integrations/telegram_webhook.py`, and updated route to consume normalized webhook adapter helpers.
+
+2. **Add a single proposal-vote event schema for logs**
+   - The accepted/rejected proposal vote logs exist; standardize the payload keys (`event`, `source`, `mode`, `proposal_id`, `member_id`, `reason_code`, `latency_ms`) so dashboards/alerts can be added without refactors.
+   - ✅ progress: proposal vote logs now use a shared helper with consistent key order (`event/source/mode/proposal_id/member_id/vote/reason_code/latency_ms`).
+
+3. **Harden settings reads with typed accessors**
+   - Add typed helpers for enum-like settings (for example vote modes) that validate and normalize once, then cache per request.
+   - Prevents drift where separate call sites implement slightly different fallback behavior.
+   - ✅ progress: added shared enum-setting helper and switched poll/proposal vote mode lookups to common normalization path.
+
+4. **Introduce repository contract tests for proposal/vote repos**
+   - Add a compact reusable suite that runs against SQLite test DB and verifies upsert/idempotency invariants directly at repository level.
+   - This will protect service refactors and speed root-cause isolation when behavior changes.
+   - ✅ progress: added vote repository contract tests for upsert replacement and count invariants.
+
+5. **Add smoke tests for app-factory startup order**
+   - Assert `create_app()` startup sequence (config validation → migrations → route registration) under dev/test/prod settings.
+   - Prevent regressions from import-time side effects while bootstrap continues to be refactored.
+
+---
+
+## Next sprint plan (May 2026)
+
+### Sprint goal
+- **Stabilize startup policy + reduce `main_routes.py` coupling** while preserving current proposal-vote behavior and test coverage.
+
+### Planned deliverables
+
+1. **Startup policy helper (B2)**
+   - Add a dedicated helper (for example `app/startup_policy.py`) that validates environment-specific requirements before app serving:
+     - `production`: enforce non-default `SECRET_KEY` and bootstrap-password policy,
+     - `test`: deterministic defaults with no scheduler side effects,
+     - `development`: permissive defaults with explicit warnings.
+   - Wire helper into `create_app()` so policy checks run before startup orchestration.
+
+2. **Finish startup orchestration extraction (B3)**
+   - Move remaining startup-adjacent behavior out of route module globals where feasible.
+   - Keep `_run_startup_steps` as the single sequencing entrypoint and tighten function boundaries (inputs/outputs only, no hidden globals).
+
+3. **Telegram webhook adapter split (Focused note #1)**
+   - [~] Extract webhook parsing/dispatch from `main_routes.py` into `app/integrations/telegram_webhook.py`. *(payload parsing and response mapping done; command dispatch extraction still pending)*
+   - [ ] Route handler should become a thin HTTP adapter: parse request → call integration service → map result to response.
+
+4. **Proposal-vote audit schema normalization (Focused note #2)**
+   - [x] Standardize structured log payload keys for accepted/rejected proposal votes: `event, source, mode, proposal_id, member_id, reason_code, latency_ms`.
+   - [x] Add regression tests asserting log event names and required fields.
+
+5. **Repository contract test scaffolding (Focused note #4)**
+   - Add reusable test mixins/helpers for proposal/vote repository invariants:
+     - one member/one vote semantics,
+     - upsert replacement behavior,
+     - deterministic reads after writes.
+
+### Test plan for the sprint
+- Extend startup tests with mode-specific policy assertions (`dev/test/prod`) and import-side-effect guards.
+- Add webhook-adapter functional tests for command + callback parity.
+- Add audit-log assertion tests for proposal vote acceptance/rejection.
+- Keep `tests/test_production_config.py` and `tests/test_app_startup.py` green as gating checks.
+
+### Exit criteria
+- `create_app()` uses explicit policy validation + startup orchestration with no broad startup exception swallowing.
+- Telegram webhook route no longer contains business-flow branching beyond HTTP adaptation.
+- Proposal-vote logs have one documented schema used consistently across accepted/rejected paths.
+- New tests land with clear coverage of startup policy, webhook adapter behavior, and repository vote invariants.
+
+
+## Active backlog (post-implementation cleanup)
+
+The following are the items that are still pending after the recent startup, webhook, vote-mode, and test hardening work.
+
+### Highest priority
+- Finish startup policy matrix enforcement for all environments (dev/test/prod) with explicit validations beyond `SECRET_KEY`. *(in progress: production secure-cookie enforcement added)*
+- Continue extracting Telegram webhook command dispatch from `main_routes.py` into dedicated integration handlers (payload parsing + response mapping is already extracted).
+- Expand repository contract tests from vote repository to proposal + settings repositories.
+
+### Next priority
+- Add API contract tests with stable error-schema assertions.
+- Add structured JSON logging mode and request-level correlation fields.
+- Complete route boundary cleanup by reducing direct SQL in remaining API/admin handlers.
+
+### Done recently (for context only; not backlog)
+- Deterministic startup orchestration (`run_startup_steps`) and startup policy helper scaffolding.
+- Startup reliability tests (`test_app_startup`, `test_startup_policy`) including fail-fast/warning boundaries.
+- Shared enum settings normalization helper + vote mode normalization usage.
+- Proposal vote audit event normalization including latency field.
+- Telegram webhook payload/response helper extraction for callback, proposal vote, poll vote, and link responses.
+- Vote repository upsert/count contract tests and route-level proposal vote write via repository.

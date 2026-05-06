@@ -1141,6 +1141,15 @@ class TestPollTelegramActions(unittest.TestCase):
 
 
     def test_telegram_webhook_link_command_links_member(self):
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute(
+            "UPDATE members SET password_hash = ?, telegram_username = NULL, telegram_user_id = NULL WHERE id = 1",
+            (budget_app.generate_password_hash("test-admin-password"),),
+        )
+        conn.commit()
+        conn.close()
+
         from app.web.routes import main_routes
         old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
         main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
@@ -1149,7 +1158,7 @@ class TestPollTelegramActions(unittest.TestCase):
                 "/telegram/webhook/hook-secret",
                 json={
                     "message": {
-                        "text": "/link admin adminpass",
+                        "text": "/link admin test-admin-password",
                         "from": {"username": "admin_tg", "id": 555001},
                         "chat": {"id": 12345},
                     }
@@ -1866,7 +1875,4 @@ class TestPollsFunctionality(unittest.TestCase):
 
         self.assertEqual(vote_row["total"], 1)
         self.assertEqual(vote_row["vote"], "against")
-
-
-
 

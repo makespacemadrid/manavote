@@ -21,10 +21,10 @@ Primary goals:
 
 At startup (`python app.py`):
 1. Flask app is constructed in `app/web/app_setup.py` (config load, logging, extension init).
-2. App initializes DB path and upload folder.
-3. DB tables are created if missing.
-4. Default admin/settings are seeded if needed.
-5. Migrations run (`app/db/migrations.py`).
+2. Startup policy validation is applied (`app/startup_policy.py`) for environment invariants (for example production secret requirements).
+3. App factory delegates bootstrap orchestration to `app/startup.py::run_startup_steps(...)`.
+4. DB tables are created/verified and migrations run before optional startup jobs.
+5. Optional startup jobs (scheduler, auto-backup check) run based on environment runtime policy (`test` disables them).
 6. Flask starts on host `0.0.0.0`, port `5000`.
 
 Container runtime (`docker compose up --build`):
@@ -236,8 +236,9 @@ Committed series behavior:
 ## 10) Known implementation notes
 
 - `current_budget` exists in settings for backward compatibility, while live balance is computed from `activity_log`.
-- Auto-backup runs every 24 hours via APScheduler when the app starts, pruning backups older than 7 days.
+- Auto-backup runs every 24 hours via APScheduler when the app starts (except in `FLASK_ENV=test`), pruning backups older than 7 days.
 - `/healthz` returns service liveness for container health checks.
+- Proposal vote audit logs use a shared schema with fields: `event`, `source`, `mode`, `proposal_id`, `member_id`, `vote`, `reason_code`, `latency_ms`.
 
 ## 11) Backup
 
@@ -259,11 +260,18 @@ Targeted startup/template guard checks:
 
 ```bash
 pytest -q tests/test_production_config.py tests/test_template_guards.py
+
+# Startup architecture reliability checks
+pytest -q tests/test_app_startup.py tests/test_startup_policy.py tests/unit/test_settings_service.py tests/unit/test_vote_repository_contract.py
 ```
 
 Coverage notes:
 - Production config tests validate fail-fast behavior for missing/unsafe `SECRET_KEY` and missing `ADMIN_BOOTSTRAP_PASSWORD` under `FLASK_ENV=production`.
 - Template guard tests validate top-nav partial usage and CSRF hidden input markup invariants in key templates.
+- Startup tests validate deterministic bootstrap sequencing and warning/fail-fast boundaries.
+- Startup policy tests validate env-specific runtime flags and production secret enforcement.
+- Settings helper tests validate normalized enum-setting reads and fallback behavior.
+- Vote repository contract tests validate upsert replacement and aggregate count invariants.
 
 
 ## 14) Proposal vote channels (Web / Telegram / Both)

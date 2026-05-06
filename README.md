@@ -162,9 +162,11 @@ Implemented tools:
 
 ## Project structure
 
+- `app/startup.py` — deterministic startup orchestration (`run_startup_steps`) and backup-check helper.
+- `app/startup_policy.py` — startup policy validation and env-specific runtime flags.
 - `app/web/app_setup.py` — Flask app construction/config, logging, and extension initialization.
 - `app/web/routes/main_routes.py` — routes and request orchestration.
-- `app/services/` — business logic helpers (auth/budget/proposal/admin/vote/backup).
+- `app/services/` — business logic helpers (auth/budget/proposal/admin/vote/backup/settings).
 - `app/repositories/` — DB access helpers.
 - `app/db/` — schema + migrations + DB connection helper.
 - `templates/` — server-rendered HTML (Jinja2).
@@ -188,7 +190,7 @@ pytest -q
 Run targeted regression checks added in recent hardening work:
 
 ```bash
-pytest -q tests/test_template_guards.py tests/test_production_config.py
+pytest -q tests/test_template_guards.py tests/test_production_config.py tests/test_app_startup.py tests/test_startup_policy.py tests/unit/test_settings_service.py tests/unit/test_vote_repository_contract.py
 ```
 
 What these cover:
@@ -198,3 +200,12 @@ What these cover:
 - `tests/test_production_config.py`
   - Startup fails when `FLASK_ENV=production` and `SECRET_KEY` is missing/default.
   - DB bootstrap fails on first startup in production if `ADMIN_BOOTSTRAP_PASSWORD` is missing.
+- `tests/test_app_startup.py`
+  - App startup sequencing remains deterministic and DB failures are fail-fast.
+  - Optional startup jobs (scheduler/auto-backup) remain warning-only and can be skipped in `test` env.
+- `tests/test_startup_policy.py`
+  - Runtime policy flags are environment-aware (`test` disables optional startup jobs).
+- `tests/unit/test_settings_service.py`
+  - Enum-like setting reads are normalized with consistent fallback behavior.
+- `tests/unit/test_vote_repository_contract.py`
+  - Proposal-vote repository invariants (upsert replacement + vote counts) are enforced.

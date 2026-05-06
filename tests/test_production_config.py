@@ -50,6 +50,23 @@ class TestProductionConfig(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn("ADMIN_BOOTSTRAP_PASSWORD must be set before first startup in production", result.stderr)
 
+    def test_app_setup_fails_with_insecure_cookies_in_production(self):
+        env = os.environ.copy()
+        env["FLASK_ENV"] = "production"
+        env["SECRET_KEY"] = "prod-secret-for-test"
+        env["FLASK_SECURE_COOKIES"] = "false"
+
+        result = subprocess.run(
+            ["python", "-c", "import app.web.app_setup"],
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("FLASK_SECURE_COOKIES must remain enabled when FLASK_ENV=production", result.stderr)
+
 
 if __name__ == "__main__":
     unittest.main()
