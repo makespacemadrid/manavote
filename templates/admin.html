@@ -1,15 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-<div class="nav">
-    <span>{{ 'Logged in as'|lang }}: <strong>{{ session.username|username }}</strong></span>
-    <a href="{{ url_for('dashboard') }}">{{ 'Dashboard'|lang }}</a>
-    <a href="{{ url_for('calendar') }}">{{ 'Calendar'|lang }}</a>
-    <a href="{{ url_for('polls_page') }}">{{ 'Polls'|lang }}</a>
-    <a href="{{ url_for('admin') }}">{{ 'Admin'|lang }}</a>
-    <a href="{{ url_for('about') }}">{{ 'About'|lang }}</a>
-    <a href="{{ url_for('settings_page') }}">{{ 'Settings'|lang }}</a>
-</div>
+{% include "_top_nav.html" %}
 
 <h2>{{ 'Admin'|lang }}</h2>
 
@@ -114,10 +106,10 @@ function showSection(sectionId, buttonEl) {
                 <td>{{ m.created_at|localtime("%Y-%m-%d") }}</td>
                 <td style="font-size: 0.85em;">
                     {% if m.telegram_username or m.telegram_user_id %}
-                        <div><strong>User:</strong> {{ m.telegram_username if m.telegram_username else "(no username)" }}</div>
-                        <div><strong>ID:</strong> {{ m.telegram_user_id if m.telegram_user_id else "(no ID)" }}</div>
+                        <div><strong>{{ 'User'|lang }}:</strong> {{ m.telegram_username if m.telegram_username else "(no username)" }}</div>
+                        <div><strong>{{ 'ID'|lang }}:</strong> {{ m.telegram_user_id if m.telegram_user_id else "(no ID)" }}</div>
                     {% else %}
-                        <span style="color: #666;">Not linked</span>
+                        <span style="color: #666;">{{ 'Not linked'|lang }}</span>
                     {% endif %}
                 </td>
                 <td>
@@ -148,7 +140,7 @@ function showSection(sectionId, buttonEl) {
 </div>
 
 <div id="stats" class="card">
-    <h3>📊 Member Proposal Statistics</h3>
+    <h3>📊 {{ 'Member Proposal Statistics'|lang }}</h3>
     <table>
         <thead>
             <tr>
@@ -174,13 +166,13 @@ function showSection(sectionId, buttonEl) {
 </div>
 
 <div id="poll-stats" class="card">
-    <h3>📊 Member Poll Statistics</h3>
+    <h3>📊 {{ 'Member Poll Statistics'|lang }}</h3>
     <table>
         <thead>
             <tr>
                 <th>{{ 'Member'|lang }}</th>
-                <th>Poll Votes</th>
-                <th>Polls Created</th>
+                <th>{{ 'Poll Votes'|lang }}</th>
+                <th>{{ 'Polls Created'|lang }}</th>
             </tr>
         </thead>
         <tbody>
@@ -299,6 +291,64 @@ function showSection(sectionId, buttonEl) {
     </table>
 </div>
 
+<div id="polls" class="card">
+    <h3>{{ 'Polls'|lang }}</h3>
+    <form method="POST" style="margin-bottom: 15px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="create_poll">
+        <label>{{ 'Question'|lang }}</label>
+        <input type="text" name="question" required>
+        <label>{{ 'Options (one per line)'|lang }}</label>
+        <textarea name="options" rows="4" required placeholder="{{ 'Option examples'|lang }}"></textarea>
+        <small style="color:#888; display:block; margin-top:6px;">{{ 'Options format help'|lang }}</small>
+        <button type="submit" class="btn">{{ 'Create Poll'|lang }}</button>
+    </form>
+
+    <h4>{{ 'Recent Polls'|lang }}</h4>
+    <table>
+        <thead><tr><th>{{ 'Date'|lang }}</th><th>{{ 'Question'|lang }}</th><th>{{ 'Status'|lang }}</th><th>{{ 'By'|lang }}</th><th>{{ 'Votes'|lang }}</th><th>{{ 'Action'|lang }}</th></tr></thead>
+        <tbody>
+            {% for poll in polls %}
+            <tr>
+                <td>{{ poll.created_at|localtime("%Y-%m-%d %H:%M") }}</td>
+                <td>{{ poll.question }}</td>
+                <td>{{ poll.status }}</td>
+                <td>{{ poll.creator|username }}</td>
+                <td>{{ poll.total_votes }}</td>
+                <td>
+                    <form method="POST">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="send_poll_telegram_test">
+                        <input type="hidden" name="poll_id" value="{{ poll.id }}">
+                        <button type="submit" class="btn btn-secondary">{{ 'Send Test to Admin'|lang }}</button>
+                    </form>
+                    <form method="POST" style="margin-top: 6px;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="send_poll_telegram">
+                        <input type="hidden" name="poll_id" value="{{ poll.id }}">
+                        <button type="submit" class="btn btn-secondary">{{ 'Send to Telegram'|lang }}</button>
+                    </form>
+                    <form method="POST" style="margin-top: 6px;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="{{ 'close_poll' if poll.status == 'open' else 'reopen_poll' }}">
+                        <input type="hidden" name="poll_id" value="{{ poll.id }}">
+                        <button type="submit" class="btn btn-secondary">{{ 'Close Poll'|lang if poll.status == 'open' else 'Reopen Poll'|lang }}</button>
+                    </form>
+                    <form method="POST" style="margin-top: 6px;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="delete_poll">
+                        <input type="hidden" name="poll_id" value="{{ poll.id }}">
+                        <button type="submit" class="btn btn-secondary" onclick="return confirm('{{ 'Delete this poll?'|lang }}');">{{ 'Delete Poll'|lang }}</button>
+                    </form>
+                </td>
+            </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+
+
 <div id="settings" class="card">
     <h3>{{ 'Settings'|lang }}</h3>
     <p style="color: #888; margin-bottom: 15px;">{{ 'Other settings'|lang }}</p>
@@ -403,63 +453,6 @@ function showSection(sectionId, buttonEl) {
         <input type="hidden" name="action" value="sync_telegram_webhook">
         <button type="submit" class="btn btn-secondary">{{ 'Sync Telegram Webhook'|lang }}</button>
     </form>
-</div>
-
-
-<div id="polls" class="card">
-    <h3>{{ 'Polls'|lang }}</h3>
-    <form method="POST" style="margin-bottom: 15px;">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="action" value="create_poll">
-        <label>{{ 'Question'|lang }}</label>
-        <input type="text" name="question" required>
-        <label>{{ 'Options (one per line)'|lang }}</label>
-        <textarea name="options" rows="4" required placeholder="{{ 'Option examples'|lang }}"></textarea>
-        <small style="color:#888; display:block; margin-top:6px;">{{ 'Options format help'|lang }}</small>
-        <button type="submit" class="btn">{{ 'Create Poll'|lang }}</button>
-    </form>
-
-    <h4>{{ 'Recent Polls'|lang }}</h4>
-    <table>
-        <thead><tr><th>{{ 'Date'|lang }}</th><th>{{ 'Question'|lang }}</th><th>{{ 'Status'|lang }}</th><th>{{ 'By'|lang }}</th><th>{{ 'Votes'|lang }}</th><th>{{ 'Action'|lang }}</th></tr></thead>
-        <tbody>
-            {% for poll in polls %}
-            <tr>
-                <td>{{ poll.created_at|localtime("%Y-%m-%d %H:%M") }}</td>
-                <td>{{ poll.question }}</td>
-                <td>{{ poll.status }}</td>
-                <td>{{ poll.creator|username }}</td>
-                <td>{{ poll.total_votes }}</td>
-                <td>
-                    <form method="POST">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="action" value="send_poll_telegram_test">
-                        <input type="hidden" name="poll_id" value="{{ poll.id }}">
-                        <button type="submit" class="btn btn-secondary">{{ 'Send Test to Admin'|lang }}</button>
-                    </form>
-                    <form method="POST" style="margin-top: 6px;">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="action" value="send_poll_telegram">
-                        <input type="hidden" name="poll_id" value="{{ poll.id }}">
-                        <button type="submit" class="btn btn-secondary">{{ 'Send to Telegram'|lang }}</button>
-                    </form>
-                    <form method="POST" style="margin-top: 6px;">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="action" value="{{ 'close_poll' if poll.status == 'open' else 'reopen_poll' }}">
-                        <input type="hidden" name="poll_id" value="{{ poll.id }}">
-                        <button type="submit" class="btn btn-secondary">{{ 'Close Poll'|lang if poll.status == 'open' else 'Reopen Poll'|lang }}</button>
-                    </form>
-                    <form method="POST" style="margin-top: 6px;">
-                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                        <input type="hidden" name="action" value="delete_poll">
-                        <input type="hidden" name="poll_id" value="{{ poll.id }}">
-                        <button type="submit" class="btn btn-secondary" onclick="return confirm('{{ 'Delete this poll?'|lang }}');">{{ 'Delete Poll'|lang }}</button>
-                    </form>
-                </td>
-            </tr>
-            {% endfor %}
-        </tbody>
-    </table>
 </div>
 
 <div id="changePasswordModal" style="display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); z-index:1000; overflow-y: auto;">

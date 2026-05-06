@@ -3,22 +3,25 @@ import shutil
 import logging
 from datetime import datetime, timedelta
 
+REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
+BACKUP_ROOT = os.path.join(REPO_ROOT, "backups")
 
-def backup_db(db_path, keep_days=7):
+
+def backup_db(db_path, keep_days=7, backup_root=BACKUP_ROOT):
     """Create timestamped backup and prune old backups."""
-    directory = os.path.dirname(db_path) or "."
+    os.makedirs(backup_root, exist_ok=True)
     base_name = os.path.basename(db_path).replace(".db", "")
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
     backup_name = f"{base_name}_{timestamp}.db"
-    backup_path = os.path.join(directory, backup_name)
+    backup_path = os.path.join(backup_root, backup_name)
 
     shutil.copy2(db_path, backup_path)
 
     cutoff = datetime.now() - timedelta(days=keep_days)
     count = 0
-    for filename in os.listdir(directory):
+    for filename in os.listdir(backup_root):
         if filename.startswith(base_name + "_") and filename.endswith(".db"):
-            filepath = os.path.join(directory, filename)
+            filepath = os.path.join(backup_root, filename)
             if datetime.fromtimestamp(os.path.getmtime(filepath)) < cutoff:
                 os.remove(filepath)
                 count += 1
@@ -26,10 +29,10 @@ def backup_db(db_path, keep_days=7):
     return backup_name, count
 
 
-def backup_uploads(upload_dir, keep_days=7):
+def backup_uploads(upload_dir, keep_days=7, backup_root=BACKUP_ROOT):
     """Create timestamped uploads snapshot and prune old snapshots."""
-    parent_dir = os.path.dirname(upload_dir.rstrip(os.sep)) or "."
-    backup_dir = os.path.join(parent_dir, "uploads_backups")
+    os.makedirs(backup_root, exist_ok=True)
+    backup_dir = backup_root
     os.makedirs(backup_dir, exist_ok=True)
 
     timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")

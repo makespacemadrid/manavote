@@ -1,7 +1,5 @@
 import os
 import logging
-import warnings
-
 from flask import Flask
 
 from app.config import Config
@@ -15,8 +13,6 @@ app = Flask(
     static_folder=os.path.join(BASE_DIR, "static"),
 )
 app.config.from_object(Config)
-
-warnings.filterwarnings("ignore", category=DeprecationWarning, module="imghdr")
 
 if not app.debug:
     logging.basicConfig(

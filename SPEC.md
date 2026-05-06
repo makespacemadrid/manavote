@@ -20,7 +20,7 @@ Primary goals:
 ## 3) Runtime behavior
 
 At startup (`python app.py`):
-1. Flask app is constructed in `app/web/app_setup.py` (config load, logging, warnings, extension init).
+1. Flask app is constructed in `app/web/app_setup.py` (config load, logging, extension init).
 2. App initializes DB path and upload folder.
 3. DB tables are created if missing.
 4. Default admin/settings are seeded if needed.
@@ -231,6 +231,7 @@ Committed series behavior:
 - API endpoints require `X-Admin-Key` and return `503` if API key is not configured.
 - `SECRET_KEY` must be provided as a non-default value when running with `FLASK_ENV=production`.
 - Uploaded images are stored locally under `static/uploads/`.
+- Image upload validation uses signature-based sniffing (JPEG/PNG headers) in proposal create/edit flows; files failing signature checks are rejected.
 
 ## 10) Known implementation notes
 
@@ -244,3 +245,22 @@ Committed series behavior:
 - Auto: APScheduler runs `backup_db()` every 24 hours (if APScheduler is installed).
 - Prunes: Backups older than `keep_days` (default 7) are removed.
 - Filename format: `{db_name}_{timestamp}.db` (e.g., `app_20260426_120000.db`).
+
+
+## 12) Testing
+
+Recommended commands:
+
+```bash
+pytest -q
+```
+
+Targeted startup/template guard checks:
+
+```bash
+pytest -q tests/test_production_config.py tests/test_template_guards.py
+```
+
+Coverage notes:
+- Production config tests validate fail-fast behavior for missing/unsafe `SECRET_KEY` and missing `ADMIN_BOOTSTRAP_PASSWORD` under `FLASK_ENV=production`.
+- Template guard tests validate top-nav partial usage and CSRF hidden input markup invariants in key templates.

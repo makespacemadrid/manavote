@@ -34,8 +34,8 @@ This document captures concrete, incremental improvements identified during a de
    - Allow multiple valid keys temporarily (active + next), then revoke old key.
    - Simplifies safe credential rotation.
 
-7. **Harden file upload validation**
-   - `imghdr` is deprecated; migrate to Pillow or python-magic MIME validation.
+7. ✅ **Harden file upload validation** *(partially implemented)*
+   - Replaced deprecated `imghdr` usage with explicit signature-based MIME sniffing for allowed image types.
    - Enforce max dimensions and content-type/extension agreement.
 
 ## 3) Data / Domain
@@ -110,20 +110,20 @@ This document captures concrete, incremental improvements identified during a de
     - Added tests to keep `en` and `es` keysets in sync.
     - Prevents silent translation drift during UI changes.
 
-22. **Clean duplicated translation entries**
+22. ✅ **Clean duplicated translation entries** *(implemented)*
     - Translation file has repeated keys and mixed casing patterns.
     - Normalize keys and enforce a style guide.
 
-23. **Localize remaining hardcoded UI strings**
+23. ✅ **Localize remaining hardcoded UI strings** *(implemented)*
     - Some new settings-related labels are still hardcoded in templates.
     - Move to translation keys to keep EN/ES coverage complete.
 
 ## 6) Testing
 
-24. **Add dedicated integration test DB fixture**
+24. ✅ **Add dedicated integration test DB fixture** *(implemented)*
    - Current `APP_DB_PATH` session override is good; extend with transactional fixtures for isolation speed.
 
-25. **Add production-mode configuration tests**
+25. ✅ **Add production-mode configuration tests** *(implemented)*
    - Assert startup failures for missing `SECRET_KEY` and missing bootstrap password when `FLASK_ENV=production`.
 
 26. **Add API contract tests**
@@ -154,15 +154,15 @@ This document captures concrete, incremental improvements identified during a de
       - API auth model
       - budget/committed calculation semantics
 
-33. **Document environment variable matrix**
+33. ✅ **Document environment variable matrix** *(implemented)*
    - One table showing defaults and behavior by environment (dev/test/prod).
 
-34. **Extract shared navigation/settings partial**
+34. ✅ **Extract shared navigation/settings partial** *(implemented)*
    - Navigation markup is duplicated across many templates.
    - Recent settings UX changes required touching many files and can introduce inconsistencies.
    - Create a shared Jinja partial/macro for top navigation to reduce churn and regressions.
 
-35. **Template validation tests for malformed HTML snippets**
+35. ✅ **Template validation tests for malformed HTML snippets** *(implemented)*
    - Add lightweight checks that critical forms include complete CSRF input tags and valid key markup.
    - Helps catch accidental template breakage during repetitive find/replace edits.
 
@@ -180,17 +180,19 @@ This document captures concrete, incremental improvements identified during a de
 
 ## Suggested priority order (next sprint)
 
-1. **Stabilize UI maintainability**
-   - Extract shared nav/settings partial (#34)
-   - Add template validation guard tests (#35)
-2. **Security/compatibility quick wins**
-   - Replace `imghdr` (#7)
-   - Production-mode config tests (#25)
-3. **Proposal vote channel refactor**
-   - Add configurable proposal vote mode + policy enforcement (#14-#20)
+1. **Proposal vote channel refactor (highest impact remaining)**
+   - Add configurable **proposal** vote mode + policy enforcement (#14-#20)
    - Unify service ingestion for web/Telegram proposal votes (#15)
-4. **i18n cleanup**
-   - Deduplicate/normalize keys (#22)
-   - Localize remaining hardcoded strings (#23)
+2. **Startup / architecture reliability**
+   - Avoid broad `except Exception` in startup paths (#2)
+   - Add explicit startup mode policy (#3)
+   - Unify startup bootstrap path (#37)
+3. **API/domain maintainability**
+   - Add repository/service boundaries for API routes (#8)
+   - Normalize statuses and transitions (#9)
+4. **Operational visibility**
+   - Structured logging (#28)
+   - Metrics endpoint / instrumentation (#29)
 5. **Structural cleanup**
    - app factory / blueprint split (#1)
+   - Reduce global state in `main_routes.py` (#36)

@@ -7,9 +7,9 @@
     <h2>{{ 'Settings'|lang }}</h2>
     <div style="display:flex; flex-direction:column; gap:10px;">
         <a class="btn btn-secondary" href="{{ url_for('change_password') }}">{{ 'Change Password'|lang }}</a>
-        <a class="btn btn-secondary" href="{{ url_for('telegram_settings') }}">Telegram Settings</a>
-        <a class="btn btn-secondary" href="{{ url_for('set_language', lang='en') }}">English</a>
-        <a class="btn btn-secondary" href="{{ url_for('set_language', lang='es') }}">Español</a>
+        <a class="btn btn-secondary" href="{{ url_for('telegram_settings') }}">{{ 'Telegram Settings'|lang }}</a>
+        <a class="btn btn-secondary" href="{{ url_for('set_language', lang='en') }}">{{ 'English'|lang }}</a>
+        <a class="btn btn-secondary" href="{{ url_for('set_language', lang='es') }}">{{ 'Español'|lang }}</a>
         <a class="btn" href="{{ url_for('logout') }}">{{ 'Logout'|lang }}</a>
     </div>
 </div>
