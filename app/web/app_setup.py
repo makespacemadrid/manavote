@@ -4,6 +4,7 @@ from flask import Flask
 
 from app.config import Config
 from app.extensions import limiter, csrf
+from app.startup_policy import validate_startup_policy
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 
@@ -28,10 +29,12 @@ else:
 
 app_env = os.getenv("FLASK_ENV", "").lower()
 is_production = app_env == "production"
-
 secret_key = app.config.get("SECRET_KEY")
-if is_production and (not secret_key or secret_key == "dev-insecure-secret-change-me"):
-    raise RuntimeError("SECRET_KEY must be set to a non-default value when FLASK_ENV=production")
+validate_startup_policy(
+    app_env=app_env,
+    secret_key=secret_key,
+    secure_cookies_enabled=app.config.get("SESSION_COOKIE_SECURE"),
+)
 
 app.secret_key = secret_key
 app.permanent_session_lifetime = app.config["PERMANENT_SESSION_LIFETIME"]

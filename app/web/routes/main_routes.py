@@ -27,11 +27,22 @@ from app.extensions import limiter, csrf
 from app.db.connection import get_db as repo_get_db, set_db_path
 from app.db.migrations import run_migrations
 from app.integrations.telegram_client import TelegramClient
+from app.integrations.telegram_webhook import (
+    callback_vote_response_text,
+    classify_message_command,
+    extract_callback_context,
+    extract_message_context,
+    link_response_text,
+    poll_vote_response_text,
+    proposal_vote_response_text,
+)
 from app.repositories.settings_repo import SettingsRepository
+from app.repositories.vote_repo import VoteRepository
 from app.services.auth_service import verify_and_migrate_password
 from app.services.budget_service import calculate_min_backers
 from app.services.proposal_service import ProposalService
 from app.services.proposal_vote_service import can_record_proposal_vote_source, normalize_proposal_vote_mode
+from app.services.settings_service import get_enum_setting
 from app.web.app_setup import app, BASE_DIR, is_production
 from app.web.decorators import login_required, admin_required
 from werkzeug.utils import secure_filename
@@ -40,6 +51,7 @@ import requests
 import markdown
 import warnings
 import json
+import time
 
 
 def get_app_timezone():
@@ -351,10 +363,12 @@ def is_registration_enabled():
 
 
 def get_poll_vote_mode():
-    mode = str(get_setting_value("poll_vote_mode", "both")).lower()
-    if mode not in {"both", "web_only", "telegram_only"}:
-        return "both"
-    return mode
+    return get_enum_setting(
+        get_setting_value,
+        "poll_vote_mode",
+        "both",
+        {"both", "web_only", "telegram_only"},
+    )
 
 
 def is_web_poll_voting_enabled():
@@ -366,7 +380,13 @@ def is_telegram_poll_voting_enabled():
 
 
 def get_proposal_vote_mode():
-    return normalize_proposal_vote_mode(get_setting_value("proposal_vote_mode", "both"))
+    mode = get_enum_setting(
+        get_setting_value,
+        "proposal_vote_mode",
+        "both",
+        {"both", "web_only", "telegram_only"},
+    )
+    return normalize_proposal_vote_mode(mode)
 
 
 def is_web_proposal_voting_enabled():
@@ -377,24 +397,53 @@ def can_record_proposal_vote(source: str) -> bool:
     return can_record_proposal_vote_source(get_proposal_vote_mode(), source)
 
 
+def log_proposal_vote_event(
+    event, source, proposal_id, member_id, vote=None, reason_code=None, latency_ms=None
+):
+    app.logger.info(
+        "event=%s source=%s mode=%s proposal_id=%s member_id=%s vote=%s reason_code=%s latency_ms=%s",
+        event,
+        source,
+        get_proposal_vote_mode(),
+        proposal_id,
+        member_id,
+        vote,
+        reason_code,
+        latency_ms,
+    )
+
+
 def record_proposal_vote(proposal_id, member_id, vote, source="web"):
+    started_at = time.perf_counter()
     if not can_record_proposal_vote(source):
-        app.logger.info("proposal_vote_rejected source=%s reason=channel_disabled proposal_id=%s member_id=%s", source, proposal_id, member_id)
+        log_proposal_vote_event(
+            event="proposal_vote_rejected",
+            source=source,
+            proposal_id=proposal_id,
+            member_id=member_id,
+            reason_code="channel_disabled",
+            latency_ms=round((time.perf_counter() - started_at) * 1000, 3),
+        )
         return False
     conn = get_db()
     try:
-        c = conn.cursor()
-        c.execute(
-            "INSERT OR REPLACE INTO votes (proposal_id, member_id, vote) VALUES (?, ?, ?)",
-            (proposal_id, member_id, vote),
-        )
-        conn.commit()
+        votes = VoteRepository(conn)
+        votes.upsert_proposal_vote(proposal_id, member_id, vote)
 
+        c = conn.cursor()
         c.execute("SELECT status FROM proposals WHERE id = ?", (proposal_id,))
         status = c.fetchone()
         if status and status["status"] == "active":
             process_proposal(proposal_id)
-        app.logger.info("proposal_vote_accepted source=%s proposal_id=%s member_id=%s vote=%s", source, proposal_id, member_id, vote)
+        log_proposal_vote_event(
+            event="proposal_vote_accepted",
+            source=source,
+            proposal_id=proposal_id,
+            member_id=member_id,
+            vote=vote,
+            reason_code="ok",
+            latency_ms=round((time.perf_counter() - started_at) * 1000, 3),
+        )
         return True
     finally:
         conn.close()
@@ -1094,15 +1143,13 @@ def telegram_webhook(secret):
         return {"ok": False}, 403
 
     payload = request.get_json(silent=True) or {}
-    callback_query = payload.get("callback_query") or {}
-    if callback_query:
-        from_user = callback_query.get("from") or {}
-        telegram_username = (from_user.get("username") or "").strip()
-        callback_data = callback_query.get("data") or ""
-        callback_query_id = callback_query.get("id") or ""
-        message = callback_query.get("message") or {}
-        chat_id = message.get("chat", {}).get("id")
-        message_id = message.get("message_id")
+    callback_ctx = extract_callback_context(payload)
+    if callback_ctx:
+        telegram_username = callback_ctx["telegram_username"]
+        callback_data = callback_ctx["callback_data"]
+        callback_query_id = callback_ctx["callback_query_id"]
+        chat_id = callback_ctx["chat_id"]
+        message_id = callback_ctx["message_id"]
 
         if callback_data.startswith("showvote:"):
             parts = callback_data.split(":")
@@ -1125,81 +1172,47 @@ def telegram_webhook(secret):
                 except (ValueError, json.JSONDecodeError):
                     TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(callback_query_id, "❌ Invalid poll")
         else:
-            telegram_user_id = from_user.get("id")
+            telegram_user_id = callback_ctx["telegram_user_id"]
             success, reason = process_telegram_vote_callback(telegram_username, callback_data, telegram_user_id)
             if TELEGRAM_BOT_TOKEN and callback_query_id:
-                text = "✅ Your vote has been recorded." if success else "❌ Could not record vote."
-                if reason == "telegram_disabled":
-                    text = "❌ Telegram voting is disabled by admin."
-                TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(callback_query_id, text)
+                TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(
+                    callback_query_id, callback_vote_response_text(success, reason)
+                )
 
         return {"ok": True}, 200
 
-    message = payload.get("message") or payload.get("edited_message") or {}
-    text = (message.get("text") or "").strip()
-    from_user = message.get("from") or {}
-    telegram_username = (from_user.get("username") or "").strip()
-    telegram_user_id = from_user.get("id")
-    chat_id = message.get("chat", {}).get("id")
+    message_ctx = extract_message_context(payload)
+    text = message_ctx["text"]
+    telegram_username = message_ctx["telegram_username"]
+    telegram_user_id = message_ctx["telegram_user_id"]
+    chat_id = message_ctx["chat_id"]
     if not text:
         return {"ok": True}, 200
 
-    if text.lower().startswith("/link"):
+    command_type = classify_message_command(text)
+    if command_type == "link":
         if telegram_user_id is None:
             return {"ok": True}, 200
         success, reason = process_telegram_link_command(telegram_username, telegram_user_id, text)
         if TELEGRAM_BOT_TOKEN and chat_id:
-            if success:
-                response_text = "✅ Your Telegram account is now linked."
-            elif reason == "invalid_format":
-                response_text = "❌ Usage: /link <app_username> <app_password>"
-            elif reason == "invalid_credentials":
-                response_text = "❌ Invalid username or password."
-            elif reason == "already_linked":
-                response_text = "❌ This Telegram account is already linked to another member."
-            else:
-                response_text = "❌ Could not link this Telegram account."
-            TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "").send_message(response_text)
+            TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "").send_message(
+                link_response_text(success, reason)
+            )
         return {"ok": True}, 200
 
-    lowered = text.lower()
-    if lowered.startswith("/pvote"):
+    if command_type == "proposal_vote":
         success, reason = process_telegram_proposal_vote_command(telegram_username, text, telegram_user_id)
         if TELEGRAM_BOT_TOKEN and chat_id:
-            if success:
-                response_text = "✅ Your proposal vote has been recorded."
-            elif reason == "telegram_disabled":
-                response_text = "❌ Telegram proposal voting is disabled by admin."
-            elif reason == "unknown_member":
-                response_text = "❌ Your Telegram username is not linked to a member account."
-            elif reason == "proposal_closed":
-                response_text = "❌ Proposal is no longer active."
-            elif reason == "proposal_not_found":
-                response_text = "❌ Proposal not found."
-            elif reason == "invalid_vote":
-                response_text = "❌ Invalid vote. Use: yes|no"
-            else:
-                response_text = "❌ Invalid command. Use: /pvote <proposal_id> <yes|no>"
-            TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "").send_message(response_text)
+            TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "").send_message(
+                proposal_vote_response_text(success, reason)
+            )
         return {"ok": True}, 200
 
     success, reason = process_telegram_vote_command(telegram_username, text, telegram_user_id)
-    if lowered.startswith("/vote") and TELEGRAM_BOT_TOKEN and chat_id:
-        if success:
-            response_text = "✅ Your vote has been recorded."
-        elif reason == "telegram_disabled":
-            response_text = "❌ Telegram voting is disabled by admin."
-        elif reason == "unknown_member":
-            response_text = "❌ Your Telegram username is not linked to a member account."
-        elif reason == "poll_closed":
-            response_text = "❌ Poll is closed."
-        elif reason == "poll_not_found":
-            response_text = "❌ Poll not found."
-        elif reason == "invalid_option":
-            response_text = "❌ Invalid option number."
-        else:
-            response_text = "❌ Invalid command. Use: /vote <option_number>"
-        TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "").send_message(response_text)
+    if command_type == "poll_vote" and TELEGRAM_BOT_TOKEN and chat_id:
+        TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "").send_message(
+            poll_vote_response_text(success, reason)
+        )
 
     return {"ok": True}, 200
 
