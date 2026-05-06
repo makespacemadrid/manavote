@@ -12,16 +12,19 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 - [MCP server](#mcp-server)
 - [Testing](#testing)
 
+![Proposals](/static/img/proposals.png)
+![Calendar](/static/img/calendar.png)
+
 ## What it does
 
 - Members can create, discuss, and vote on proposals.
-- Proposals are auto-processed based on vote thresholds and available budget.
 - Members can monitor progress from Dashboard and Calendar views.
+- Proposals are auto-processed based on vote thresholds and available budget.
 - Members can participate in transparent polls inside the web app.
 - Members can view Telegram account-link details from Settings (Telegram username and Telegram user ID are read-only).
 - Admins can manage members, thresholds, settings, and budget movements (including Telegram link visibility in Members table).
-- API endpoints allow admin-key-based automation for member/proposal creation, and MCP tools support admin JSON-RPC automation for proposals, budget, and Telegram link polling (see [`APIDOC.md`](APIDOC.md)).
 - UI supports English and Spanish.
+- API endpoints allow admin-key-based automation for member/proposal creation, and MCP tools support admin JSON-RPC automation for proposals, budget, and Telegram link polling (see [`APIDOC.md`](APIDOC.md)).
 - Quick reference: full REST + MCP API docs are in [`APIDOC.md`](APIDOC.md).
 
 ## Core features
@@ -58,7 +61,7 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
   - Negative values represent budget debt (pending commitments exceed available balance).
   - Budget/Committed line datasets use separate Chart.js stack keys so lines are not cumulatively stacked with each other, while bar datasets remain stacked.
 
-### Polls (transparent by design)
+### Polls
 - Admins can create polls with 2..12 options from the Admin panel.
 - Members can vote from Telegram by tapping inline poll buttons (or using `/vote <poll_id> <option_number>` as fallback).
 - Members can pre-link Telegram identity with `/link <app_username> <app_password>` to bind Telegram account to their app member record. This command is the only way `telegram_username` and `telegram_user_id` are set.
@@ -110,21 +113,6 @@ Implemented endpoints:
 
 See [APIDOC.md](APIDOC.md) for request/response details.
 
-## Project structure
-
-- `app/web/app_setup.py` — Flask app construction/config, logging, and extension initialization.
-- `app/web/routes/main_routes.py` — routes and request orchestration.
-- `app/services/` — business logic helpers (auth/budget/proposal/admin/vote/backup).
-- `app/repositories/` — DB access helpers.
-- `app/db/` — schema + migrations + DB connection helper.
-- `templates/` — server-rendered HTML (Jinja2).
-- `tests/` — unit and functional tests.
-
-## Additional documentation
-- Technical specification: [`SPEC.md`](SPEC.md)
-- Product ideas / backlog: [`IDEAS.md`](IDEAS.md)
-
-
 ## MCP server
 
 A lightweight MCP JSON-RPC server is available at `app/mcp_server.py`.
@@ -149,3 +137,19 @@ Implemented tools:
 - `list_proposals` (optional `status`, `limit`, `offset`)
 - `current_budget`
 - `list_member_telegram_links` (optional `include_unlinked`, `limit`, `offset`)
+
+
+## Project structure
+
+- `app/web/app_setup.py` — Flask app construction/config, logging, and extension initialization.
+- `app/web/routes/main_routes.py` — routes and request orchestration.
+- `app/services/` — business logic helpers (auth/budget/proposal/admin/vote/backup).
+- `app/repositories/` — DB access helpers.
+- `app/db/` — schema + migrations + DB connection helper.
+- `templates/` — server-rendered HTML (Jinja2).
+- `tests/` — unit and functional tests.
+
+## Additional documentation
+- Technical specification: [`SPEC.md`](SPEC.md)
+- Product ideas / backlog: [`IDEAS.md`](IDEAS.md)
+
