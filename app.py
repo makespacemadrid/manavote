@@ -12,13 +12,15 @@ def _start_mcp_if_enabled():
     if not enabled:
         return
 
-    from app.mcp_server import start_tcp_server
+    from app.mcp_server import start_http_server, start_tcp_server
 
     host = os.getenv("MCP_SERVER_HOST", "127.0.0.1")
     port = int(os.getenv("MCP_SERVER_PORT", "8765"))
-    t = threading.Thread(target=start_tcp_server, kwargs={"host": host, "port": port}, daemon=True)
+    transport = os.getenv("MCP_SERVER_TRANSPORT", "http").strip().lower()
+    target = start_http_server if transport == "http" else start_tcp_server
+    t = threading.Thread(target=target, kwargs={"host": host, "port": port}, daemon=True)
     t.start()
-    logging.getLogger(__name__).info("Started MCP server thread on %s:%s", host, port)
+    logging.getLogger(__name__).info("Started MCP server thread (%s) on %s:%s", transport, host, port)
 
 
 if __name__ == "__main__":

@@ -420,13 +420,16 @@ If key is missing/invalid, server responds with JSON-RPC error code `-32001` and
 python -m app.mcp_server
 ```
 
-2. **Alongside Flask app (TCP)**
+2. **Alongside Flask app (HTTP)**
 Set environment variables:
 - `MCP_SERVER_ENABLED=true`
+- `MCP_SERVER_TRANSPORT` (optional, default `http`; set `tcp` for legacy transport)
 - `MCP_SERVER_HOST` (optional, default `127.0.0.1`)
 - `MCP_SERVER_PORT` (optional, default `8765`)
 
 Then start app normally (`python app.py`).
+The JSON-RPC endpoint is `POST http://<host>:<port>/mcp` and health check is `GET /healthz`.
+The HTTP endpoint supports JSON-RPC single and batch request payloads.
 
 ### Implemented MCP tools
 - `list_proposals`
