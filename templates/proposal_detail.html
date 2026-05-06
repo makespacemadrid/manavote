@@ -87,7 +87,11 @@
         </div>
     </div>
     
-    {% if proposal.status == 'active' %}
+    {% if proposal.status == 'active' and not is_web_proposal_vote_enabled and proposal_vote_mode == 'telegram_only' %}
+    <p style="color: #9b59b6; margin: 10px 0;">{{ 'Proposal voting Telegram-only banner'|lang }}</p>
+    {% endif %}
+
+    {% if proposal.status == 'active' and is_web_proposal_vote_enabled %}
     <div class="vote-buttons">
         <form method="POST" class="vote-form" style="display: inline;">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>

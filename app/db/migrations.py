@@ -44,6 +44,8 @@ def run_migrations(cursor):
     add_column_if_missing(cursor, "members", "telegram_user_id INTEGER")
     cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_members_telegram_user_id ON members(telegram_user_id) WHERE telegram_user_id IS NOT NULL")
     add_column_if_missing(cursor, "polls", "closes_at TEXT")
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('poll_vote_mode', 'both')")
+    cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('proposal_vote_mode', 'both')")
     cursor.execute(
         """
         UPDATE activity_log

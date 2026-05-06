@@ -41,6 +41,9 @@
         <p style="color: #888; margin-bottom: 10px; font-size: 0.9em;">{{ proposals|length }} of {{ total_count }} proposals</p>
         {% endif %}
         
+        {% if not is_web_proposal_vote_enabled and proposal_vote_mode == 'telegram_only' %}
+        <p style="color: #9b59b6; margin-bottom: 10px; font-size: 0.9em;">{{ 'Proposal voting Telegram-only banner'|lang }}</p>
+        {% endif %}
         {% if proposals %}
         <ul class="proposal-list">
             {% for p in proposals %}
@@ -110,7 +113,7 @@
                 </div>
                 <div style="text-align: right;">
                     <div class="proposal-amount" style="color: #888;">€{{ "%.2f"|format(p.amount) }}</div>
-                    {% if p.status == 'active' and p.user_vote %}
+                    {% if is_web_proposal_vote_enabled and p.status == 'active' and p.user_vote %}
                     <div style="margin-top: 8px; display: flex; gap: 5px; justify-content: flex-end;">
                         <form method="POST" action="{{ url_for('quick_vote', proposal_id=p.id) }}">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
@@ -119,7 +122,7 @@
                         </form>
                     </div>
                     {% endif %}
-                    {% if p.status == 'active' and not p.user_vote %}
+                    {% if is_web_proposal_vote_enabled and p.status == 'active' and not p.user_vote %}
                     <div style="margin-top: 8px; display: flex; gap: 5px; justify-content: flex-end;">
                         <form method="POST" action="{{ url_for('quick_vote', proposal_id=p.id) }}">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>

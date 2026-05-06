@@ -181,6 +181,27 @@ class TestProposalCreation(unittest.TestCase):
         self.assertIn("title", html)
         self.assertIn("amount", html)
 
+
+    def test_new_proposal_uses_inline_telegram_vote_message_when_telegram_mode_allows(self):
+        from app.web.routes import main_routes
+        conn = budget_app.get_db()
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('proposal_vote_mode', 'telegram_only')")
+        conn.commit()
+        conn.close()
+
+        with patch.object(main_routes.TelegramClient, "send_proposal_vote_message", return_value=True) as mock_send:
+            response = self.client.post(
+                "/proposal/new",
+                data={
+                    "title": "Inline vote message proposal",
+                    "description": "Testing telegram inline proposal vote message",
+                    "amount": "15",
+                    "csrf_token": "",
+                },
+                follow_redirects=True,
+            )
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(mock_send.called)
     def test_proposal_rejects_invalid_voting_deadline(self):
         response = self.client.post(
             "/proposal/new",
@@ -592,6 +613,21 @@ class TestPollTelegramActions(unittest.TestCase):
 
     def setUp(self):
         _set_admin_session(self.client)
+        conn = budget_app.get_db()
+        conn.execute("DELETE FROM poll_votes")
+        conn.execute("DELETE FROM polls")
+        conn.commit()
+        conn.close()
+        self.client.post(
+            "/admin",
+            data={"action": "update_poll_vote_mode", "poll_vote_mode": "both", "csrf_token": ""},
+            follow_redirects=True,
+        )
+        self.client.post(
+            "/admin",
+            data={"action": "update_proposal_vote_mode", "proposal_vote_mode": "both", "csrf_token": ""},
+            follow_redirects=True,
+        )
         self.client.post(
             "/admin",
             data={
@@ -665,6 +701,288 @@ class TestPollTelegramActions(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(mock_send.called)
         self.assertIn("Poll test sent to TELEGRAM_ADMIN_ID!", response.data.decode("utf-8"))
+
+    def _ensure_active_proposal_for_telegram_vote_tests(self):
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT id FROM proposals WHERE status = 'active' ORDER BY id DESC LIMIT 1")
+        row = c.fetchone()
+        if row:
+            proposal_id = row["id"]
+        else:
+            c.execute(
+                "INSERT INTO proposals (title, description, amount, created_by, status) VALUES (?, ?, ?, ?, 'active')",
+                ("Telegram vote proposal", "desc", 12.0, 1),
+            )
+            conn.commit()
+            proposal_id = c.lastrowid
+        conn.close()
+        return proposal_id
+
+    def test_telegram_webhook_proposal_vote_records_when_mode_is_both(self):
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            proposal_id = self._ensure_active_proposal_for_telegram_vote_tests()
+            conn = budget_app.get_db()
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('proposal_vote_mode', 'both')")
+            conn.commit()
+            conn.close()
+
+            response = self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={
+                    "message": {
+                        "text": f"/pvote {proposal_id} yes",
+                        "from": {"username": "admin", "id": 111111},
+                        "chat": {"id": 12345},
+                    }
+                },
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        self.assertEqual(response.status_code, 200)
+
+        conn = budget_app.get_db()
+        row = conn.execute("SELECT vote FROM votes WHERE proposal_id = ? AND member_id = 1", (proposal_id,)).fetchone()
+        conn.close()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["vote"], "in_favor")
+
+    def test_telegram_webhook_proposal_vote_rejected_when_mode_is_web_only(self):
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            proposal_id = self._ensure_active_proposal_for_telegram_vote_tests()
+            conn = budget_app.get_db()
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('proposal_vote_mode', 'web_only')")
+            conn.execute("DELETE FROM votes WHERE proposal_id = ? AND member_id = 1", (proposal_id,))
+            conn.commit()
+            conn.close()
+
+            response = self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={
+                    "message": {
+                        "text": f"/pvote {proposal_id} yes",
+                        "from": {"username": "admin", "id": 111111},
+                        "chat": {"id": 12345},
+                    }
+                },
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        self.assertEqual(response.status_code, 200)
+        conn = budget_app.get_db()
+        row = conn.execute("SELECT vote FROM votes WHERE proposal_id = ? AND member_id = 1", (proposal_id,)).fetchone()
+        conn.close()
+        self.assertIsNone(row)
+
+
+    def test_telegram_webhook_proposal_vote_rejects_invalid_vote_token(self):
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            proposal_id = self._ensure_active_proposal_for_telegram_vote_tests()
+            conn = budget_app.get_db()
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('proposal_vote_mode', 'both')")
+            conn.execute("DELETE FROM votes WHERE proposal_id = ? AND member_id = 1", (proposal_id,))
+            conn.commit()
+            conn.close()
+
+            response = self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={"message": {"text": f"/pvote {proposal_id} maybe", "from": {"username": "admin", "id": 111111}, "chat": {"id": 12345}}},
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        self.assertEqual(response.status_code, 200)
+        conn = budget_app.get_db()
+        row = conn.execute("SELECT vote FROM votes WHERE proposal_id = ? AND member_id = 1", (proposal_id,)).fetchone()
+        conn.close()
+        self.assertIsNone(row)
+
+    def test_telegram_webhook_proposal_vote_rejects_non_active_proposal(self):
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            proposal_id = self._ensure_active_proposal_for_telegram_vote_tests()
+            conn = budget_app.get_db()
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('proposal_vote_mode', 'both')")
+            conn.execute("UPDATE proposals SET status = 'approved' WHERE id = ?", (proposal_id,))
+            conn.execute("DELETE FROM votes WHERE proposal_id = ? AND member_id = 1", (proposal_id,))
+            conn.commit()
+            conn.close()
+
+            response = self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={"message": {"text": f"/pvote {proposal_id} yes", "from": {"username": "admin", "id": 111111}, "chat": {"id": 12345}}},
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        self.assertEqual(response.status_code, 200)
+        conn = budget_app.get_db()
+        row = conn.execute("SELECT vote FROM votes WHERE proposal_id = ? AND member_id = 1", (proposal_id,)).fetchone()
+        conn.close()
+        self.assertIsNone(row)
+
+    def test_telegram_webhook_proposal_vote_records_when_mode_is_telegram_only(self):
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            proposal_id = self._ensure_active_proposal_for_telegram_vote_tests()
+            conn = budget_app.get_db()
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('proposal_vote_mode', 'telegram_only')")
+            conn.execute("DELETE FROM votes WHERE proposal_id = ? AND member_id = 1", (proposal_id,))
+            conn.commit()
+            conn.close()
+
+            response = self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={
+                    "message": {
+                        "text": f"/pvote {proposal_id} no",
+                        "from": {"username": "admin", "id": 111111},
+                        "chat": {"id": 12345},
+                    }
+                },
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        self.assertEqual(response.status_code, 200)
+        conn = budget_app.get_db()
+        row = conn.execute("SELECT vote FROM votes WHERE proposal_id = ? AND member_id = 1", (proposal_id,)).fetchone()
+        conn.close()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["vote"], "against")
+
+
+    def test_telegram_webhook_proposal_vote_accepts_bot_suffix_command(self):
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            proposal_id = self._ensure_active_proposal_for_telegram_vote_tests()
+            conn = budget_app.get_db()
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('proposal_vote_mode', 'telegram_only')")
+            conn.execute("DELETE FROM votes WHERE proposal_id = ? AND member_id = 1", (proposal_id,))
+            conn.commit()
+            conn.close()
+
+            response = self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={"message": {"text": f"/pvote@manavote_bot {proposal_id} yes", "from": {"username": "admin", "id": 111111}, "chat": {"id": 12345}}},
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        self.assertEqual(response.status_code, 200)
+        conn = budget_app.get_db()
+        row = conn.execute("SELECT vote FROM votes WHERE proposal_id = ? AND member_id = 1", (proposal_id,)).fetchone()
+        conn.close()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["vote"], "in_favor")
+
+    def test_telegram_webhook_proposal_vote_rejects_unknown_member(self):
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            proposal_id = self._ensure_active_proposal_for_telegram_vote_tests()
+            conn = budget_app.get_db()
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('proposal_vote_mode', 'telegram_only')")
+            conn.execute("DELETE FROM votes WHERE proposal_id = ?", (proposal_id,))
+            conn.execute("UPDATE members SET telegram_username = NULL, telegram_user_id = NULL WHERE id = 1")
+            conn.commit()
+            conn.close()
+
+            response = self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={"message": {"text": f"/pvote {proposal_id} yes", "from": {"username": "unknownuser", "id": 9999999}, "chat": {"id": 12345}}},
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        self.assertEqual(response.status_code, 200)
+        conn = budget_app.get_db()
+        row = conn.execute("SELECT vote FROM votes WHERE proposal_id = ?", (proposal_id,)).fetchone()
+        conn.close()
+        self.assertIsNone(row)
+
+    def test_telegram_webhook_proposal_callback_records_vote_when_mode_allows(self):
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            proposal_id = self._ensure_active_proposal_for_telegram_vote_tests()
+            conn = budget_app.get_db()
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('proposal_vote_mode', 'telegram_only')")
+            conn.execute("DELETE FROM votes WHERE proposal_id = ? AND member_id = 1", (proposal_id,))
+            conn.commit()
+            conn.close()
+
+            response = self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={
+                    "callback_query": {
+                        "id": "cb-pvote-1",
+                        "data": f"pvote:{proposal_id}:yes",
+                        "from": {"username": "admin", "id": 111111},
+                        "message": {"chat": {"id": 12345}, "message_id": 77},
+                    }
+                },
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        self.assertEqual(response.status_code, 200)
+        conn = budget_app.get_db()
+        row = conn.execute("SELECT vote FROM votes WHERE proposal_id = ? AND member_id = 1", (proposal_id,)).fetchone()
+        conn.close()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["vote"], "in_favor")
+
+    def test_telegram_webhook_proposal_callback_rejected_when_mode_web_only(self):
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            proposal_id = self._ensure_active_proposal_for_telegram_vote_tests()
+            conn = budget_app.get_db()
+            conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('proposal_vote_mode', 'web_only')")
+            conn.execute("DELETE FROM votes WHERE proposal_id = ? AND member_id = 1", (proposal_id,))
+            conn.commit()
+            conn.close()
+
+            response = self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={
+                    "callback_query": {
+                        "id": "cb-pvote-2",
+                        "data": f"pvote:{proposal_id}:yes",
+                        "from": {"username": "admin", "id": 111111},
+                        "message": {"chat": {"id": 12345}, "message_id": 77},
+                    }
+                },
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        self.assertEqual(response.status_code, 200)
+        conn = budget_app.get_db()
+        row = conn.execute("SELECT vote FROM votes WHERE proposal_id = ? AND member_id = 1", (proposal_id,)).fetchone()
+        conn.close()
+        self.assertIsNone(row)
 
     def test_telegram_webhook_records_vote(self):
         poll_id = self._latest_poll_id()
@@ -1269,16 +1587,18 @@ class TestPollsFunctionality(unittest.TestCase):
 
     def setUp(self):
         _set_admin_session(self.client)
-        self.client.post(
-            "/admin",
-            data={
-                "action": "create_poll",
-                "question": "Lunch option?",
-                "options": "Pizza\nPasta\nSalad",
-                "csrf_token": "",
-            },
-            follow_redirects=True,
+        conn = budget_app.get_db()
+        conn.execute("DELETE FROM poll_votes")
+        conn.execute("DELETE FROM polls")
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('poll_vote_mode', 'both')")
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('proposal_vote_mode', 'both')")
+        conn.execute(
+            "INSERT INTO polls (question, options_json, created_by, status) VALUES (?, ?, ?, 'open')",
+            ("Lunch option?", '["Pizza","Pasta","Salad"]', 1),
         )
+        conn.commit()
+        conn.close()
+
 
     def _latest_poll_id(self):
         conn = budget_app.get_db()
@@ -1416,3 +1736,137 @@ class TestPollsFunctionality(unittest.TestCase):
             follow_redirects=True,
         )
         self.assertIn("Web voting is disabled by admin", response.data.decode("utf-8"))
+        self.client.post(
+            "/admin",
+            data={"action": "update_poll_vote_mode", "poll_vote_mode": "both", "csrf_token": ""},
+            follow_redirects=True,
+        )
+
+    def test_web_proposal_votes_disabled_when_mode_is_telegram_only(self):
+        self.client.post(
+            "/admin",
+            data={"action": "update_proposal_vote_mode", "proposal_vote_mode": "telegram_only", "csrf_token": ""},
+            follow_redirects=True,
+        )
+        response = self.client.post(
+            "/vote/1",
+            data={"vote": "in_favor", "csrf_token": ""},
+            follow_redirects=True,
+        )
+        self.assertIn("Web voting is disabled by admin", response.data.decode("utf-8"))
+
+    def test_dashboard_hides_proposal_vote_buttons_when_mode_is_telegram_only(self):
+        self.client.post(
+            "/admin",
+            data={"action": "update_proposal_vote_mode", "proposal_vote_mode": "telegram_only", "csrf_token": ""},
+            follow_redirects=True,
+        )
+        response = self.client.get("/", follow_redirects=True)
+        html = response.data.decode("utf-8")
+        self.assertNotIn('action="/vote/', html)
+
+    def test_proposal_detail_shows_telegram_only_banner_when_web_votes_disabled(self):
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT id FROM proposals WHERE status = 'active' ORDER BY id DESC LIMIT 1")
+        row = c.fetchone()
+        if row is None:
+            c.execute(
+                "INSERT INTO proposals (title, description, amount, created_by, status) VALUES (?, ?, ?, ?, 'active')",
+                ("Mode banner proposal", "desc", 5.0, 1),
+            )
+            conn.commit()
+            proposal_id = c.lastrowid
+        else:
+            proposal_id = row["id"]
+        conn.close()
+
+        self.client.post(
+            "/admin",
+            data={"action": "update_proposal_vote_mode", "proposal_vote_mode": "telegram_only", "csrf_token": ""},
+            follow_redirects=True,
+        )
+        response = self.client.get(f"/proposal/{proposal_id}", follow_redirects=True)
+        self.assertIn("Proposal voting is currently Telegram-only", response.data.decode("utf-8"))
+
+
+    def test_admin_update_proposal_vote_mode_persists_setting(self):
+        self.client.post(
+            "/admin",
+            data={"action": "update_proposal_vote_mode", "proposal_vote_mode": "telegram_only", "csrf_token": ""},
+            follow_redirects=True,
+        )
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT value FROM settings WHERE key = 'proposal_vote_mode'")
+        row = c.fetchone()
+        conn.close()
+        self.assertIsNotNone(row)
+        self.assertEqual(row["value"], "telegram_only")
+    def test_web_proposal_votes_allowed_when_mode_is_web_only(self):
+        self.client.post(
+            "/admin",
+            data={"action": "update_proposal_vote_mode", "proposal_vote_mode": "web_only", "csrf_token": ""},
+            follow_redirects=True,
+        )
+        response = self.client.post(
+            "/vote/1",
+            data={"vote": "in_favor", "csrf_token": ""},
+            follow_redirects=True,
+        )
+        self.assertIn("Vote recorded!", response.data.decode("utf-8"))
+
+    def test_web_proposal_votes_allowed_when_mode_is_both(self):
+        self.client.post(
+            "/admin",
+            data={"action": "update_proposal_vote_mode", "proposal_vote_mode": "both", "csrf_token": ""},
+            follow_redirects=True,
+        )
+        response = self.client.post(
+            "/vote/1",
+            data={"vote": "against", "csrf_token": ""},
+            follow_redirects=True,
+        )
+        self.assertIn("Vote recorded!", response.data.decode("utf-8"))
+    def test_proposal_vote_replaces_previous_choice(self):
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT id FROM proposals WHERE status = 'active' ORDER BY id DESC LIMIT 1")
+        row = c.fetchone()
+        if row is None:
+            c.execute(
+                "INSERT INTO proposals (title, description, amount, created_by, status) VALUES (?, ?, ?, ?, 'active')",
+                ("Vote replacement proposal", "desc", 8.0, 1),
+            )
+            conn.commit()
+            proposal_id = c.lastrowid
+        else:
+            proposal_id = row["id"]
+        conn.close()
+
+        self.client.post(
+            f"/vote/{proposal_id}",
+            data={"vote": "in_favor", "csrf_token": ""},
+            follow_redirects=True,
+        )
+        self.client.post(
+            f"/vote/{proposal_id}",
+            data={"vote": "against", "csrf_token": ""},
+            follow_redirects=True,
+        )
+
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute(
+            "SELECT COUNT(*) AS total, MAX(vote) AS vote FROM votes WHERE proposal_id = ? AND member_id = ?",
+            (proposal_id, 1),
+        )
+        vote_row = c.fetchone()
+        conn.close()
+
+        self.assertEqual(vote_row["total"], 1)
+        self.assertEqual(vote_row["vote"], "against")
+
+
+
+

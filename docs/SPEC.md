@@ -264,3 +264,15 @@ pytest -q tests/test_production_config.py tests/test_template_guards.py
 Coverage notes:
 - Production config tests validate fail-fast behavior for missing/unsafe `SECRET_KEY` and missing `ADMIN_BOOTSTRAP_PASSWORD` under `FLASK_ENV=production`.
 - Template guard tests validate top-nav partial usage and CSRF hidden input markup invariants in key templates.
+
+
+## 14) Proposal vote channels (Web / Telegram / Both)
+
+- Config key: `proposal_vote_mode` with allowed values: `both`, `web_only`, `telegram_only` (default `both`).
+- Web proposal votes are accepted only when mode allows Web (`both` or `web_only`).
+- Telegram proposal votes are accepted only when mode allows Telegram (`both` or `telegram_only`).
+- Telegram voting paths supported:
+  - Text command: `/pvote <proposal_id> <yes|no>`
+  - Inline callback payload: `pvote:<proposal_id>:yes|no`
+- Both channels route through unified proposal vote ingestion with upsert semantics (latest vote wins per member/proposal).
+- Rejected votes are logged with reason code (`channel_disabled`) for auditability.

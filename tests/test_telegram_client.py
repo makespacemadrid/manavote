@@ -47,5 +47,19 @@ class TestTelegramClient(unittest.TestCase):
         self.assertEqual(payload["reply_markup"]["inline_keyboard"][1][0]["callback_data"], "pollvote:3:1")
 
 
+    @patch("app.integrations.telegram_client.requests.post")
+    def test_send_proposal_vote_message_builds_yes_no_buttons(self, mock_post):
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {"ok": True}
+        client = TelegramClient("token", "-100123", "")
+
+        sent = client.send_proposal_vote_message("New proposal", 12)
+
+        self.assertTrue(sent)
+        payload = mock_post.call_args.kwargs["json"]
+        kb = payload["reply_markup"]["inline_keyboard"]
+        self.assertEqual(kb[0][0]["callback_data"], "pvote:12:yes")
+        self.assertEqual(kb[1][0]["callback_data"], "pvote:12:no")
+
 if __name__ == "__main__":
     unittest.main()
