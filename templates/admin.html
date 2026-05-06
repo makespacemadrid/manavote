@@ -363,6 +363,17 @@ function showSection(sectionId, buttonEl) {
         </select>
         <button type="submit" class="btn" style="margin-top: 8px;">Update vote mode</button>
     </form>
+    <form method="POST" style="margin-top: 12px;">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="action" value="update_proposal_vote_mode">
+        <label>Proposal voting mode</label>
+        <select name="proposal_vote_mode" required>
+            <option value="both" {{ 'selected' if get_setting_value('proposal_vote_mode', 'both') == 'both' else '' }}>Web + Telegram</option>
+            <option value="web_only" {{ 'selected' if get_setting_value('proposal_vote_mode', 'both') == 'web_only' else '' }}>Web only</option>
+            <option value="telegram_only" {{ 'selected' if get_setting_value('proposal_vote_mode', 'both') == 'telegram_only' else '' }}>Telegram only</option>
+        </select>
+        <button type="submit" class="btn" style="margin-top: 8px;">Update proposal vote mode</button>
+    </form>
 </div>
 
 <div id="timezone" class="card">

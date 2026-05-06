@@ -31,6 +31,7 @@ from app.repositories.settings_repo import SettingsRepository
 from app.services.auth_service import verify_and_migrate_password
 from app.services.budget_service import calculate_min_backers
 from app.services.proposal_service import ProposalService
+from app.services.proposal_vote_service import can_record_proposal_vote_source, normalize_proposal_vote_mode
 from app.web.app_setup import app, BASE_DIR, is_production
 from app.web.decorators import login_required, admin_required
 from werkzeug.utils import secure_filename
@@ -364,6 +365,39 @@ def is_telegram_poll_voting_enabled():
     return get_poll_vote_mode() in {"both", "telegram_only"}
 
 
+def get_proposal_vote_mode():
+    return normalize_proposal_vote_mode(get_setting_value("proposal_vote_mode", "both"))
+
+
+def is_web_proposal_voting_enabled():
+    return get_proposal_vote_mode() in {"both", "web_only"}
+
+
+def can_record_proposal_vote(source: str) -> bool:
+    return can_record_proposal_vote_source(get_proposal_vote_mode(), source)
+
+
+def record_proposal_vote(proposal_id, member_id, vote, source="web"):
+    if not can_record_proposal_vote(source):
+        app.logger.info("proposal_vote_rejected source=%s reason=channel_disabled proposal_id=%s member_id=%s", source, proposal_id, member_id)
+        return False
+    conn = get_db()
+    try:
+        c = conn.cursor()
+        c.execute(
+            "INSERT OR REPLACE INTO votes (proposal_id, member_id, vote) VALUES (?, ?, ?)",
+            (proposal_id, member_id, vote),
+        )
+        conn.commit()
+
+        c.execute("SELECT status FROM proposals WHERE id = ?", (proposal_id,))
+        status = c.fetchone()
+        if status and status["status"] == "active":
+            process_proposal(proposal_id)
+        app.logger.info("proposal_vote_accepted source=%s proposal_id=%s member_id=%s vote=%s", source, proposal_id, member_id, vote)
+        return True
+    finally:
+        conn.close()
 def send_telegram_message(message, poll_id=None, options=None):
     client = TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_THREAD_ID)
     if poll_id is not None and options is not None:
@@ -500,14 +534,77 @@ def process_telegram_vote_command(telegram_username, command_text, telegram_user
 def process_telegram_vote_callback(telegram_username, callback_data, telegram_user_id=None):
     data = (callback_data or "").strip()
     parts = data.split(":")
-    if len(parts) != 3 or parts[0] != "pollvote":
+
+    if len(parts) == 3 and parts[0] == "pollvote":
+        try:
+            option_number = int(parts[2]) + 1
+        except ValueError:
+            return False, "invalid_numbers"
+        return process_telegram_vote_command(telegram_username, f"/vote {parts[1]} {option_number}", telegram_user_id)
+
+    if len(parts) == 3 and parts[0] == "pvote":
+        proposal_id = parts[1]
+        vote_token = parts[2]
+        return process_telegram_proposal_vote_command(telegram_username, f"/pvote {proposal_id} {vote_token}", telegram_user_id)
+
+    return False, "invalid_format"
+
+
+
+
+def process_telegram_proposal_vote_command(telegram_username, command_text, telegram_user_id=None):
+    command = (command_text or "").strip()
+    parts = command.split()
+    if len(parts) != 3:
         return False, "invalid_format"
+
+    command_name = parts[0].lower()
+    if not (command_name == "/pvote" or command_name.startswith("/pvote@")):
+        return False, "invalid_format"
+
     try:
-        option_number = int(parts[2]) + 1
+        proposal_id = int(parts[1])
     except ValueError:
         return False, "invalid_numbers"
-    return process_telegram_vote_command(telegram_username, f"/vote {parts[1]} {option_number}", telegram_user_id)
 
+    vote_raw = parts[2].strip().lower()
+    if vote_raw in {"yes", "y", "in_favor", "favor", "for", "+"}:
+        vote = "in_favor"
+    elif vote_raw in {"no", "n", "against", "oppose", "-"}:
+        vote = "against"
+    else:
+        return False, "invalid_vote"
+
+    conn = get_db()
+    c = conn.cursor()
+    try:
+        c.execute(
+            "SELECT id FROM members WHERE telegram_user_id = ? OR lower(username) IN (?, ?) OR lower(telegram_username) IN (?, ?)",
+            (
+                telegram_user_id,
+                telegram_username.lower(),
+                f"@{telegram_username.lower()}",
+                telegram_username.lower(),
+                f"@{telegram_username.lower()}",
+            ),
+        )
+        member = c.fetchone()
+        if not member:
+            return False, "unknown_member"
+
+        c.execute("SELECT id, status FROM proposals WHERE id = ?", (proposal_id,))
+        proposal = c.fetchone()
+        if not proposal:
+            return False, "proposal_not_found"
+        if proposal["status"] != "active":
+            return False, "proposal_closed"
+
+        ok = record_proposal_vote(proposal_id, member["id"], vote, source="telegram")
+        if not ok:
+            return False, "telegram_disabled"
+        return True, "ok"
+    finally:
+        conn.close()
 
 def process_proposal(proposal_id):
     conn = get_db()
@@ -1065,8 +1162,29 @@ def telegram_webhook(secret):
             TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "").send_message(response_text)
         return {"ok": True}, 200
 
+    lowered = text.lower()
+    if lowered.startswith("/pvote"):
+        success, reason = process_telegram_proposal_vote_command(telegram_username, text, telegram_user_id)
+        if TELEGRAM_BOT_TOKEN and chat_id:
+            if success:
+                response_text = "✅ Your proposal vote has been recorded."
+            elif reason == "telegram_disabled":
+                response_text = "❌ Telegram proposal voting is disabled by admin."
+            elif reason == "unknown_member":
+                response_text = "❌ Your Telegram username is not linked to a member account."
+            elif reason == "proposal_closed":
+                response_text = "❌ Proposal is no longer active."
+            elif reason == "proposal_not_found":
+                response_text = "❌ Proposal not found."
+            elif reason == "invalid_vote":
+                response_text = "❌ Invalid vote. Use: yes|no"
+            else:
+                response_text = "❌ Invalid command. Use: /pvote <proposal_id> <yes|no>"
+            TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "").send_message(response_text)
+        return {"ok": True}, 200
+
     success, reason = process_telegram_vote_command(telegram_username, text, telegram_user_id)
-    if text.lower().startswith("/vote") and TELEGRAM_BOT_TOKEN and chat_id:
+    if lowered.startswith("/vote") and TELEGRAM_BOT_TOKEN and chat_id:
         if success:
             response_text = "✅ Your vote has been recorded."
         elif reason == "telegram_disabled":
@@ -1498,6 +1616,8 @@ def dashboard():
         standard_votes=standard_votes,
         expensive_votes=expensive_votes,
         session_lang=lang,
+        is_web_proposal_vote_enabled=is_web_proposal_voting_enabled(),
+        proposal_vote_mode=get_proposal_vote_mode(),
     )
 
 
@@ -1586,7 +1706,10 @@ def new_proposal():
 
         deadline_line = f"\n⏰ Vote by: {deadline_text}" if deadline_text else ""
         message = f"🆕 *New Proposal!*\n\n*{title}*\nBy: {creator.split('@')[0]}\nAmount: €{amount}{deadline_line}\n\n{description[:200]}{'...' if len(description) > 200 else ''}\n\n👉 {url if url else 'No link'}\n🔗 {base_url}/proposal/{proposal_id}"
-        send_telegram_message(message)
+        if can_record_proposal_vote("telegram"):
+            TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_THREAD_ID).send_proposal_vote_message(message, proposal_id)
+        else:
+            send_telegram_message(message)
 
         flash("Proposal created!", "success")
         return redirect(url_for("dashboard"))
@@ -1636,25 +1759,15 @@ def proposal_detail(proposal_id):
 
     if request.method == "POST":
         if "vote" in request.form:
+            if not can_record_proposal_vote("web"):
+                flash("Web voting is disabled by admin", "error")
+                conn.close()
+                return redirect(url_for("proposal_detail", proposal_id=proposal_id))
+
             vote = request.form["vote"]
 
-            c.execute(
-                "INSERT OR REPLACE INTO votes (proposal_id, member_id, vote) VALUES (?, ?, ?)",
-                (proposal_id, session["member_id"], vote),
-            )
-            conn.commit()
-
+            record_proposal_vote(proposal_id, session["member_id"], vote, source="web")
             flash("Vote recorded!", "success")
-
-            if proposal["status"] == "active":
-                result = process_proposal(proposal_id)
-                if result is True:
-                    flash("Proposal approved!", "success")
-                elif result == "over_budget":
-                    flash(
-                        "Proposal pending - over budget (will auto-approve when budget available)",
-                        "error",
-                    )
 
         elif "comment" in request.form:
             comment = request.form["comment"].strip()
@@ -1698,6 +1811,8 @@ def proposal_detail(proposal_id):
         user_vote=user_vote["vote"] if user_vote else None,
         thresholds=thresholds,
         session_lang=lang,
+        is_web_proposal_vote_enabled=is_web_proposal_voting_enabled(),
+        proposal_vote_mode=get_proposal_vote_mode(),
     )
 
 
@@ -1909,22 +2024,12 @@ def edit_proposal(proposal_id):
 @app.route("/vote/<int:proposal_id>", methods=["POST"])
 @login_required
 def quick_vote(proposal_id):
+    if not can_record_proposal_vote("web"):
+        flash("Web voting is disabled by admin", "error")
+        return redirect(url_for("dashboard"))
+
     vote = request.form.get("vote")
-    conn = get_db()
-    c = conn.cursor()
-    c.execute(
-        "INSERT OR REPLACE INTO votes (proposal_id, member_id, vote) VALUES (?, ?, ?)",
-        (proposal_id, session["member_id"], vote),
-    )
-    conn.commit()
-
-    c.execute("SELECT status FROM proposals WHERE id = ?", (proposal_id,))
-    status = c.fetchone()
-
-    if status and status["status"] == "active":
-        process_proposal(proposal_id)
-
-    conn.close()
+    record_proposal_vote(proposal_id, session["member_id"], vote, source="web")
     flash("Vote recorded!", "success")
     return redirect(url_for("dashboard"))
 
@@ -2238,6 +2343,18 @@ def admin():
                 )
                 conn.commit()
                 flash("Poll vote mode updated", "success")
+
+        elif action == "update_proposal_vote_mode":
+            proposal_vote_mode = request.form.get("proposal_vote_mode", "both")
+            if proposal_vote_mode not in ("both", "web_only", "telegram_only"):
+                flash("Invalid vote mode", "error")
+            else:
+                c.execute(
+                    "INSERT OR REPLACE INTO settings (key, value) VALUES ('proposal_vote_mode', ?)",
+                    (proposal_vote_mode,),
+                )
+                conn.commit()
+                flash("Proposal vote mode updated", "success")
 
 
         elif action == "create_poll":

@@ -16,6 +16,13 @@ def _set_admin_session(client):
         session["is_admin"] = 1
 
 
+def _reset_rate_limits_for_test_client():
+    try:
+        budget_app.limiter.reset()
+    except Exception:
+        pass
+
+
 @contextmanager
 def _temporary_db():
     from app.db import connection
@@ -42,6 +49,27 @@ def _temporary_db():
 
 
 class TestBudgetAdminRefactor(unittest.TestCase):
+
+    def test_migrations_seed_default_vote_modes_when_missing(self):
+        with _temporary_db():
+            conn = budget_app.get_db()
+            conn.execute("DELETE FROM settings WHERE key IN ('poll_vote_mode', 'proposal_vote_mode')")
+            conn.commit()
+            conn.close()
+
+            # Re-open DB to trigger migration seed safeguards.
+            conn = budget_app.get_db()
+            c = conn.cursor()
+            c.execute("SELECT value FROM settings WHERE key = 'poll_vote_mode'")
+            poll_mode = c.fetchone()
+            c.execute("SELECT value FROM settings WHERE key = 'proposal_vote_mode'")
+            proposal_mode = c.fetchone()
+            conn.close()
+
+            self.assertIsNotNone(poll_mode)
+            self.assertIsNotNone(proposal_mode)
+            self.assertEqual(poll_mode["value"], "both")
+            self.assertEqual(proposal_mode["value"], "both")
     @classmethod
     def setUpClass(cls):
         budget_app.app.config["TESTING"] = True
@@ -83,6 +111,7 @@ class TestBudgetAdminRefactor(unittest.TestCase):
 
             client = budget_app.app.test_client()
             _set_admin_session(client)
+            _reset_rate_limits_for_test_client()
 
             response = client.post(
                 "/admin",
@@ -106,6 +135,7 @@ class TestBudgetAdminRefactor(unittest.TestCase):
         with _temporary_db():
             client = budget_app.app.test_client()
             _set_admin_session(client)
+            _reset_rate_limits_for_test_client()
 
             response = client.post(
                 "/admin",

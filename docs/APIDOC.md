@@ -447,3 +447,11 @@ Then start app normally (`python app.py`).
   }
 }
 ```
+
+
+## Telegram bot commands
+
+- `/link <app_username> <app_password>` — link Telegram identity to a member account.
+- `/vote <poll_id> <option_number>` or `/vote <option_number>` — vote in polls (subject to `poll_vote_mode`).
+- `/pvote <proposal_id> <yes|no>` — vote on proposals (subject to `proposal_vote_mode`).
+- Proposal inline callback payload: `pvote:<proposal_id>:yes|no` (same policy path as `/pvote`).

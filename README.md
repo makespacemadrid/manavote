@@ -24,8 +24,8 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 - Members can view Telegram account-link details from Settings (Telegram username and Telegram user ID are read-only).
 - Admins can manage members, thresholds, settings, and budget movements (including Telegram link visibility in Members table).
 - UI supports English and Spanish.
-- API endpoints allow admin-key-based automation for member/proposal creation, and MCP tools support admin JSON-RPC automation for proposals, budget, and Telegram link polling (see [`APIDOC.md`](APIDOC.md)).
-- Quick reference: full REST + MCP API docs are in [`APIDOC.md`](APIDOC.md).
+- API endpoints allow admin-key-based automation for member/proposal creation, and MCP tools support admin JSON-RPC automation for proposals, budget, and Telegram link polling (see [`APIDOC.md`](docs/APIDOC.md)).
+- Quick reference: full REST + MCP API docs are in [`APIDOC.md`](docs/APIDOC.md).
 
 ## Core features
 
@@ -65,6 +65,8 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 - Admins can create polls with 2..12 options from the Admin panel.
 - Members can vote from Telegram by tapping inline poll buttons (or using `/vote <poll_id> <option_number>` as fallback).
 - Members can pre-link Telegram identity with `/link <app_username> <app_password>` to bind Telegram account to their app member record. This command is the only way `telegram_username` and `telegram_user_id` are set.
+- Members can vote on proposals from Telegram with `/pvote <proposal_id> <yes|no>` when proposal vote mode permits Telegram voting (`both` or `telegram_only`).
+- Telegram proposal announcements include inline **Yes/No** buttons that send callback payloads (`pvote:<proposal_id>:yes|no`) through the same proposal vote policy checks.
 - On `/polls`, the “Who voted what” list prefers linked Telegram usernames (from `/link`) and falls back to app usernames only when Telegram link data is missing.
 - If your account is not linked, `/polls` shows a reminder banner with `/link <app_username> <app_password>`.
 - Telegram poll announcements include a **Vote** button (`showvote:<poll_id>`) that expands into one button per option (`pollvote:<poll_id>:<index>`).
@@ -94,11 +96,11 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 
 ## Quick Start
 
-See [`QUICKSTART.md`](QUICKSTART.md) for Docker and local setup instructions.
+See [`QUICKSTART.md`](docs/QUICKSTART.md) for Docker and local setup instructions.
 
 ## Setup and configuration
 
-Setup, initial admin bootstrap, environment variables, backup behavior, and testing commands are documented in [`QUICKSTART.md`](QUICKSTART.md).
+Setup, initial admin bootstrap, environment variables, backup behavior, and testing commands are documented in [`QUICKSTART.md`](docs/QUICKSTART.md).
 
 
 ### Environment variable matrix
@@ -125,7 +127,7 @@ Implemented endpoints:
 - `GET /api/polls`
 - `POST /api/polls`
 
-See [APIDOC.md](APIDOC.md) for request/response details.
+See [APIDOC.md](docs/APIDOC.md) for request/response details.
 
 ## MCP server
 
@@ -164,8 +166,10 @@ Implemented tools:
 - `tests/` — unit and functional tests.
 
 ## Additional documentation
-- Technical specification: [`SPEC.md`](SPEC.md)
-- Product ideas / backlog: [`IDEAS.md`](IDEAS.md)
+- Quick start and setup guide: [`QUICKSTART.md`](docs/QUICKSTART.md)
+- REST + MCP API reference: [`APIDOC.md`](docs/APIDOC.md)
+- Technical specification: [`SPEC.md`](docs/SPEC.md)
+- Product ideas / backlog: [`IDEAS.md`](docs/IDEAS.md)
 
 
 ## Testing

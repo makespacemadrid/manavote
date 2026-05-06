@@ -15,7 +15,7 @@
     </p>
 
     <style>
-        .amount-approved { color: #1a4a7a; }
+        .amount-approved { color: #9932CC; }
         .amount-active { color: #00d9ff; }
     </style>
 
@@ -45,7 +45,7 @@
             {{ 'Proposal Submitted'|lang }}
         </button>
         <button type="button" class="calendar-legend-btn active" data-filter="approved">
-            <span style="display: inline-block; width: 14px; height: 14px; background: #1a4a7a; border-radius: 3px;"></span>
+            <span style="display: inline-block; width: 14px; height: 14px; background: #9932CC; border-radius: 3px;"></span>
             {{ 'Approved'|lang }}
         </button>
         <button type="button" class="calendar-legend-btn active" data-filter="budget_in">
@@ -83,7 +83,7 @@
                     <td>
                         {% if item.item_type == 'proposal' %}
                             {% if item.status == 'approved' %}
-                            <span style="color: #1a4a7a;">✓ {{ 'Approved'|lang }}</span>
+                            <span style="color: #9932CC;">✓ {{ 'Approved'|lang }}</span>
                             {% elif item.status == 'rejected' %}
                             <span style="color: #e94560;">✗ {{ 'Rejected'|lang }}</span>
                             {% else %}
@@ -205,8 +205,8 @@ new Chart(ctx, {
                 type: 'bar',
                 label: '{{ 'Proposals (Approved)'|lang }}',
                 data: approvedData,
-                borderColor: '#1a4a7a',
-                backgroundColor: '#1a4a7a88',
+                borderColor: '#9932CC',
+                backgroundColor: '#9932CC88',
                 borderWidth: 1,
                 order: 0,
                 stack: 'proposal_approved'

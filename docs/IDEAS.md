@@ -196,3 +196,77 @@ This document captures concrete, incremental improvements identified during a de
 5. **Structural cleanup**
    - app factory / blueprint split (#1)
    - Reduce global state in `main_routes.py` (#36)
+
+
+## Next-sprint execution checklist (expanded from priority order)
+
+### A) Proposal vote channel refactor (#14-#20)
+
+- **Milestone A1 — data/config plumbing**
+  - [x] Add `proposal_vote_mode` setting with allowed values `web_only|telegram_only|both` and default `both`. ✅ implemented
+  - [x] Add migration/seed fallback for existing deployments where setting is absent. ✅ `run_migrations` now seeds `poll_vote_mode` and `proposal_vote_mode` defaults
+  - [x] Add admin settings control (dropdown/radio) with i18n labels/help text. ✅ implemented (label/help i18n can be improved)
+
+- **Milestone A2 — unified vote ingestion service**
+  - [x] Introduce one service API for proposal votes, e.g. `record_proposal_vote(member_id, proposal_id, vote, source)`. ✅ implemented in routes layer; moved to dedicated service module (`app/services/proposal_vote_service.py`)
+  - [x] Route both web form submissions and Telegram handlers through the same service. ✅ web and Telegram `/pvote` command/callback paths now share unified proposal vote ingestion
+  - [x] Keep existing upsert behavior (latest vote wins per member/proposal). ✅ covered by existing functional poll/proposal vote replacement tests + centralized upsert path
+
+- **Milestone A3 — policy enforcement + UX**
+  - [x] Enforce mode matrix (`web_only`, `telegram_only`, `both`) in one policy helper. ✅ implemented via `can_record_proposal_vote(source)`
+  - [x] Return clear user-facing messages when a channel is blocked. ✅ implemented for web routes
+  - [x] Hide/disable web voting controls in Telegram-only mode and show explanatory banner. ✅ implemented on dashboard + proposal detail
+
+- **Milestone A4 — tests and rollout safety**
+  - [x] Unit tests for policy matrix by channel/mode. ✅ added `tests/test_proposal_vote_mode.py`
+  - [x] Functional tests for web route behavior by mode. ✅ added for `telegram_only`, `web_only`, and `both` web paths
+  - [x] Functional tests for Telegram webhook behavior by mode. ✅ covered for command/callback paths across `both`, `web_only`, and `telegram_only`
+  - [x] Regression tests confirming vote upsert behavior is unchanged (latest vote wins per member/proposal). ✅ added functional test for proposal vote replacement
+
+### B) Startup / architecture reliability (#2, #3, #37)
+
+- **Milestone B1 — exception hardening**
+  - [ ] Replace broad startup exception handlers with targeted exceptions.
+  - [ ] Fail fast for critical dependencies; log warnings only for optional integrations.
+
+- **Milestone B2 — explicit startup policy**
+  - [ ] Implement a single environment-policy helper that validates required secrets/settings.
+  - [ ] Enforce documented behavior for dev/test/prod before app starts serving requests.
+
+- **Milestone B3 — unified bootstrap orchestration**
+  - [ ] Create one orchestrator function for startup order: config → DB/migrations → scheduler/services.
+  - [ ] Move scattered bootstrap steps into that orchestrator and call it from app factory.
+
+### C) API/domain maintainability (#8, #9)
+
+- **Milestone C1 — API boundary cleanup**
+  - [ ] Move remaining direct SQL out of API route handlers into repositories/services.
+  - [ ] Keep route handlers thin: parse/validate request, call service, format response.
+
+- **Milestone C2 — transition integrity**
+  - [ ] Create central proposal state-transition helper.
+  - [ ] Reject illegal transitions with deterministic error codes/messages.
+
+### D) Ops visibility (#28, #29)
+
+- **Milestone D1 — structured logs**
+  - [ ] Add JSON logging mode with request id, actor id, endpoint, status, latency.
+  - [ ] Add API key fingerprint (never raw key) for admin/API operations.
+
+- **Milestone D2 — metrics**
+  - [ ] Add basic instrumentation for request latency, error rate, and DB timings.
+  - [ ] Expose `/metrics` (or equivalent) behind admin/internal network controls.
+
+
+## Sprint review (current)
+
+### Completed this sprint
+- Implemented configurable `proposal_vote_mode` with service-level normalization/policy helpers.
+- Centralized proposal vote ingestion and preserved upsert semantics (latest vote wins).
+- Added admin control + UI behavior for Telegram-only mode (control hiding + user banner).
+- Added policy matrix tests (unit + functional), plus full-suite stability hardening.
+
+### Remaining high-priority items
+- Wire Telegram **proposal** vote ingestion into shared proposal vote service path. ✅ implemented via `/pvote <proposal_id> <yes|no>` command path
+- Add functional webhook tests for proposal vote behavior by mode (`web_only`, `telegram_only`, `both`). ✅ added for `both` and `web_only`; `telegram_only` functional mode test now added; plus bot-suffix, unknown-member, and callback-query regression checks
+- Add channel-level audit logging for accepted/rejected proposal votes with reason codes. ✅ implemented (`proposal_vote_accepted` / `proposal_vote_rejected`)

@@ -50,6 +50,29 @@ class TelegramClient:
         except RequestException:
             return False
 
+
+    def send_proposal_vote_message(self, message: str, proposal_id: int) -> bool:
+        if not self.bot_token or not self.chat_id:
+            return False
+        url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+        try:
+            payload = {
+                "chat_id": self.chat_id,
+                "text": message,
+                "reply_markup": {
+                    "inline_keyboard": [
+                        [{"text": "✅ Yes", "callback_data": f"pvote:{proposal_id}:yes"}],
+                        [{"text": "❌ No", "callback_data": f"pvote:{proposal_id}:no"}],
+                    ]
+                },
+            }
+            thread_id = self._thread_id()
+            if thread_id is not None:
+                payload["message_thread_id"] = thread_id
+            return self._telegram_ok(url, payload)
+        except RequestException:
+            return False
+
     def edit_message_with_vote_options(self, chat_id: str | int, message_id: int, poll_id: int, options: list[str]) -> bool:
         if not self.bot_token:
             return False
