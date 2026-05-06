@@ -217,7 +217,41 @@ curl -X PATCH http://localhost:5000/api/proposals/12 \
 
 ---
 
-## 5) List Polls
+
+## 5) List Proposals
+
+**Endpoint**: `GET /api/proposals`
+
+### Query params
+- `status` (optional): one of `active`, `accepted`, `rejected`, `purchased`
+- `limit` (optional): default `50`, max `200`
+- `offset` (optional): default `0`
+
+### Success response
+**200 OK**
+```json
+{
+  "success": true,
+  "count": 2,
+  "proposals": [
+    {
+      "id": 12,
+      "title": "LED Strips",
+      "amount": 75.5,
+      "status": "active",
+      "yes_votes": 3,
+      "no_votes": 1
+    }
+  ]
+}
+```
+
+### Error responses
+- `400` invalid `status` filter
+
+---
+
+## 6) List Polls
 
 **Endpoint**: `GET /api/polls`
 
@@ -304,6 +338,41 @@ curl -X POST http://localhost:5000/api/polls \
 
 ---
 
+
+## 7) List Member Telegram Links
+
+**Endpoint**: `GET /api/members/telegram`
+
+### Query params
+- `include_unlinked` (optional, default `false`): when true, include all members and add `linked` field (`1`/`0`).
+- `limit` (optional): default `100`, max `500`
+- `offset` (optional): default `0`
+
+### Success response
+**200 OK**
+```json
+{
+  "success": true,
+  "count": 1,
+  "members": [
+    {
+      "id": 1,
+      "username": "alice",
+      "telegram_username": "alice_tg",
+      "telegram_user_id": 123456,
+      "linked": 1
+    }
+  ]
+}
+```
+
+### Example
+```bash
+curl "http://localhost:5000/api/members/telegram?include_unlinked=true"   -H "X-Admin-Key: your_api_key"
+```
+
+---
+
 ## Common status codes
 
 | Code | Meaning |
@@ -329,3 +398,52 @@ Although not part of the REST API surface, the `/calendar` page renders a mixed 
 - Positive committed values indicate remaining budget after pending commitments.
 - Negative committed values indicate budget debt (pending commitments exceed cash).
 - `Budget Balance` and `Committed` lines are configured with different stack keys to prevent line-on-line visual stacking.
+
+
+---
+
+## MCP Server
+
+The project also exposes an MCP JSON-RPC server (`app/mcp_server.py`) for admin tooling.
+
+### Authentication
+- Configure `MCP_API_KEY` in environment.
+- Every MCP request (except `notifications/initialized`) must include:
+  - `params.api_key: <MCP_API_KEY>`
+
+If key is missing/invalid, server responds with JSON-RPC error code `-32001` and message:
+`Unauthorized: invalid or missing MCP api_key`.
+
+### Run modes
+1. **Standalone stdio**
+```bash
+python -m app.mcp_server
+```
+
+2. **Alongside Flask app (TCP)**
+Set environment variables:
+- `MCP_SERVER_ENABLED=true`
+- `MCP_SERVER_HOST` (optional, default `127.0.0.1`)
+- `MCP_SERVER_PORT` (optional, default `8765`)
+
+Then start app normally (`python app.py`).
+
+### Implemented MCP tools
+- `list_proposals`
+  - optional args: `status` (`active|accepted|rejected|purchased`), `limit` (1..200), `offset` (>=0)
+- `current_budget`
+- `list_member_telegram_links` (optional `include_unlinked`, `limit`, `offset`)
+
+### Example MCP request
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 1,
+  "method": "tools/call",
+  "params": {
+    "api_key": "your_mcp_api_key",
+    "name": "current_budget",
+    "arguments": {}
+  }
+}
+```

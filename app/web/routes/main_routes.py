@@ -577,11 +577,9 @@ def api_register():
     if provided_key != ADMIN_API_KEY:
         return jsonify({"error": "Unauthorized"}), 401
 
-    if not request.is_json:
-        return jsonify({"error": "Content-Type must be application/json"}), 415
-    data = request.get_json(silent=True)
-    if not data:
-        return jsonify({"error": "JSON body required"}), 400
+    data, json_error = _require_json_body()
+    if json_error:
+        return json_error
 
     username = data.get("username")
     password = data.get("password")
@@ -629,6 +627,15 @@ def require_api_key():
     return None
 
 
+
+
+def _require_json_body():
+    if not request.is_json:
+        return None, (jsonify({"error": "Content-Type must be application/json"}), 415)
+    data = request.get_json(silent=True)
+    if not data:
+        return None, (jsonify({"error": "JSON body required"}), 400)
+    return data, None
 def _parse_positive_amount(value):
     try:
         amount = float(value)
@@ -637,6 +644,22 @@ def _parse_positive_amount(value):
     if amount <= 0:
         return None
     return amount
+
+
+def _parse_pagination_params(default_limit=50, max_limit=200):
+    try:
+        limit = int(request.args.get("limit", default_limit))
+    except (TypeError, ValueError):
+        return None, None, (jsonify({"error": "limit must be an integer"}), 400)
+    try:
+        offset = int(request.args.get("offset", 0))
+    except (TypeError, ValueError):
+        return None, None, (jsonify({"error": "offset must be an integer"}), 400)
+    if limit < 1 or limit > max_limit:
+        return None, None, (jsonify({"error": f"limit must be between 1 and {max_limit}"}), 400)
+    if offset < 0:
+        return None, None, (jsonify({"error": "offset must be >= 0"}), 400)
+    return limit, offset, None
 
 
 def _normalize_poll_options(raw_options):
@@ -657,11 +680,9 @@ def api_create_proposal():
     if auth_error:
         return auth_error
 
-    if not request.is_json:
-        return jsonify({"error": "Content-Type must be application/json"}), 415
-    data = request.get_json(silent=True)
-    if not data:
-        return jsonify({"error": "JSON body required"}), 400
+    data, json_error = _require_json_body()
+    if json_error:
+        return json_error
 
     title = data.get("title")
     description = data.get("description", "")
@@ -723,6 +744,45 @@ def api_create_proposal():
         return jsonify({"error": str(e)}), 500
 
 
+
+
+@app.route("/api/proposals", methods=["GET"])
+@csrf.exempt
+def api_list_proposals():
+    auth_error = require_api_key()
+    if auth_error:
+        return auth_error
+
+    status = (request.args.get("status") or "").strip().lower()
+    valid_statuses = {"active", "accepted", "rejected", "purchased"}
+    limit, offset, pagination_error = _parse_pagination_params(default_limit=50, max_limit=200)
+    if pagination_error:
+        return pagination_error
+
+    params = []
+    query = """
+        SELECT p.id, p.title, p.description, p.amount, p.url, p.created_by, p.status, p.created_at, p.basic_supplies,
+               COALESCE(SUM(CASE WHEN v.vote = 'yes' THEN 1 ELSE 0 END), 0) AS yes_votes,
+               COALESCE(SUM(CASE WHEN v.vote = 'no' THEN 1 ELSE 0 END), 0) AS no_votes
+        FROM proposals p
+        LEFT JOIN votes v ON v.proposal_id = p.id
+    """
+    if status:
+        if status not in valid_statuses:
+            return jsonify({"error": "invalid status filter"}), 400
+        query += " WHERE p.status = ?"
+        params.append(status)
+
+    query += " GROUP BY p.id ORDER BY p.created_at DESC LIMIT ? OFFSET ?"
+    params.extend([limit, offset])
+
+    conn = get_db()
+    c = conn.cursor()
+    c.execute(query, tuple(params))
+    rows = c.fetchall()
+    conn.close()
+
+    return jsonify({"success": True, "count": len(rows), "limit": limit, "offset": offset, "proposals": [dict(r) for r in rows]})
 
 
 @app.route("/api/proposals/<int:proposal_id>", methods=["GET"])
@@ -807,6 +867,48 @@ def api_edit_proposal(proposal_id):
         return jsonify({"error": str(e)}), 500
 
 
+@app.route("/api/members/telegram", methods=["GET"])
+@csrf.exempt
+def api_list_member_telegram_links():
+    auth_error = require_api_key()
+    if auth_error:
+        return auth_error
+
+    include_unlinked = (request.args.get("include_unlinked") or "false").strip().lower() in {"1", "true", "yes", "on"}
+    limit, offset, pagination_error = _parse_pagination_params(default_limit=100, max_limit=500)
+    if pagination_error:
+        return pagination_error
+
+    conn = get_db()
+    c = conn.cursor()
+    if include_unlinked:
+        c.execute(
+            """
+            SELECT id, username, telegram_username, telegram_user_id,
+                   CASE WHEN telegram_username IS NOT NULL AND telegram_username != '' AND telegram_user_id IS NOT NULL THEN 1 ELSE 0 END AS linked
+            FROM members
+            ORDER BY id ASC
+            LIMIT ? OFFSET ?
+            """,
+            (limit, offset),
+        )
+    else:
+        c.execute(
+            """
+            SELECT id, username, telegram_username, telegram_user_id, 1 AS linked
+            FROM members
+            WHERE telegram_username IS NOT NULL AND telegram_username != '' AND telegram_user_id IS NOT NULL
+            ORDER BY id ASC
+            LIMIT ? OFFSET ?
+            """,
+            (limit, offset),
+        )
+    rows = c.fetchall()
+    conn.close()
+
+    return jsonify({"success": True, "count": len(rows), "limit": limit, "offset": offset, "members": [dict(r) for r in rows]})
+
+
 @app.route("/api/polls", methods=["GET"])
 @csrf.exempt
 def api_list_polls():
@@ -844,11 +946,9 @@ def api_create_poll():
     auth_error = require_api_key()
     if auth_error:
         return auth_error
-    if not request.is_json:
-        return jsonify({"error": "Content-Type must be application/json"}), 415
-    data = request.get_json(silent=True)
-    if not data:
-        return jsonify({"error": "JSON body required"}), 400
+    data, json_error = _require_json_body()
+    if json_error:
+        return json_error
 
     question = str(data.get("question", "")).strip()
     options = _normalize_poll_options(data.get("options"))
