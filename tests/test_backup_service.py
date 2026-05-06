@@ -50,8 +50,23 @@ class TestUploadBackups(unittest.TestCase):
             old_mtime = (datetime.now() - timedelta(days=10)).timestamp()
             os.utime(old_zip, (old_mtime, old_mtime))
 
-            backup_name, pruned = backup_service.backup_uploads(uploads, keep_days=7)
+            backup_name, pruned = backup_service.backup_uploads(uploads, keep_days=7, backup_root=backup_dir)
 
             self.assertTrue(backup_name.endswith('.zip'))
             self.assertTrue(os.path.exists(os.path.join(backup_dir, backup_name)))
             self.assertEqual(pruned, 1)
+
+
+class TestDatabaseBackups(unittest.TestCase):
+    def test_backup_db_creates_file_in_backup_root(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = os.path.join(tmp, "app.db")
+            with open(db_path, "w", encoding="utf-8") as f:
+                f.write("sqlite-data")
+
+            backup_dir = os.path.join(tmp, "backups")
+            backup_name, pruned = backup_service.backup_db(db_path, keep_days=7, backup_root=backup_dir)
+
+            self.assertEqual(pruned, 0)
+            self.assertTrue(backup_name.startswith("app_"))
+            self.assertTrue(os.path.exists(os.path.join(backup_dir, backup_name)))

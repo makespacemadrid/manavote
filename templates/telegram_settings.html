@@ -4,15 +4,15 @@
 {% include "_top_nav.html" %}
 
 <div class="card">
-    <h2>📱 Telegram Settings</h2>
-    <p style="color: #888; margin-bottom: 15px;">Telegram username and user ID are linked automatically from Telegram when you use the /link command with the bot.</p>
+    <h2>📱 {{ 'Telegram Settings'|lang }}</h2>
+    <p style="color: #888; margin-bottom: 15px;">{{ 'Telegram link help'|lang }}</p>
 
-    <label>Telegram Username (auto-linked from Telegram)</label>
-    <input type="text" value="{{ telegram_username or '' }}" placeholder="Use /link in Telegram to set this" readonly disabled>
+    <label>{{ 'Telegram Username (auto-linked from Telegram)'|lang }}</label>
+    <input type="text" value="{{ telegram_username or '' }}" placeholder="{{ 'Use /link in Telegram to set this'|lang }}" readonly disabled>
 
-    <label>Telegram User ID (auto-linked from Telegram)</label>
-    <input type="text" value="{{ telegram_user_id or '' }}" placeholder="Use /link in Telegram to set this" readonly disabled>
+    <label>{{ 'Telegram User ID (auto-linked from Telegram)'|lang }}</label>
+    <input type="text" value="{{ telegram_user_id or '' }}" placeholder="{{ 'Use /link in Telegram to set this'|lang }}" readonly disabled>
 
-    <small style="color:#888; display:block; margin-top:8px;">In Telegram, send <code>/link &lt;app_username&gt; &lt;app_password&gt;</code> to the bot.</small>
+    <small style="color:#888; display:block; margin-top:8px;">{{ 'Telegram command hint'|lang }} <code>/link &lt;app_username&gt; &lt;app_password&gt;</code> {{ 'Telegram command hint suffix'|lang }}</small>
 </div>
 {% endblock %}

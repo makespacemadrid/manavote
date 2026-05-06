@@ -100,6 +100,20 @@ See [`QUICKSTART.md`](QUICKSTART.md) for Docker and local setup instructions.
 
 Setup, initial admin bootstrap, environment variables, backup behavior, and testing commands are documented in [`QUICKSTART.md`](QUICKSTART.md).
 
+
+### Environment variable matrix
+
+| Variable | Default | Development/Test | Production |
+|---|---|---|---|
+| `FLASK_ENV` | unset | typically `development`/`test` | **must be `production`** for prod mode checks |
+| `SECRET_KEY` | `dev-insecure-secret-change-me` | fallback allowed for local/test runs | **required non-default value** (startup fails otherwise) |
+| `ADMIN_BOOTSTRAP_PASSWORD` | unset | if unset, test mode uses test password; dev falls back to insecure default with warning | **required on first startup** when no admin exists (startup fails otherwise) |
+| `FLASK_DEBUG` | `false` | set `true` for debug logging/dev behavior | keep `false` |
+| `FLASK_CSRF` | `true` | normally `true` (can be disabled for local debugging only) | should remain `true` |
+| `FLASK_SECURE_COOKIES` | `true` | can be `false` over plain HTTP localhost | should remain `true` behind HTTPS |
+| `ADMIN_API_KEY` | unset | optional unless using `/api/*` | required for admin API clients (`/api/*` returns `503` when unset) |
+| `TELEGRAM_*` vars | unset | optional | optional; required only when Telegram integration is enabled |
+
 ## REST API
 All API endpoints require `X-Admin-Key: <ADMIN_API_KEY>`.
 
@@ -153,3 +167,25 @@ Implemented tools:
 - Technical specification: [`SPEC.md`](SPEC.md)
 - Product ideas / backlog: [`IDEAS.md`](IDEAS.md)
 
+
+## Testing
+
+Run the full suite:
+
+```bash
+pytest -q
+```
+
+Run targeted regression checks added in recent hardening work:
+
+```bash
+pytest -q tests/test_template_guards.py tests/test_production_config.py
+```
+
+What these cover:
+- `tests/test_template_guards.py`
+  - Admin template uses shared top navigation partial.
+  - CSRF hidden input markup is well formed in key templates.
+- `tests/test_production_config.py`
+  - Startup fails when `FLASK_ENV=production` and `SECRET_KEY` is missing/default.
+  - DB bootstrap fails on first startup in production if `ADMIN_BOOTSTRAP_PASSWORD` is missing.

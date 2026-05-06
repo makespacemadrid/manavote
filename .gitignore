@@ -8,3 +8,6 @@ static/uploads/
 .DS_Store
 *.log
 cookies.txt
+
+backups/*
+!backups/.gitkeep

@@ -37,7 +37,6 @@ from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 import requests
 import markdown
-import imghdr
 import warnings
 import json
 
@@ -109,6 +108,21 @@ set_db_path(DB_PATH)
 UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+
+
+def _detect_image_type(filepath: str) -> str | None:
+    with open(filepath, "rb") as f:
+        header = f.read(12)
+
+    if header.startswith(b"\xff\xd8\xff"):
+        return "jpeg"
+    if header.startswith(b"\x89PNG\r\n\x1a\n"):
+        return "png"
+    if header.startswith(b"GIF87a") or header.startswith(b"GIF89a"):
+        return "gif"
+    if header.startswith(b"RIFF") and header[8:12] == b"WEBP":
+        return "webp"
+    return None
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
@@ -1519,7 +1533,7 @@ def new_proposal():
                     filepath = os.path.join(app.config["UPLOAD_FOLDER"], image_filename)
                     image.save(filepath)
 
-                    mime_type = imghdr.what(filepath)
+                    mime_type = _detect_image_type(filepath)
                     if mime_type not in ["jpeg", "png"]:
                         os.remove(filepath)
                         flash("Invalid image format", "error")
@@ -1837,7 +1851,7 @@ def edit_proposal(proposal_id):
                     filepath = os.path.join(app.config["UPLOAD_FOLDER"], image_filename)
                     image.save(filepath)
 
-                    mime_type = imghdr.what(filepath)
+                    mime_type = _detect_image_type(filepath)
                     if mime_type not in ["jpeg", "png"]:
                         os.remove(filepath)
                         flash("Invalid image format", "error")
@@ -2450,7 +2464,10 @@ def admin():
     registration_enabled = is_registration_enabled()
     current_budget = get_current_budget()
 
-    backup_dir = os.path.dirname(DB_PATH) or "."
+    from app.services.backup_service import BACKUP_ROOT
+
+    backup_dir = BACKUP_ROOT
+    os.makedirs(backup_dir, exist_ok=True)
     backup_base = os.path.basename(DB_PATH).replace(".db", "")
     backups = []
     for filename in os.listdir(backup_dir):
@@ -2465,7 +2482,7 @@ def admin():
             )
     backups.sort(key=lambda item: item["modified"], reverse=True)
 
-    image_backup_dir = os.path.join(os.path.dirname(app.config["UPLOAD_FOLDER"]), "uploads_backups")
+    image_backup_dir = backup_dir
     image_backups = []
     if os.path.isdir(image_backup_dir):
         for filename in os.listdir(image_backup_dir):
