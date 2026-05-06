@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import http.server
 import logging
 import os
 import socketserver
@@ -143,24 +144,49 @@ def handle_request(req: dict[str, Any]) -> dict[str, Any] | None:
     return _error(req_id, -32601, f"Unknown method: {method}")
 
 
+def _process_jsonrpc_body(body: str) -> tuple[int, bytes]:
+    try:
+        req = json.loads(body)
+    except json.JSONDecodeError:
+        return 400, json.dumps(_error(None, -32700, "Parse error")).encode("utf-8")
+    except Exception as exc:
+        return 500, json.dumps(_error(None, -32000, f"Server error: {exc}")).encode("utf-8")
+
+    if isinstance(req, list):
+        if not req:
+            return 400, json.dumps(_error(None, -32600, "Invalid Request")).encode("utf-8")
+        responses: list[dict[str, Any]] = []
+        for item in req:
+            if not isinstance(item, dict):
+                responses.append(_error(None, -32600, "Invalid Request"))
+                continue
+            resp = handle_request(item)
+            if resp is not None:
+                responses.append(resp)
+        if not responses:
+            return 202, b"{}"
+        return 200, json.dumps(responses).encode("utf-8")
+
+    if not isinstance(req, dict):
+        return 400, json.dumps(_error(None, -32600, "Invalid Request: body must be an object")).encode("utf-8")
+
+    try:
+        resp = handle_request(req)
+    except Exception as exc:
+        return 500, json.dumps(_error(None, -32000, f"Server error: {exc}")).encode("utf-8")
+    if resp is None:
+        return 202, b"{}"
+    return 200, json.dumps(resp).encode("utf-8")
+
+
 def main() -> None:
     for line in sys.stdin:
         line = line.strip()
         if not line:
             continue
-        try:
-            req = json.loads(line)
-            if not isinstance(req, dict):
-                resp = _error(None, -32600, "Invalid Request: body must be an object")
-            else:
-                resp = handle_request(req)
-        except json.JSONDecodeError:
-            resp = _error(None, -32700, "Parse error")
-        except Exception as exc:
-            resp = _error(None, -32000, f"Server error: {exc}")
-
-        if resp is not None:
-            sys.stdout.write(json.dumps(resp) + "\n")
+        status, payload = _process_jsonrpc_body(line)
+        if status in {200, 400, 500}:
+            sys.stdout.write(payload.decode("utf-8") + "\n")
             sys.stdout.flush()
 
 
@@ -179,9 +205,48 @@ class _TCPHandler(socketserver.StreamRequestHandler):
                 self.wfile.write((json.dumps(resp) + "\n").encode("utf-8"))
 
 
+class _HTTPHandler(http.server.BaseHTTPRequestHandler):
+    server_version = "ManaVoteMCP/0.1"
+
+    def do_POST(self):
+        if self.path != "/mcp":
+            self.send_error(404, "Not Found")
+            return
+        try:
+            length = int(self.headers.get("Content-Length", "0"))
+        except ValueError:
+            length = 0
+        body = self.rfile.read(length).decode("utf-8") if length > 0 else ""
+        status, payload = _process_jsonrpc_body(body)
+        self.send_response(status)
+        self.send_header("Content-Type", "application/json")
+        self.send_header("Content-Length", str(len(payload)))
+        self.send_header("Cache-Control", "no-store")
+        self.end_headers()
+        self.wfile.write(payload)
+
+    def do_GET(self):
+        if self.path == "/healthz":
+            self.send_response(200)
+            self.send_header("Content-Type", "application/json")
+            self.end_headers()
+            self.wfile.write(b'{"ok":true}')
+            return
+        self.send_error(404, "Not Found")
+
+    def log_message(self, format: str, *args: Any) -> None:
+        logging.getLogger(__name__).debug("mcp-http " + format, *args)
+
+
 def start_tcp_server(host: str = "127.0.0.1", port: int = 8765):
     server = socketserver.ThreadingTCPServer((host, port), _TCPHandler)
     logging.getLogger(__name__).info("MCP server listening on %s:%s", host, port)
+    server.serve_forever()
+
+
+def start_http_server(host: str = "127.0.0.1", port: int = 8765):
+    server = http.server.ThreadingHTTPServer((host, port), _HTTPHandler)
+    logging.getLogger(__name__).info("MCP HTTP server listening on http://%s:%s/mcp", host, port)
     server.serve_forever()
 
 

@@ -1,6 +1,10 @@
 import importlib.util
 import json
 import os
+import socket
+import threading
+import time
+import urllib.request
 from pathlib import Path
 
 os.environ["MCP_API_KEY"] = "test-mcp-key"
@@ -56,3 +60,69 @@ def test_tools_call_list_member_telegram_links(monkeypatch):
     payload = json.loads(response["result"]["content"][0]["text"])
     assert payload["count"] == 1
     assert payload["members"][0]["telegram_username"] == "alice_tg"
+
+
+def test_http_mcp_endpoint_works():
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+
+    thread = threading.Thread(target=mcp_server.start_http_server, kwargs={"host": "127.0.0.1", "port": port}, daemon=True)
+    thread.start()
+
+    payload = json.dumps(_req("initialize", req_id=10)).encode("utf-8")
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}/mcp",
+        data=payload,
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    last_error = None
+    for _ in range(10):
+        try:
+            with urllib.request.urlopen(request, timeout=2) as response:
+                body = json.loads(response.read().decode("utf-8"))
+            break
+        except Exception as exc:  # pragma: no cover - retry path
+            last_error = exc
+            time.sleep(0.02)
+    else:
+        raise last_error  # type: ignore[misc]
+
+    assert body["id"] == 10
+    assert body["result"]["serverInfo"]["name"] == "manavote-mcp"
+
+
+def test_http_mcp_batch_works():
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+
+    thread = threading.Thread(target=mcp_server.start_http_server, kwargs={"host": "127.0.0.1", "port": port}, daemon=True)
+    thread.start()
+
+    batch = [
+        _req("initialize", req_id=20),
+        {"jsonrpc": "2.0", "method": "notifications/initialized"},
+    ]
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}/mcp",
+        data=json.dumps(batch).encode("utf-8"),
+        headers={"Content-Type": "application/json"},
+        method="POST",
+    )
+    last_error = None
+    for _ in range(10):
+        try:
+            with urllib.request.urlopen(request, timeout=2) as response:
+                body = json.loads(response.read().decode("utf-8"))
+            break
+        except Exception as exc:  # pragma: no cover - retry path
+            last_error = exc
+            time.sleep(0.02)
+    else:
+        raise last_error  # type: ignore[misc]
+
+    assert isinstance(body, list)
+    assert len(body) == 1
+    assert body[0]["id"] == 20

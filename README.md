@@ -144,10 +144,15 @@ python -m app.mcp_server
 ### Run alongside Flask app
 Set:
 - `MCP_SERVER_ENABLED=true`
+- optional `MCP_SERVER_TRANSPORT` (`http` default, or `tcp` for legacy transport)
 - optional `MCP_SERVER_HOST` (default `127.0.0.1`)
 - optional `MCP_SERVER_PORT` (default `8765`)
 
-When enabled, `app.py` starts the MCP TCP server in a background thread.
+When enabled, `app.py` starts the MCP HTTP server in a background thread and serves:
+- JSON-RPC endpoint: `POST http://<host>:<port>/mcp`
+- health check: `GET http://<host>:<port>/healthz`
+
+HTTP endpoint accepts both single JSON-RPC requests and JSON-RPC batch requests.
 
 Implemented tools:
 - `list_proposals` (optional `status`, `limit`, `offset`)
