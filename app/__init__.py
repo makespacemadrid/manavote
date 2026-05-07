@@ -7,6 +7,7 @@ import sqlite3
 from .startup import run_startup_steps
 from .web.app_setup import app as flask_app
 from .web.routes.main_routes import *  # noqa: F401,F403
+from .web.routes import register_blueprints
 
 
 def create_app():
@@ -14,6 +15,7 @@ def create_app():
     from .web.routes.main_routes import DB_PATH, UPLOAD_FOLDER
 
     app = flask_app
+    register_blueprints(app)
     try:
         run_startup_steps(app, DB_PATH, UPLOAD_FOLDER, os.getenv("FLASK_ENV", ""))
     except (sqlite3.Error, OSError, ValueError) as exc:

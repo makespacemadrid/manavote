@@ -21,6 +21,6 @@ RUN mkdir -p /data \
 
 USER appuser
 
-EXPOSE 5000
+EXPOSE 5000 8765
 
 CMD ["python", "app.py"]

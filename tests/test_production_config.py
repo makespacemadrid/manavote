@@ -9,6 +9,27 @@ REPO_ROOT = pathlib.Path(__file__).resolve().parents[1]
 
 
 class TestProductionConfig(unittest.TestCase):
+    def test_app_setup_defaults_to_non_secure_cookies_outside_production(self):
+        env = os.environ.copy()
+        env.pop("FLASK_ENV", None)
+        env.pop("FLASK_SECURE_COOKIES", None)
+        env["SECRET_KEY"] = "dev-secret-for-test"
+
+        result = subprocess.run(
+            [
+                "python",
+                "-c",
+                "from app.web.app_setup import app; print(app.config['SESSION_COOKIE_SECURE'])",
+            ],
+            cwd=REPO_ROOT,
+            env=env,
+            capture_output=True,
+            text=True,
+        )
+
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(result.stdout.strip(), "False")
+
     def test_app_setup_fails_with_default_secret_in_production(self):
         env = os.environ.copy()
         env["FLASK_ENV"] = "production"
