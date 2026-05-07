@@ -84,3 +84,74 @@ def link_response_text(success, reason):
         "already_linked": "❌ This Telegram account is already linked to another member.",
     }
     return mapping.get(reason, "❌ Could not link this Telegram account.")
+
+
+def dispatch_callback(
+    callback_ctx,
+    *,
+    process_vote_callback,
+    load_open_poll_options,
+):
+    """Dispatch callback-query handling into one adapter-friendly payload."""
+    callback_data = callback_ctx["callback_data"]
+    if callback_data.startswith("showvote:"):
+        parts = callback_data.split(":")
+        if len(parts) != 2:
+            return {"kind": "answer_callback", "text": "❌ Invalid poll"}
+        try:
+            poll_id = int(parts[1])
+        except ValueError:
+            return {"kind": "answer_callback", "text": "❌ Invalid poll"}
+        options = load_open_poll_options(poll_id)
+        if not options:
+            return {"kind": "answer_callback", "text": "❌ Poll not found or closed"}
+        return {
+            "kind": "showvote",
+            "poll_id": poll_id,
+            "options": options,
+            "chat_id": callback_ctx["chat_id"],
+            "message_id": callback_ctx["message_id"],
+            "callback_query_id": callback_ctx["callback_query_id"],
+        }
+
+    success, reason = process_vote_callback(
+        callback_ctx["telegram_username"],
+        callback_data,
+        callback_ctx["telegram_user_id"],
+    )
+    return {
+        "kind": "answer_callback",
+        "text": callback_vote_response_text(success, reason),
+    }
+
+
+def dispatch_message(
+    message_ctx,
+    *,
+    process_link_command,
+    process_proposal_vote_command,
+    process_poll_vote_command,
+):
+    """Dispatch plain-message commands and return transport-agnostic action."""
+    text = message_ctx["text"]
+    command_type = classify_message_command(text)
+    if command_type == "link":
+        if message_ctx["telegram_user_id"] is None:
+            return {"kind": "noop"}
+        success, reason = process_link_command(
+            message_ctx["telegram_username"], message_ctx["telegram_user_id"], text
+        )
+        return {"kind": "send_message", "text": link_response_text(success, reason)}
+
+    if command_type == "proposal_vote":
+        success, reason = process_proposal_vote_command(
+            message_ctx["telegram_username"], text, message_ctx["telegram_user_id"]
+        )
+        return {"kind": "send_message", "text": proposal_vote_response_text(success, reason)}
+
+    if command_type == "poll_vote":
+        success, reason = process_poll_vote_command(
+            message_ctx["telegram_username"], text, message_ctx["telegram_user_id"]
+        )
+        return {"kind": "send_message", "text": poll_vote_response_text(success, reason)}
+    return {"kind": "noop"}

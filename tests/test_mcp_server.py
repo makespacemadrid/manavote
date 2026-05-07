@@ -29,6 +29,22 @@ def test_unauthorized_request_rejected():
     assert response["error"]["code"] == -32001
 
 
+def test_authorized_via_x_api_key_header():
+    response = mcp_server.handle_request(
+        {"jsonrpc": "2.0", "id": 11, "method": "initialize", "params": {}},
+        headers={"x-api-key": "test-mcp-key"},
+    )
+    assert response["result"]["serverInfo"]["name"] == "manavote-mcp"
+
+
+def test_authorized_via_bearer_header():
+    response = mcp_server.handle_request(
+        {"jsonrpc": "2.0", "id": 12, "method": "initialize", "params": {}},
+        headers={"authorization": "Bearer test-mcp-key"},
+    )
+    assert response["result"]["serverInfo"]["name"] == "manavote-mcp"
+
+
 def test_tools_call_list_proposals_invalid_status():
     response = mcp_server.handle_request(_req("tools/call", req_id=2, params={"name": "list_proposals", "arguments": {"status": "bogus"}}))
     assert response["error"]["code"] == -32602
@@ -126,3 +142,34 @@ def test_http_mcp_batch_works():
     assert isinstance(body, list)
     assert len(body) == 1
     assert body[0]["id"] == 20
+
+
+def test_http_mcp_endpoint_accepts_x_api_key_header():
+    with socket.socket() as sock:
+        sock.bind(("127.0.0.1", 0))
+        port = sock.getsockname()[1]
+
+    thread = threading.Thread(target=mcp_server.start_http_server, kwargs={"host": "127.0.0.1", "port": port}, daemon=True)
+    thread.start()
+
+    payload = json.dumps({"jsonrpc": "2.0", "id": 30, "method": "initialize", "params": {}}).encode("utf-8")
+    request = urllib.request.Request(
+        f"http://127.0.0.1:{port}/mcp",
+        data=payload,
+        headers={"Content-Type": "application/json", "X-Api-Key": "test-mcp-key"},
+        method="POST",
+    )
+    last_error = None
+    for _ in range(10):
+        try:
+            with urllib.request.urlopen(request, timeout=2) as response:
+                body = json.loads(response.read().decode("utf-8"))
+            break
+        except Exception as exc:  # pragma: no cover - retry path
+            last_error = exc
+            time.sleep(0.02)
+    else:
+        raise last_error  # type: ignore[misc]
+
+    assert body["id"] == 30
+    assert body["result"]["serverInfo"]["name"] == "manavote-mcp"

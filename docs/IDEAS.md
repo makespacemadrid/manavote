@@ -324,8 +324,8 @@ After another pass through routes/services/tests, these are the most actionable 
    - Keep `_run_startup_steps` as the single sequencing entrypoint and tighten function boundaries (inputs/outputs only, no hidden globals).
 
 3. **Telegram webhook adapter split (Focused note #1)**
-   - [~] Extract webhook parsing/dispatch from `main_routes.py` into `app/integrations/telegram_webhook.py`. *(payload parsing and response mapping done; command dispatch extraction still pending)*
-   - [ ] Route handler should become a thin HTTP adapter: parse request → call integration service → map result to response.
+   - [x] Extract webhook parsing/dispatch from `main_routes.py` into `app/integrations/telegram_webhook.py`. ✅ route command/callback dispatch now flows through `dispatch_message` / `dispatch_callback` helpers.
+   - [x] Route handler should become a thin HTTP adapter: parse request → call integration service → map result to response. ✅ `telegram_webhook` now delegates branching to integration helpers and only performs transport side-effects.
 
 4. **Proposal-vote audit schema normalization (Focused note #2)**
    - [x] Standardize structured log payload keys for accepted/rejected proposal votes: `event, source, mode, proposal_id, member_id, reason_code, latency_ms`.
@@ -357,6 +357,7 @@ The following are the items that are still pending after the recent startup, web
 ### Highest priority
 - Finish startup policy matrix enforcement for all environments (dev/test/prod) with explicit validations beyond `SECRET_KEY`. *(in progress: production secure-cookie enforcement added)*
 - Continue extracting Telegram webhook command dispatch from `main_routes.py` into dedicated integration handlers (payload parsing + response mapping is already extracted).
+  - ✅ completed: webhook command and callback dispatch are centralized in `app/integrations/telegram_webhook.py`; route now acts as HTTP adapter.
 - Expand repository contract tests from vote repository to proposal + settings repositories.
 
 ### Next priority
