@@ -681,458 +681,6 @@ def healthz():
     return {"status": "ok"}, 200
 
 
-@app.route("/login", methods=["GET", "POST"])
-@limiter.limit("5 per minute")
-def login():
-    if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
-
-        conn = get_db()
-        c = conn.cursor()
-        c.execute("SELECT * FROM members WHERE username = ?", (username,))
-        member = c.fetchone()
-
-        if member:
-            stored_hash = member["password_hash"]
-
-            valid, migrated_hash = verify_and_migrate_password(stored_hash, password)
-            if migrated_hash:
-                c.execute(
-                    "UPDATE members SET password_hash = ? WHERE id = ?",
-                    (migrated_hash, member["id"]),
-                )
-                conn.commit()
-        else:
-            valid = False
-
-        conn.close()
-
-        if member and valid:
-            session["member_id"] = member["id"]
-            session["username"] = member["username"]
-            session["is_admin"] = member["is_admin"]
-            if "lang" not in session:
-                session["lang"] = "en"
-            session.permanent = True
-
-            return redirect(url_for("dashboard"))
-        else:
-            flash("Invalid credentials", "error")
-
-    return render_template("login.html", session_lang=session.get("lang", "en"))
-
-
-@app.route("/api/register", methods=["POST"])
-@limiter.limit("10 per minute")
-@csrf.exempt
-def api_register():
-    if not ADMIN_API_KEY:
-        return jsonify({"error": "API not configured"}), 503
-
-    provided_key = request.headers.get("X-Admin-Key", "")
-    if provided_key != ADMIN_API_KEY:
-        return jsonify({"error": "Unauthorized"}), 401
-
-    data, json_error = _require_json_body()
-    if json_error:
-        return json_error
-
-    username = data.get("username")
-    password = data.get("password")
-    is_admin = data.get("is_admin", False)
-
-    if not username or not password:
-        return jsonify({"error": "username and password are required"}), 400
-
-    password_hash = generate_password_hash(password)
-
-    conn = get_db()
-    c = conn.cursor()
-
-    c.execute("SELECT id FROM members WHERE username = ?", (username,))
-    if c.fetchone():
-        conn.close()
-        return jsonify({"error": "Username already exists"}), 409
-
-    try:
-        c.execute(
-            "INSERT INTO members (username, password_hash, is_admin) VALUES (?, ?, ?)",
-            (username, password_hash, 1 if is_admin else 0),
-        )
-        conn.commit()
-        member_id = c.lastrowid
-        conn.close()
-        return jsonify(
-            {
-                "success": True,
-                "message": f"User {username} created",
-                "member_id": member_id,
-            }
-        ), 201
-    except Exception as e:
-        conn.close()
-        return jsonify({"error": str(e)}), 500
-
-
-def require_api_key():
-    if not ADMIN_API_KEY:
-        return jsonify({"error": "API not configured"}), 503
-    provided_key = request.headers.get("X-Admin-Key", "")
-    if provided_key != ADMIN_API_KEY:
-        return jsonify({"error": "Unauthorized"}), 401
-    return None
-
-
-
-
-def _require_json_body():
-    if not request.is_json:
-        return None, (jsonify({"error": "Content-Type must be application/json"}), 415)
-    data = request.get_json(silent=True)
-    if not data:
-        return None, (jsonify({"error": "JSON body required"}), 400)
-    return data, None
-def _parse_positive_amount(value):
-    try:
-        amount = float(value)
-    except (TypeError, ValueError):
-        return None
-    if amount <= 0:
-        return None
-    return amount
-
-
-def _parse_pagination_params(default_limit=50, max_limit=200):
-    try:
-        limit = int(request.args.get("limit", default_limit))
-    except (TypeError, ValueError):
-        return None, None, (jsonify({"error": "limit must be an integer"}), 400)
-    try:
-        offset = int(request.args.get("offset", 0))
-    except (TypeError, ValueError):
-        return None, None, (jsonify({"error": "offset must be an integer"}), 400)
-    if limit < 1 or limit > max_limit:
-        return None, None, (jsonify({"error": f"limit must be between 1 and {max_limit}"}), 400)
-    if offset < 0:
-        return None, None, (jsonify({"error": "offset must be >= 0"}), 400)
-    return limit, offset, None
-
-
-def _normalize_poll_options(raw_options):
-    if not isinstance(raw_options, list):
-        return None
-    options = [str(item).strip() for item in raw_options if str(item).strip()]
-    if len(options) < 2 or len(options) > 12:
-        return None
-    if any(len(option) > 120 for option in options):
-        return None
-    return options
-
-
-@app.route("/api/proposals", methods=["POST"])
-@csrf.exempt
-def api_create_proposal():
-    auth_error = require_api_key()
-    if auth_error:
-        return auth_error
-
-    data, json_error = _require_json_body()
-    if json_error:
-        return json_error
-
-    title = data.get("title")
-    description = data.get("description", "")
-    amount = data.get("amount")
-    url = data.get("url", "")
-    basic_supplies = 1 if data.get("basic_supplies", False) else 0
-    created_by = data.get("created_by")
-
-    if not title or amount is None:
-        return jsonify({"error": "title and amount are required"}), 400
-
-    amount = _parse_positive_amount(amount)
-    if amount is None:
-        return jsonify({"error": "amount must be positive"}), 400
-
-    if not created_by:
-        return jsonify({"error": "created_by is required"}), 400
-
-    conn = get_db()
-    c = conn.cursor()
-
-    c.execute("SELECT id FROM members WHERE id = ?", (created_by,))
-    if not c.fetchone():
-        conn.close()
-        return jsonify({"error": "Creator member not found"}), 404
-
-    try:
-        c.execute(
-            "INSERT INTO proposals (title, description, amount, url, created_by, basic_supplies) VALUES (?, ?, ?, ?, ?, ?)",
-            (title, description, amount, url, created_by, basic_supplies),
-        )
-        conn.commit()
-        proposal_id = c.lastrowid
-
-        if basic_supplies and amount > 20.0:
-            c.execute(
-                "UPDATE proposals SET basic_supplies = 0 WHERE id = ?", (proposal_id,)
-            )
-            c.execute(
-                "INSERT INTO comments (proposal_id, member_id, content) VALUES (?, ?, ?)",
-                (
-                    proposal_id,
-                    created_by,
-                    "Auto-removed basic supplies flag: amount over €20",
-                ),
-            )
-            conn.commit()
-
-        conn.close()
-        return jsonify(
-            {
-                "success": True,
-                "message": "Proposal created",
-                "proposal_id": proposal_id,
-            }
-        ), 201
-    except Exception as e:
-        conn.close()
-        return jsonify({"error": str(e)}), 500
-
-
-
-
-@app.route("/api/proposals", methods=["GET"])
-@csrf.exempt
-def api_list_proposals():
-    auth_error = require_api_key()
-    if auth_error:
-        return auth_error
-
-    status = (request.args.get("status") or "").strip().lower()
-    valid_statuses = {"active", "accepted", "rejected", "purchased"}
-    limit, offset, pagination_error = _parse_pagination_params(default_limit=50, max_limit=200)
-    if pagination_error:
-        return pagination_error
-
-    params = []
-    query = """
-        SELECT p.id, p.title, p.description, p.amount, p.url, p.created_by, p.status, p.created_at, p.basic_supplies,
-               COALESCE(SUM(CASE WHEN v.vote = 'yes' THEN 1 ELSE 0 END), 0) AS yes_votes,
-               COALESCE(SUM(CASE WHEN v.vote = 'no' THEN 1 ELSE 0 END), 0) AS no_votes
-        FROM proposals p
-        LEFT JOIN votes v ON v.proposal_id = p.id
-    """
-    if status:
-        if status not in valid_statuses:
-            return jsonify({"error": "invalid status filter"}), 400
-        query += " WHERE p.status = ?"
-        params.append(status)
-
-    query += " GROUP BY p.id ORDER BY p.created_at DESC LIMIT ? OFFSET ?"
-    params.extend([limit, offset])
-
-    conn = get_db()
-    c = conn.cursor()
-    c.execute(query, tuple(params))
-    rows = c.fetchall()
-    conn.close()
-
-    return jsonify({"success": True, "count": len(rows), "limit": limit, "offset": offset, "proposals": [dict(r) for r in rows]})
-
-
-@app.route("/api/proposals/<int:proposal_id>", methods=["GET"])
-@csrf.exempt
-def api_get_proposal(proposal_id):
-    auth_error = require_api_key()
-    if auth_error:
-        return auth_error
-
-    conn = get_db()
-    c = conn.cursor()
-    c.execute(
-        "SELECT id, title, description, amount, url, created_by, status, created_at, basic_supplies FROM proposals WHERE id = ?",
-        (proposal_id,),
-    )
-    row = c.fetchone()
-    conn.close()
-
-    if not row:
-        return jsonify({"error": "Proposal not found"}), 404
-
-    return jsonify({"success": True, "proposal": dict(row)})
-
-
-@app.route("/api/proposals/<int:proposal_id>", methods=["PUT", "PATCH"])
-@csrf.exempt
-def api_edit_proposal(proposal_id):
-    auth_error = require_api_key()
-    if auth_error:
-        return auth_error
-
-    conn = get_db()
-    c = conn.cursor()
-
-    c.execute("SELECT * FROM proposals WHERE id = ?", (proposal_id,))
-    proposal = c.fetchone()
-
-    if not proposal:
-        conn.close()
-        return jsonify({"error": "Proposal not found"}), 404
-
-    if proposal["status"] != "active":
-        conn.close()
-        return jsonify({"error": "Cannot edit processed proposals"}), 400
-
-    if not request.is_json:
-        conn.close()
-        return jsonify({"error": "Content-Type must be application/json"}), 415
-
-    data = request.get_json(silent=True)
-    if not data:
-        conn.close()
-        return jsonify({"error": "JSON body required"}), 400
-
-    title = data.get("title", proposal["title"])
-    description = data.get("description", proposal["description"])
-    amount = data.get("amount", proposal["amount"])
-    url = data.get("url", proposal["url"])
-    basic_supplies = 1 if data.get("basic_supplies", proposal["basic_supplies"]) else 0
-
-    amount = _parse_positive_amount(amount)
-    if amount is None:
-        conn.close()
-        return jsonify({"error": "amount must be positive"}), 400
-
-    try:
-        c.execute(
-            "UPDATE proposals SET title = ?, description = ?, amount = ?, url = ?, basic_supplies = ? WHERE id = ?",
-            (title, description, amount, url, basic_supplies, proposal_id),
-        )
-        conn.commit()
-        conn.close()
-        return jsonify(
-            {
-                "success": True,
-                "message": "Proposal updated",
-                "proposal_id": proposal_id,
-            }
-        )
-    except Exception as e:
-        conn.close()
-        return jsonify({"error": str(e)}), 500
-
-
-@app.route("/api/members/telegram", methods=["GET"])
-@csrf.exempt
-def api_list_member_telegram_links():
-    auth_error = require_api_key()
-    if auth_error:
-        return auth_error
-
-    include_unlinked = (request.args.get("include_unlinked") or "false").strip().lower() in {"1", "true", "yes", "on"}
-    limit, offset, pagination_error = _parse_pagination_params(default_limit=100, max_limit=500)
-    if pagination_error:
-        return pagination_error
-
-    conn = get_db()
-    c = conn.cursor()
-    if include_unlinked:
-        c.execute(
-            """
-            SELECT id, username, telegram_username, telegram_user_id,
-                   CASE WHEN telegram_username IS NOT NULL AND telegram_username != '' AND telegram_user_id IS NOT NULL THEN 1 ELSE 0 END AS linked
-            FROM members
-            ORDER BY id ASC
-            LIMIT ? OFFSET ?
-            """,
-            (limit, offset),
-        )
-    else:
-        c.execute(
-            """
-            SELECT id, username, telegram_username, telegram_user_id, 1 AS linked
-            FROM members
-            WHERE telegram_username IS NOT NULL AND telegram_username != '' AND telegram_user_id IS NOT NULL
-            ORDER BY id ASC
-            LIMIT ? OFFSET ?
-            """,
-            (limit, offset),
-        )
-    rows = c.fetchall()
-    conn.close()
-
-    return jsonify({"success": True, "count": len(rows), "limit": limit, "offset": offset, "members": [dict(r) for r in rows]})
-
-
-@app.route("/api/polls", methods=["GET"])
-@csrf.exempt
-def api_list_polls():
-    auth_error = require_api_key()
-    if auth_error:
-        return auth_error
-
-    conn = get_db()
-    c = conn.cursor()
-    c.execute(
-        """
-        SELECT p.id, p.question, p.options_json, p.status, p.created_at, p.created_by,
-               (SELECT COUNT(*) FROM poll_votes pv WHERE pv.poll_id = p.id) AS total_votes
-        FROM polls p
-        ORDER BY p.created_at DESC
-        LIMIT 100
-        """
-    )
-    rows = c.fetchall()
-    conn.close()
-    polls = []
-    for row in rows:
-        poll = dict(row)
-        try:
-            poll["options"] = json.loads(poll.pop("options_json") or "[]")
-        except (TypeError, json.JSONDecodeError):
-            poll["options"] = []
-        polls.append(poll)
-    return jsonify({"success": True, "polls": polls})
-
-
-@app.route("/api/polls", methods=["POST"])
-@csrf.exempt
-def api_create_poll():
-    auth_error = require_api_key()
-    if auth_error:
-        return auth_error
-    data, json_error = _require_json_body()
-    if json_error:
-        return json_error
-
-    question = str(data.get("question", "")).strip()
-    options = _normalize_poll_options(data.get("options"))
-    created_by = data.get("created_by")
-    if len(question) < 5 or len(question) > 200:
-        return jsonify({"error": "question must be between 5 and 200 characters"}), 400
-    if options is None:
-        return jsonify({"error": "options must be an array with 2..12 non-empty items (max 120 chars each)"}), 400
-    if not created_by:
-        return jsonify({"error": "created_by is required"}), 400
-
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("SELECT id FROM members WHERE id = ?", (created_by,))
-    if not c.fetchone():
-        conn.close()
-        return jsonify({"error": "Creator member not found"}), 404
-    c.execute(
-        "INSERT INTO polls (question, options_json, created_by, status) VALUES (?, ?, ?, 'open')",
-        (question, json.dumps(options), created_by),
-    )
-    conn.commit()
-    poll_id = c.lastrowid
-    conn.close()
-    return jsonify({"success": True, "message": "Poll created", "poll_id": poll_id}), 201
-
-
 @app.route("/telegram/webhook/<secret>", methods=["POST"])
 @csrf.exempt
 def telegram_webhook(secret):
@@ -1352,57 +900,6 @@ def calendar():
     )
 
 
-@app.route("/logout")
-def logout():
-    session.clear()
-    return redirect(url_for("login"))
-
-
-@app.route("/set-language/<lang>")
-def set_language(lang):
-    if lang in ("en", "es"):
-        session["lang"] = lang
-        session.permanent = True
-    return redirect(request.headers.get("Referer", url_for("dashboard")))
-
-
-@app.route("/change-password", methods=["GET", "POST"])
-@login_required
-def change_password():
-    if request.method == "POST":
-        new_password = request.form["new_password"]
-        confirm_password = request.form["confirm_password"]
-
-        if not new_password or not confirm_password:
-            flash("All fields are required", "error")
-            return redirect(url_for("change_password"))
-
-        if new_password != confirm_password:
-            flash("New passwords do not match", "error")
-            return redirect(url_for("change_password"))
-
-        if len(new_password) < 4:
-            flash("Password must be at least 4 characters", "error")
-            return redirect(url_for("change_password"))
-
-        new_hash = generate_password_hash(new_password)
-        conn = get_db()
-        c = conn.cursor()
-        c.execute(
-            "UPDATE members SET password_hash = ? WHERE id = ?",
-            (new_hash, session["member_id"]),
-        )
-        conn.commit()
-        conn.close()
-
-        flash("Password changed successfully!", "success")
-        return redirect(url_for("dashboard"))
-
-    return render_template(
-        "change_password.html", session_lang=session.get("lang", "en")
-    )
-
-
 @app.route("/settings")
 @login_required
 def settings_page():
@@ -1605,7 +1102,6 @@ def dashboard():
     )
 
 
-@app.route("/proposal/new", methods=["GET", "POST"])
 @login_required
 def new_proposal():
     if request.method == "POST":
@@ -1708,7 +1204,6 @@ def new_proposal():
     )
 
 
-@app.route("/proposal/<int:proposal_id>", methods=["GET", "POST"])
 @login_required
 def proposal_detail(proposal_id):
     conn = get_db()
@@ -1800,7 +1295,6 @@ def proposal_detail(proposal_id):
     )
 
 
-@app.route("/comment/<int:comment_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit_comment(comment_id):
     if not session.get("is_admin"):
@@ -1839,7 +1333,6 @@ def edit_comment(comment_id):
     )
 
 
-@app.route("/comment/<int:comment_id>/delete", methods=["POST"])
 @login_required
 def delete_comment(comment_id):
     if not session.get("is_admin"):
@@ -1866,7 +1359,6 @@ def delete_comment(comment_id):
     return redirect(url_for("proposal_detail", proposal_id=proposal_id))
 
 
-@app.route("/proposal/<int:proposal_id>/delete", methods=["POST"])
 @login_required
 def delete_proposal(proposal_id):
     conn = get_db()
@@ -1900,7 +1392,6 @@ def delete_proposal(proposal_id):
     return redirect(url_for("dashboard"))
 
 
-@app.route("/proposal/<int:proposal_id>/edit", methods=["GET", "POST"])
 @login_required
 def edit_proposal(proposal_id):
     conn = get_db()
@@ -2005,7 +1496,6 @@ def edit_proposal(proposal_id):
     )
 
 
-@app.route("/vote/<int:proposal_id>", methods=["POST"])
 @login_required
 def quick_vote(proposal_id):
     if not can_record_proposal_vote("web"):
@@ -2018,7 +1508,6 @@ def quick_vote(proposal_id):
     return redirect(url_for("dashboard"))
 
 
-@app.route("/withdraw-vote/<int:proposal_id>", methods=["GET", "POST"])
 @login_required
 def withdraw_vote(proposal_id):
     conn = get_db()
@@ -2049,7 +1538,6 @@ def withdraw_vote(proposal_id):
     return redirect(url_for("dashboard"))
 
 
-@app.route("/undo/<int:proposal_id>")
 @admin_required
 def undo_approve(proposal_id):
     conn = get_db()
@@ -2081,7 +1569,6 @@ def undo_approve(proposal_id):
     return redirect(url_for("dashboard"))
 
 
-@app.route("/purchase/<int:proposal_id>", methods=["POST"])
 @login_required
 def mark_purchased(proposal_id):
     conn = get_db()
@@ -2111,7 +1598,6 @@ def mark_purchased(proposal_id):
     return redirect(url_for("proposal_detail", proposal_id=proposal_id))
 
 
-@app.route("/unpurchase/<int:proposal_id>", methods=["POST"])
 @login_required
 def unmark_purchased(proposal_id):
     conn = get_db()
@@ -2141,7 +1627,6 @@ def unmark_purchased(proposal_id):
     return redirect(url_for("proposal_detail", proposal_id=proposal_id))
 
 
-@app.route("/admin", methods=["GET", "POST"])
 @admin_required
 def admin():
     ensure_db_ready()
@@ -2636,7 +2121,6 @@ def admin():
     )
 
 
-@app.route("/polls", methods=["GET", "POST"])
 @login_required
 def polls_page():
     ensure_db_ready()
@@ -2754,7 +2238,6 @@ def polls_page():
     )
 
 
-@app.route("/check-overbudget")
 @login_required
 def check_overbudget():
     check_over_budget_proposals()
