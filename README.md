@@ -134,7 +134,11 @@ See [APIDOC.md](docs/APIDOC.md) for request/response details.
 A lightweight MCP JSON-RPC server is available at `app/mcp_server.py`.
 
 ### Authentication
-Set `MCP_API_KEY` and pass it on each MCP request as `params.api_key`.
+Set `MCP_API_KEY` and authenticate using either:
+- Standard HTTP headers (recommended for MCP clients):
+  - `X-Api-Key: <MCP_API_KEY>`, or
+  - `Authorization: Bearer <MCP_API_KEY>`
+- Legacy JSON-RPC body field (backward compatibility): `params.api_key`
 
 ### Run standalone (stdio)
 ```bash

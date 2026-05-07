@@ -28,13 +28,10 @@ from app.db.connection import get_db as repo_get_db, set_db_path
 from app.db.migrations import run_migrations
 from app.integrations.telegram_client import TelegramClient
 from app.integrations.telegram_webhook import (
-    callback_vote_response_text,
-    classify_message_command,
+    dispatch_callback,
+    dispatch_message,
     extract_callback_context,
     extract_message_context,
-    link_response_text,
-    poll_vote_response_text,
-    proposal_vote_response_text,
 )
 from app.repositories.settings_repo import SettingsRepository
 from app.repositories.vote_repo import VoteRepository
@@ -1145,74 +1142,48 @@ def telegram_webhook(secret):
     payload = request.get_json(silent=True) or {}
     callback_ctx = extract_callback_context(payload)
     if callback_ctx:
-        telegram_username = callback_ctx["telegram_username"]
-        callback_data = callback_ctx["callback_data"]
-        callback_query_id = callback_ctx["callback_query_id"]
-        chat_id = callback_ctx["chat_id"]
-        message_id = callback_ctx["message_id"]
+        def _load_open_poll_options(poll_id):
+            conn = get_db()
+            c = conn.cursor()
+            c.execute("SELECT options_json FROM polls WHERE id = ? AND status = 'open'", (poll_id,))
+            poll = c.fetchone()
+            conn.close()
+            if not poll:
+                return None
+            try:
+                return json.loads(poll["options_json"] or "[]")
+            except json.JSONDecodeError:
+                return None
 
-        if callback_data.startswith("showvote:"):
-            parts = callback_data.split(":")
-            if len(parts) == 2:
-                try:
-                    poll_id = int(parts[1])
-                    conn = get_db()
-                    c = conn.cursor()
-                    c.execute("SELECT options_json FROM polls WHERE id = ? AND status = 'open'", (poll_id,))
-                    poll = c.fetchone()
-                    conn.close()
-                    if poll and TELEGRAM_BOT_TOKEN and chat_id and message_id:
-                        options = json.loads(poll["options_json"] or "[]")
-                        client = TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "")
-                        updated = client.edit_message_with_vote_options(str(chat_id), message_id, poll_id, options)
-                        callback_text = "✅ Vote options shown" if updated else "❌ Couldn't show vote options"
-                        TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(callback_query_id, callback_text)
-                    else:
-                        TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(callback_query_id, "❌ Poll not found or closed")
-                except (ValueError, json.JSONDecodeError):
-                    TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(callback_query_id, "❌ Invalid poll")
-        else:
-            telegram_user_id = callback_ctx["telegram_user_id"]
-            success, reason = process_telegram_vote_callback(telegram_username, callback_data, telegram_user_id)
-            if TELEGRAM_BOT_TOKEN and callback_query_id:
-                TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(
-                    callback_query_id, callback_vote_response_text(success, reason)
-                )
-
+        result = dispatch_callback(
+            callback_ctx,
+            process_vote_callback=process_telegram_vote_callback,
+            load_open_poll_options=_load_open_poll_options,
+        )
+        if TELEGRAM_BOT_TOKEN and result["kind"] == "showvote":
+            client = TelegramClient(TELEGRAM_BOT_TOKEN, str(result["chat_id"]), "")
+            updated = client.edit_message_with_vote_options(
+                str(result["chat_id"]), result["message_id"], result["poll_id"], result["options"]
+            )
+            callback_text = "✅ Vote options shown" if updated else "❌ Couldn't show vote options"
+            TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(result["callback_query_id"], callback_text)
+        elif TELEGRAM_BOT_TOKEN:
+            TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(callback_ctx["callback_query_id"], result["text"])
         return {"ok": True}, 200
 
     message_ctx = extract_message_context(payload)
-    text = message_ctx["text"]
-    telegram_username = message_ctx["telegram_username"]
-    telegram_user_id = message_ctx["telegram_user_id"]
     chat_id = message_ctx["chat_id"]
-    if not text:
+    if not message_ctx["text"]:
         return {"ok": True}, 200
 
-    command_type = classify_message_command(text)
-    if command_type == "link":
-        if telegram_user_id is None:
-            return {"ok": True}, 200
-        success, reason = process_telegram_link_command(telegram_username, telegram_user_id, text)
-        if TELEGRAM_BOT_TOKEN and chat_id:
-            TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "").send_message(
-                link_response_text(success, reason)
-            )
-        return {"ok": True}, 200
-
-    if command_type == "proposal_vote":
-        success, reason = process_telegram_proposal_vote_command(telegram_username, text, telegram_user_id)
-        if TELEGRAM_BOT_TOKEN and chat_id:
-            TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "").send_message(
-                proposal_vote_response_text(success, reason)
-            )
-        return {"ok": True}, 200
-
-    success, reason = process_telegram_vote_command(telegram_username, text, telegram_user_id)
-    if command_type == "poll_vote" and TELEGRAM_BOT_TOKEN and chat_id:
-        TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "").send_message(
-            poll_vote_response_text(success, reason)
-        )
+    result = dispatch_message(
+        message_ctx,
+        process_link_command=process_telegram_link_command,
+        process_proposal_vote_command=process_telegram_proposal_vote_command,
+        process_poll_vote_command=process_telegram_vote_command,
+    )
+    if TELEGRAM_BOT_TOKEN and chat_id and result["kind"] == "send_message":
+        TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "").send_message(result["text"])
 
     return {"ok": True}, 200
 

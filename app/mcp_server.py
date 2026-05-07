@@ -39,15 +39,22 @@ def _tool_text(req_id: Any, payload: Any) -> dict[str, Any]:
     return _result(req_id, {"content": [{"type": "text", "text": json.dumps(payload)}]})
 
 
-def _authorized(req: dict[str, Any], method: str) -> bool:
+def _authorized(req: dict[str, Any], method: str, headers: dict[str, str] | None = None) -> bool:
     if method == "notifications/initialized":
         return True
+    headers = headers or {}
+    header_key = headers.get("x-api-key", "")
+    if not header_key:
+        auth_header = headers.get("authorization", "")
+        if auth_header.lower().startswith("bearer "):
+            header_key = auth_header[7:]
     params = req.get("params") or {}
-    provided = params.get("api_key")
-    return bool(MCP_API_KEY) and isinstance(provided, str) and provided == MCP_API_KEY
+    body_key = params.get("api_key")
+    provided = header_key or (body_key if isinstance(body_key, str) else "")
+    return bool(MCP_API_KEY) and provided == MCP_API_KEY
 
 
-def handle_request(req: dict[str, Any]) -> dict[str, Any] | None:
+def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -> dict[str, Any] | None:
     req_id = req.get("id")
     if req.get("jsonrpc") != "2.0":
         return _error(req_id, -32600, "Invalid Request: jsonrpc must be '2.0'")
@@ -59,7 +66,7 @@ def handle_request(req: dict[str, Any]) -> dict[str, Any] | None:
     if req_id is None and method in {"notifications/initialized"}:
         return None
 
-    if not _authorized(req, method):
+    if not _authorized(req, method, headers):
         return _error(req_id, -32001, "Unauthorized: invalid or missing MCP api_key")
 
     if method == "initialize":
@@ -144,7 +151,7 @@ def handle_request(req: dict[str, Any]) -> dict[str, Any] | None:
     return _error(req_id, -32601, f"Unknown method: {method}")
 
 
-def _process_jsonrpc_body(body: str) -> tuple[int, bytes]:
+def _process_jsonrpc_body(body: str, headers: dict[str, str] | None = None) -> tuple[int, bytes]:
     try:
         req = json.loads(body)
     except json.JSONDecodeError:
@@ -160,7 +167,7 @@ def _process_jsonrpc_body(body: str) -> tuple[int, bytes]:
             if not isinstance(item, dict):
                 responses.append(_error(None, -32600, "Invalid Request"))
                 continue
-            resp = handle_request(item)
+            resp = handle_request(item, headers=headers)
             if resp is not None:
                 responses.append(resp)
         if not responses:
@@ -171,7 +178,7 @@ def _process_jsonrpc_body(body: str) -> tuple[int, bytes]:
         return 400, json.dumps(_error(None, -32600, "Invalid Request: body must be an object")).encode("utf-8")
 
     try:
-        resp = handle_request(req)
+        resp = handle_request(req, headers=headers)
     except Exception as exc:
         return 500, json.dumps(_error(None, -32000, f"Server error: {exc}")).encode("utf-8")
     if resp is None:
@@ -217,7 +224,8 @@ class _HTTPHandler(http.server.BaseHTTPRequestHandler):
         except ValueError:
             length = 0
         body = self.rfile.read(length).decode("utf-8") if length > 0 else ""
-        status, payload = _process_jsonrpc_body(body)
+        lowered_headers = {k.lower(): v for k, v in self.headers.items()}
+        status, payload = _process_jsonrpc_body(body, headers=lowered_headers)
         self.send_response(status)
         self.send_header("Content-Type", "application/json")
         self.send_header("Content-Length", str(len(payload)))

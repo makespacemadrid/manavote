@@ -408,8 +408,10 @@ The project also exposes an MCP JSON-RPC server (`app/mcp_server.py`) for admin 
 
 ### Authentication
 - Configure `MCP_API_KEY` in environment.
-- Every MCP request (except `notifications/initialized`) must include:
-  - `params.api_key: <MCP_API_KEY>`
+- Every MCP request (except `notifications/initialized`) must authenticate with one of:
+  - `X-Api-Key: <MCP_API_KEY>` HTTP header (recommended), or
+  - `Authorization: Bearer <MCP_API_KEY>` HTTP header, or
+  - `params.api_key: <MCP_API_KEY>` in JSON-RPC body (legacy compatibility).
 
 If key is missing/invalid, server responds with JSON-RPC error code `-32001` and message:
 `Unauthorized: invalid or missing MCP api_key`.
@@ -458,3 +460,4 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
 - `/vote <poll_id> <option_number>` or `/vote <option_number>` — vote in polls (subject to `poll_vote_mode`).
 - `/pvote <proposal_id> <yes|no>` — vote on proposals (subject to `proposal_vote_mode`).
 - Proposal inline callback payload: `pvote:<proposal_id>:yes|no` (same policy path as `/pvote`).
+- Non-command Telegram messages are ignored by the webhook (no poll/proposal vote side effects).

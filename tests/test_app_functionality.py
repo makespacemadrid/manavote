@@ -1247,6 +1247,33 @@ class TestPollTelegramActions(unittest.TestCase):
         conn.close()
         self.assertEqual(total, 0)
 
+    def test_telegram_webhook_non_command_message_is_ignored(self):
+        poll_id = self._latest_poll_id()
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            response = self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={
+                    "message": {
+                        "text": "hello team",
+                        "from": {"username": "admin"},
+                        "chat": {"id": 12345},
+                    }
+                },
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        self.assertEqual(response.status_code, 200)
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) as total FROM poll_votes WHERE poll_id = ? AND member_id = 1", (poll_id,))
+        total = c.fetchone()["total"]
+        conn.close()
+        self.assertEqual(total, 0)
+
     def test_telegram_webhook_supports_edited_message_payload(self):
         poll_id = self._latest_poll_id()
         from app.web.routes import main_routes
@@ -1875,4 +1902,3 @@ class TestPollsFunctionality(unittest.TestCase):
 
         self.assertEqual(vote_row["total"], 1)
         self.assertEqual(vote_row["vote"], "against")
-
