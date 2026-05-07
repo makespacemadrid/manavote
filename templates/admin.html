@@ -3,9 +3,10 @@
 {% block content %}
 {% include "_top_nav.html" %}
 
+<div class="admin-page">
 <h2>{{ 'Admin'|lang }}</h2>
 
-<div style="margin: 20px 0; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; justify-content: center;">
+<div class="admin-toolbar">
     <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('members', this)">{{ 'Members'|lang }}</button>
     <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('budget', this)">{{ 'Budget'|lang }}</button>
     <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('polls', this)">{{ 'Polls'|lang }}</button>
@@ -22,6 +23,62 @@
         font-size: 16px; /* Prevents iOS zoom */
     }
 }
+
+.settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 14px;
+}
+
+.settings-panel {
+    border: 1px solid #0f3460;
+    border-radius: 8px;
+    padding: 14px;
+    background: rgba(15, 52, 96, 0.15);
+}
+
+.settings-panel h4 {
+    margin: 0 0 10px 0;
+    font-size: 1rem;
+}
+
+.settings-panel p {
+    margin: 0 0 10px 0;
+    color: #9aa3b2;
+    font-size: 0.92em;
+}
+
+.settings-panel .btn {
+    margin-top: 10px;
+}
+
+.admin-toolbar {
+    margin: 20px 0;
+    display: flex;
+    gap: 8px;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: center;
+}
+
+.admin-page .card {
+    border: 1px solid #0f3460;
+    box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
+}
+
+.admin-page h3 {
+    border-bottom: 1px solid rgba(15, 52, 96, 0.7);
+    padding-bottom: 8px;
+    margin-bottom: 14px;
+}
+
+.admin-page table th {
+    background: rgba(15, 52, 96, 0.55);
+}
+
+.admin-page table td {
+    vertical-align: top;
+}
 </style>
 
 <script>
@@ -29,8 +86,8 @@ function showSection(sectionId, buttonEl) {
     var sections = {
         members: ['add-member', 'registration-settings', 'members', 'stats', 'poll-stats'],
         budget: ['thresholds', 'budget', 'budget-history', 'proposal-history'],
-        polls: ['settings', 'polls'],
-        settings: ['timezone', 'backup', 'telegram']
+        polls: ['polls'],
+        settings: ['settings', 'timezone', 'backup', 'telegram']
     };
 
     document.querySelectorAll('.admin-tab-btn').forEach(function(btn) { btn.classList.remove('active'); });
@@ -352,28 +409,32 @@ function showSection(sectionId, buttonEl) {
 <div id="settings" class="card">
     <h3>{{ 'Settings'|lang }}</h3>
     <p style="color: #888; margin-bottom: 15px;">{{ 'Other settings'|lang }}</p>
-    <form method="POST">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="action" value="update_poll_vote_mode">
-        <label>Poll voting mode</label>
-        <select name="poll_vote_mode" required>
-            <option value="both" {{ 'selected' if get_setting_value('poll_vote_mode', 'both') == 'both' else '' }}>Web + Telegram</option>
-            <option value="web_only" {{ 'selected' if get_setting_value('poll_vote_mode', 'both') == 'web_only' else '' }}>Web only</option>
-            <option value="telegram_only" {{ 'selected' if get_setting_value('poll_vote_mode', 'both') == 'telegram_only' else '' }}>Telegram only</option>
-        </select>
-        <button type="submit" class="btn" style="margin-top: 8px;">Update vote mode</button>
-    </form>
-    <form method="POST" style="margin-top: 12px;">
-        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <input type="hidden" name="action" value="update_proposal_vote_mode">
-        <label>Proposal voting mode</label>
-        <select name="proposal_vote_mode" required>
-            <option value="both" {{ 'selected' if get_setting_value('proposal_vote_mode', 'both') == 'both' else '' }}>Web + Telegram</option>
-            <option value="web_only" {{ 'selected' if get_setting_value('proposal_vote_mode', 'both') == 'web_only' else '' }}>Web only</option>
-            <option value="telegram_only" {{ 'selected' if get_setting_value('proposal_vote_mode', 'both') == 'telegram_only' else '' }}>Telegram only</option>
-        </select>
-        <button type="submit" class="btn" style="margin-top: 8px;">Update proposal vote mode</button>
-    </form>
+    <div class="settings-grid">
+        <form method="POST" class="settings-panel">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="update_poll_vote_mode">
+            <h4>Poll voting mode</h4>
+            <p>Choose where members can vote on polls.</p>
+            <select name="poll_vote_mode" required>
+                <option value="both" {{ 'selected' if get_setting_value('poll_vote_mode', 'both') == 'both' else '' }}>Web + Telegram</option>
+                <option value="web_only" {{ 'selected' if get_setting_value('poll_vote_mode', 'both') == 'web_only' else '' }}>Web only</option>
+                <option value="telegram_only" {{ 'selected' if get_setting_value('poll_vote_mode', 'both') == 'telegram_only' else '' }}>Telegram only</option>
+            </select>
+            <button type="submit" class="btn">Update vote mode</button>
+        </form>
+        <form method="POST" class="settings-panel">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="update_proposal_vote_mode">
+            <h4>Proposal voting mode</h4>
+            <p>Choose where members can vote on proposals.</p>
+            <select name="proposal_vote_mode" required>
+                <option value="both" {{ 'selected' if get_setting_value('proposal_vote_mode', 'both') == 'both' else '' }}>Web + Telegram</option>
+                <option value="web_only" {{ 'selected' if get_setting_value('proposal_vote_mode', 'both') == 'web_only' else '' }}>Web only</option>
+                <option value="telegram_only" {{ 'selected' if get_setting_value('proposal_vote_mode', 'both') == 'telegram_only' else '' }}>Telegram only</option>
+            </select>
+            <button type="submit" class="btn">Update proposal vote mode</button>
+        </form>
+    </div>
 </div>
 
 <div id="timezone" class="card">
@@ -432,7 +493,7 @@ function showSection(sectionId, buttonEl) {
     <form method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="backup_images">
-        <button type="submit" class="btn btn-secondary">Backup Images Now</button>
+        <button type="submit" class="btn">Backup Images Now</button>
     </form>
     <h4 style="margin-top: 20px;">Latest Image Backups</h4>
     <ul style="color: #888; font-size: 0.9em; list-style: none;">
@@ -462,7 +523,7 @@ function showSection(sectionId, buttonEl) {
     <form method="POST" style="margin-top:10px;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="sync_telegram_webhook">
-        <button type="submit" class="btn btn-secondary">{{ 'Sync Telegram Webhook'|lang }}</button>
+        <button type="submit" class="btn">{{ 'Sync Telegram Webhook'|lang }}</button>
     </form>
 </div>
 
@@ -508,4 +569,5 @@ document.getElementById('changePasswordModal').addEventListener('click', functio
     if (e.target === this) hideChangePassword();
 });
 </script>
+</div>
 {% endblock %}
