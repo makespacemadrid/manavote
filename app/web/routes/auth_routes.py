@@ -74,15 +74,15 @@ def change_password():
 
         if not new_password or not confirm_password:
             flash("All fields are required", "error")
-            return redirect(url_for("change_password"))
+            return redirect(url_for("auth.change_password"))
 
         if new_password != confirm_password:
             flash("New passwords do not match", "error")
-            return redirect(url_for("change_password"))
+            return redirect(url_for("auth.change_password"))
 
         if len(new_password) < 4:
             flash("Password must be at least 4 characters", "error")
-            return redirect(url_for("change_password"))
+            return redirect(url_for("auth.change_password"))
 
         new_hash = generate_password_hash(new_password)
         conn = legacy.get_db()

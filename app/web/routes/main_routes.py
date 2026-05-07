@@ -1113,7 +1113,7 @@ def new_proposal():
         basic_supplies = 1 if request.form.get("basic_supplies") else 0
         if amount <= 0:
             flash("Amount must be positive", "error")
-            return redirect(url_for("new_proposal"))
+            return redirect(url_for("proposals.new_proposal"))
         deadline_text = ""
         if voting_deadline:
             try:
@@ -1121,7 +1121,7 @@ def new_proposal():
                 deadline_text = deadline_dt.strftime("%Y-%m-%d %H:%M")
             except ValueError:
                 flash("Invalid voting deadline", "error")
-                return redirect(url_for("new_proposal"))
+                return redirect(url_for("proposals.new_proposal"))
 
         image_filename = None
         if "image" in request.files:
@@ -1137,7 +1137,7 @@ def new_proposal():
                     if mime_type not in ["jpeg", "png"]:
                         os.remove(filepath)
                         flash("Invalid image format", "error")
-                        return redirect(url_for("new_proposal"))
+                        return redirect(url_for("proposals.new_proposal"))
 
         conn = get_db()
         c = conn.cursor()
@@ -1241,7 +1241,7 @@ def proposal_detail(proposal_id):
             if not can_record_proposal_vote("web"):
                 flash("Web voting is disabled by admin", "error")
                 conn.close()
-                return redirect(url_for("proposal_detail", proposal_id=proposal_id))
+                return redirect(url_for("proposals.proposal_detail", proposal_id=proposal_id))
 
             vote = request.form["vote"]
 
@@ -1258,7 +1258,7 @@ def proposal_detail(proposal_id):
                 conn.commit()
                 flash("Comment added!", "success")
 
-        return redirect(url_for("proposal_detail", proposal_id=proposal_id))
+        return redirect(url_for("proposals.proposal_detail", proposal_id=proposal_id))
 
     c.execute(
         "SELECT vote FROM votes WHERE proposal_id = ? AND member_id = ?",
@@ -1321,7 +1321,7 @@ def edit_comment(comment_id):
             conn.commit()
             flash("Comment updated!", "success")
         conn.close()
-        return redirect(url_for("proposal_detail", proposal_id=comment["proposal_id"]))
+        return redirect(url_for("proposals.proposal_detail", proposal_id=comment["proposal_id"]))
 
     conn.close()
     return render_template(
@@ -1356,7 +1356,7 @@ def delete_comment(comment_id):
     conn.close()
 
     flash("Comment deleted!", "success")
-    return redirect(url_for("proposal_detail", proposal_id=proposal_id))
+    return redirect(url_for("proposals.proposal_detail", proposal_id=proposal_id))
 
 
 @login_required
@@ -1375,12 +1375,12 @@ def delete_proposal(proposal_id):
     if proposal["status"] != "active":
         conn.close()
         flash("Cannot delete processed proposals", "error")
-        return redirect(url_for("proposal_detail", proposal_id=proposal_id))
+        return redirect(url_for("proposals.proposal_detail", proposal_id=proposal_id))
 
     if proposal["created_by"] != session["member_id"] and not session.get("is_admin"):
         conn.close()
         flash("You can only delete your own proposals", "error")
-        return redirect(url_for("proposal_detail", proposal_id=proposal_id))
+        return redirect(url_for("proposals.proposal_detail", proposal_id=proposal_id))
 
     c.execute("DELETE FROM votes WHERE proposal_id = ?", (proposal_id,))
     c.execute("DELETE FROM comments WHERE proposal_id = ?", (proposal_id,))
@@ -1423,7 +1423,7 @@ def edit_proposal(proposal_id):
         basic_supplies = 1 if request.form.get("basic_supplies") else 0
         if amount <= 0:
             flash("Amount must be positive", "error")
-            return redirect(url_for("edit_proposal", proposal_id=proposal_id))
+            return redirect(url_for("proposals.edit_proposal", proposal_id=proposal_id))
 
         image_filename = proposal["image_filename"]
         if "image" in request.files:
@@ -1446,7 +1446,7 @@ def edit_proposal(proposal_id):
                         os.remove(filepath)
                         flash("Invalid image format", "error")
                         return redirect(
-                            url_for("edit_proposal", proposal_id=proposal_id)
+                            url_for("proposals.edit_proposal", proposal_id=proposal_id)
                         )
 
         c.execute(
@@ -1480,7 +1480,7 @@ def edit_proposal(proposal_id):
         conn.close()
 
         flash("Proposal updated!", "success")
-        return redirect(url_for("proposal_detail", proposal_id=proposal_id))
+        return redirect(url_for("proposals.proposal_detail", proposal_id=proposal_id))
 
     conn.close()
     current_budget = get_current_budget()
@@ -1585,7 +1585,7 @@ def mark_purchased(proposal_id):
     if proposal["status"] != "approved":
         conn.close()
         flash("Can only mark approved proposals as purchased", "error")
-        return redirect(url_for("proposal_detail", proposal_id=proposal_id))
+        return redirect(url_for("proposals.proposal_detail", proposal_id=proposal_id))
 
     c.execute(
         "UPDATE proposals SET purchased_at = ? WHERE id = ?",
@@ -1595,7 +1595,7 @@ def mark_purchased(proposal_id):
     conn.close()
 
     flash("Marked as purchased!", "success")
-    return redirect(url_for("proposal_detail", proposal_id=proposal_id))
+    return redirect(url_for("proposals.proposal_detail", proposal_id=proposal_id))
 
 
 @login_required
@@ -1624,7 +1624,7 @@ def unmark_purchased(proposal_id):
     conn.close()
 
     flash("Purchase status removed", "success")
-    return redirect(url_for("proposal_detail", proposal_id=proposal_id))
+    return redirect(url_for("proposals.proposal_detail", proposal_id=proposal_id))
 
 
 @admin_required
@@ -2131,7 +2131,7 @@ def polls_page():
         if not is_web_poll_voting_enabled():
             flash("Web voting is disabled by admin", "error")
             conn.close()
-            return redirect(url_for("polls_page"))
+            return redirect(url_for("polls.polls_page"))
         poll_id = request.form.get("poll_id", type=int)
         option_index = request.form.get("option_index", type=int)
         if poll_id is None or option_index is None:

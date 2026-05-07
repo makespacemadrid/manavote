@@ -6,9 +6,9 @@
     <div class="nav-links" data-nav-links>
         <a href="{{ url_for('dashboard') }}">{{ 'Dashboard'|lang }}</a>
         <a href="{{ url_for('calendar') }}">{{ 'Calendar'|lang }}</a>
-        <a href="{{ url_for('polls_page') }}">{{ 'Polls'|lang }}</a>
+        <a href="{{ url_for('polls.polls_page') }}">{{ 'Polls'|lang }}</a>
         {% if session.is_admin %}
-        <a href="{{ url_for('admin') }}">{{ 'Admin'|lang }}</a>
+        <a href="{{ url_for('admin.admin') }}">{{ 'Admin'|lang }}</a>
         {% endif %}
         <a href="{{ url_for('about') }}">{{ 'About'|lang }}</a>
         <a href="{{ url_for('settings_page') }}">{{ 'Settings'|lang }}</a>

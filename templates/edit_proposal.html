@@ -38,7 +38,7 @@
         </label>
         
         <button type="submit" class="btn">{{ 'Save Changes'|lang }}</button>
-        <a href="{{ url_for('proposal_detail', proposal_id=proposal.id) }}" class="btn btn-secondary">{{ 'Cancel'|lang }}</a>
+        <a href="{{ url_for('proposals.proposal_detail', proposal_id=proposal.id) }}" class="btn btn-secondary">{{ 'Cancel'|lang }}</a>
     </form>
 </div>
 {% endblock %}

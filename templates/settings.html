@@ -35,7 +35,7 @@
         <div class="user-settings-item">
             <h4>{{ 'Change Password'|lang }}</h4>
             <p>Update your account password.</p>
-            <a class="btn btn-secondary" href="{{ url_for('change_password') }}">{{ 'Change Password'|lang }}</a>
+            <a class="btn btn-secondary" href="{{ url_for('auth.change_password') }}">{{ 'Change Password'|lang }}</a>
         </div>
         <div class="user-settings-item">
             <h4>{{ 'Telegram Settings'|lang }}</h4>
@@ -46,14 +46,14 @@
             <h4>{{ 'Language'|lang }}</h4>
             <p>Switch your interface language.</p>
             <div style="display:grid; gap:8px;">
-                <a class="btn btn-secondary" href="{{ url_for('set_language', lang='en') }}">{{ 'English'|lang }}</a>
-                <a class="btn btn-secondary" href="{{ url_for('set_language', lang='es') }}">{{ 'Español'|lang }}</a>
+                <a class="btn btn-secondary" href="{{ url_for('auth.set_language', lang='en') }}">{{ 'English'|lang }}</a>
+                <a class="btn btn-secondary" href="{{ url_for('auth.set_language', lang='es') }}">{{ 'Español'|lang }}</a>
             </div>
         </div>
         <div class="user-settings-item">
             <h4>{{ 'Logout'|lang }}</h4>
             <p>Sign out from your current session.</p>
-            <a class="btn" href="{{ url_for('logout') }}">{{ 'Logout'|lang }}</a>
+            <a class="btn" href="{{ url_for('auth.logout') }}">{{ 'Logout'|lang }}</a>
         </div>
     </div>
 </div>
