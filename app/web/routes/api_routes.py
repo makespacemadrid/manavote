@@ -11,6 +11,7 @@ from app.web.routes.helpers.api_helpers import (
     parse_positive_amount,
     require_api_key,
     require_json_body,
+    api_error,
 )
 
 api_bp = Blueprint("api", __name__)
@@ -34,7 +35,7 @@ def api_register():
     is_admin = data.get("is_admin", False)
 
     if not username or not password:
-        return jsonify({"error": "username and password are required"}), 400
+        return api_error("username_password_required", "username and password are required", 400)
 
     password_hash = generate_password_hash(password)
 
@@ -44,7 +45,7 @@ def api_register():
     c.execute("SELECT id FROM members WHERE username = ?", (username,))
     if c.fetchone():
         conn.close()
-        return jsonify({"error": "Username already exists"}), 409
+        return api_error("username_exists", "Username already exists", 409)
 
     try:
         c.execute(
@@ -57,7 +58,7 @@ def api_register():
         return jsonify({"success": True, "message": f"User {username} created", "member_id": member_id}), 201
     except Exception as e:
         conn.close()
-        return jsonify({"error": str(e)}), 500
+        return api_error("register_failed", "Failed to create user", 500)
 
 
 @api_bp.route("/api/proposals", methods=["POST"], endpoint="api_create_proposal")
@@ -78,19 +79,19 @@ def api_create_proposal():
     created_by = data.get("created_by")
 
     if not title or amount is None:
-        return jsonify({"error": "title and amount are required"}), 400
+        return api_error("title_amount_required", "title and amount are required", 400)
     amount = parse_positive_amount(amount)
     if amount is None:
-        return jsonify({"error": "amount must be positive"}), 400
+        return api_error("amount_must_be_positive", "amount must be positive", 400)
     if not created_by:
-        return jsonify({"error": "created_by is required"}), 400
+        return api_error("created_by_required", "created_by is required", 400)
 
     conn = legacy.get_db()
     c = conn.cursor()
     c.execute("SELECT id FROM members WHERE id = ?", (created_by,))
     if not c.fetchone():
         conn.close()
-        return jsonify({"error": "Creator member not found"}), 404
+        return api_error("creator_not_found", "Creator member not found", 404)
 
     try:
         c.execute(
@@ -110,7 +111,7 @@ def api_create_proposal():
         return jsonify({"success": True, "message": "Proposal created", "proposal_id": proposal_id}), 201
     except Exception as e:
         conn.close()
-        return jsonify({"error": str(e)}), 500
+        return api_error("proposal_create_failed", "Failed to create proposal", 500)
 
 
 @api_bp.route("/api/proposals", methods=["GET"], endpoint="api_list_proposals")
@@ -135,7 +136,7 @@ def api_list_proposals():
     """
     if status:
         if status not in valid_statuses:
-            return jsonify({"error": "invalid status filter"}), 400
+            return api_error("invalid_status_filter", "invalid status filter", 400)
         query += " WHERE p.status = ?"
         params.append(status)
 
@@ -166,7 +167,7 @@ def api_get_proposal(proposal_id):
     row = c.fetchone()
     conn.close()
     if not row:
-        return jsonify({"error": "Proposal not found"}), 404
+        return api_error("proposal_not_found", "Proposal not found", 404)
     return jsonify({"success": True, "proposal": dict(row)})
 
 
@@ -183,10 +184,10 @@ def api_edit_proposal(proposal_id):
     proposal = c.fetchone()
     if not proposal:
         conn.close()
-        return jsonify({"error": "Proposal not found"}), 404
+        return api_error("proposal_not_found", "Proposal not found", 404)
     if proposal["status"] != "active":
         conn.close()
-        return jsonify({"error": "Cannot edit processed proposals"}), 400
+        return api_error("proposal_already_processed", "Cannot edit processed proposals", 400)
 
     data, json_error = require_json_body()
     if json_error:
@@ -202,7 +203,7 @@ def api_edit_proposal(proposal_id):
     amount = parse_positive_amount(amount)
     if amount is None:
         conn.close()
-        return jsonify({"error": "amount must be positive"}), 400
+        return api_error("amount_must_be_positive", "amount must be positive", 400)
 
     try:
         c.execute(
@@ -214,7 +215,7 @@ def api_edit_proposal(proposal_id):
         return jsonify({"success": True, "message": "Proposal updated", "proposal_id": proposal_id})
     except Exception as e:
         conn.close()
-        return jsonify({"error": str(e)}), 500
+        return api_error("proposal_update_failed", "Failed to update proposal", 500)
 
 
 @api_bp.route("/api/members/telegram", methods=["GET"], endpoint="api_list_member_telegram_links")
@@ -308,14 +309,14 @@ def api_create_poll():
     if options is None:
         return jsonify({"error": "options must be an array with 2..12 non-empty items (max 120 chars each)"}), 400
     if not created_by:
-        return jsonify({"error": "created_by is required"}), 400
+        return api_error("created_by_required", "created_by is required", 400)
 
     conn = legacy.get_db()
     c = conn.cursor()
     c.execute("SELECT id FROM members WHERE id = ?", (created_by,))
     if not c.fetchone():
         conn.close()
-        return jsonify({"error": "Creator member not found"}), 404
+        return api_error("creator_not_found", "Creator member not found", 404)
     c.execute(
         "INSERT INTO polls (question, options_json, created_by, status) VALUES (?, ?, ?, 'open')",
         (question, json.dumps(options), created_by),

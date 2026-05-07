@@ -175,6 +175,7 @@ Committed series behavior:
 ### Public
 - `GET /`
 - `GET|POST /login`
+  - Route is registered on the auth blueprint (`auth.login`) and also exposed via a legacy `login` endpoint alias for backward compatibility.
 - `GET|POST /register` (if enabled)
 
 ### Authenticated member

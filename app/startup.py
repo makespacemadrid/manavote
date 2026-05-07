@@ -3,6 +3,7 @@
 import logging
 import os
 import sqlite3
+import json
 from datetime import datetime, timedelta
 
 from .services.backup_service import start_scheduler
@@ -35,17 +36,38 @@ def check_auto_backup(db_path, upload_dir=None):
 
 def run_startup_steps(app, db_path, upload_folder, app_env=None):
     """Run startup steps in a deterministic order."""
+    env = app_env or os.getenv("FLASK_ENV", "") or "development"
+    degraded_reasons = []
+    status = "ready"
+
     ensure_db_ready()
 
-    runtime_policy = get_startup_runtime_policy(app_env or os.getenv("FLASK_ENV", ""))
+    runtime_policy = get_startup_runtime_policy(env)
     if runtime_policy["run_scheduler"]:
         try:
             start_scheduler(app, db_path, upload_folder)
         except OSError as exc:
+            degraded_reasons.append("scheduler_start_failed")
             logging.warning("Failed to start scheduler: %s", exc)
 
     if runtime_policy["run_auto_backup"]:
         try:
             check_auto_backup(db_path, upload_folder)
         except (OSError, sqlite3.Error, ValueError) as exc:
+            degraded_reasons.append("auto_backup_check_failed")
             logging.warning("Auto backup check failed: %s", exc)
+
+    if degraded_reasons:
+        status = "degraded"
+
+    logging.info(
+        "startup_summary %s",
+        json.dumps(
+            {
+                "mode": env,
+                "status": status,
+                "degraded_reasons": degraded_reasons,
+            },
+            sort_keys=True,
+        ),
+    )
