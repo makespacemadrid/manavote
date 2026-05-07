@@ -39,6 +39,10 @@ When running with Docker Compose:
 | `FLASK_SECURE_COOKIES` | `true` | Enables `SESSION_COOKIE_SECURE` (recommended default) |
 | `ADMIN_BOOTSTRAP_PASSWORD` | _empty_ | Required for first-time admin creation in production; non-production falls back to insecure default with warning |
 | `ADMIN_API_KEY` | _empty_ | Required for REST API endpoints |
+| `MCP_API_KEY` | _empty_ | Required for MCP JSON-RPC authentication |
+| `MCP_SERVER_ENABLED` | `false` | Enables in-process MCP server when set to `true` |
+| `MCP_SERVER_HOST` | `127.0.0.1` | MCP bind host (`0.0.0.0` for container/network access) |
+| `MCP_SERVER_PORT` | `8765` | MCP server port |
 | `APP_DB_PATH` | `<repo>/app.db` | Optional SQLite path override (useful for test isolation) |
 | `TELEGRAM_BOT_TOKEN` | _empty_ | Telegram integration token |
 | `TELEGRAM_CHAT_ID` | _empty_ | Telegram target chat |
@@ -78,6 +82,7 @@ Additional operational notes:
 - API endpoints under `/api/*` are CSRF-exempt and authenticated with `X-Admin-Key`.
 - Docker image runs as a non-root user.
 - Health endpoint available at `GET /healthz` (used by compose healthcheck).
+- MCP endpoints available when enabled: `POST /mcp` and `GET /healthz` on `MCP_SERVER_HOST:MCP_SERVER_PORT`.
 - Set `SECRET_KEY` and `ADMIN_BOOTSTRAP_PASSWORD` explicitly in production deployments (do not rely on fallback defaults).
 
 
@@ -90,4 +95,13 @@ Additional operational notes:
 ## Testing
 ```bash
 pytest -q
+```
+
+Focused regression slice for the ongoing route decomposition:
+
+Note: route blueprints are registered for both `app:create_app` and `app.web.app_setup:app` entrypoints, so `flask --app app.web.app_setup run` is supported during local debugging.
+
+
+```bash
+pytest -q tests/test_blueprint_registration.py tests/test_blueprint_endpoint_aliases.py tests/test_api_helpers.py tests/test_production_config.py
 ```

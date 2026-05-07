@@ -4,7 +4,8 @@ from datetime import timedelta
 
 class Config:
     SECRET_KEY = os.getenv("SECRET_KEY", "dev-insecure-secret-change-me")
-    SESSION_COOKIE_SECURE = os.getenv("FLASK_SECURE_COOKIES", "true").lower() == "true"
+    _secure_cookie_default = "true" if os.getenv("FLASK_ENV", "").strip().lower() == "production" else "false"
+    SESSION_COOKIE_SECURE = os.getenv("FLASK_SECURE_COOKIES", _secure_cookie_default).lower() == "true"
     SESSION_COOKIE_HTTPONLY = True
     SESSION_COOKIE_SAMESITE = "Lax"
     WTF_CSRF_ENABLED = os.getenv("FLASK_CSRF", "true").lower() == "true"
