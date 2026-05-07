@@ -336,7 +336,7 @@ function showSection(sectionId, buttonEl) {
             <tr>
                 <td>{{ event.created_at|localtime("%Y-%m-%d %H:%M") }}</td>
                 <td>{{ event.event_label }}</td>
-                <td><a href="{{ url_for('proposal_detail', proposal_id=event.proposal_id) }}">#{{ event.proposal_id }} - {{ event.proposal_title }}</a></td>
+                <td><a href="{{ url_for('proposals.proposal_detail', proposal_id=event.proposal_id) }}">#{{ event.proposal_id }} - {{ event.proposal_title }}</a></td>
                 <td>{{ event.details }}</td>
             </tr>
             {% else %}

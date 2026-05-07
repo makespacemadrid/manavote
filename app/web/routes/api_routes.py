@@ -84,14 +84,14 @@ def api_create_proposal():
     if amount is None:
         return api_error("amount_must_be_positive", "amount must be positive", 400)
     if not created_by:
-        return api_error("created_by_required", "created_by is required", 400)
+        return jsonify({"error": "created_by is required"}), 400
 
     conn = legacy.get_db()
     c = conn.cursor()
     c.execute("SELECT id FROM members WHERE id = ?", (created_by,))
     if not c.fetchone():
         conn.close()
-        return api_error("creator_not_found", "Creator member not found", 404)
+        return jsonify({"error": "Creator member not found"}), 404
 
     try:
         c.execute(
@@ -309,14 +309,14 @@ def api_create_poll():
     if options is None:
         return jsonify({"error": "options must be an array with 2..12 non-empty items (max 120 chars each)"}), 400
     if not created_by:
-        return api_error("created_by_required", "created_by is required", 400)
+        return jsonify({"error": "created_by is required"}), 400
 
     conn = legacy.get_db()
     c = conn.cursor()
     c.execute("SELECT id FROM members WHERE id = ?", (created_by,))
     if not c.fetchone():
         conn.close()
-        return api_error("creator_not_found", "Creator member not found", 404)
+        return jsonify({"error": "Creator member not found"}), 404
     c.execute(
         "INSERT INTO polls (question, options_json, created_by, status) VALUES (?, ?, ?, 'open')",
         (question, json.dumps(options), created_by),

@@ -97,9 +97,9 @@
                     </td>
                     <td>
                         {% if item.item_type == 'proposal' %}
-                        <a href="{{ url_for('proposal_detail', proposal_id=item.id) }}" style="color: #00d9ff;">{{ item.title }}</a>
+                        <a href="{{ url_for('proposals.proposal_detail', proposal_id=item.id) }}" style="color: #00d9ff;">{{ item.title }}</a>
                         {% elif item.proposal_id %}
-                        <a href="{{ url_for('proposal_detail', proposal_id=item.proposal_id) }}" style="color: #00d9ff;">{{ item.description }}</a>
+                        <a href="{{ url_for('proposals.proposal_detail', proposal_id=item.proposal_id) }}" style="color: #00d9ff;">{{ item.description }}</a>
                         {% else %}
                         {{ item.description }}
                         {% endif %}
