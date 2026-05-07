@@ -3,14 +3,58 @@
 {% block content %}
 {% include "_top_nav.html" %}
 
+<style>
+.user-settings-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    gap: 12px;
+}
+.user-settings-item {
+    border: 1px solid #0f3460;
+    border-radius: 8px;
+    background: rgba(15, 52, 96, 0.12);
+    padding: 14px;
+}
+.user-settings-item h4 {
+    margin: 0 0 6px;
+}
+.user-settings-item p {
+    margin: 0 0 12px;
+    color: #9aa3b2;
+    font-size: 0.9em;
+}
+.user-settings-item .btn {
+    width: 100%;
+    text-align: center;
+}
+</style>
+
 <div class="card">
     <h2>{{ 'Settings'|lang }}</h2>
-    <div style="display:flex; flex-direction:column; gap:10px;">
-        <a class="btn btn-secondary" href="{{ url_for('change_password') }}">{{ 'Change Password'|lang }}</a>
-        <a class="btn btn-secondary" href="{{ url_for('telegram_settings') }}">{{ 'Telegram Settings'|lang }}</a>
-        <a class="btn btn-secondary" href="{{ url_for('set_language', lang='en') }}">{{ 'English'|lang }}</a>
-        <a class="btn btn-secondary" href="{{ url_for('set_language', lang='es') }}">{{ 'Español'|lang }}</a>
-        <a class="btn" href="{{ url_for('logout') }}">{{ 'Logout'|lang }}</a>
+    <div class="user-settings-grid">
+        <div class="user-settings-item">
+            <h4>{{ 'Change Password'|lang }}</h4>
+            <p>Update your account password.</p>
+            <a class="btn btn-secondary" href="{{ url_for('change_password') }}">{{ 'Change Password'|lang }}</a>
+        </div>
+        <div class="user-settings-item">
+            <h4>{{ 'Telegram Settings'|lang }}</h4>
+            <p>Manage Telegram link and notifications.</p>
+            <a class="btn btn-secondary" href="{{ url_for('telegram_settings') }}">{{ 'Telegram Settings'|lang }}</a>
+        </div>
+        <div class="user-settings-item">
+            <h4>{{ 'Language'|lang }}</h4>
+            <p>Switch your interface language.</p>
+            <div style="display:grid; gap:8px;">
+                <a class="btn btn-secondary" href="{{ url_for('set_language', lang='en') }}">{{ 'English'|lang }}</a>
+                <a class="btn btn-secondary" href="{{ url_for('set_language', lang='es') }}">{{ 'Español'|lang }}</a>
+            </div>
+        </div>
+        <div class="user-settings-item">
+            <h4>{{ 'Logout'|lang }}</h4>
+            <p>Sign out from your current session.</p>
+            <a class="btn" href="{{ url_for('logout') }}">{{ 'Logout'|lang }}</a>
+        </div>
     </div>
 </div>
 {% endblock %}
