@@ -1,6 +1,7 @@
 from flask import Flask
 
 from app.web.routes.helpers.api_helpers import (
+    api_error,
     normalize_poll_options,
     parse_pagination_params,
     parse_positive_amount,
@@ -21,7 +22,9 @@ def test_require_api_key_rejects_missing_or_wrong_header():
     with app.test_request_context(headers={}):
         payload, status = require_api_key("k")
         assert status == 401
-        assert payload.get_json()["error"] == "Unauthorized"
+        err = payload.get_json()["error"]
+        assert err["code"] == "unauthorized"
+        assert err["message"] == "Unauthorized"
 
 
 def test_require_json_body_validation():
@@ -51,3 +54,20 @@ def test_parse_pagination_params():
     with app.test_request_context(query_string={"limit": "999"}):
         _, _, err = parse_pagination_params(max_limit=200)
         assert err[1] == 400
+        payload = err[0].get_json()["error"]
+        assert payload["code"] == "limit_out_of_range"
+
+
+def test_api_error_envelope_shape():
+    with app.app_context():
+        payload, status = api_error("example_code", "Example message", 418)
+        assert status == 418
+        assert payload.get_json() == {"error": {"code": "example_code", "message": "Example message"}}
+
+
+def test_parse_pagination_params_invalid_offset_shape():
+    with app.test_request_context(query_string={"offset": "-3"}):
+        _, _, err = parse_pagination_params(max_limit=200)
+        assert err[1] == 400
+        payload = err[0].get_json()["error"]
+        assert payload["code"] == "offset_out_of_range"

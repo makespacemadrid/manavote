@@ -242,6 +242,8 @@ A change is complete only when:
 - ✅ Blueprint registration made idempotent to prevent duplicate-registration failures when `create_app()` is invoked multiple times in tests/runtime utilities.
 - ✅ Extracted shared API request/auth/validation helpers into `app/web/routes/helpers/api_helpers.py` and rewired `api_routes.py` to consume them.
 - ✅ Added helper-focused tests for shared API route helpers to lock in request/auth/validation behavior during extraction.
+- ✅ Added startup summary event logging (`mode`, `status`, `degraded_reasons`) plus regression tests for ready/degraded outcomes.
+- ✅ Standardized API error envelope (`{"error": {"code", "message"}}`) for `POST /api/register`, `POST /api/proposals`, and `GET /api/proposals/<proposal_id>` with contract tests.
 - 🔜 Next slice: extract shared helpers into `app/web/routes/helpers/` and continue removing compatibility code from `main_routes.py`.
 
 ### Sprint 2 Exit Criteria

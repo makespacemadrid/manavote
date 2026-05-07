@@ -673,7 +673,7 @@ def check_over_budget_proposals():
 def index():
     if "member_id" in session:
         return redirect(url_for("dashboard"))
-    return redirect(url_for("login"))
+    return redirect(url_for("auth.login"))
 
 
 @app.route("/healthz")
@@ -744,7 +744,7 @@ def about():
 @app.route("/calendar")
 def calendar():
     if not session.get("member_id"):
-        return redirect(url_for("login"))
+        return redirect(url_for("auth.login"))
 
     sort_by = request.args.get("sort", "date_desc")
     page = request.args.get("page", 1, type=int)
@@ -936,7 +936,7 @@ def register():
         flash(
             "Self-registration is currently disabled. Please contact an admin.", "error"
         )
-        return redirect(url_for("login"))
+        return redirect(url_for("auth.login"))
 
     if request.method == "POST":
         username = request.form["username"]
@@ -969,7 +969,7 @@ def register():
         conn.close()
 
         flash("Registration successful! Please log in.", "success")
-        return redirect(url_for("login"))
+        return redirect(url_for("auth.login"))
 
     return render_template("register.html", session_lang=session.get("lang", "en"))
 

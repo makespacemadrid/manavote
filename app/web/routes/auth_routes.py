@@ -54,7 +54,7 @@ def login():
 @auth_bp.route("/logout", endpoint="logout")
 def logout():
     session.clear()
-    return redirect(url_for("login"))
+    return redirect(url_for("auth.login"))
 
 
 @auth_bp.route("/set-language/<lang>", endpoint="set_language")
