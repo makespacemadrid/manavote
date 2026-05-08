@@ -1679,6 +1679,15 @@ def admin():
                     f"Admin role {'granted' if new_is_admin else 'removed'}!", "success"
                 )
 
+        elif action == "unlink_telegram":
+            member_id = request.form["member_id"]
+            c.execute(
+                "UPDATE members SET telegram_username = NULL, telegram_user_id = NULL WHERE id = ?",
+                (member_id,),
+            )
+            conn.commit()
+            flash("Telegram account unlinked.", "success")
+
         elif action == "trigger_monthly":
             current = get_current_budget()
             monthly = get_setting_float("monthly_topup", 50)
@@ -2119,6 +2128,37 @@ def admin():
         image_backups=image_backups,
         polls=polls,
     )
+
+
+@app.route("/admin/backups/<backup_type>/<filename>")
+@admin_required
+def download_backup_file(backup_type, filename):
+    from app.services.backup_service import BACKUP_ROOT
+
+    safe_name = secure_filename(filename or "")
+    if safe_name != filename:
+        flash("Invalid backup filename", "error")
+        return redirect(url_for("admin.admin"))
+
+    if backup_type == "db":
+        expected_prefix = f"{os.path.basename(DB_PATH).replace('.db', '')}_"
+        valid = safe_name.startswith(expected_prefix) and safe_name.endswith(".db")
+    elif backup_type == "images":
+        valid = safe_name.startswith("uploads_") and safe_name.endswith(".zip")
+    else:
+        flash("Invalid backup type", "error")
+        return redirect(url_for("admin.admin"))
+
+    if not valid:
+        flash("Invalid backup file", "error")
+        return redirect(url_for("admin.admin"))
+
+    filepath = os.path.join(BACKUP_ROOT, safe_name)
+    if not os.path.isfile(filepath):
+        flash("Backup file not found", "error")
+        return redirect(url_for("admin.admin"))
+
+    return send_file(filepath, as_attachment=True, download_name=safe_name)
 
 
 @login_required

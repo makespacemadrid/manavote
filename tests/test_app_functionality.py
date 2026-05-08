@@ -288,6 +288,22 @@ class TestAdminFunctionality(unittest.TestCase):
         for filename in created:
             os.remove(os.path.join(db_dir, filename))
 
+    def test_admin_backup_section_renders_structured_tables(self):
+        response = self.client.get("/admin")
+        html = response.data.decode("utf-8")
+        self.assertIn("Database Backups", html)
+        self.assertIn("Image Backups", html)
+        self.assertIn("<th>Type</th>", html)
+        self.assertIn("<th>File</th>", html)
+        self.assertIn("<th>Action</th>", html)
+
+    def test_admin_page_includes_danger_confirmation_modal(self):
+        response = self.client.get("/admin")
+        html = response.data.decode("utf-8")
+        self.assertIn("dangerActionModal", html)
+        self.assertIn("confirmDangerAction", html)
+        self.assertIn("submitDangerAction", html)
+
     def test_admin_members_show_telegram_username_without_id(self):
         """Admin members table shows Telegram username even if ID is missing"""
         conn = budget_app.get_db()
@@ -321,6 +337,60 @@ class TestAdminFunctionality(unittest.TestCase):
         html = response.data.decode("utf-8")
         self.assertIn("987654321", html)
         self.assertIn("(no username)", html)
+
+    def test_admin_unlink_telegram_action_clears_member_link_fields(self):
+        conn = budget_app.get_db()
+        try:
+            conn.execute(
+                "UPDATE members SET telegram_username = ?, telegram_user_id = ? WHERE id = ?",
+                ("linked_for_unlink_test", 11223344, 1),
+            )
+            conn.commit()
+        finally:
+            conn.close()
+
+        response = self.client.post(
+            "/admin",
+            data={"action": "unlink_telegram", "member_id": 1, "csrf_token": ""},
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Telegram account unlinked.", response.data.decode("utf-8"))
+
+        conn = budget_app.get_db()
+        try:
+            row = conn.execute(
+                "SELECT telegram_username, telegram_user_id FROM members WHERE id = ?",
+                (1,),
+            ).fetchone()
+        finally:
+            conn.close()
+        self.assertIsNone(row["telegram_username"])
+        self.assertIsNone(row["telegram_user_id"])
+
+    def test_admin_backup_download_route_serves_db_backup_file(self):
+        from app.services.backup_service import BACKUP_ROOT
+
+        os.makedirs(BACKUP_ROOT, exist_ok=True)
+        backup_base = os.path.basename(budget_app.DB_PATH).replace(".db", "")
+        filename = f"{backup_base}_20990101_000000.db"
+        filepath = os.path.join(BACKUP_ROOT, filename)
+        with open(filepath, "wb") as f:
+            f.write(b"test-db-backup-content")
+
+        try:
+            response = self.client.get(f"/admin/backups/db/{filename}")
+            self.assertEqual(response.status_code, 200)
+            self.assertEqual(response.data, b"test-db-backup-content")
+            self.assertIn("attachment", response.headers.get("Content-Disposition", ""))
+        finally:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+
+    def test_admin_backup_download_route_rejects_invalid_filename(self):
+        response = self.client.get("/admin/backups/db/not_a_db_backup.txt", follow_redirects=True)
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Invalid backup file", response.data.decode("utf-8"))
 
 
 
@@ -1672,6 +1742,7 @@ class TestPollsFunctionality(unittest.TestCase):
         html = response.data.decode("utf-8")
         self.assertIn("linked_admin", html)
         self.assertNotIn("(not linked, use /link)", html)
+        self.assertIn("Telegram linked", html)
 
     def test_polls_page_suggests_link_when_account_not_linked(self):
         conn = budget_app.get_db()
@@ -1686,6 +1757,7 @@ class TestPollsFunctionality(unittest.TestCase):
         html = response.data.decode("utf-8")
         self.assertIn("Telegram account not linked yet", html)
         self.assertIn("/link &lt;app_username&gt; &lt;app_password&gt;", html)
+        self.assertIn("Telegram not linked", html)
 
     def test_polls_page_marks_unlinked_vote_entries(self):
         poll_id = self._latest_poll_id()
