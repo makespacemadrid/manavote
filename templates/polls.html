@@ -5,9 +5,16 @@
 
 <div class="card">
     <h2>📊 {{ 'Polls'|lang }}</h2>
+    <div style="margin: 0 0 10px;">
+        {% with is_linked=is_telegram_linked, linked_text='Telegram linked', not_linked_text='Telegram not linked' %}
+            {% include "_telegram_link_status.html" %}
+        {% endwith %}
+    </div>
     {% if not is_telegram_linked %}
     <div style="margin:10px 0 14px;padding:10px;background:#f59e0b22;border:1px solid #f59e0b;border-radius:8px;font-size:0.9em;color:#fcd34d;">
-        Telegram account not linked yet. To link it, send <code>/link &lt;app_username&gt; &lt;app_password&gt;</code> to the bot.
+        <strong>Telegram account not linked yet.</strong><br>
+        Send <code>/link &lt;app_username&gt; &lt;app_password&gt;</code> to the bot, then refresh this page.
+        You can find the same instructions under <a href="{{ url_for('telegram_settings') }}" style="color:#fde68a;text-decoration:underline;">Telegram Settings</a>.
     </div>
     {% endif %}
     {% if polls %}

@@ -1,0 +1,9 @@
+{% set linked = is_linked if is_linked is defined else false %}
+{% set linked_label = linked_text if linked_text is defined else 'Telegram linked' %}
+{% set not_linked_label = not_linked_text if not_linked_text is defined else 'Telegram not linked' %}
+
+{% if linked %}
+<span style="display:inline-block; padding:4px 10px; border-radius:999px; font-size:0.82em; background:#00d9ff22; color:#7dd3fc; border:1px solid #0ea5e9;">{{ linked_label }}</span>
+{% else %}
+<span style="display:inline-block; padding:4px 10px; border-radius:999px; font-size:0.82em; background:#f59e0b22; color:#fcd34d; border:1px solid #f59e0b;">{{ not_linked_label }}</span>
+{% endif %}

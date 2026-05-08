@@ -182,8 +182,16 @@ function showSection(sectionId, buttonEl) {
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="action" value="remove_member">
                             <input type="hidden" name="member_id" value="{{ m.id }}">
-                            <button type="submit" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" onclick="return confirm('{{ 'Remove'|lang }} {{ m.username }}?')">{{ 'Remove'|lang }}</button>
+                            <button type="submit" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" onclick="return confirmDangerAction(this.form, 'Remove {{ m.username }} from members? This cannot be undone.')">{{ 'Remove'|lang }}</button>
                         </form>
+                        {% if m.telegram_username or m.telegram_user_id %}
+                        <form method="POST" style="display: inline;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="action" value="unlink_telegram">
+                            <input type="hidden" name="member_id" value="{{ m.id }}">
+                            <button type="submit" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" onclick="return confirmDangerAction(this.form, 'Unlink Telegram account for {{ m.username }}? They will need to run /link again.')">Unlink Telegram</button>
+                        </form>
+                        {% endif %}
                         <button type="button" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" onclick="showChangePassword({{ m.id }}, '{{ m.username }}')">{{ 'Change Password'|lang }}</button>
                     </div>
                     {% else %}
@@ -395,7 +403,7 @@ function showSection(sectionId, buttonEl) {
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="delete_poll">
                         <input type="hidden" name="poll_id" value="{{ poll.id }}">
-                        <button type="submit" class="btn btn-secondary" onclick="return confirm('{{ 'Delete this poll?'|lang }}');">{{ 'Delete Poll'|lang }}</button>
+                        <button type="submit" class="btn btn-secondary" onclick="return confirmDangerAction(this.form, 'Delete this poll permanently? Existing votes for this poll will be removed.')">{{ 'Delete Poll'|lang }}</button>
                     </form>
                 </td>
             </tr>
@@ -409,6 +417,33 @@ function showSection(sectionId, buttonEl) {
 <div id="settings" class="card">
     <h3>{{ 'Settings'|lang }}</h3>
     <p style="color: #888; margin-bottom: 15px;">{{ 'Other settings'|lang }}</p>
+    {% set current_poll_mode = get_setting_value('poll_vote_mode', 'both') %}
+    {% set current_proposal_mode = get_setting_value('proposal_vote_mode', 'both') %}
+    <div style="margin-bottom: 14px; padding: 12px; border: 1px solid #0f3460; border-radius: 8px; background: rgba(15,52,96,0.15);">
+        <h4 style="margin: 0 0 8px 0;">Effective vote policy</h4>
+        <ul style="margin: 0 0 0 18px; color: #cbd5e1; font-size: 0.92em;">
+            <li>
+                <strong>Polls:</strong>
+                {% if current_poll_mode == 'both' %}
+                    Members can vote from both Web and Telegram.
+                {% elif current_poll_mode == 'web_only' %}
+                    Members can vote only on Web; Telegram vote attempts are blocked.
+                {% else %}
+                    Members can vote only on Telegram; Web vote controls are disabled.
+                {% endif %}
+            </li>
+            <li>
+                <strong>Proposals:</strong>
+                {% if current_proposal_mode == 'both' %}
+                    Members can vote from both Web and Telegram.
+                {% elif current_proposal_mode == 'web_only' %}
+                    Members can vote only on Web; Telegram vote attempts are blocked.
+                {% else %}
+                    Members can vote only on Telegram; Web vote controls are disabled.
+                {% endif %}
+            </li>
+        </ul>
+    </div>
     <div class="settings-grid">
         <form method="POST" class="settings-panel">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -416,9 +451,9 @@ function showSection(sectionId, buttonEl) {
             <h4>Poll voting mode</h4>
             <p>Choose where members can vote on polls.</p>
             <select name="poll_vote_mode" required>
-                <option value="both" {{ 'selected' if get_setting_value('poll_vote_mode', 'both') == 'both' else '' }}>Web + Telegram</option>
-                <option value="web_only" {{ 'selected' if get_setting_value('poll_vote_mode', 'both') == 'web_only' else '' }}>Web only</option>
-                <option value="telegram_only" {{ 'selected' if get_setting_value('poll_vote_mode', 'both') == 'telegram_only' else '' }}>Telegram only</option>
+                <option value="both" {{ 'selected' if current_poll_mode == 'both' else '' }}>Web + Telegram</option>
+                <option value="web_only" {{ 'selected' if current_poll_mode == 'web_only' else '' }}>Web only</option>
+                <option value="telegram_only" {{ 'selected' if current_poll_mode == 'telegram_only' else '' }}>Telegram only</option>
             </select>
             <button type="submit" class="btn">Update vote mode</button>
         </form>
@@ -428,9 +463,9 @@ function showSection(sectionId, buttonEl) {
             <h4>Proposal voting mode</h4>
             <p>Choose where members can vote on proposals.</p>
             <select name="proposal_vote_mode" required>
-                <option value="both" {{ 'selected' if get_setting_value('proposal_vote_mode', 'both') == 'both' else '' }}>Web + Telegram</option>
-                <option value="web_only" {{ 'selected' if get_setting_value('proposal_vote_mode', 'both') == 'web_only' else '' }}>Web only</option>
-                <option value="telegram_only" {{ 'selected' if get_setting_value('proposal_vote_mode', 'both') == 'telegram_only' else '' }}>Telegram only</option>
+                <option value="both" {{ 'selected' if current_proposal_mode == 'both' else '' }}>Web + Telegram</option>
+                <option value="web_only" {{ 'selected' if current_proposal_mode == 'web_only' else '' }}>Web only</option>
+                <option value="telegram_only" {{ 'selected' if current_proposal_mode == 'telegram_only' else '' }}>Telegram only</option>
             </select>
             <button type="submit" class="btn">Update proposal vote mode</button>
         </form>
@@ -475,16 +510,33 @@ function showSection(sectionId, buttonEl) {
         <input type="hidden" name="action" value="backup_db">
         <button type="submit" class="btn">{{ 'Backup Now'|lang }}</button>
     </form>
-    <h4 style="margin-top: 20px;">{{ 'Existing Backups'|lang }}</h4>
-    <ul style="color: #888; font-size: 0.9em; list-style: none;">
-        {% for f in backups %}
-        <li style="padding: 5px 0; border-bottom: 1px solid #0f3460;">
-            {{ f.name }} - {{ f.size }} bytes - {{ f.modified[:19] }}
-        </li>
-        {% else %}
-        <li style="padding: 5px 0;">No database backups yet.</li>
-        {% endfor %}
-    </ul>
+    <h4 style="margin-top: 20px;">Database Backups</h4>
+    <div style="overflow-x:auto;">
+        <table style="font-size:0.9em;">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>File</th>
+                    <th>Size</th>
+                    <th>Created</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for f in backups %}
+                <tr>
+                    <td><span class="status" style="background:#0ea5e922; color:#7dd3fc;">DB</span></td>
+                    <td>{{ f.name }}</td>
+                    <td>{{ f.size }} bytes</td>
+                    <td>{{ f.modified[:19] }}</td>
+                    <td><a href="{{ url_for('download_backup_file', backup_type='db', filename=f.name) }}">Download</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" style="color:#888;">No database backups yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 
     <h3 style="margin-top: 20px;">Backup Uploaded Images</h3>
     <p style="color: #888; margin-bottom: 15px;">
@@ -495,16 +547,33 @@ function showSection(sectionId, buttonEl) {
         <input type="hidden" name="action" value="backup_images">
         <button type="submit" class="btn">Backup Images Now</button>
     </form>
-    <h4 style="margin-top: 20px;">Latest Image Backups</h4>
-    <ul style="color: #888; font-size: 0.9em; list-style: none;">
-        {% for f in image_backups[:10] %}
-        <li style="padding: 5px 0; border-bottom: 1px solid #0f3460;">
-            {{ f.name }} - {{ f.size }} bytes - {{ f.modified[:19] }}
-        </li>
-        {% else %}
-        <li style="padding: 5px 0;">No image backups yet.</li>
-        {% endfor %}
-    </ul>
+    <h4 style="margin-top: 20px;">Image Backups</h4>
+    <div style="overflow-x:auto;">
+        <table style="font-size:0.9em;">
+            <thead>
+                <tr>
+                    <th>Type</th>
+                    <th>File</th>
+                    <th>Size</th>
+                    <th>Created</th>
+                    <th>Action</th>
+                </tr>
+            </thead>
+            <tbody>
+                {% for f in image_backups[:10] %}
+                <tr>
+                    <td><span class="status" style="background:#22c55e22; color:#86efac;">Images</span></td>
+                    <td>{{ f.name }}</td>
+                    <td>{{ f.size }} bytes</td>
+                    <td>{{ f.modified[:19] }}</td>
+                    <td><a href="{{ url_for('download_backup_file', backup_type='images', filename=f.name) }}">Download</a></td>
+                </tr>
+                {% else %}
+                <tr><td colspan="5" style="color:#888;">No image backups yet.</td></tr>
+                {% endfor %}
+            </tbody>
+        </table>
+    </div>
 </div>
 
 <div id="telegram" class="card">
@@ -552,7 +621,40 @@ function showSection(sectionId, buttonEl) {
     </div>
 </div>
 
+<div id="dangerActionModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); z-index:1100; overflow-y:auto;">
+    <div style="max-width: 480px; margin: 60px auto; background:#1a1a2e; border:1px solid #e94560; border-radius:8px; width:92%; padding:20px;">
+        <h3 style="margin-top:0; color:#ff8fa3;">Confirm action</h3>
+        <p id="dangerActionMessage" style="color:#cbd5e1; line-height:1.45;"></p>
+        <p style="color:#94a3b8; font-size:0.9em; margin-top:8px;">Please confirm to continue.</p>
+        <div style="display:flex; gap:10px; margin-top:14px;">
+            <button type="button" class="btn btn-secondary" onclick="hideDangerAction()">Cancel</button>
+            <button type="button" class="btn" style="background:#e94560;" onclick="submitDangerAction()">Confirm</button>
+        </div>
+    </div>
+</div>
+
 <script>
+let pendingDangerForm = null;
+
+function confirmDangerAction(form, message) {
+    pendingDangerForm = form;
+    document.getElementById('dangerActionMessage').textContent = message;
+    document.getElementById('dangerActionModal').style.display = 'block';
+    return false;
+}
+
+function hideDangerAction() {
+    document.getElementById('dangerActionModal').style.display = 'none';
+    pendingDangerForm = null;
+}
+
+function submitDangerAction() {
+    if (pendingDangerForm) {
+        pendingDangerForm.submit();
+    }
+    hideDangerAction();
+}
+
 function showChangePassword(memberId, username) {
     document.getElementById('changePasswordMemberId').value = memberId;
     document.getElementById('changePasswordUser').textContent = '{{ 'Changing password for'|lang }} ' + username;
@@ -567,6 +669,9 @@ function hideChangePassword() {
 // Close modal on outside click
 document.getElementById('changePasswordModal').addEventListener('click', function(e) {
     if (e.target === this) hideChangePassword();
+});
+document.getElementById('dangerActionModal').addEventListener('click', function(e) {
+    if (e.target === this) hideDangerAction();
 });
 </script>
 </div>
