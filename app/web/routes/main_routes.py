@@ -42,6 +42,11 @@ from app.services.proposal_vote_service import can_record_proposal_vote_source, 
 from app.services.settings_service import get_enum_setting
 from app.web.app_setup import app, BASE_DIR, is_production
 from app.web.decorators import login_required, admin_required
+from app.web.routes.helpers.main_helpers import (
+    detect_image_type,
+    format_datetime,
+    truncate_username as helper_truncate_username,
+)
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash, check_password_hash
 import requests
@@ -51,48 +56,15 @@ import json
 import time
 
 
-def get_app_timezone():
-    """Get the configured timezone from settings or default to Europe/Madrid"""
-    try:
-        conn = get_db()
-        c = conn.cursor()
-        c.execute("SELECT value FROM settings WHERE key = 'timezone'")
-        row = c.fetchone()
-        conn.close()
-        tz_name = row["value"] if row else "Europe/Madrid"
-        return ZoneInfo(tz_name)
-    except:
-        return ZoneInfo("Europe/Madrid")
-
-
-def format_datetime(dt_str, fmt="%Y-%m-%d %H:%M:%S"):
-    """Convert a datetime string to the configured timezone and format it"""
-    if not dt_str:
-        return ""
-    try:
-        # Parse the datetime string
-        dt = datetime.fromisoformat(dt_str.replace("Z", "+00:00"))
-        # Convert to configured timezone
-        tz = get_app_timezone()
-        dt_local = dt.astimezone(tz)
-        return dt_local.strftime(fmt)
-    except (ValueError, TypeError):
-        return dt_str
-
-
 @app.template_filter("username")
 def truncate_username(username):
-    if not username:
-        return "unknown"
-    if "@" in username:
-        return username.split("@")[0]
-    return username
+    return helper_truncate_username(username)
 
 
 @app.template_filter("localtime")
 def localtime_filter(dt_str, fmt="%Y-%m-%d %H:%M"):
     """Jinja2 filter to format datetime in configured timezone"""
-    return format_datetime(dt_str, fmt)
+    return format_datetime(dt_str, get_db, fmt)
 
 
 from translations import TRANSLATIONS
@@ -119,20 +91,6 @@ UPLOAD_FOLDER = os.path.join(BASE_DIR, "static", "uploads")
 app.config["UPLOAD_FOLDER"] = UPLOAD_FOLDER
 os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
-
-def _detect_image_type(filepath: str) -> str | None:
-    with open(filepath, "rb") as f:
-        header = f.read(12)
-
-    if header.startswith(b"\xff\xd8\xff"):
-        return "jpeg"
-    if header.startswith(b"\x89PNG\r\n\x1a\n"):
-        return "png"
-    if header.startswith(b"GIF87a") or header.startswith(b"GIF89a"):
-        return "gif"
-    if header.startswith(b"RIFF") and header[8:12] == b"WEBP":
-        return "webp"
-    return None
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
@@ -471,6 +429,8 @@ def process_telegram_link_command(telegram_username, telegram_user_id, command_t
     parts = command.split(maxsplit=2)
     if len(parts) != 3:
         return False, "invalid_format"
+    if not (telegram_username or "").strip():
+        return False, "missing_public_username"
 
     app_username = parts[1].strip()
     password = parts[2]
@@ -671,14 +631,16 @@ def check_over_budget_proposals():
 
 @app.route("/")
 def index():
-    if "member_id" in session:
-        return redirect(url_for("dashboard"))
-    return redirect(url_for("auth.login"))
+    from app.web.routes.auth_routes import index as index_impl
+
+    return index_impl()
 
 
 @app.route("/healthz")
 def healthz():
-    return {"status": "ok"}, 200
+    from app.web.routes.auth_routes import healthz as healthz_impl
+
+    return healthz_impl()
 
 
 @app.route("/telegram/webhook/<secret>", methods=["POST"])
@@ -738,240 +700,37 @@ def telegram_webhook(secret):
 
 @app.route("/about")
 def about():
-    return render_template("about.html", session_lang=session.get("lang", "en"))
+    from app.web.routes.proposal_routes import about as about_impl
+
+    return about_impl()
 
 
 @app.route("/calendar")
 def calendar():
-    if not session.get("member_id"):
-        return redirect(url_for("auth.login"))
+    from app.web.routes.proposal_routes import calendar as calendar_impl
 
-    sort_by = request.args.get("sort", "date_desc")
-    page = request.args.get("page", 1, type=int)
-    per_page = 20
-
-    if sort_by == "date_asc":
-        order_clause = "created_at ASC"
-    elif sort_by == "amount_desc":
-        order_clause = "amount DESC"
-    elif sort_by == "amount_asc":
-        order_clause = "amount ASC"
-    else:
-        order_clause = "created_at DESC"
-
-    conn = get_db()
-    c = conn.cursor()
-
-    c.execute("SELECT COUNT(*) FROM proposals")
-    total_proposals = c.fetchone()[0]
-
-    c.execute("SELECT COUNT(*) FROM activity_log")
-    total_budget = c.fetchone()[0]
-
-    total_items = total_proposals + total_budget
-    total_pages = max(1, (total_items + per_page - 1) // per_page)
-    offset = (page - 1) * per_page
-
-    c.execute(
-        f"""
-        SELECT *
-        FROM (
-            SELECT
-                id,
-                created_at,
-                amount,
-                'proposal' AS item_type,
-                title,
-                status,
-                NULL AS description,
-                id AS proposal_id
-            FROM proposals
-            UNION ALL
-            SELECT
-                id,
-                created_at,
-                amount,
-                'activity' AS item_type,
-                NULL AS title,
-                NULL AS status,
-                description,
-                proposal_id
-            FROM activity_log
-        ) AS calendar_items
-        ORDER BY {order_clause}
-        LIMIT ? OFFSET ?
-    """,
-        (per_page, offset),
-    )
-    calendar_items = c.fetchall()
-
-    pending_by_day = {}
-    c.execute(
-        "SELECT date(over_budget_at) as day, COALESCE(SUM(amount), 0) as pending FROM proposals WHERE over_budget_at IS NOT NULL GROUP BY day"
-    )
-    for row in c.fetchall():
-        pending_by_day[row[0]] = row[1]
-
-    c.execute("""
-        SELECT 
-            date(created_at) as day,
-            SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END) as cash_in,
-            SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END) as cash_out
-        FROM activity_log
-        GROUP BY date(created_at)
-    """)
-    budget_days = set(row[0] for row in c.fetchall())
-
-    over_budget_days = set(pending_by_day.keys())
-
-    approved_by_day = {}
-    c.execute(
-        "SELECT date(processed_at) as day, COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'approved' AND processed_at IS NOT NULL GROUP BY day"
-    )
-    for row in c.fetchall():
-        approved_by_day[row[0]] = row[1]
-
-    approved_from_pending_by_day = {}
-    c.execute(
-        "SELECT date(processed_at) as day, COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'approved' AND processed_at IS NOT NULL AND over_budget_at IS NOT NULL GROUP BY day"
-    )
-    for row in c.fetchall():
-        approved_from_pending_by_day[row[0]] = row[1]
-
-    c.execute("SELECT date(created_at) as day, COALESCE(SUM(amount), 0) FROM proposals GROUP BY date(created_at)")
-    proposals_by_day = {}
-    for row in c.fetchall():
-        proposals_by_day[row[0]] = row[1]
-
-    all_days = sorted(budget_days | set(over_budget_days) | set(approved_by_day.keys()) | set(proposals_by_day.keys()))
-
-    daily_budget = []
-    cash_balance = 0
-    pending_total = 0
-    pending_by_day_lookup = dict(pending_by_day)
-
-    for day in all_days:
-        cash_in = 0
-        cash_out = 0
-
-        if day in budget_days:
-            c.execute(
-                """SELECT SUM(CASE WHEN amount > 0 THEN amount ELSE 0 END), SUM(CASE WHEN amount < 0 THEN ABS(amount) ELSE 0 END)
-                FROM activity_log WHERE date(created_at) = ?""",
-                (day,),
-            )
-            row = c.fetchone()
-            cash_in = row[0] or 0
-            cash_out = row[1] or 0
-            cash_balance += cash_in - cash_out
-
-        if day in over_budget_days:
-            pending_total += pending_by_day_lookup.get(day, 0)
-
-        approved_today = approved_by_day.get(day, 0)
-        approved_from_pending_today = approved_from_pending_by_day.get(day, 0)
-        pending_total -= approved_from_pending_today
-
-        proposals_count = proposals_by_day.get(day, 0)
-
-        daily_budget.append(
-            {
-                "day": day,
-                "cash_in": cash_in,
-                "cash_out": -cash_out if cash_out else 0,
-                "approved": -approved_today if approved_today else 0,
-                "cash_balance": cash_balance,
-                "pending": pending_total,
-                "proposals": proposals_count,
-            }
-        )
-
-    current_budget = get_current_budget()
-
-    conn.close()
-
-    return render_template(
-        "calendar.html",
-        calendar_items=calendar_items,
-        daily_budget=daily_budget,
-        session_lang=session.get("lang", "en"),
-        page=page,
-        total_pages=total_pages,
-    )
+    return calendar_impl()
 
 
 @app.route("/settings")
 @login_required
 def settings_page():
-    return render_template("settings.html", session_lang=session.get("lang", "en"))
+    from app.web.routes.auth_routes import settings_page as settings_page_impl
+
+    return settings_page_impl()
 
 
 @app.route("/telegram-settings", methods=["GET", "POST"])
 @login_required
 def telegram_settings():
-    conn = get_db()
-    c = conn.cursor()
+    from app.web.routes.auth_routes import telegram_settings as telegram_settings_impl
 
-    if request.method == "POST":
-        flash("Telegram account fields are read-only here. Use /link <app_username> <app_password> in Telegram.", "info")
-        conn.close()
-        return redirect(url_for("telegram_settings"))
-
-    c.execute(
-        "SELECT telegram_username, telegram_user_id FROM members WHERE id = ?",
-        (session["member_id"],),
-    )
-    member = c.fetchone()
-    conn.close()
-
-    return render_template(
-        "telegram_settings.html",
-        telegram_username=(member["telegram_username"] if member else None),
-        telegram_user_id=(member["telegram_user_id"] if member else None),
-        session_lang=session.get("lang", "en"),
-    )
+    return telegram_settings_impl()
 @app.route("/register", methods=["GET", "POST"])
 def register():
-    if not is_registration_enabled():
-        flash(
-            "Self-registration is currently disabled. Please contact an admin.", "error"
-        )
-        return redirect(url_for("auth.login"))
+    from app.web.routes.auth_routes import register as register_impl
 
-    if request.method == "POST":
-        username = request.form["username"]
-        password = request.form["password"]
-
-        if not username or not password:
-            flash("Username and password are required", "error")
-            return render_template(
-                "register.html", session_lang=session.get("lang", "en")
-            )
-
-        password_hash = generate_password_hash(password)
-
-        conn = get_db()
-        c = conn.cursor()
-
-        c.execute("SELECT id FROM members WHERE username = ?", (username,))
-        if c.fetchone():
-            flash("Username already exists", "error")
-            conn.close()
-            return render_template(
-                "register.html", session_lang=session.get("lang", "en")
-            )
-
-        c.execute(
-            "INSERT INTO members (username, password_hash, is_admin) VALUES (?, ?, 0)",
-            (username, password_hash),
-        )
-        conn.commit()
-        conn.close()
-
-        flash("Registration successful! Please log in.", "success")
-        return redirect(url_for("auth.login"))
-
-    return render_template("register.html", session_lang=session.get("lang", "en"))
+    return register_impl()
 
 
 @app.route("/dashboard")
@@ -1133,7 +892,7 @@ def new_proposal():
                     filepath = os.path.join(app.config["UPLOAD_FOLDER"], image_filename)
                     image.save(filepath)
 
-                    mime_type = _detect_image_type(filepath)
+                    mime_type = detect_image_type(filepath)
                     if mime_type not in ["jpeg", "png"]:
                         os.remove(filepath)
                         flash("Invalid image format", "error")
@@ -1441,7 +1200,7 @@ def edit_proposal(proposal_id):
                     filepath = os.path.join(app.config["UPLOAD_FOLDER"], image_filename)
                     image.save(filepath)
 
-                    mime_type = _detect_image_type(filepath)
+                    mime_type = detect_image_type(filepath)
                     if mime_type not in ["jpeg", "png"]:
                         os.remove(filepath)
                         flash("Invalid image format", "error")
@@ -2133,155 +1892,23 @@ def admin():
 @app.route("/admin/backups/<backup_type>/<filename>")
 @admin_required
 def download_backup_file(backup_type, filename):
-    from app.services.backup_service import BACKUP_ROOT
+    from app.web.routes.admin_routes import download_backup_file as download_backup_file_impl
 
-    safe_name = secure_filename(filename or "")
-    if safe_name != filename:
-        flash("Invalid backup filename", "error")
-        return redirect(url_for("admin.admin"))
-
-    if backup_type == "db":
-        expected_prefix = f"{os.path.basename(DB_PATH).replace('.db', '')}_"
-        valid = safe_name.startswith(expected_prefix) and safe_name.endswith(".db")
-    elif backup_type == "images":
-        valid = safe_name.startswith("uploads_") and safe_name.endswith(".zip")
-    else:
-        flash("Invalid backup type", "error")
-        return redirect(url_for("admin.admin"))
-
-    if not valid:
-        flash("Invalid backup file", "error")
-        return redirect(url_for("admin.admin"))
-
-    filepath = os.path.join(BACKUP_ROOT, safe_name)
-    if not os.path.isfile(filepath):
-        flash("Backup file not found", "error")
-        return redirect(url_for("admin.admin"))
-
-    return send_file(filepath, as_attachment=True, download_name=safe_name)
+    return download_backup_file_impl(backup_type, filename)
 
 
 @login_required
 def polls_page():
-    ensure_db_ready()
-    conn = get_db()
-    c = conn.cursor()
+    from app.web.routes.poll_routes import polls_page as polls_page_impl
 
-    if request.method == "POST":
-        if not is_web_poll_voting_enabled():
-            flash("Web voting is disabled by admin", "error")
-            conn.close()
-            return redirect(url_for("polls.polls_page"))
-        poll_id = request.form.get("poll_id", type=int)
-        option_index = request.form.get("option_index", type=int)
-        if poll_id is None or option_index is None:
-            flash("Invalid vote", "error")
-        else:
-            try:
-                c.execute("SELECT options_json, status FROM polls WHERE id = ?", (poll_id,))
-                poll_row = c.fetchone()
-            except Exception:
-                poll_row = None
-                flash("Polls are temporarily unavailable", "error")
-            if poll_row is None:
-                pass
-            else:
-                try:
-                    options = json.loads(poll_row["options_json"] or "[]")
-                except (TypeError, json.JSONDecodeError):
-                    options = []
-                if poll_row["status"] != "open":
-                    flash("Poll is closed", "error")
-                elif option_index < 0 or option_index >= len(options):
-                    flash("Invalid poll option", "error")
-                elif not options:
-                    flash("Poll has invalid options", "error")
-                else:
-                    c.execute(
-                        "INSERT OR REPLACE INTO poll_votes (poll_id, member_id, option_index) VALUES (?, ?, ?)",
-                        (poll_id, session["member_id"], option_index),
-                    )
-                    conn.commit()
-                    flash("Poll vote recorded!", "success")
-
-    try:
-        c.execute("""
-            SELECT p.*, m.username as creator
-            FROM polls p
-            JOIN members m ON m.id = p.created_by
-            ORDER BY p.created_at DESC
-        """)
-        poll_rows = c.fetchall()
-    except Exception:
-        poll_rows = []
-        flash("Polls are temporarily unavailable", "error")
-
-    polls = []
-    c.execute(
-        "SELECT telegram_username, telegram_user_id FROM members WHERE id = ?",
-        (session["member_id"],),
-    )
-    current_member = c.fetchone()
-    is_telegram_linked = bool(
-        current_member
-        and (
-            current_member["telegram_username"]
-            or current_member["telegram_user_id"] is not None
-        )
-    )
-
-    for row in poll_rows:
-        poll = dict(row)
-        try:
-            options = json.loads(poll["options_json"] or "[]")
-        except (TypeError, json.JSONDecodeError):
-            options = []
-        try:
-            c.execute("""
-                SELECT
-                    pv.option_index,
-                    pv.created_at,
-                    COALESCE(NULLIF(mm.telegram_username, ''), mm.username, '') AS username,
-                    CASE
-                        WHEN COALESCE(NULLIF(mm.telegram_username, ''), '') = '' THEN 0
-                        ELSE 1
-                    END AS is_linked_username
-                FROM poll_votes pv
-                LEFT JOIN members mm ON mm.id = pv.member_id
-                WHERE pv.poll_id = ?
-                ORDER BY pv.created_at ASC
-            """, (poll["id"],))
-            votes = [dict(v) for v in c.fetchall()]
-            c.execute("SELECT option_index FROM poll_votes WHERE poll_id = ? AND member_id = ?", (poll["id"], session["member_id"]))
-            own = c.fetchone()
-        except Exception:
-            votes = []
-            own = None
-        counts = [0] * len(options)
-        for v in votes:
-            if v["option_index"] < len(counts):
-                counts[v["option_index"]] += 1
-        poll["options"] = options
-        poll["votes"] = votes
-        poll["counts"] = counts
-        poll["user_vote"] = own["option_index"] if own else None
-        polls.append(poll)
-
-    conn.close()
-    return render_template(
-        "polls.html", 
-        polls=polls, 
-        session_lang=session.get("lang", "en"),
-        is_telegram_vote_enabled=is_telegram_poll_voting_enabled(),
-        is_web_vote_enabled=is_web_poll_voting_enabled(),
-        is_telegram_linked=is_telegram_linked,
-    )
+    return polls_page_impl()
 
 
 @login_required
 def check_overbudget():
-    check_over_budget_proposals()
-    return "OK"
+    from app.web.routes.admin_routes import check_overbudget as check_overbudget_impl
+
+    return check_overbudget_impl()
 
 
 def migrate_password_if_needed(user_id, plaintext_password):

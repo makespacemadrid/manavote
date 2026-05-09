@@ -1548,6 +1548,32 @@ class TestTelegramSettingsPage(unittest.TestCase):
         self.assertEqual(row["telegram_username"], "linked_user")
         self.assertEqual(row["telegram_user_id"], 777001)
 
+    def test_telegram_settings_unlink_action_clears_linked_values(self):
+        conn = budget_app.get_db()
+        conn.execute(
+            "UPDATE members SET telegram_username = ?, telegram_user_id = ? WHERE id = ?",
+            ("linked_user", 777001, 1),
+        )
+        conn.commit()
+        conn.close()
+
+        response = self.client.post(
+            "/telegram-settings",
+            data={"action": "unlink_telegram", "csrf_token": ""},
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Telegram account unlinked.", response.data.decode("utf-8"))
+
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT telegram_username, telegram_user_id FROM members WHERE id = 1")
+        row = c.fetchone()
+        conn.close()
+
+        self.assertIsNone(row["telegram_username"])
+        self.assertIsNone(row["telegram_user_id"])
+
     def test_telegram_settings_page_fields_are_read_only(self):
         response = self.client.get("/telegram-settings")
         self.assertEqual(response.status_code, 200)
@@ -1562,6 +1588,21 @@ class TestTelegramSettingsPage(unittest.TestCase):
         html = response.data.decode("utf-8")
         self.assertNotIn('name="telegram_user_id"', html)
         self.assertNotIn('name="telegram_username"', html)
+
+    def test_telegram_settings_shows_relink_guidance_if_linked_without_username(self):
+        conn = budget_app.get_db()
+        conn.execute(
+            "UPDATE members SET telegram_username = ?, telegram_user_id = ? WHERE id = ?",
+            ("", 777001, 1),
+        )
+        conn.commit()
+        conn.close()
+
+        response = self.client.get("/telegram-settings")
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn("public username is missing", html)
+        self.assertIn("unlink here and run /link again", html)
 
 
 

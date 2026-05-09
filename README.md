@@ -180,7 +180,14 @@ Implemented tools:
 - Quick start and setup guide: [`QUICKSTART.md`](docs/QUICKSTART.md)
 - REST + MCP API reference: [`APIDOC.md`](docs/APIDOC.md)
 - Technical specification: [`SPEC.md`](docs/SPEC.md)
-- Product ideas / backlog: [`IDEAS.md`](docs/IDEAS.md)
+- Engineering style, principles, and delivery guardrails: [`STYLE.md`](docs/STYLE.md)
+- Product ideas / backlog specifications: [`IDEAS.md`](docs/IDEAS.md)
+- Sprint planning/progress tracking: [`SPRINTS.md`](docs/SPRINTS.md)
+
+### Documentation roles
+- `docs/STYLE.md`: **how** we implement changes (principles, guardrails, Definition of Done).
+- `docs/IDEAS.md`: **what** we want to build (problem statements, product/engineering backlog as specifications).
+- `docs/SPRINTS.md`: **when/how** we execute (sprint scope, sequencing, progress, and completion tracking).
 
 
 ## Testing

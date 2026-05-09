@@ -9,6 +9,18 @@ from app.web.routes import main_routes as legacy
 auth_bp = Blueprint("auth", __name__)
 
 
+@auth_bp.route("/", endpoint="index")
+def index():
+    if "member_id" in session:
+        return redirect(url_for("dashboard"))
+    return redirect(url_for("auth.login"))
+
+
+@auth_bp.route("/healthz", endpoint="healthz")
+def healthz():
+    return {"status": "ok"}, 200
+
+
 @auth_bp.route("/login", methods=["GET", "POST"], endpoint="login")
 @limiter.limit("5 per minute")
 def login():
@@ -98,3 +110,92 @@ def change_password():
         return redirect(url_for("dashboard"))
 
     return render_template("change_password.html", session_lang=session.get("lang", "en"))
+
+
+@auth_bp.route("/telegram-settings", methods=["GET", "POST"], endpoint="telegram_settings")
+@login_required
+def telegram_settings():
+    conn = legacy.get_db()
+    c = conn.cursor()
+
+    if request.method == "POST":
+        action = request.form.get("action", "")
+        if action == "unlink_telegram":
+            c.execute(
+                "UPDATE members SET telegram_username = NULL, telegram_user_id = NULL WHERE id = ?",
+                (session["member_id"],),
+            )
+            conn.commit()
+            flash("Telegram account unlinked.", "success")
+        else:
+            flash("Telegram account fields are read-only here. Use /link <app_username> <app_password> in Telegram.", "info")
+        conn.close()
+        return redirect(url_for("auth.telegram_settings"))
+
+    c.execute(
+        "SELECT telegram_username, telegram_user_id FROM members WHERE id = ?",
+        (session["member_id"],),
+    )
+    member = c.fetchone()
+    conn.close()
+
+    return render_template(
+        "telegram_settings.html",
+        telegram_username=(member["telegram_username"] if member else None),
+        telegram_user_id=(member["telegram_user_id"] if member else None),
+        missing_public_username=bool(member and member["telegram_user_id"] and not (member["telegram_username"] or "").strip()),
+        session_lang=session.get("lang", "en"),
+    )
+
+
+@auth_bp.route("/settings", endpoint="settings_page")
+@login_required
+def settings_page():
+    return render_template("settings.html", session_lang=session.get("lang", "en"))
+
+
+@auth_bp.route("/register", methods=["GET", "POST"], endpoint="register")
+def register():
+    if not legacy.is_registration_enabled():
+        flash(
+            "Self-registration is currently disabled. Please contact an admin.",
+            "error",
+        )
+        return redirect(url_for("auth.login"))
+
+    if request.method == "POST":
+        username = request.form["username"]
+        password = request.form["password"]
+
+        if not username or not password:
+            flash("Username and password are required", "error")
+            return render_template(
+                "register.html", session_lang=session.get("lang", "en")
+            )
+
+        password_hash = generate_password_hash(password)
+
+        conn = legacy.get_db()
+        c = conn.cursor()
+
+        c.execute("SELECT id FROM members WHERE username = ?", (username,))
+        if c.fetchone():
+            flash("Username already exists", "error")
+            conn.close()
+            return render_template(
+                "register.html", session_lang=session.get("lang", "en")
+            )
+
+        c.execute(
+            "INSERT INTO members (username, password_hash, is_admin) VALUES (?, ?, 0)",
+            (username, password_hash),
+        )
+        conn.commit()
+        conn.close()
+
+        flash("Registration successful! Please log in.", "success")
+        return redirect(url_for("auth.login"))
+
+    return render_template(
+        "register.html", session_lang=session.get("lang", "en")
+    )
