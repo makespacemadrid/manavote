@@ -1,106 +1,64 @@
-# IDEAS — Product & Engineering Improvement Plan
+# IDEAS — Forward Roadmap
 
 Last updated: 2026-05-09
 
-This document is a living plan for improving maintainability, reliability, product clarity, and operational confidence.
-It is intentionally practical: each section defines outcomes, concrete initiatives, and measurable exit criteria.
-It is intentionally **implementation-agnostic**: sprint-by-sprint sequencing and progress tracking are maintained in [`SPRINTS.md`](SPRINTS.md).
+This document captures **forward-looking** product and engineering initiatives only.
+Execution sequencing and status tracking belong in [`SPRINTS.md`](SPRINTS.md).
 
 ---
 
-## 0) Planning Principles
+## Planning Principles
 
-Planning/development principles and implementation guardrails now live in [`STYLE.md`](STYLE.md).
-
----
-
-## 1) Current State (Executive Snapshot)
-
-### Strengths
-- App setup responsibilities have started moving out of route files into dedicated setup modules.
-- Proposal vote-mode support (`web_only` / `telegram_only` / `both`) exists with service-level handling.
-- Production/startup behavior has regression coverage in tests.
-- i18n key parity and template guard checks reduce UI regressions.
-
-### Gaps
-- `main_routes.py` still carries too many concerns (routing + orchestration + integration glue).
-- Startup behavior is spread across multiple import/runtime paths.
-- API contracts are inconsistent (error shape and validation vary by endpoint).
-- Observability is limited (mostly plain logs, sparse metrics).
+Planning/development principles and guardrails live in [`STYLE.md`](STYLE.md).
 
 ---
 
-## 2) Strategic Outcomes (Next Quarter)
+## Strategic Outcomes (Next Quarter)
 
-1. **Route layer becomes thin and modular** (Blueprint-oriented, low coupling).
-2. **Startup is deterministic and auditable** (single orchestrator + explicit checks).
-3. **API behavior is contract-driven** (stable schemas + standardized errors).
-4. **Operations are diagnosable** (structured events, key counters, backup confidence).
+1. Route layer becomes thin and modular (Blueprint-oriented, low coupling).
+2. Startup becomes deterministic and auditable (single orchestrator + explicit checks).
+3. API behavior becomes contract-driven (stable schemas + standardized errors).
+4. Operations become diagnosable (structured events, key counters, backup confidence).
 
 ---
 
-## 3) Workstreams & Backlog
+## Workstreams & Backlog
 
 ## WS-A — Architecture Refactor (P0)
 
-### A1. Decompose `main_routes.py`
-**Goal:** reduce mixed concerns and improve ownership/testability.
+### A1. Decompose route concerns
+- Split route responsibilities into focused modules (`auth`, `proposal`, `poll`, `admin`, `api`).
+- Move shared orchestration helpers into route-helper or service layers.
+- Register route modules consistently through app setup.
 
-- Split into:
-  - `auth_routes.py`
-  - `proposal_routes.py`
-  - `poll_routes.py`
-  - `admin_routes.py`
-  - `api_routes.py`
-- Move shared helper logic into `app/web/routes/helpers/` or service layer.
-- Register all route modules through blueprints in app setup.
-
-**Done when**
-- `main_routes.py` is either removed or reduced to a compatibility shim.
-- Route modules have focused tests and minimal cross-imports.
-
-### A2. Service/repository boundary completion
-**Goal:** remove direct SQL from route handlers.
-
-- Route handlers call service methods only.
-- Repositories own query concerns.
-- Domain operations use explicit service entrypoints.
-
-**Done when**
-- No write SQL exists in route handlers.
-- Critical operations (proposal updates/votes/admin actions) have service-level unit coverage.
+### A2. Complete service/repository boundary
+- Route handlers call service entry points only.
+- Repositories own query composition and persistence concerns.
+- Critical domain operations gain direct service-level test coverage.
 
 ---
 
 ## WS-B — Startup Reliability (P0)
 
 ### B1. Single startup orchestrator
-**Goal:** one explicit startup lifecycle.
-
-Proposed order:
+Proposed startup lifecycle:
 1. config load + validation
 2. DB connect + migrations
 3. settings/bootstrap checks
 4. integrations (Telegram, scheduler)
 5. readiness summary
 
-### B2. Exception policy and startup report
+### B2. Exception policy + startup report
 - Replace broad catch-all behavior with targeted exception classes.
-- Define severity:
-  - **fatal:** must stop app start
-  - **degraded:** app may start but must emit warning with reason code
-- Emit one structured startup summary event.
-
-**Done when**
-- Startup behavior is deterministic across dev/test/prod.
-- Failures are visible and actionable without reading stack traces deeply.
+- Define clear severity levels (`fatal`, `degraded`) and actions.
+- Emit one structured startup summary event per boot.
 
 ---
 
 ## WS-C — API & Domain Consistency (P1)
 
 ### C1. Standard error envelope
-Adopt a uniform format for all API failures:
+- Use one failure shape across API endpoints:
 
 ```json
 {
@@ -113,324 +71,75 @@ Adopt a uniform format for all API failures:
 
 ### C2. Request/response schema checks
 - Define endpoint schemas.
-- Validate incoming payloads and guarantee response shape.
+- Validate inbound payloads and guarantee outbound response shape.
 
 ### C3. Proposal lifecycle state machine
-- Centralize allowed transitions.
-- Reject illegal transitions with stable error codes.
+- Centralize legal transitions.
+- Return stable error codes for illegal transitions.
 
-### C4. Query/index review
+### C4. Query/index optimization pass
 - Add indexes for high-frequency filters/lookups.
-- Record before/after query plans for key endpoints.
-
-**Done when**
-- API contract tests cover every endpoint path (success + failure).
-- Proposal transition errors are deterministic and documented.
+- Capture before/after query plans for key endpoints.
 
 ---
 
 ## WS-D — Security & Operations (P2)
 
 ### D1. Credential hardening
-- Replace non-prod static bootstrap fallback with one-time generated secret flow.
-- Add safe API key rotation window (`active` + `next`).
+- Replace static non-prod bootstrap fallback with one-time generated secret flow.
+- Add safe API key rotation support (`active` + `next`).
 
-### D2. Structured logs and telemetry
-- JSON log fields: request_id, actor_id, endpoint, status, latency_ms, reason_code.
-- Add counters/timers for vote throughput, error rates, and request latency.
+### D2. Structured logs + telemetry
+- Standardize JSON log fields (`request_id`, `actor_id`, `endpoint`, `status`, `latency_ms`, `reason_code`).
+- Add counters/timers for throughput, error rates, and latency.
 
 ### D3. Backup validation
-- Periodic job verifies backup recency and readability.
-- Emit health signal when RPO threshold is exceeded.
-
-**Done when**
-- Audit/debug workflows are possible from logs + metrics without manual DB inspection.
+- Add periodic backup recency/readability verification.
+- Emit health signals when RPO thresholds are exceeded.
 
 ---
 
-## 4) Proposal Voting — Forward Outlook
+## Voting & Admin UX — Forward Outlook
 
-The vote-mode refactor is functionally in place; focus now shifts to consistency, clarity, and telemetry.
-
-### Product polish
+### Product coherence
 - Keep blocked-channel guidance consistent across dashboard, proposal detail, and Telegram responses.
-- Show admins an “effective vote policy” summary with current mode and implications.
+- Show admins an "effective vote policy" summary with current mode and implications.
 
-### Safety/operations
-- Track accept/reject counts by source and reason code.
-- Add migration sanity tests for seeded defaults in both fresh and existing deployments.
+### Observability and governance
+- Emit reason-coded events for blocked vote attempts (`web_only` / `telegram_only`).
+- Track vote accept/reject outcomes by source and reason code.
+- Add audit events for backup downloads (actor, artifact, timestamp).
+
+### Telegram identity lifecycle
+- Add explicit metadata (`last_linked_at`, linked `telegram_user_id`) visible to admins.
+- Add optional self-service unlink for members with explicit confirmation UX.
 
 ### UX quality gates
-- If `telegram_only`, web voting controls must always be hidden/disabled with explanatory text.
-- If `web_only`, Telegram responses must provide clear next-step guidance.
-
-### Forward outlook (next increments after recent admin UX updates)
-
-Recent changes improved operational clarity in the admin/user UI:
-- Admin can now unlink member Telegram identities without manual DB edits.
-- Admin backup lists now expose direct download actions for DB/image backup artifacts.
-- Vote policy and `/link` onboarding copy are clearer in settings and polls touch points.
-
-Next high-impact increments should focus on finishing the reliability loop behind those UI controls:
-
-1. **Backup downloads: add explicit audit trail + ownership metadata**
-   - Log download events with `actor_id`, file type, file name, and timestamp.
-   - Show backup creation source (`manual` vs `scheduled`) and age buckets in admin UI.
-   - Exit criteria: admins can answer “who downloaded what and when” from logs alone.
-
-2. **Telegram link lifecycle hardening**
-   - Add explicit “last linked at” and “linked by telegram_user_id” metadata.
-   - Add optional self-service unlink for members (with confirmation + warning copy).
-   - Exit criteria: support/admin can resolve link issues without ad-hoc SQL inspection.
-
-3. **Vote policy observability from config to behavior**
-   - Emit reason-coded events when votes are blocked due to mode (`web_only`/`telegram_only`).
-   - Add a compact “policy effect” test matrix across dashboard, proposal detail, polls, and Telegram webhook responses.
-   - Exit criteria: every blocked vote path has both user-facing guidance and machine-readable reason codes.
-
-### UX / UI design plan (product-design execution track)
-
-This plan frames front-end improvements the way a UI/UX design team would: user journeys first, then information architecture, interaction patterns, and measurable outcomes.
-
-#### A) UX foundations: personas, journeys, and task-critical flows
-- Define primary personas:
-  - **Member (casual):** votes occasionally, needs quick clarity and low friction.
-  - **Member (power):** votes frequently, comments, tracks proposal status.
-  - **Admin/operator:** manages policy, backups, Telegram integration, moderation.
-- Map top journeys (current-state → target-state):
-  1. First login → understand how to vote and where.
-  2. Link Telegram → confirm success → recover from errors.
-  3. Vote on poll/proposal under each vote mode (`both`, `web_only`, `telegram_only`).
-  4. Admin weekly maintenance (backup, policy checks, member management).
-- Deliverables:
-  - Journey maps with friction points.
-  - Prioritized UX debt list by severity (blocker/high/medium/low).
-
-#### B) Information architecture and navigation coherence
-- Create a unified IA pass for:
-  - Top nav labels/order.
-  - Settings vs Admin boundaries.
-  - “Where do I do this?” discoverability for Telegram, voting policy, and backups.
-- Add a consistent page-level “context header” pattern:
-  - title
-  - one-line purpose
-  - primary action
-  - secondary help link
-- Exit criteria:
-  - First-time users can locate Telegram linking and voting policy in ≤2 clicks.
-
-#### C) Visual system and component consistency
-- Establish a lightweight design system in code:
-  - semantic color tokens (success/warning/error/info/background/surface)
-  - spacing scale (4/8/12/16/24/32)
-  - typography scale for headings/body/meta text
-  - consistent button hierarchy (`primary`, `secondary`, `danger`, `ghost`)
-- Normalize reusable components:
-  - Alert/banner
-  - Empty state
-  - Status badge
-  - Data table with actions
-  - Confirmation modal pattern
-- Exit criteria:
-  - UI consistency audit score improves and repeated inline styles are reduced meaningfully.
-
-#### D) Form UX and microcopy quality
-- Apply form standards to admin and member forms:
-  - clear labels and helper text
-  - inline validation messages near fields
-  - actionable error copy (“what happened + what to do next”)
-  - disabled-state rationale when actions are unavailable
-- Rewrite critical microcopy with a style guide:
-  - concise, directive, non-ambiguous language
-  - avoid internal jargon
-  - include next step for every warning/error state
-- Exit criteria:
-  - Reduction in repeated support questions around linking/voting mode behavior.
-
-#### E) Accessibility and responsive quality gates
-- Accessibility baseline:
-  - keyboard navigability for all controls
-  - visible focus states
-  - sufficient color contrast
-  - semantic landmarks/headings
-  - ARIA labels for icon-only controls
-- Responsive baseline:
-  - mobile-first checks for nav, tables, and multi-action admin rows
-  - preserve tap target size and spacing for destructive actions
-- Exit criteria:
-  - Pass internal accessibility checklist + no critical mobile usability regressions.
-
-#### F) Trust and safety UX for operational actions
-- Add explicit risk cues for destructive/admin actions:
-  - unlink Telegram
-  - remove member
-  - delete poll
-- Introduce richer confirmation dialogs:
-  - explain impact
-  - require explicit confirmation for high-risk operations
-  - show post-action success state with undo guidance (where feasible)
-- Exit criteria:
-  - Fewer accidental destructive actions; clearer recovery path when mistakes occur.
-
-#### G) Measurement and experimentation
-- Define product UX metrics:
-  - Telegram link completion rate
-  - Vote completion rate by channel
-  - Drop-off at vote attempts blocked by policy
-  - Time-to-success for admin backup download flow
-- Add low-overhead instrumentation events for critical UI actions.
-- Use small A/B or staged rollout for copy/layout changes where risk exists.
-- Exit criteria:
-  - Dashboard of baseline vs post-change metrics for each major UX initiative.
-
-#### H) Delivery sequence (design-to-build pipeline)
-1. **Discovery sprint (1–2 weeks):** journey maps, UX debt audit, IA proposals.
-2. **Design sprint (1–2 weeks):** wireframes + component standards + copy pass.
-3. **Implementation sprint A:** high-impact flows (Telegram linking, vote mode clarity, admin backup actions).
-4. **Implementation sprint B:** component refactor + accessibility/responsive cleanup.
-5. **Validation sprint:** usability test pass + metric review + backlog reprioritization.
-
-#### I) Prioritization matrix (what ships first)
-
-Use this rubric to sequence front-end items:
-- **Impact (0–3):** user value + risk reduction.
-- **Confidence (0–3):** confidence in solution based on evidence/tests.
-- **Effort (1–3):** implementation cost (lower is better).
-- **Score:** `(Impact + Confidence) / Effort`.
-
-Initial priority candidates:
-1. Telegram linking clarity across all entry points (high impact, low effort).
-2. Vote-mode blocked-state consistency (high impact, medium effort).
-3. Admin destructive action confirmations (medium impact, low effort).
-4. Design token/component consolidation (high long-term value, medium effort).
-5. Accessibility/focus-state cleanup (high impact, medium effort).
-
-#### J) UX acceptance criteria template (for every new UI change)
-
-Every UI task in the backlog should define:
-1. **User story:** “As a ___, I want ___ so that ___.”
-2. **Primary success path:** exact steps and expected result.
-3. **Failure/edge paths:** at least 2 (validation + permission/policy case).
-4. **Copy requirements:** exact message content for success/warning/error.
-5. **Instrumentation event(s):** event name + core payload fields.
-6. **Test coverage:** at minimum one template/assertion + one route/service behavior check.
-
-#### K) Design QA and release checklist
-
-Before release of UX-impacting changes:
-- Run visual QA on desktop + mobile breakpoints (small/medium/large).
-- Verify keyboard-only navigation for touched pages.
-- Verify color contrast and focus indicators on changed controls.
-- Confirm empty/loading/error states are present and readable.
-- Confirm analytics events fire for critical actions.
-- Capture before/after screenshots for major layout or interaction changes.
-- Add a short changelog note explaining user-facing behavior updates.
-
-#### L) Front-end implementation backlog (ready-to-build epics)
-
-Translate the UX plan into concrete engineering epics with Definition of Done:
-
-**Epic FE-1: Navigation + page-context standardization**
-- Scope:
-  - Introduce shared “page context header” partial/component.
-  - Normalize top-nav order and naming across member/admin pages.
-  - Add inline “where am I / what can I do here” helper copy in key pages.
-- DoD:
-  - Applied on Dashboard, Polls, Settings, Admin.
-  - No endpoint or permission regressions.
-  - Template guard tests updated for new shared partial.
-
-**Epic FE-2: Telegram linking UX end-to-end**
-- Scope:
-  - Consolidate `/link` guidance into one reusable alert component.
-  - Add explicit link-state badges (Linked / Not linked / Needs relink).
-  - Add clearer error-recovery copy for invalid credentials or already-linked Telegram ID.
-- DoD:
-  - Guidance is consistent in Polls, Telegram Settings, and any Telegram-only vote blocks.
-  - Tests assert presence of state badge + command hint in all relevant pages.
-
-**Epic FE-3: Vote policy visibility and blocked-state consistency**
-- Scope:
-  - Standardize blocked voting banners for `web_only` and `telegram_only`.
-  - Add a compact “Why this is disabled” component reused by poll/proposal views.
-  - Ensure admin “effective vote policy” card and user-facing behavior stay aligned.
-- DoD:
-  - Shared component used in at least proposal detail + polls.
-  - Contract tests verify copy and behavior under each vote mode.
-
-**Epic FE-4: Admin operations safety UX**
-- Scope:
-  - Replace basic browser confirms with standardized confirm modal for destructive actions.
-  - Include impact summary for unlink/remove/delete actions.
-  - Add post-action success toasts/messages with next-step hints.
-- DoD:
-  - Destructive actions require explicit confirmation language.
-  - UI copy reviewed for clarity and consistency.
-  - Tests cover action availability and confirmation trigger wiring.
-
-**Epic FE-5: Backup center UX (admin)**
-- Scope:
-  - Turn backup list into richer table (type, created at, size, source, actions).
-  - Add filter/tabs for DB vs image backups.
-  - Show validation-friendly errors and empty states.
-- DoD:
-  - Download links, empty states, and error states are deterministic and tested.
-  - Backup rows are readable on mobile breakpoints.
-
-#### M) Quarterly UX milestones with measurable checkpoints
-
-**Milestone M1 (Weeks 1–3): Clarity baseline**
-- Target outcomes:
-  - Users find Telegram linking instructions quickly.
-  - Vote-mode disabled states are understandable.
-- Checkpoints:
-  - FE-1 and FE-2 complete.
-  - Link-related support questions trend down release-over-release.
-
-**Milestone M2 (Weeks 4–7): Safety + consistency**
-- Target outcomes:
-  - Destructive admin actions have lower mistake rates.
-  - Shared UI patterns reduce copy/style drift.
-- Checkpoints:
-  - FE-3 and FE-4 complete.
-  - Confirm-dialog and blocked-state patterns fully standardized.
-
-**Milestone M3 (Weeks 8–12): Operational confidence**
-- Target outcomes:
-  - Backup workflows are fast and low-error.
-  - UX analytics can explain user drop-off points.
-- Checkpoints:
-  - FE-5 complete.
-  - UX event dashboard reviewed in sprint retro and informs next roadmap cycle.
+- `telegram_only`: web controls hidden/disabled with clear next-step text.
+- `web_only`: Telegram responses provide actionable guidance.
+- Add a compact behavior matrix test suite across dashboard, proposal detail, polls, and Telegram webhook flows.
 
 ---
 
-## 5) 30 / 60 / 90 Day Delivery Plan
+## UX / UI Design Track (Forward)
 
-### 30 Days (Foundation)
-- Blueprint scaffolding + initial route split.
-- Startup orchestrator introduced behind parity tests.
-- API error envelope standardized on existing endpoints.
+### A) UX foundations
+- Define personas (casual member, power member, admin/operator).
+- Map critical journeys (first vote, Telegram linking, mode-specific voting, admin maintenance).
+- Prioritize UX debt by severity.
 
-### 60 Days (Consolidation)
-- Service/repository boundary complete for highest-traffic paths.
-- Proposal state machine integrated in write flows.
-- Structured logging fields available in all HTTP/API handlers.
+### B) Information architecture
+- Normalize nav labeling/order and Admin vs Settings boundaries.
+- Add a consistent context header pattern (title, one-line purpose, primary action, help link).
 
-### 90 Days (Confidence)
-- Full API contract test coverage.
-- Metrics + backup validation job running.
-- `main_routes.py` retired or minimized.
+### C) Design system consistency
+- Introduce semantic tokens (color, spacing, typography).
+- Standardize button hierarchy and reusable components (alerts, empty states, badges, tables, confirmation modals).
 
----
+### D) Form UX + microcopy
+- Apply clear labels, helper text, inline validation, and disabled-state rationale.
+- Use concise action-oriented microcopy with explicit next steps.
 
-## 6) Definition of Done (Applies to All New Work)
-
-See [`STYLE.md`](STYLE.md) for the shared Definition of Done and engineering guardrails used by this plan.
-
----
----
-
-## Implementation planning
-
-Implementation sequencing, sprint scope, and progress tracking are maintained in [`SPRINTS.md`](SPRINTS.md).
+### E) Accessibility + responsive gates
+- Enforce keyboard navigation, focus visibility, contrast, semantic landmarks, and ARIA coverage.
+- Validate mobile layouts for nav, tables, and high-risk action rows.

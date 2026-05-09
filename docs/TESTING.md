@@ -39,6 +39,21 @@ pytest -q tests/test_api_helpers.py tests/test_api_error_envelope.py tests/test_
 
 Covers API auth/content-type validation, error envelope consistency, proposal API validation, and poll API flows.
 
+## Admin backup observability checks
+
+```bash
+pytest -q tests/test_app_functionality.py -k "backup_download or backup_db or backup_images or preserves_requested_tab"
+```
+
+Covers admin backup/operator reliability regressions:
+- backup download success + validation rejection paths
+- tab-preserving redirects (`tab=settings`) and invalid-tab sanitization fallback (`tab=all`)
+- structured audit events for:
+  - download success/rejection
+  - DB backup create/failure
+  - image backup create/failure
+- server-side admin tab propagation in POST-rendered admin responses
+
 ## MCP-focused checks
 
 ```bash

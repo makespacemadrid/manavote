@@ -392,6 +392,153 @@ class TestAdminFunctionality(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertIn("Invalid backup file", response.data.decode("utf-8"))
 
+    def test_admin_backup_download_invalid_type_preserves_tab_on_redirect(self):
+        response = self.client.get("/admin/backups/nope/file.zip?tab=settings", follow_redirects=False)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin?tab=settings", response.headers.get("Location", ""))
+
+    def test_admin_backup_download_invalid_tab_redirects_to_all_tab(self):
+        response = self.client.get("/admin/backups/nope/file.zip?tab=not-a-real-tab", follow_redirects=False)
+        self.assertEqual(response.status_code, 302)
+        self.assertIn("/admin?tab=all", response.headers.get("Location", ""))
+
+    def test_admin_backup_download_emits_audit_log_event(self):
+        from app.services.backup_service import BACKUP_ROOT
+
+        os.makedirs(BACKUP_ROOT, exist_ok=True)
+        backup_base = os.path.basename(budget_app.DB_PATH).replace(".db", "")
+        filename = f"{backup_base}_20990101_000001.db"
+        filepath = os.path.join(BACKUP_ROOT, filename)
+        with open(filepath, "wb") as f:
+            f.write(b"audit-log-test")
+
+        try:
+            with patch.object(budget_app.app.logger, "info") as log_info:
+                response = self.client.get(f"/admin/backups/db/{filename}")
+                self.assertEqual(response.status_code, 200)
+                log_info.assert_called_once()
+                args = log_info.call_args[0]
+                self.assertEqual(
+                    args[0],
+                    "event=%s actor_id=%s backup_type=%s file_name=%s reason_code=%s status=%s pruned_count=%s file_size_bytes=%s error=%s at=%s",
+                )
+                self.assertEqual(args[1], "admin_backup_download")
+                self.assertEqual(args[2], 1)
+                self.assertEqual(args[3], "db")
+                self.assertEqual(args[4], filename)
+                self.assertIsNone(args[5])
+                self.assertEqual(args[6], "ok")
+                self.assertIsNone(args[7])
+                self.assertEqual(args[8], os.path.getsize(filepath))
+                self.assertIsNone(args[9])
+                self.assertIsInstance(args[10], str)
+        finally:
+            if os.path.exists(filepath):
+                os.remove(filepath)
+
+    def test_admin_backup_download_rejection_emits_audit_log_event(self):
+        with patch.object(budget_app.app.logger, "info") as log_info:
+            response = self.client.get("/admin/backups/nope/file.zip?tab=budget", follow_redirects=False)
+            self.assertEqual(response.status_code, 302)
+            log_info.assert_called_once()
+            args = log_info.call_args[0]
+            self.assertEqual(
+                args[0],
+                "event=%s actor_id=%s backup_type=%s file_name=%s reason_code=%s status=%s pruned_count=%s file_size_bytes=%s error=%s at=%s",
+            )
+            self.assertEqual(args[1], "admin_backup_download_rejected")
+            self.assertEqual(args[2], 1)
+            self.assertEqual(args[3], "nope")
+            self.assertEqual(args[4], "file.zip")
+            self.assertEqual(args[5], "invalid_backup_type")
+            self.assertEqual(args[6], "rejected")
+            self.assertIsNone(args[7])
+            self.assertIsNone(args[8])
+            self.assertIsNone(args[9])
+            self.assertIsInstance(args[10], str)
+
+    def test_admin_post_preserves_requested_tab_in_response(self):
+        response = self.client.post(
+            "/admin",
+            data={"action": "toggle_registration", "registration_enabled": "1", "tab": "settings", "csrf_token": ""},
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        html = response.data.decode("utf-8")
+        self.assertIn('var serverTab = "settings";', html)
+
+    def test_admin_backup_db_create_emits_audit_log_event(self):
+        with patch("app.services.backup_service.backup_db", return_value=("budget_20990101_000000.db", 2)):
+            with patch.object(budget_app.app.logger, "info") as log_info:
+                response = self.client.post("/admin", data={"action": "backup_db", "csrf_token": ""}, follow_redirects=True)
+                self.assertEqual(response.status_code, 200)
+                args = log_info.call_args[0]
+                self.assertEqual(
+                    args[0],
+                    "event=%s actor_id=%s backup_type=%s file_name=%s reason_code=%s status=%s pruned_count=%s file_size_bytes=%s error=%s at=%s",
+                )
+                self.assertEqual(args[1], "admin_backup_created")
+                self.assertEqual(args[2], 1)
+                self.assertEqual(args[3], "db")
+                self.assertEqual(args[4], "budget_20990101_000000.db")
+                self.assertIsNone(args[5])
+                self.assertEqual(args[6], "ok")
+                self.assertEqual(args[7], 2)
+
+    def test_admin_backup_db_failure_emits_audit_log_event(self):
+        with patch("app.services.backup_service.backup_db", side_effect=RuntimeError("disk full")):
+            with patch.object(budget_app.app.logger, "info") as log_info:
+                response = self.client.post("/admin", data={"action": "backup_db", "csrf_token": ""}, follow_redirects=True)
+                self.assertEqual(response.status_code, 200)
+                args = log_info.call_args[0]
+                self.assertEqual(
+                    args[0],
+                    "event=%s actor_id=%s backup_type=%s file_name=%s reason_code=%s status=%s pruned_count=%s file_size_bytes=%s error=%s at=%s",
+                )
+                self.assertEqual(args[1], "admin_backup_failed")
+                self.assertEqual(args[2], 1)
+                self.assertEqual(args[3], "db")
+                self.assertIsNone(args[4])
+                self.assertEqual(args[5], "backup_exception")
+                self.assertEqual(args[6], "failed")
+                self.assertEqual(args[9], "disk full")
+
+    def test_admin_backup_images_create_emits_audit_log_event(self):
+        with patch("app.services.backup_service.backup_uploads", return_value=("uploads_20990101_000000.zip", 1)):
+            with patch.object(budget_app.app.logger, "info") as log_info:
+                response = self.client.post("/admin", data={"action": "backup_images", "csrf_token": ""}, follow_redirects=True)
+                self.assertEqual(response.status_code, 200)
+                args = log_info.call_args[0]
+                self.assertEqual(
+                    args[0],
+                    "event=%s actor_id=%s backup_type=%s file_name=%s reason_code=%s status=%s pruned_count=%s file_size_bytes=%s error=%s at=%s",
+                )
+                self.assertEqual(args[1], "admin_backup_created")
+                self.assertEqual(args[2], 1)
+                self.assertEqual(args[3], "images")
+                self.assertEqual(args[4], "uploads_20990101_000000.zip")
+                self.assertIsNone(args[5])
+                self.assertEqual(args[6], "ok")
+                self.assertEqual(args[7], 1)
+
+    def test_admin_backup_images_failure_emits_audit_log_event(self):
+        with patch("app.services.backup_service.backup_uploads", side_effect=RuntimeError("zip failed")):
+            with patch.object(budget_app.app.logger, "info") as log_info:
+                response = self.client.post("/admin", data={"action": "backup_images", "csrf_token": ""}, follow_redirects=True)
+                self.assertEqual(response.status_code, 200)
+                args = log_info.call_args[0]
+                self.assertEqual(
+                    args[0],
+                    "event=%s actor_id=%s backup_type=%s file_name=%s reason_code=%s status=%s pruned_count=%s file_size_bytes=%s error=%s at=%s",
+                )
+                self.assertEqual(args[1], "admin_backup_failed")
+                self.assertEqual(args[2], 1)
+                self.assertEqual(args[3], "images")
+                self.assertIsNone(args[4])
+                self.assertEqual(args[5], "backup_exception")
+                self.assertEqual(args[6], "failed")
+                self.assertEqual(args[9], "zip failed")
+
 
 
 class TestNavigation(unittest.TestCase):
