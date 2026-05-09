@@ -2,16 +2,6 @@
 
 A Flask + SQLite application for managing budget proposals in a hackerspace.
 
-
-## Contents
-- [What it does](#what-it-does)
-- [Core features](#core-features)
-- [Quick Start](#quick-start)
-- [Setup and configuration](#setup-and-configuration)
-- [REST API](#rest-api)
-- [MCP server](#mcp-server)
-- [Testing](#testing)
-
 ![Proposals](/static/img/proposals.png)
 ![Calendar](/static/img/calendar.png)
 
@@ -20,203 +10,39 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 - Members can create, discuss, and vote on proposals.
 - Members can monitor progress from Dashboard and Calendar views.
 - Proposals are auto-processed based on vote thresholds and available budget.
-- Members can participate in transparent polls inside the web app.
-- Members can view Telegram account-link details from Settings (Telegram username and Telegram user ID are read-only).
-- Admins can manage members, thresholds, settings, and budget movements (including Telegram link visibility in Members table).
+- Members can participate in transparent polls in web and Telegram.
+- Admins can manage members, thresholds, settings, and budget movements.
 - UI supports English and Spanish.
-- API endpoints allow admin-key-based automation for member/proposal creation, and MCP tools support admin JSON-RPC automation for proposals, budget, and Telegram link polling (see [`APIDOC.md`](docs/APIDOC.md)).
-- Quick reference: full REST + MCP API docs are in [`APIDOC.md`](docs/APIDOC.md).
 
 ## Core features
 
-### Proposals and voting
-- Create proposals with title, description, amount, optional URL, optional image, and basic-supplies flag.
-- Optional voting deadline can be included when sending proposal announcement to Telegram.
-- Proposal creator gets an automatic `in_favor` vote on web-created proposals.
-- Vote options: `in_favor` / `against`.
-- Votes are upserted (one vote per member per proposal).
-- Active proposals can be edited/deleted by creator or admin.
-- Approved proposals can be marked/unmarked as purchased.
-- Undo approval button available for admins (restores budget, clears timestamps).
-- Vote thresholds: Basic=5%, Standard=10%, Expensive=20% of member count (percentages, not absolute numbers).
+- **Proposals**: weighted vote thresholds, creator auto-vote, edit/delete by owner/admin, approval undo, purchase tracking.
+- **Polls**: 2..12 options, transparent results, close/reopen/delete, web/Telegram vote modes.
+- **Telegram integration**: `/link`, `/vote`, `/pvote`, inline poll/proposal callbacks, webhook processing.
+- **Budget lifecycle**: approval when threshold+budget are met, over-budget queue with auto-approval later.
+- **Timezone-aware UI**: all timestamps are rendered in configured timezone.
 
-### Dashboard and calendar
-- Navigation order in the top menu is: **Dashboard → Calendar → Polls**.
-- Dashboard includes Budget card with current budget, member count, and vote requirements.
-- Filter buttons show amounts (no decimals) with color-coded styling (All=white, Active=cyan, Approved/Pending Purchase=green, Pending Budget=purple).
-- Tags displayed left of proposal title (Basic=Bronze, Standard=Silver, Expensive=Gold).
-- Vote counts show "X votes out of Y required" with green color for in-favor votes.
-- Proposals card contains filters, proposal list, and vote buttons.
-- Calendar includes an activity table and a "Budget Over Time" Chart.js chart.
-- Budget chart datasets:
-  - Budget Balance (white line)
-  - Pending Budget (purple line)
-  - Cash In (white bar)
-  - Cash Out (gray bar)
-  - Proposals (Being Voted) (pink bar)
-  - Proposals (Approved) (dark blue bar)
-- Committed series semantics:
-  - `Committed = cash_balance - pending_over_budget_total`.
-  - Positive values represent budget left after currently pending over-budget commitments.
-  - Negative values represent budget debt (pending commitments exceed available balance).
-  - Budget/Committed line datasets use separate Chart.js stack keys so lines are not cumulatively stacked with each other, while bar datasets remain stacked.
+For full behavior and edge cases, see the technical specification: [`docs/SPEC.md`](docs/SPEC.md).
 
-### Polls
-- Admins can create polls with 2..12 options from the Admin panel.
-- Members can vote from Telegram by tapping inline poll buttons (or using `/vote <poll_id> <option_number>` as fallback).
-- Members can pre-link Telegram identity with `/link <app_username> <app_password>` to bind Telegram account to their app member record. This command is the only way `telegram_username` and `telegram_user_id` are set.
-- Members can vote on proposals from Telegram with `/pvote <proposal_id> <yes|no>` when proposal vote mode permits Telegram voting (`both` or `telegram_only`).
-- Telegram proposal announcements include inline **Yes/No** buttons that send callback payloads (`pvote:<proposal_id>:yes|no`) through the same proposal vote policy checks.
-- On `/polls`, the “Who voted what” list prefers linked Telegram usernames (from `/link`) and falls back to app usernames only when Telegram link data is missing.
-- If your account is not linked, `/polls` shows a reminder banner with `/link <app_username> <app_password>`.
-- Telegram poll announcements include a **Vote** button (`showvote:<poll_id>`) that expands into one button per option (`pollvote:<poll_id>:<index>`).
-- Admins can restrict poll voting channel to `Web + Telegram`, `Web only`, or `Telegram only`.
-- The app tracks and displays all poll state/results on `/polls`.
-- Polls are transparent: the page shows totals, horizontal result bars, and “who voted what”.
-- Polls can be closed/reopened by admins.
-- Polls can be deleted by admins.
-- Admins can send poll text to the main chat or as a test to `TELEGRAM_ADMIN_ID`.
-- Telegram webhook endpoint: `POST /telegram/webhook/<TELEGRAM_WEBHOOK_SECRET>` (set secret in env and configure in BotFather webhook URL).
-- Telegram API responses are treated as successful only when both HTTP status is `200` and JSON response contains `"ok": true`.
+## Quick start
 
-### Timezone support
-- Configurable timezone via admin panel (default: Europe/Madrid).
-- All datetime displays automatically convert to configured timezone.
-- Supported timezones: UTC, Europe/London, Europe/Paris, Europe/Madrid, America/New_York, America/Chicago, America/Los_Angeles, Asia/Tokyo, Asia/Shanghai, Australia/Sydney.
+See [`docs/QUICKSTART.md`](docs/QUICKSTART.md) for Docker/local setup, bootstrap, and environment variables.
 
-### Budget lifecycle
-- Budget is derived from `activity_log` (`SUM(amount)`).
-- Proposals that meet voting threshold:
-  - become `approved` if budget is sufficient (Telegram notification sent),
-  - become `over_budget` if budget is insufficient (tracks `over_budget_at` timestamp).
-- `over_budget` proposals are auto-approved later when budget allows.
-- Admin can undo approvals to restore budget, clearing `processed_at` and `purchased_at` timestamps.
-- Approved proposals can be marked as `purchased` with timestamp.
-- Monthly top-up defaults to €50 with description "Subvención mensual MakeSpace para juguetes nuevos".
+## API + MCP
 
-## Quick Start
-
-See [`QUICKSTART.md`](docs/QUICKSTART.md) for Docker and local setup instructions.
-
-## Setup and configuration
-
-Setup, initial admin bootstrap, environment variables, backup behavior, and testing commands are documented in [`QUICKSTART.md`](docs/QUICKSTART.md).
-
-
-### Environment variable matrix
-
-| Variable | Default | Development/Test | Production |
-|---|---|---|---|
-| `FLASK_ENV` | unset | typically `development`/`test` | **must be `production`** for prod mode checks |
-| `SECRET_KEY` | `dev-insecure-secret-change-me` | fallback allowed for local/test runs | **required non-default value** (startup fails otherwise) |
-| `ADMIN_BOOTSTRAP_PASSWORD` | unset | if unset, test mode uses test password; dev falls back to insecure default with warning | **required on first startup** when no admin exists (startup fails otherwise) |
-| `FLASK_DEBUG` | `false` | set `true` for debug logging/dev behavior | keep `false` |
-| `FLASK_CSRF` | `true` | normally `true` (can be disabled for local debugging only) | should remain `true` |
-| `FLASK_SECURE_COOKIES` | `true` | can be `false` over plain HTTP localhost | should remain `true` behind HTTPS |
-| `ADMIN_API_KEY` | unset | optional unless using `/api/*` | required for admin API clients (`/api/*` returns `503` when unset) |
-| `TELEGRAM_*` vars | unset | optional | optional; required only when Telegram integration is enabled |
-
-## REST API
-All API endpoints require `X-Admin-Key: <ADMIN_API_KEY>`.
-
-Implemented endpoints:
-- `POST /api/register`
-- `POST /api/proposals`
-- `GET /api/proposals/<proposal_id>`
-- `PUT|PATCH /api/proposals/<proposal_id>`
-- `GET /api/polls`
-- `POST /api/polls`
-
-See [APIDOC.md](docs/APIDOC.md) for request/response details.
-
-## MCP server
-
-A lightweight MCP JSON-RPC server is available at `app/mcp_server.py`.
-
-### Authentication
-Set `MCP_API_KEY` and authenticate using either:
-- Standard HTTP headers (recommended for MCP clients):
-  - `X-Api-Key: <MCP_API_KEY>`, or
-  - `Authorization: Bearer <MCP_API_KEY>`
-- Legacy JSON-RPC body field (backward compatibility): `params.api_key`
-
-### Run standalone (stdio)
-```bash
-python -m app.mcp_server
-```
-
-### Run alongside Flask app
-Set:
-- `MCP_SERVER_ENABLED=true`
-- optional `MCP_SERVER_TRANSPORT` (`http` default, or `tcp` for legacy transport)
-- optional `MCP_SERVER_HOST` (default `127.0.0.1`)
-- optional `MCP_SERVER_PORT` (default `8765`)
-
-When enabled, `app.py` starts the MCP HTTP server in a background thread and serves:
-- JSON-RPC endpoint: `POST http://<host>:<port>/mcp`
-- health check: `GET http://<host>:<port>/healthz`
-
-HTTP endpoint accepts both single JSON-RPC requests and JSON-RPC batch requests.
-
-Implemented tools:
-- `list_proposals` (optional `status`, `limit`, `offset`)
-- `current_budget`
-- `list_member_telegram_links` (optional `include_unlinked`, `limit`, `offset`)
-
-
-## Project structure
-
-- `app/startup.py` — deterministic startup orchestration (`run_startup_steps`) and backup-check helper.
-- `app/startup_policy.py` — startup policy validation and env-specific runtime flags.
-- `app/web/app_setup.py` — Flask app construction/config, logging, and extension initialization.
-- `app/web/routes/main_routes.py` — routes and request orchestration.
-- `app/services/` — business logic helpers (auth/budget/proposal/admin/vote/backup/settings).
-- `app/repositories/` — DB access helpers.
-- `app/db/` — schema + migrations + DB connection helper.
-- `templates/` — server-rendered HTML (Jinja2).
-- `tests/` — unit and functional tests.
-
-## Additional documentation
-- Quick start and setup guide: [`QUICKSTART.md`](docs/QUICKSTART.md)
-- REST + MCP API reference: [`APIDOC.md`](docs/APIDOC.md)
-- Technical specification: [`SPEC.md`](docs/SPEC.md)
-- Engineering style, principles, and delivery guardrails: [`STYLE.md`](docs/STYLE.md)
-- Product ideas / backlog specifications: [`IDEAS.md`](docs/IDEAS.md)
-- Sprint planning/progress tracking: [`SPRINTS.md`](docs/SPRINTS.md)
-
-### Documentation roles
-- `docs/STYLE.md`: **how** we implement changes (principles, guardrails, Definition of Done).
-- `docs/IDEAS.md`: **what** we want to build (problem statements, product/engineering backlog as specifications).
-- `docs/SPRINTS.md`: **when/how** we execute (sprint scope, sequencing, progress, and completion tracking).
-
+- REST API and request/response examples: [`docs/APIDOC.md`](docs/APIDOC.md)
+- MCP server usage, auth, transport, and tool list: [`docs/APIDOC.md`](docs/APIDOC.md)
 
 ## Testing
 
-Run the full suite:
+- Full suite: `pytest -q`
+- Additional targeted regression packs and what they validate: [`docs/TESTING.md`](docs/TESTING.md)
 
-```bash
-pytest -q
-```
+## Project structure
 
-Run targeted regression checks added in recent hardening work:
+- App/runtime architecture and module map: [`docs/SPEC.md`](docs/SPEC.md)
 
-```bash
-pytest -q tests/test_template_guards.py tests/test_production_config.py tests/test_app_startup.py tests/test_startup_policy.py tests/unit/test_settings_service.py tests/unit/test_vote_repository_contract.py
-```
+## Documentation
 
-What these cover:
-- `tests/test_template_guards.py`
-  - Admin template uses shared top navigation partial.
-  - CSRF hidden input markup is well formed in key templates.
-- `tests/test_production_config.py`
-  - Startup fails when `FLASK_ENV=production` and `SECRET_KEY` is missing/default.
-  - DB bootstrap fails on first startup in production if `ADMIN_BOOTSTRAP_PASSWORD` is missing.
-- `tests/test_app_startup.py`
-  - App startup sequencing remains deterministic and DB failures are fail-fast.
-  - Optional startup jobs (scheduler/auto-backup) remain warning-only and can be skipped in `test` env.
-- `tests/test_startup_policy.py`
-  - Runtime policy flags are environment-aware (`test` disables optional startup jobs).
-- `tests/unit/test_settings_service.py`
-  - Enum-like setting reads are normalized with consistent fallback behavior.
-- `tests/unit/test_vote_repository_contract.py`
-  - Proposal-vote repository invariants (upsert replacement + vote counts) are enforced.
+- Main docs index: [`docs/INDEX.md`](docs/INDEX.md)
+- Direct links: [`docs/QUICKSTART.md`](docs/QUICKSTART.md), [`docs/APIDOC.md`](docs/APIDOC.md), [`docs/SPEC.md`](docs/SPEC.md), [`docs/TESTING.md`](docs/TESTING.md)

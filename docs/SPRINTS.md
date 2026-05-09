@@ -13,15 +13,15 @@ This document contains execution planning, sprint scope, in-flight tracking, and
   2. progress log entries,
   3. remaining-work checklist.
 
-## Current implementation focus
+## Current implementation focus (Q2 2026)
 
-- Continue shrinking `main_routes.py` by migrating remaining handler implementations into blueprint modules.
-- Keep compatibility aliases stable while migrations are in progress.
-- Maintain regression coverage for blueprint endpoint aliases and migrated handler behavior.
+- Complete MCP parity with REST for admin automation (read + create + validation parity).
+- Stabilize docs so README remains concise and `docs/*` are the authoritative detail source.
+- Finish `main_routes.py` decomposition with measurable completion criteria and cleanup milestones.
 
 ## 7) Sprint Plan Continuation
 
-### Sprint 1 (Completed / In Progress)
+### Sprint 1 (Completed)
 1. **Route decomposition kickoff**
    - Status: **In progress**
    - Extracted startup and configuration concerns into dedicated modules; route-layer split remains the primary carry-over.
@@ -32,7 +32,7 @@ This document contains execution planning, sprint scope, in-flight tracking, and
    - Status: **In progress**
    - Core API hardening has begun, but standardized error envelopes and contract coverage are not yet uniform.
 
-### Sprint 2 (Recommended Scope)
+### Sprint 2 (Completed)
 
 1. **Finish first blueprint extraction slice (auth + proposals)**
    - Move handlers and helper code out of `main_routes.py`.
@@ -82,51 +82,49 @@ This document contains execution planning, sprint scope, in-flight tracking, and
 - ✅ Migrated `/calendar` handler implementation out of `main_routes.py` into `proposal_routes.py` (compatibility shim retained).
 - ✅ Expanded blueprint endpoint-alias regression tests to cover newly migrated root/health/about/calendar/settings/register endpoints.
 
-### Sprint 2 Exit Criteria
+### Sprint 2 Exit Criteria (Status)
 - `main_routes.py` net line count reduced meaningfully with no feature regressions.
 - Startup emits a single machine-readable summary event on every boot.
 - Target API endpoints return uniform error envelopes under all tested failure paths.
+ - **Status:** ✅ Completed.
 
 This scope remains intentionally narrow to preserve delivery focus while unblocking WS-A/WS-B/WS-C in parallel.
 
-### Sprint 2 Remaining Work (Execution Checklist)
+## Sprint 3 (In Progress) — MCP + Docs Consolidation
 
-1. **Route extraction completion pass**
-   - Move remaining web/admin handler implementations out of `main_routes.py` into:
-     - `proposal_routes.py`
-     - `admin_routes.py`
-   - Keep `main_routes.py` as compatibility-only surface (shared utilities + transitional imports).
+### Goals
+1. Ensure MCP tools cover key admin automation flows, including POST-like create actions.
+2. Align MCP validation with REST/business rules where behavior should match.
+3. Keep authoritative documentation synchronized across `APIDOC`, `SPEC`, `TESTING`, and the docs index.
 
-2. **Error-envelope normalization pass (API-first)**
-   - Introduce a small helper for standard API errors:
-     ```json
-     {
-       "error": {
-         "code": "stable_machine_code",
-         "message": "human-readable message"
-       }
-     }
-     ```
-   - Apply this envelope first to:
-     - `POST /api/register`
-     - `POST /api/proposals`
-     - `GET /api/proposals/<proposal_id>`
+### Delivered so far
+- ✅ Added MCP create tools: `create_member`, `create_proposal`, `create_poll`.
+- ✅ Added MCP tests for create flows and key validation rejection paths.
+- ✅ Added `docs/INDEX.md` and split testing guidance into `docs/TESTING.md`.
+- ✅ Expanded `SPEC.md` with explicit MCP tool surface and codebase map.
+- ✅ Documented MCP error-code conventions in APIDOC and added explicit MCP create-request example payload.
+- ✅ Added additional MCP negative-path tests (duplicate username, missing creator, invalid poll option length).
+- ✅ Added explicit MCP error-code contract regression test covering validation (`-32602`), conflict (`-32010`), and not-found (`-32004`) classes.
+- ✅ Added API/MCP sprint changelog snippet to APIDOC for recent behavior/documentation updates.
+- ✅ Expanded MCP negative-path checks across create tools (including proposal non-positive amount and poll missing-creator not-found path).
+- ✅ Added MCP tool-discovery regression coverage to ensure create tools remain advertised via `tools/list`.
 
-3. **Contract + compatibility test pass**
-   - Extend tests to cover:
-     - error envelope shape for selected endpoints,
-     - blueprint endpoint alias compatibility,
-     - helper-level validation edge-cases.
-   - Keep one focused decomposition test command in `QUICKSTART.md` synchronized with newly added tests.
+### Remaining work (execution checklist)
+1. **MCP parity hardening**
+   - Add remaining parity checks where REST and MCP should enforce the same limits/messages.
 
-4. **Startup observability baseline**
-   - Emit one structured startup summary log event with:
-     - environment,
-     - readiness status,
-     - degraded reason codes (if any).
-   - Add minimal assertions in startup tests to prevent silent regressions.
+2. **Contract consistency**
+   - Expand error-code contract tests across more MCP tools as new tool classes are added.
 
-### Proposed Sprint 3 Scope (Preview)
-- Remove transitional endpoint aliasing once all call sites/templates use blueprint-native endpoint names.
-- Finalize service/repository boundaries for admin and proposal write paths.
-- Add API contract matrix tests (happy-path + all key rejection paths) for core endpoints.
+3. **Docs quality pass**
+   - Keep sprint changelog snippet in APIDOC updated when MCP/REST contracts change.
+
+### Exit criteria
+- MCP create tools have both happy-path and key negative-path coverage.
+- APIDOC and SPEC reflect the same MCP tool set and argument constraints.
+- README remains concise and links only to canonical docs for deep detail.
+
+## Proposed Sprint 4 Scope (Preview)
+- Remove transitional endpoint aliases once templates and callers fully use blueprint-native endpoint names.
+- Finalize service/repository boundaries for remaining admin/proposal write paths.
+- Add broader API contract matrix tests (happy path + key rejection paths) for core REST endpoints.

@@ -33,6 +33,21 @@ Container runtime (`docker compose up --build`):
 3. `app.db` and `static/uploads` are bind-mounted for persistence.
 4. App is exposed on `http://localhost:5000`.
 
+## 3.1) Codebase map
+
+Primary modules and responsibilities:
+- `app/startup.py` — deterministic startup orchestration (`run_startup_steps`) and backup-check helper.
+- `app/startup_policy.py` — startup policy validation and env-specific runtime flags.
+- `app/web/app_setup.py` — Flask app construction/config, logging, and extension initialization.
+- `app/web/routes/main_routes.py` — web route orchestration and legacy-compatible endpoints.
+- `app/web/routes/api_routes.py` — admin-key REST API endpoints.
+- `app/services/` — business logic helpers (auth/budget/proposal/admin/vote/backup/settings).
+- `app/repositories/` — DB access helpers.
+- `app/db/` — schema, migrations, and DB connection helper.
+- `app/mcp_server.py` — MCP JSON-RPC server for admin tooling (list/read/create operations).
+- `templates/` — server-rendered HTML (Jinja2).
+- `tests/` — unit and functional tests.
+
 ## 4) Data model
 
 ### `members`
@@ -218,10 +233,22 @@ Committed series behavior:
 ### Admin-key REST API
 - `POST /api/register`
 - `POST /api/proposals`
+- `GET /api/proposals` (supports `status`, `limit`, `offset`)
 - `GET /api/proposals/<proposal_id>`
 - `PUT|PATCH /api/proposals/<proposal_id>`
 - `GET /api/polls`
 - `POST /api/polls`
+- `GET /api/members/telegram` (supports `include_unlinked`, `limit`, `offset`)
+
+### MCP JSON-RPC tools (`/mcp`)
+- Read/list tools:
+  - `list_proposals` (optional `status`, `limit`, `offset`)
+  - `current_budget`
+  - `list_member_telegram_links` (optional `include_unlinked`, `limit`, `offset`)
+- Create tools:
+  - `create_member` (`username`, `password`, optional `is_admin`)
+  - `create_proposal` (`title`, `amount`, `created_by`, optional `description`/`url`/`basic_supplies`)
+  - `create_poll` (`question`, `options`, `created_by`)
 
 ## 9) Security notes
 
@@ -273,9 +300,10 @@ Coverage notes:
 - Startup policy tests validate env-specific runtime flags and production secret enforcement.
 - Settings helper tests validate normalized enum-setting reads and fallback behavior.
 - Vote repository contract tests validate upsert replacement and aggregate count invariants.
+- API contract tests validate helper-level request/auth parsing, standardized error envelopes, and `/api/*` behavior for proposal/poll operations.
 
 
-## 14) Proposal vote channels (Web / Telegram / Both)
+## 13) Proposal vote channels (Web / Telegram / Both)
 
 - Config key: `proposal_vote_mode` with allowed values: `both`, `web_only`, `telegram_only` (default `both`).
 - Web proposal votes are accepted only when mode allows Web (`both` or `web_only`).

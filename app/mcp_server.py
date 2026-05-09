@@ -10,6 +10,7 @@ import socketserver
 import sqlite3
 import sys
 from typing import Any
+from werkzeug.security import generate_password_hash
 
 DB_PATH = os.getenv("APP_DB_PATH", os.path.join(os.path.dirname(os.path.dirname(__file__)), "app.db"))
 MCP_API_KEY = os.getenv("MCP_API_KEY", "")
@@ -23,6 +24,45 @@ def _db_rows(query: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
         cur = conn.cursor()
         cur.execute(query, params)
         return [dict(r) for r in cur.fetchall()]
+    finally:
+        conn.close()
+
+
+def _db_execute(query: str, params: tuple[Any, ...] = ()) -> int:
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        cur = conn.cursor()
+        cur.execute(query, params)
+        conn.commit()
+        return int(cur.lastrowid or 0)
+    finally:
+        conn.close()
+
+
+def _create_proposal_record(
+    title: str,
+    description: str,
+    amount_val: float,
+    url: str,
+    created_by_val: int,
+    basic_supplies: int,
+) -> int:
+    conn = sqlite3.connect(DB_PATH)
+    try:
+        cur = conn.cursor()
+        cur.execute(
+            "INSERT INTO proposals (title, description, amount, url, created_by, basic_supplies) VALUES (?, ?, ?, ?, ?, ?)",
+            (title, description, amount_val, url, created_by_val, basic_supplies),
+        )
+        proposal_id = int(cur.lastrowid or 0)
+        if basic_supplies and amount_val > 20.0:
+            cur.execute("UPDATE proposals SET basic_supplies = 0 WHERE id = ?", (proposal_id,))
+            cur.execute(
+                "INSERT INTO comments (proposal_id, member_id, content) VALUES (?, ?, ?)",
+                (proposal_id, created_by_val, "Auto-removed basic supplies flag: amount over €20"),
+            )
+        conn.commit()
+        return proposal_id
     finally:
         conn.close()
 
@@ -73,7 +113,7 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
         return _result(req_id, {"protocolVersion": "2024-11-05", "serverInfo": {"name": "manavote-mcp", "version": "0.3.0"}, "capabilities": {"tools": {}}})
 
     if method == "tools/list":
-        return _result(req_id, {"tools": [{"name": "list_proposals", "description": "List latest proposals, optionally filtered by status.", "inputSchema": {"type": "object", "properties": {"status": {"type": "string", "enum": sorted(VALID_PROPOSAL_STATUSES)}, "limit": {"type": "integer", "minimum": 1, "maximum": 200}, "offset": {"type": "integer", "minimum": 0}}}}, {"name": "current_budget", "description": "Get configured current budget setting.", "inputSchema": {"type": "object", "properties": {}}}, {"name": "list_member_telegram_links", "description": "List members and Telegram link information.", "inputSchema": {"type": "object", "properties": {"include_unlinked": {"type": "boolean"}, "limit": {"type": "integer", "minimum": 1, "maximum": 500}, "offset": {"type": "integer", "minimum": 0}}}}]})
+        return _result(req_id, {"tools": [{"name": "list_proposals", "description": "List latest proposals, optionally filtered by status.", "inputSchema": {"type": "object", "properties": {"status": {"type": "string", "enum": sorted(VALID_PROPOSAL_STATUSES)}, "limit": {"type": "integer", "minimum": 1, "maximum": 200}, "offset": {"type": "integer", "minimum": 0}}}}, {"name": "current_budget", "description": "Get configured current budget setting.", "inputSchema": {"type": "object", "properties": {}}}, {"name": "list_member_telegram_links", "description": "List members and Telegram link information.", "inputSchema": {"type": "object", "properties": {"include_unlinked": {"type": "boolean"}, "limit": {"type": "integer", "minimum": 1, "maximum": 500}, "offset": {"type": "integer", "minimum": 0}}}}, {"name": "create_member", "description": "Create a member (admin-only action).", "inputSchema": {"type": "object", "required": ["username", "password"], "properties": {"username": {"type": "string", "minLength": 1}, "password": {"type": "string", "minLength": 1}, "is_admin": {"type": "boolean"}}}}, {"name": "create_proposal", "description": "Create a proposal (admin-only action).", "inputSchema": {"type": "object", "required": ["title", "amount", "created_by"], "properties": {"title": {"type": "string", "minLength": 1}, "description": {"type": "string"}, "amount": {"type": "number", "exclusiveMinimum": 0}, "url": {"type": "string"}, "basic_supplies": {"type": "boolean"}, "created_by": {"type": "integer", "minimum": 1}}}}, {"name": "create_poll", "description": "Create a poll (admin-only action).", "inputSchema": {"type": "object", "required": ["question", "options", "created_by"], "properties": {"question": {"type": "string", "minLength": 5, "maxLength": 200}, "options": {"type": "array", "minItems": 2, "maxItems": 12, "items": {"type": "string"}}, "created_by": {"type": "integer", "minimum": 1}}}}]})
 
     if method == "tools/call":
         params = req.get("params") or {}
@@ -145,6 +185,69 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
                     (limit, offset),
                 )
             return _tool_text(req_id, {"count": len(rows), "limit": limit, "offset": offset, "members": rows})
+
+        if name == "create_member":
+            username = str(arguments.get("username") or "").strip()
+            password = str(arguments.get("password") or "")
+            is_admin = bool(arguments.get("is_admin", False))
+            if not username or not password:
+                return _error(req_id, -32602, "Invalid params: username and password are required")
+            exists = _db_rows("SELECT id FROM members WHERE username = ? LIMIT 1", (username,))
+            if exists:
+                return _error(req_id, -32010, "Conflict: username already exists")
+            member_id = _db_execute(
+                "INSERT INTO members (username, password_hash, is_admin) VALUES (?, ?, ?)",
+                (username, generate_password_hash(password), 1 if is_admin else 0),
+            )
+            return _tool_text(req_id, {"success": True, "member_id": member_id, "username": username})
+
+        if name == "create_proposal":
+            title = str(arguments.get("title") or "").strip()
+            description = str(arguments.get("description") or "")
+            url = str(arguments.get("url") or "")
+            basic_supplies = 1 if bool(arguments.get("basic_supplies", False)) else 0
+            created_by = arguments.get("created_by")
+            amount = arguments.get("amount")
+            if not title or created_by is None or amount is None:
+                return _error(req_id, -32602, "Invalid params: title, amount, and created_by are required")
+            try:
+                amount_val = float(amount)
+                created_by_val = int(created_by)
+            except (TypeError, ValueError):
+                return _error(req_id, -32602, "Invalid params: amount/created_by types are invalid")
+            if amount_val <= 0 or created_by_val <= 0:
+                return _error(req_id, -32602, "Invalid params: amount and created_by must be positive")
+            member = _db_rows("SELECT id FROM members WHERE id = ? LIMIT 1", (created_by_val,))
+            if not member:
+                return _error(req_id, -32004, "Not found: creator member not found")
+            proposal_id = _create_proposal_record(title, description, amount_val, url, created_by_val, basic_supplies)
+            return _tool_text(req_id, {"success": True, "proposal_id": proposal_id})
+
+        if name == "create_poll":
+            question = str(arguments.get("question") or "").strip()
+            options = arguments.get("options")
+            created_by = arguments.get("created_by")
+            if not question or not isinstance(options, list) or created_by is None:
+                return _error(req_id, -32602, "Invalid params: question, options, and created_by are required")
+            cleaned = [str(opt).strip() for opt in options if str(opt).strip()]
+            if len(cleaned) < 2 or len(cleaned) > 12:
+                return _error(req_id, -32602, "Invalid params: options must contain 2..12 non-empty values")
+            if len(question) < 5 or len(question) > 200:
+                return _error(req_id, -32602, "Invalid params: question must be 5..200 characters")
+            if any(len(opt) > 120 for opt in cleaned):
+                return _error(req_id, -32602, "Invalid params: each option must be <= 120 characters")
+            try:
+                created_by_val = int(created_by)
+            except (TypeError, ValueError):
+                return _error(req_id, -32602, "Invalid params: created_by must be an integer")
+            member = _db_rows("SELECT id FROM members WHERE id = ? LIMIT 1", (created_by_val,))
+            if not member:
+                return _error(req_id, -32004, "Not found: creator member not found")
+            poll_id = _db_execute(
+                "INSERT INTO polls (question, options_json, created_by, status) VALUES (?, ?, ?, 'open')",
+                (question, json.dumps(cleaned), created_by_val),
+            )
+            return _tool_text(req_id, {"success": True, "poll_id": poll_id})
 
         return _error(req_id, -32601, f"Unknown tool: {name}")
 
