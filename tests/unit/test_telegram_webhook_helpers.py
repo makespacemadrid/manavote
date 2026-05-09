@@ -64,6 +64,7 @@ def test_poll_vote_response_text_handles_invalid_option():
 def test_link_response_text_handles_known_reasons():
     assert link_response_text(True, "ok") == "✅ Your Telegram account is now linked."
     assert link_response_text(False, "invalid_credentials") == "❌ Invalid username or password."
+    assert "set one, then run /link again" in link_response_text(False, "missing_public_username")
 
 
 def test_classify_message_command_routes_supported_commands():

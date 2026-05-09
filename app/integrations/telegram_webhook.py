@@ -80,6 +80,7 @@ def link_response_text(success, reason):
         return "✅ Your Telegram account is now linked."
     mapping = {
         "invalid_format": "❌ Usage: /link <app_username> <app_password>",
+        "missing_public_username": "❌ Your Telegram account has no public username. In Telegram: Settings → Username, set one, then run /link again.",
         "invalid_credentials": "❌ Invalid username or password.",
         "already_linked": "❌ This Telegram account is already linked to another member.",
     }

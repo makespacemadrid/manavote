@@ -7,20 +7,20 @@
     <h2>📱 {{ 'Telegram Settings'|lang }}</h2>
     {% set is_telegram_linked = (telegram_username or telegram_user_id) %}
     <div style="margin: 6px 0 10px;">
-        {% with is_linked=is_telegram_linked, linked_text='Linked', not_linked_text='Not linked' %}
+        {% with is_linked=is_telegram_linked, linked_text=('Linked'|lang), not_linked_text=('Not linked'|lang) %}
             {% include "_telegram_link_status.html" %}
         {% endwith %}
     </div>
     <p style="color: #888; margin-bottom: 15px;">{{ 'Telegram link help'|lang }}</p>
     <div style="margin: 10px 0 16px; padding: 12px; border: 1px solid #0f3460; border-radius: 8px; background: rgba(15,52,96,0.15);">
-        <strong>How to link your Telegram account</strong>
+        <strong>{{ 'How to link your Telegram account'|lang }}</strong>
         <ol style="margin: 8px 0 0 20px; color: #cbd5e1;">
-            <li>Open the project Telegram bot.</li>
-            <li>Send this command (replace with your app credentials): <code>/link &lt;app_username&gt; &lt;app_password&gt;</code></li>
-            <li>Wait for the bot confirmation message.</li>
-            <li>Refresh this page to verify your Telegram username and ID are shown below.</li>
+            <li>{{ 'Open the project Telegram bot.'|lang }}</li>
+            <li>{{ 'Send this command (replace with your app credentials):'|lang }} <code>/link &lt;app_username&gt; &lt;app_password&gt;</code></li>
+            <li>{{ 'Wait for the bot confirmation message.'|lang }}</li>
+            <li>{{ 'Refresh this page to verify your Telegram username and ID are shown below.'|lang }}</li>
         </ol>
-        <small style="color:#94a3b8; display:block; margin-top:8px;">Tip: if your app password has changed, run <code>/link</code> again with the new password.</small>
+        <small style="color:#94a3b8; display:block; margin-top:8px;">{{ 'Tip: if your app password has changed, run /link again with the new password.'|lang }}</small>
     </div>
 
     <label>{{ 'Telegram Username (auto-linked from Telegram)'|lang }}</label>
@@ -30,5 +30,18 @@
     <input type="text" value="{{ telegram_user_id or '' }}" placeholder="{{ 'Use /link in Telegram to set this'|lang }}" readonly disabled>
 
     <small style="color:#888; display:block; margin-top:8px;">{{ 'Telegram command hint'|lang }} <code>/link &lt;app_username&gt; &lt;app_password&gt;</code> {{ 'Telegram command hint suffix'|lang }}</small>
+    {% if missing_public_username %}
+    <div style="margin-top:10px; padding:10px; border:1px solid #f59e0b; border-radius:8px; background:#f59e0b22; color:#fef3c7;">
+        <strong>{{ 'Telegram username missing title'|lang }}</strong>
+        <p style="margin:8px 0 0;">{{ 'Telegram username missing guidance'|lang }}</p>
+    </div>
+    {% endif %}
+
+    {% if is_telegram_linked %}
+    <form method="post" style="margin-top: 14px;" onsubmit="return confirm('{{ 'Unlink Telegram confirm'|lang }}');">
+        <input type="hidden" name="action" value="unlink_telegram">
+        <button type="submit" class="btn danger">{{ 'Unlink Telegram account'|lang }}</button>
+    </form>
+    {% endif %}
 </div>
 {% endblock %}
