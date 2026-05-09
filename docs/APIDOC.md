@@ -289,7 +289,7 @@ curl http://localhost:5000/api/polls \
 
 ---
 
-## 6) Create Poll
+## 7) Create Poll
 
 **Endpoint**: `POST /api/polls`
 
@@ -339,7 +339,7 @@ curl -X POST http://localhost:5000/api/polls \
 ---
 
 
-## 7) List Member Telegram Links
+## 8) List Member Telegram Links
 
 **Endpoint**: `GET /api/members/telegram`
 
@@ -369,6 +369,26 @@ curl -X POST http://localhost:5000/api/polls \
 ### Example
 ```bash
 curl "http://localhost:5000/api/members/telegram?include_unlinked=true"   -H "X-Admin-Key: your_api_key"
+```
+
+---
+
+
+## API feature coverage and tests
+
+The following test modules currently validate API behavior and error contracts:
+
+- `tests/test_api_helpers.py`
+  - API key validation helper, JSON payload parsing, pagination parsing, and standardized error envelope shape.
+- `tests/test_api_error_envelope.py`
+  - Consistent `error_code`/`error` envelope for register/create/get/list proposal failure paths.
+- `tests/test_app_functionality.py` (API-focused cases)
+  - API key enforcement, JSON content-type enforcement, proposal amount validation, proposal not-found handling, and poll-create/list API behavior.
+
+Run just API-related checks:
+
+```bash
+pytest -q tests/test_api_helpers.py tests/test_api_error_envelope.py tests/test_app_functionality.py -k "api or polls"
 ```
 
 ---
@@ -438,6 +458,25 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
   - optional args: `status` (`active|accepted|rejected|purchased`), `limit` (1..200), `offset` (>=0)
 - `current_budget`
 - `list_member_telegram_links` (optional `include_unlinked`, `limit`, `offset`)
+- `create_member`
+  - required args: `username`, `password`
+  - optional args: `is_admin` (`true`/`false`)
+- `create_proposal`
+  - required args: `title`, `amount` (>0), `created_by` (existing member id)
+  - optional args: `description`, `url`, `basic_supplies`
+- `create_poll`
+  - required args: `question`, `options` (2..12 items), `created_by` (existing member id)
+
+### MCP error code conventions
+- `-32602`: invalid params / validation failures (bad types, missing fields, range/length constraints)
+- `-32010`: conflict class errors (currently used for duplicate member username)
+- `-32004`: not found class errors (for example missing `created_by` member)
+- `-32001`: authentication failures (`MCP_API_KEY` missing/invalid)
+
+MCP regression command:
+```bash
+pytest -q tests/test_mcp_server.py
+```
 
 ### Example MCP request
 ```json
@@ -453,6 +492,26 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
 }
 ```
 
+### Example MCP create request (`create_proposal`)
+```json
+{
+  "jsonrpc": "2.0",
+  "id": 2,
+  "method": "tools/call",
+  "params": {
+    "api_key": "your_mcp_api_key",
+    "name": "create_proposal",
+    "arguments": {
+      "title": "New drill press",
+      "amount": 249.99,
+      "created_by": 1,
+      "description": "Upgrade for metal workshop",
+      "basic_supplies": false
+    }
+  }
+}
+```
+
 
 ## Telegram bot commands
 
@@ -461,3 +520,8 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
 - `/pvote <proposal_id> <yes|no>` — vote on proposals (subject to `proposal_vote_mode`).
 - Proposal inline callback payload: `pvote:<proposal_id>:yes|no` (same policy path as `/pvote`).
 - Non-command Telegram messages are ignored by the webhook (no poll/proposal vote side effects).
+
+## API/MCP sprint changelog (recent)
+
+- **2026-05-09**: Added MCP create tools (`create_member`, `create_proposal`, `create_poll`) with documented validation and error code conventions.
+- **2026-05-09**: Added MCP create request example payload and API-focused testing guidance alignment (`docs/TESTING.md`).

@@ -50,6 +50,12 @@ def test_tools_call_list_proposals_invalid_status():
     assert response["error"]["code"] == -32602
 
 
+def test_tools_list_includes_mcp_create_tools():
+    response = mcp_server.handle_request(_req("tools/list", req_id=201))
+    tool_names = {tool["name"] for tool in response["result"]["tools"]}
+    assert {"create_member", "create_proposal", "create_poll"}.issubset(tool_names)
+
+
 def test_tools_call_current_budget_returns_json_text(monkeypatch):
     monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"value": "300"}])
 
@@ -76,6 +82,171 @@ def test_tools_call_list_member_telegram_links(monkeypatch):
     payload = json.loads(response["result"]["content"][0]["text"])
     assert payload["count"] == 1
     assert payload["members"][0]["telegram_username"] == "alice_tg"
+
+
+def test_tools_call_create_member(monkeypatch):
+    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [])
+    monkeypatch.setattr(mcp_server, "_db_execute", lambda *_args, **_kwargs: 42)
+    response = mcp_server.handle_request(
+        _req("tools/call", req_id=5, params={"name": "create_member", "arguments": {"username": "bob", "password": "secret"}})
+    )
+    payload = json.loads(response["result"]["content"][0]["text"])
+    assert payload["success"] is True
+    assert payload["member_id"] == 42
+
+
+def test_tools_call_create_member_rejects_duplicate_username(monkeypatch):
+    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"id": 99}])
+    response = mcp_server.handle_request(
+        _req("tools/call", req_id=51, params={"name": "create_member", "arguments": {"username": "bob", "password": "secret"}})
+    )
+    assert response["error"]["code"] == -32010
+
+
+def test_tools_call_create_proposal(monkeypatch):
+    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"id": 1}])
+    monkeypatch.setattr(mcp_server, "_create_proposal_record", lambda *_args, **_kwargs: 77)
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=6,
+            params={
+                "name": "create_proposal",
+                "arguments": {"title": "New printer", "amount": 150, "created_by": 1},
+            },
+        )
+    )
+    payload = json.loads(response["result"]["content"][0]["text"])
+    assert payload["success"] is True
+    assert payload["proposal_id"] == 77
+
+
+def test_tools_call_create_proposal_rejects_missing_creator(monkeypatch):
+    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [])
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=61,
+            params={"name": "create_proposal", "arguments": {"title": "New printer", "amount": 150, "created_by": 1}},
+        )
+    )
+    assert response["error"]["code"] == -32004
+
+
+def test_tools_call_create_proposal_rejects_non_positive_amount(monkeypatch):
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=62,
+            params={"name": "create_proposal", "arguments": {"title": "New printer", "amount": 0, "created_by": 1}},
+        )
+    )
+    assert response["error"]["code"] == -32602
+
+
+def test_tools_call_create_poll(monkeypatch):
+    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"id": 1}])
+    monkeypatch.setattr(mcp_server, "_db_execute", lambda *_args, **_kwargs: 13)
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=7,
+            params={
+                "name": "create_poll",
+                "arguments": {"question": "Where meet?", "options": ["A", "B"], "created_by": 1},
+            },
+        )
+    )
+    payload = json.loads(response["result"]["content"][0]["text"])
+    assert payload["success"] is True
+    assert payload["poll_id"] == 13
+
+
+def test_tools_call_create_poll_rejects_short_question(monkeypatch):
+    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"id": 1}])
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=8,
+            params={"name": "create_poll", "arguments": {"question": "Hey", "options": ["A", "B"], "created_by": 1}},
+        )
+    )
+    assert response["error"]["code"] == -32602
+
+
+def test_tools_call_create_poll_rejects_too_long_option(monkeypatch):
+    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"id": 1}])
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=9,
+            params={
+                "name": "create_poll",
+                "arguments": {"question": "Where should we meet?", "options": ["A" * 121, "B"], "created_by": 1},
+            },
+        )
+    )
+    assert response["error"]["code"] == -32602
+
+
+def test_tools_call_create_poll_rejects_too_many_options(monkeypatch):
+    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"id": 1}])
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=91,
+            params={
+                "name": "create_poll",
+                "arguments": {
+                    "question": "Where should we meet?",
+                    "options": [str(i) for i in range(13)],
+                    "created_by": 1,
+                },
+            },
+        )
+    )
+    assert response["error"]["code"] == -32602
+
+
+def test_tools_call_create_poll_rejects_missing_creator(monkeypatch):
+    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [])
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=10,
+            params={
+                "name": "create_poll",
+                "arguments": {"question": "Where should we meet?", "options": ["A", "B"], "created_by": 99},
+            },
+        )
+    )
+    assert response["error"]["code"] == -32004
+
+
+def test_mcp_create_tools_error_code_contract(monkeypatch):
+    # validation class: invalid params
+    invalid_member = mcp_server.handle_request(
+        _req("tools/call", req_id=71, params={"name": "create_member", "arguments": {"username": "", "password": ""}})
+    )
+    assert invalid_member["error"]["code"] == -32602
+
+    # conflict class: duplicate member username
+    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"id": 1}])
+    duplicate_member = mcp_server.handle_request(
+        _req("tools/call", req_id=72, params={"name": "create_member", "arguments": {"username": "alice", "password": "x"}})
+    )
+    assert duplicate_member["error"]["code"] == -32010
+
+    # not-found class: missing creator member for create_proposal
+    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [])
+    missing_creator = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=73,
+            params={"name": "create_proposal", "arguments": {"title": "X", "amount": 12, "created_by": 999}},
+        )
+    )
+    assert missing_creator["error"]["code"] == -32004
 
 
 def test_http_mcp_endpoint_works():
