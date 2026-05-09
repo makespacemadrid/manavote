@@ -4,7 +4,7 @@ import hashlib
 import secrets
 import hmac
 import logging
-from datetime import datetime, date, timedelta
+from datetime import datetime, date, timedelta, timezone
 from zoneinfo import ZoneInfo
 try:
     from dotenv import load_dotenv
@@ -38,6 +38,7 @@ from app.repositories.vote_repo import VoteRepository
 from app.services.auth_service import verify_and_migrate_password
 from app.services.budget_service import calculate_min_backers
 from app.services.proposal_service import ProposalService
+from app.web.routes.helpers.admin_audit_helpers import log_admin_backup_event
 from app.services.proposal_vote_service import can_record_proposal_vote_source, normalize_proposal_vote_mode
 from app.services.settings_service import get_enum_setting
 from app.web.app_setup import app, BASE_DIR, is_production
@@ -1561,13 +1562,13 @@ def admin():
                 flash(f"Password changed successfully!", "success")
 
         elif action == "update_timezone":
-            timezone = request.form.get("timezone", "Europe/Madrid")
+            selected_timezone = request.form.get("timezone", "Europe/Madrid")
             c.execute(
                 "INSERT OR REPLACE INTO settings (key, value) VALUES ('timezone', ?)",
-                (timezone,),
+                (selected_timezone,),
             )
             conn.commit()
-            flash(f"Timezone updated to {timezone}!", "success")
+            flash(f"Timezone updated to {selected_timezone}!", "success")
 
         elif action == "update_poll_vote_mode":
             poll_vote_mode = request.form.get("poll_vote_mode", "both")
@@ -1684,22 +1685,58 @@ def admin():
                 from app.services.backup_service import backup_db
 
                 backup_name, pruned_count = backup_db(DB_PATH, keep_days=7)
+                log_admin_backup_event(
+                    app.logger,
+                    event="admin_backup_created",
+                    actor_id=session.get("member_id"),
+                    backup_type="db",
+                    file_name=backup_name,
+                    status="ok",
+                    pruned_count=pruned_count,
+                )
                 flash(
                     f"Backup created: {backup_name} (pruned {pruned_count} old backup(s))",
                     "success",
                 )
             except Exception as exc:
+                log_admin_backup_event(
+                    app.logger,
+                    event="admin_backup_failed",
+                    actor_id=session.get("member_id"),
+                    backup_type="db",
+                    reason_code="backup_exception",
+                    status="failed",
+                    error=str(exc),
+                )
                 flash(f"Backup failed: {exc}", "error")
         elif action == "backup_images":
             try:
                 from app.services.backup_service import backup_uploads
 
                 backup_name, pruned_count = backup_uploads(app.config["UPLOAD_FOLDER"], keep_days=7)
+                log_admin_backup_event(
+                    app.logger,
+                    event="admin_backup_created",
+                    actor_id=session.get("member_id"),
+                    backup_type="images",
+                    file_name=backup_name,
+                    status="ok",
+                    pruned_count=pruned_count,
+                )
                 flash(
                     f"Image backup created: {backup_name} (pruned {pruned_count} old backup(s))",
                     "success",
                 )
             except Exception as exc:
+                log_admin_backup_event(
+                    app.logger,
+                    event="admin_backup_failed",
+                    actor_id=session.get("member_id"),
+                    backup_type="images",
+                    reason_code="backup_exception",
+                    status="failed",
+                    error=str(exc),
+                )
                 flash(f"Image backup failed: {exc}", "error")
 
     c.execute("SELECT * FROM members ORDER BY created_at")
@@ -1868,6 +1905,10 @@ def admin():
     tz_row = c.fetchone()
     current_timezone = tz_row["value"] if tz_row else "Europe/Madrid"
 
+    requested_tab = request.values.get("tab", "all")
+    allowed_tabs = {"all", "members", "budget", "polls", "settings"}
+    active_admin_tab = requested_tab if requested_tab in allowed_tabs else "all"
+
     conn.close()
 
     return render_template(
@@ -1886,6 +1927,7 @@ def admin():
         backups=backups,
         image_backups=image_backups,
         polls=polls,
+        active_admin_tab=active_admin_tab,
     )
 
 

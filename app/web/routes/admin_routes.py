@@ -1,14 +1,34 @@
 import os
 
-from flask import Blueprint, flash, redirect, send_file, url_for
+from flask import Blueprint, flash, redirect, request, send_file, session, url_for
 
 from app.extensions import limiter
+from app.web.routes.helpers.admin_audit_helpers import log_admin_backup_event
 
 from app.web.decorators import login_required
 from app.web.routes import main_routes as legacy
 from werkzeug.utils import secure_filename
 
 admin_bp = Blueprint("admin", __name__)
+
+
+def _admin_redirect_with_tab():
+    tab = request.values.get("tab", "all")
+    allowed_tabs = {"all", "members", "budget", "polls", "settings"}
+    safe_tab = tab if tab in allowed_tabs else "all"
+    return redirect(url_for("admin.admin", tab=safe_tab))
+
+
+def _log_backup_download_rejected(reason_code, backup_type, filename):
+    log_admin_backup_event(
+        legacy.app.logger,
+        event="admin_backup_download_rejected",
+        actor_id=session.get("member_id"),
+        backup_type=backup_type,
+        file_name=filename,
+        reason_code=reason_code,
+        status="rejected",
+    )
 
 
 @admin_bp.route("/admin", methods=["GET", "POST"], endpoint="admin")
@@ -32,8 +52,9 @@ def download_backup_file(backup_type, filename):
 
     safe_name = secure_filename(filename or "")
     if safe_name != filename:
+        _log_backup_download_rejected("invalid_filename", backup_type, filename)
         flash("Invalid backup filename", "error")
-        return redirect(url_for("admin.admin"))
+        return _admin_redirect_with_tab()
 
     if backup_type == "db":
         expected_prefix = f"{os.path.basename(legacy.DB_PATH).replace('.db', '')}_"
@@ -41,16 +62,30 @@ def download_backup_file(backup_type, filename):
     elif backup_type == "images":
         valid = safe_name.startswith("uploads_") and safe_name.endswith(".zip")
     else:
+        _log_backup_download_rejected("invalid_backup_type", backup_type, safe_name)
         flash("Invalid backup type", "error")
-        return redirect(url_for("admin.admin"))
+        return _admin_redirect_with_tab()
 
     if not valid:
+        _log_backup_download_rejected("invalid_backup_file", backup_type, safe_name)
         flash("Invalid backup file", "error")
-        return redirect(url_for("admin.admin"))
+        return _admin_redirect_with_tab()
 
     filepath = os.path.join(BACKUP_ROOT, safe_name)
     if not os.path.isfile(filepath):
+        _log_backup_download_rejected("backup_not_found", backup_type, safe_name)
         flash("Backup file not found", "error")
-        return redirect(url_for("admin.admin"))
+        return _admin_redirect_with_tab()
+
+    actor_id = session.get("member_id")
+    log_admin_backup_event(
+        legacy.app.logger,
+        event="admin_backup_download",
+        actor_id=actor_id,
+        backup_type=backup_type,
+        file_name=safe_name,
+        status="ok",
+        file_size_bytes=os.path.getsize(filepath),
+    )
 
     return send_file(filepath, as_attachment=True, download_name=safe_name)

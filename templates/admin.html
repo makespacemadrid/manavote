@@ -7,11 +7,11 @@
 <h2>{{ 'Admin'|lang }}</h2>
 
 <div class="admin-toolbar">
-    <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('members', this)">{{ 'Members'|lang }}</button>
-    <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('budget', this)">{{ 'Budget'|lang }}</button>
-    <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('polls', this)">{{ 'Polls'|lang }}</button>
-    <button type="button" class="btn btn-secondary admin-tab-btn" onclick="showSection('settings', this)">{{ 'Settings'|lang }}</button>
-    <button type="button" class="btn admin-tab-btn active" onclick="showSection('', this)">{{ 'Show All'|lang }}</button>
+    <button type="button" class="btn btn-secondary admin-tab-btn" data-section="members" onclick="showSection('members', this)">{{ 'Members'|lang }}</button>
+    <button type="button" class="btn btn-secondary admin-tab-btn" data-section="budget" onclick="showSection('budget', this)">{{ 'Budget'|lang }}</button>
+    <button type="button" class="btn btn-secondary admin-tab-btn" data-section="polls" onclick="showSection('polls', this)">{{ 'Polls'|lang }}</button>
+    <button type="button" class="btn btn-secondary admin-tab-btn" data-section="settings" onclick="showSection('settings', this)">{{ 'Settings'|lang }}</button>
+    <button type="button" class="btn admin-tab-btn active" data-section="all" onclick="showSection('', this)">{{ 'Show All'|lang }}</button>
 </div>
 
 <style>
@@ -82,6 +82,11 @@
 </style>
 
 <script>
+function getActiveSection() {
+    var activeBtn = document.querySelector('.admin-tab-btn.active');
+    return activeBtn ? (activeBtn.dataset.section || 'all') : 'all';
+}
+
 function showSection(sectionId, buttonEl) {
     var sections = {
         members: ['add-member', 'registration-settings', 'members', 'stats', 'poll-stats'],
@@ -93,6 +98,11 @@ function showSection(sectionId, buttonEl) {
     document.querySelectorAll('.admin-tab-btn').forEach(function(btn) { btn.classList.remove('active'); });
     if (buttonEl) buttonEl.classList.add('active');
 
+
+    if (window.sessionStorage) {
+        sessionStorage.setItem('adminActiveTab', sectionId || 'all');
+    }
+
     var selectedIds = sectionId ? (sections[sectionId] || []) : null;
     document.querySelectorAll('.card').forEach(function(el) {
         if (!selectedIds) {
@@ -102,6 +112,31 @@ function showSection(sectionId, buttonEl) {
         el.style.display = selectedIds.includes(el.id) ? 'block' : 'none';
     });
 }
+
+document.addEventListener('DOMContentLoaded', function() {
+    var serverTab = {{ (active_admin_tab or 'all')|tojson }};
+    var urlTab = new URLSearchParams(window.location.search).get('tab');
+    var savedTab = urlTab || (serverTab !== 'all' ? serverTab : null) || (window.sessionStorage ? sessionStorage.getItem('adminActiveTab') : null);
+    if (savedTab && savedTab !== 'all') {
+        var tabBtn = document.querySelector('.admin-tab-btn[data-section="' + savedTab + '"]');
+        showSection(savedTab, tabBtn || null);
+    }
+
+    document.querySelectorAll('.admin-page form[method="POST"]').forEach(function(formEl) {
+        formEl.addEventListener('submit', function() {
+            var current = getActiveSection();
+            var hidden = formEl.querySelector('input[name="tab"]');
+            if (!hidden) {
+                hidden = document.createElement('input');
+                hidden.type = 'hidden';
+                hidden.name = 'tab';
+                formEl.appendChild(hidden);
+            }
+            hidden.value = current;
+        });
+    });
+});
+
 </script>
 
 <div id="registration-settings" class="card">

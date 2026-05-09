@@ -2,129 +2,104 @@
 
 Last updated: 2026-05-09
 
-This document contains execution planning, sprint scope, in-flight tracking, and completion status.
+This document tracks implementation sequencing, active sprint scope, and completion status.
+Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
 
 ## How to use this document
 
-- Keep this file focused on implementation sequencing, completion logs, and remaining execution tasks.
-- Record only actionable progress entries here (do not duplicate backlog/spec prose from `IDEAS.md`).
-- When sprint scope changes, update:
-  1. the sprint scope section,
-  2. progress log entries,
-  3. remaining-work checklist.
+- Keep content execution-oriented (scope, status, sequencing, blockers, and exit criteria).
+- Log concrete shipped increments in the sprint progress section.
+- When priorities shift, update sprint goal, checklist, and exit criteria together.
+
+---
 
 ## Current implementation focus (Q2 2026)
 
-- Complete MCP parity with REST for admin automation (read + create + validation parity).
-- Stabilize docs so README remains concise and `docs/*` are the authoritative detail source.
-- Finish `main_routes.py` decomposition with measurable completion criteria and cleanup milestones.
+1. Complete remaining route decomposition and reduce `main_routes.py` to a minimal compatibility layer.
+2. Harden API/MCP contract parity for validation and error-shape consistency.
+3. Improve admin/operator reliability paths (backups, Telegram identity lifecycle, policy observability).
+4. Keep docs synchronized so `README.md` stays concise and `docs/*` remain canonical.
 
-## 7) Sprint Plan Continuation
+---
 
-### Sprint 1 (Completed)
-1. **Route decomposition kickoff**
-   - Status: **In progress**
-   - Extracted startup and configuration concerns into dedicated modules; route-layer split remains the primary carry-over.
-2. **Startup orchestration baseline**
-   - Status: **Completed (baseline)**
-   - Deterministic startup checks and production policy tests are in place; next increment is structured startup reporting.
-3. **API consistency baseline**
-   - Status: **In progress**
-   - Core API hardening has begun, but standardized error envelopes and contract coverage are not yet uniform.
-
-### Sprint 2 (Completed)
-
-1. **Finish first blueprint extraction slice (auth + proposals)**
-   - Move handlers and helper code out of `main_routes.py`.
-   - Keep backward-compatible endpoint behavior and template rendering.
-   - Add focused tests per extracted module.
-
-2. **Introduce startup summary event with reason codes**
-   - Emit one structured startup log summary containing:
-     - startup mode (`dev`/`test`/`production`)
-     - readiness status (`ready`/`degraded`/`failed`)
-     - degraded reason codes (if any)
-   - Ensure degraded vs fatal paths are explicitly test-covered.
-
-3. **Standardize error envelope on top-priority API endpoints**
-   - Apply common `{"error": {"code", "message"}}` response shape to:
-     - `POST /api/register`
-     - `POST /api/proposals`
-     - `GET /api/proposals/<proposal_id>`
-   - Add contract tests that assert both status code and envelope structure.
-
-### Sprint 2 Progress Log
-- ✅ First safe slice started: introduced blueprint modules (`auth_routes.py`, `api_routes.py`, `proposal_routes.py`, `poll_routes.py`, `admin_routes.py`) and centralized blueprint registration in `app/web/routes/__init__.py`.
-- ✅ Migrated **auth + api route registration** off direct `@app.route` decorators in `main_routes.py` and into dedicated blueprint modules while preserving existing handler logic.
-- ✅ Second safe slice started: proposal/poll/admin route registration moved into dedicated blueprints (`proposal_routes.py`, `poll_routes.py`, `admin_routes.py`).
-- ✅ Auth handler implementations moved out of `main_routes.py` into `auth_routes.py` (no longer just delegation wrappers).
-- ✅ API handler implementations moved from `main_routes.py` into `api_routes.py` with local request/auth/validation helpers.
-- ✅ Added regression guard for legacy endpoint aliases so `url_for(...)` compatibility remains protected during route extraction.
-- ✅ Blueprint registration made idempotent to prevent duplicate-registration failures when `create_app()` is invoked multiple times in tests/runtime utilities.
-- ✅ Extracted shared API request/auth/validation helpers into `app/web/routes/helpers/api_helpers.py` and rewired `api_routes.py` to consume them.
-- ✅ Added helper-focused tests for shared API route helpers to lock in request/auth/validation behavior during extraction.
-- ✅ Added startup summary event logging (`mode`, `status`, `degraded_reasons`) plus regression tests for ready/degraded outcomes.
-- ✅ Standardized API error envelope (`{"error": {"code", "message"}}`) for `POST /api/register`, `POST /api/proposals`, and `GET /api/proposals/<proposal_id>` with contract tests.
-- ✅ Added regression coverage for new admin operations: Telegram unlink action and backup download endpoint validation/serving behavior.
-- ✅ Added reusable Telegram link-status template partial to reduce duplicated UI markup across member touch points.
-- ✅ Upgraded admin backup UX from flat lists to structured tables (type/file/size/created/action) to improve operator scanability.
-- ✅ Extracted shared route helpers (timezone/datetime, username normalization, image type detection) into `app/web/routes/helpers/main_helpers.py` and removed duplicated compatibility helper code from `main_routes.py`.
-- ✅ Added helper-focused regression tests for `main_helpers` to lock formatting and file-type detection behavior during ongoing route decomposition.
-- ✅ Migrated `/polls` handler implementation out of `main_routes.py` into `poll_routes.py` (no longer delegation-only wrapper).
-- ✅ Migrated `/check-overbudget` handler implementation out of `main_routes.py` into `admin_routes.py` (compatibility shim retained).
-- ✅ Migrated `/telegram-settings` handler implementation out of `main_routes.py` into `auth_routes.py` (compatibility shim retained).
-- ✅ Migrated `/admin/backups/<backup_type>/<filename>` download handler out of `main_routes.py` into `admin_routes.py` (compatibility shim retained).
-- ✅ Migrated `/settings` handler implementation out of `main_routes.py` into `auth_routes.py` (compatibility shim retained).
-- ✅ Migrated `/register` handler implementation out of `main_routes.py` into `auth_routes.py` (compatibility shim retained).
-- ✅ Migrated `/` landing handler implementation out of `main_routes.py` into `auth_routes.py` (compatibility shim retained).
-- ✅ Migrated `/healthz` handler implementation out of `main_routes.py` into `auth_routes.py` (compatibility shim retained).
-- ✅ Migrated `/about` handler implementation out of `main_routes.py` into `proposal_routes.py` (compatibility shim retained).
-- ✅ Migrated `/calendar` handler implementation out of `main_routes.py` into `proposal_routes.py` (compatibility shim retained).
-- ✅ Expanded blueprint endpoint-alias regression tests to cover newly migrated root/health/about/calendar/settings/register endpoints.
-
-### Sprint 2 Exit Criteria (Status)
-- `main_routes.py` net line count reduced meaningfully with no feature regressions.
-- Startup emits a single machine-readable summary event on every boot.
-- Target API endpoints return uniform error envelopes under all tested failure paths.
- - **Status:** ✅ Completed.
-
-This scope remains intentionally narrow to preserve delivery focus while unblocking WS-A/WS-B/WS-C in parallel.
-
-## Sprint 3 (In Progress) — MCP + Docs Consolidation
+## Sprint 3 (Completed) — MCP + Docs Consolidation
 
 ### Goals
-1. Ensure MCP tools cover key admin automation flows, including POST-like create actions.
-2. Align MCP validation with REST/business rules where behavior should match.
-3. Keep authoritative documentation synchronized across `APIDOC`, `SPEC`, `TESTING`, and the docs index.
+1. Expand MCP automation coverage with create operations.
+2. Increase MCP negative-path and contract validation coverage.
+3. Consolidate docs structure and clarify MCP/API behavior references.
+
+### Delivered
+- ✅ Added MCP create tools for member/proposal/poll flows.
+- ✅ Added happy-path and negative-path MCP tests across create operations.
+- ✅ Added/expanded docs index and testing documentation (`docs/INDEX.md`, `docs/TESTING.md`).
+- ✅ Expanded APIDOC/SPEC MCP sections including error-code conventions and request examples.
+- ✅ Added MCP tool discovery regression coverage to prevent missing create tool advertisement.
+
+### Exit Criteria
+- MCP create tools fully tested across success and key failures.
+- APIDOC and SPEC aligned on MCP tool surface and constraints.
+- Documentation structure supports concise README linking.
+
+**Status:** ✅ Completed.
+
+---
+
+## Sprint 4 (In Progress) — Route Finalization + Admin Reliability
+
+### Goals
+1. Finish extraction of remaining route logic from `main_routes.py`.
+2. Strengthen operator-facing admin reliability and UX continuity.
+3. Maintain strict parity expectations between REST and MCP validation behavior.
 
 ### Delivered so far
-- ✅ Added MCP create tools: `create_member`, `create_proposal`, `create_poll`.
-- ✅ Added MCP tests for create flows and key validation rejection paths.
-- ✅ Added `docs/INDEX.md` and split testing guidance into `docs/TESTING.md`.
-- ✅ Expanded `SPEC.md` with explicit MCP tool surface and codebase map.
-- ✅ Documented MCP error-code conventions in APIDOC and added explicit MCP create-request example payload.
-- ✅ Added additional MCP negative-path tests (duplicate username, missing creator, invalid poll option length).
-- ✅ Added explicit MCP error-code contract regression test covering validation (`-32602`), conflict (`-32010`), and not-found (`-32004`) classes.
-- ✅ Added API/MCP sprint changelog snippet to APIDOC for recent behavior/documentation updates.
-- ✅ Expanded MCP negative-path checks across create tools (including proposal non-positive amount and poll missing-creator not-found path).
-- ✅ Added MCP tool-discovery regression coverage to ensure create tools remain advertised via `tools/list`.
+- ✅ Migrated additional handlers from `main_routes.py` into blueprint modules while preserving compatibility shims.
+- ✅ Expanded endpoint alias regression tests to protect `url_for(...)` compatibility during migration.
+- ✅ Added admin Telegram unlink support and regression coverage.
+- ✅ Added backup download endpoint validation/serving improvements and admin UI table presentation updates.
+- ✅ Added admin tab persistence behavior so section context survives postback/reload.
+- ✅ Added backup download audit events for both success and rejection paths, including timestamp and reason-code metadata.
+- ✅ Preserved admin tab context on backup-download redirect error paths via `tab` query propagation.
+- ✅ Added backup lifecycle audit events for admin-triggered backup creation and failure paths (`admin_backup_created`, `admin_backup_failed`).
+- ✅ Added regression coverage for backup lifecycle audit events across both DB and image backup success/failure paths.
+- ✅ Reframed `docs/IDEAS.md` to forward-looking roadmap content only.
 
 ### Remaining work (execution checklist)
-1. **MCP parity hardening**
-   - Add remaining parity checks where REST and MCP should enforce the same limits/messages.
+1. **Route decomposition closure**
+   - Move any remaining substantial handler logic out of `main_routes.py`.
+   - Keep shim layer intentionally thin and measurable.
 
-2. **Contract consistency**
-   - Expand error-code contract tests across more MCP tools as new tool classes are added.
+2. **Admin reliability observability**
+   - Expand backup-audit coverage from download events to lifecycle events (`created`, `pruned`, `failed`) with reason codes.
+   - Add Telegram link lifecycle metadata exposure and operational diagnostics.
 
-3. **Docs quality pass**
-   - Keep sprint changelog snippet in APIDOC updated when MCP/REST contracts change.
+3. **REST/MCP contract parity pass**
+   - Add additional parity tests for shared business-rule boundaries.
+   - Verify consistent machine-readable error semantics across interfaces.
 
-### Exit criteria
-- MCP create tools have both happy-path and key negative-path coverage.
-- APIDOC and SPEC reflect the same MCP tool set and argument constraints.
-- README remains concise and links only to canonical docs for deep detail.
+4. **Docs synchronization pass**
+   - Keep `APIDOC.md`, `SPEC.md`, `TESTING.md`, and sprint notes aligned for any contract or workflow change.
 
-## Proposed Sprint 4 Scope (Preview)
-- Remove transitional endpoint aliases once templates and callers fully use blueprint-native endpoint names.
-- Finalize service/repository boundaries for remaining admin/proposal write paths.
-- Add broader API contract matrix tests (happy path + key rejection paths) for core REST endpoints.
+### Exit Criteria
+- `main_routes.py` is reduced to compatibility routing with minimal orchestration logic.
+- Admin reliability operations are observable through logs/events without ad-hoc DB inspection.
+- REST and MCP validation/error contracts are consistent for high-value endpoints/tools.
+- Docs remain synchronized with implementation behavior.
+
+**Status:** 🟡 In Progress.
+
+---
+
+## Sprint 5 (Planned) — Contract Matrix + Service Boundary Completion
+
+### Planned scope
+1. Finalize service/repository boundaries for remaining admin/proposal write operations.
+2. Expand API contract matrix tests (success + rejection paths) for core REST endpoints.
+3. Remove transitional endpoint aliases once all callers/templates are blueprint-native.
+
+### Planned exit criteria
+- Write paths route through service entry points with clear repository ownership.
+- Contract tests enforce stable API behaviors for core endpoints.
+- Alias cleanup completes without endpoint regressions.
+
+**Status:** ⚪ Planned.
