@@ -64,3 +64,27 @@ Covers MCP auth, tool discovery, create-tool happy paths, and key negative-path 
 - validation failures (`-32602`)
 - conflict class (`-32010`)
 - not-found class (`-32004`)
+
+## Voting settings REST/MCP parity checks
+
+```bash
+pytest -q tests/test_voting_settings_parity.py
+```
+
+Covers contract-alignment scenarios for `PATCH /api/settings/voting` and MCP `update_voting_settings`:
+- invalid `poll_vote_mode` rejection
+- invalid `proposal_vote_mode` rejection
+- invalid `telegram_require_linked_vote` rejection
+- “no relevant changes provided” rejection
+- successful update response-shape parity for shared setting keys
+
+## Telegram webhook vote-response checks
+
+```bash
+pytest -q tests/unit/test_telegram_webhook_helpers.py
+```
+
+Covers Telegram vote command/callback helper behavior:
+- linked-account guidance text for `link_required` failures
+- shared callback/poll message mappings for common vote rejection reasons
+- callback fallback text for unknown reasons

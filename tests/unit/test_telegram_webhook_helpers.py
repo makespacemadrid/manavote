@@ -51,6 +51,14 @@ def test_callback_vote_response_text_handles_disabled_reason():
     assert callback_vote_response_text(True, "ok") == "✅ Your vote has been recorded."
 
 
+def test_callback_vote_response_text_handles_link_required_reason():
+    assert "must be linked first" in callback_vote_response_text(False, "link_required")
+
+
+def test_callback_vote_response_text_uses_generic_fallback_for_unknown_reason():
+    assert callback_vote_response_text(False, "unexpected_reason") == "❌ Could not record vote."
+
+
 def test_proposal_vote_response_text_handles_known_reasons():
     assert proposal_vote_response_text(False, "proposal_not_found") == "❌ Proposal not found."
     assert proposal_vote_response_text(False, "invalid_format") == "❌ Invalid command. Use: /pvote <proposal_id> <yes|no>"
@@ -74,6 +82,11 @@ def test_classify_message_command_routes_supported_commands():
     assert classify_message_command("/pvote 1 yes") == "proposal_vote"
     assert classify_message_command("/vote 1 2") == "poll_vote"
     assert classify_message_command("hello") == "other"
+
+
+def test_callback_and_poll_vote_share_reason_mappings():
+    assert callback_vote_response_text(False, "unknown_member") == poll_vote_response_text(False, "unknown_member")
+    assert callback_vote_response_text(False, "link_required") == poll_vote_response_text(False, "link_required")
 
 
 def test_dispatch_callback_routes_showvote_with_options():

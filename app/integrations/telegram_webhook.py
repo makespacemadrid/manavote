@@ -40,12 +40,20 @@ def classify_message_command(text: str) -> str:
     return "other"
 
 
+POLL_VOTE_REASON_MESSAGES = {
+    "telegram_disabled": "❌ Telegram voting is disabled by admin.",
+    "unknown_member": "❌ Your Telegram username is not linked to a member account.",
+    "link_required": "❌ Your account must be linked first. Use /link <app_username> <app_password> and try again.",
+    "poll_closed": "❌ Poll is closed.",
+    "poll_not_found": "❌ Poll not found.",
+    "invalid_option": "❌ Invalid option number.",
+}
+
+
 def callback_vote_response_text(success, reason):
     if success:
         return "✅ Your vote has been recorded."
-    if reason == "telegram_disabled":
-        return "❌ Telegram voting is disabled by admin."
-    return "❌ Could not record vote."
+    return POLL_VOTE_REASON_MESSAGES.get(reason, "❌ Could not record vote.")
 
 
 def proposal_vote_response_text(success, reason):
@@ -66,15 +74,7 @@ def proposal_vote_response_text(success, reason):
 def poll_vote_response_text(success, reason):
     if success:
         return "✅ Your vote has been recorded."
-    mapping = {
-        "telegram_disabled": "❌ Telegram voting is disabled by admin.",
-        "unknown_member": "❌ Your Telegram username is not linked to a member account.",
-        "link_required": "❌ Your account must be linked first. Use /link <app_username> <app_password> and try again.",
-        "poll_closed": "❌ Poll is closed.",
-        "poll_not_found": "❌ Poll not found.",
-        "invalid_option": "❌ Invalid option number.",
-    }
-    return mapping.get(reason, "❌ Invalid command. Use: /vote <option_number>")
+    return POLL_VOTE_REASON_MESSAGES.get(reason, "❌ Invalid command. Use: /vote <option_number>")
 
 
 def link_response_text(success, reason):
