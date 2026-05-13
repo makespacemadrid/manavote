@@ -79,6 +79,52 @@ def test_voting_settings_invalid_linked_flag_rejected_by_rest_and_mcp():
     assert mcp["error"]["code"] == -32602
 
 
+def test_voting_settings_invalid_proposal_mode_rejected_by_rest_and_mcp():
+    budget_app.app.config["TESTING"] = True
+    client = budget_app.app.test_client()
+
+    from app.web.routes import main_routes
+
+    old_key = _with_admin_api_key()
+    try:
+        rest = client.patch(
+            "/api/settings/voting",
+            headers={"X-Admin-Key": "test-key"},
+            json={"proposal_vote_mode": "invalid_mode"},
+        )
+    finally:
+        main_routes.ADMIN_API_KEY = old_key
+
+    mcp = mcp_server.handle_request(_mcp_req("update_voting_settings", {"proposal_vote_mode": "invalid_mode"}, req_id=31))
+
+    assert rest.status_code == 400
+    assert rest.get_json()["error"]["code"] == "invalid_proposal_vote_mode"
+    assert mcp["error"]["code"] == -32602
+
+
+def test_voting_settings_missing_fields_rejected_by_rest_and_mcp():
+    budget_app.app.config["TESTING"] = True
+    client = budget_app.app.test_client()
+
+    from app.web.routes import main_routes
+
+    old_key = _with_admin_api_key()
+    try:
+        rest = client.patch(
+            "/api/settings/voting",
+            headers={"X-Admin-Key": "test-key"},
+            json={"unrelated": True},
+        )
+    finally:
+        main_routes.ADMIN_API_KEY = old_key
+
+    mcp = mcp_server.handle_request(_mcp_req("update_voting_settings", {}, req_id=32))
+
+    assert rest.status_code == 400
+    assert rest.get_json()["error"]["code"] == "no_changes_provided"
+    assert mcp["error"]["code"] == -32602
+
+
 def test_voting_settings_success_shape_matches_between_rest_and_mcp():
     budget_app.app.config["TESTING"] = True
     client = budget_app.app.test_client()
