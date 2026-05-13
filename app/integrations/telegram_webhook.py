@@ -54,6 +54,7 @@ def proposal_vote_response_text(success, reason):
     mapping = {
         "telegram_disabled": "❌ Telegram proposal voting is disabled by admin.",
         "unknown_member": "❌ Your Telegram username is not linked to a member account.",
+        "link_required": "❌ Your account must be linked first. Use /link <app_username> <app_password> and try again.",
         "proposal_closed": "❌ Proposal is no longer active.",
         "proposal_not_found": "❌ Proposal not found.",
         "invalid_vote": "❌ Invalid vote. Use: yes|no",
@@ -68,6 +69,7 @@ def poll_vote_response_text(success, reason):
     mapping = {
         "telegram_disabled": "❌ Telegram voting is disabled by admin.",
         "unknown_member": "❌ Your Telegram username is not linked to a member account.",
+        "link_required": "❌ Your account must be linked first. Use /link <app_username> <app_password> and try again.",
         "poll_closed": "❌ Poll is closed.",
         "poll_not_found": "❌ Poll not found.",
         "invalid_option": "❌ Invalid option number.",

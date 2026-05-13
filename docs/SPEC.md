@@ -223,6 +223,7 @@ Committed series behavior:
 - Webhook security requires `TELEGRAM_WEBHOOK_SECRET` to match `<secret>`.
 - Vote-to-member mapping prefers `members.telegram_user_id`, then falls back to username matching against `members.username` and `members.telegram_username` (`username` or `@username`, case-insensitive).
 - If no linked member is found but Telegram provides numeric user id, vote is stored under a deterministic negative `member_id` placeholder (`-telegram_user_id`) so one Telegram user still maps to one vote.
+- Optional strict mode: when `telegram_require_linked_vote=true`, Telegram votes require a linked account match and unlinked users are instructed to run `/link <app_username> <app_password>`.
 - Telegram client calls are considered successful only when HTTP status is `200` and Telegram API responds with `"ok": true` (when JSON is returned).
 
 ### Admin web actions
@@ -239,6 +240,8 @@ Committed series behavior:
 - `GET /api/polls`
 - `POST /api/polls`
 - `GET /api/members/telegram` (supports `include_unlinked`, `limit`, `offset`)
+- `GET /api/settings/voting`
+- `PUT|PATCH /api/settings/voting`
 
 ### MCP JSON-RPC tools (`/mcp`)
 - Read/list tools:
@@ -306,6 +309,7 @@ Coverage notes:
 ## 13) Proposal vote channels (Web / Telegram / Both)
 
 - Config key: `proposal_vote_mode` with allowed values: `both`, `web_only`, `telegram_only` (default `both`).
+- Config key: `telegram_require_linked_vote` with allowed values: `true`, `false` (default `false`).
 - Web proposal votes are accepted only when mode allows Web (`both` or `web_only`).
 - Telegram proposal votes are accepted only when mode allows Telegram (`both` or `telegram_only`).
 - Telegram voting paths supported:

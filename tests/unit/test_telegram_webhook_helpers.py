@@ -54,11 +54,13 @@ def test_callback_vote_response_text_handles_disabled_reason():
 def test_proposal_vote_response_text_handles_known_reasons():
     assert proposal_vote_response_text(False, "proposal_not_found") == "❌ Proposal not found."
     assert proposal_vote_response_text(False, "invalid_format") == "❌ Invalid command. Use: /pvote <proposal_id> <yes|no>"
+    assert "must be linked first" in proposal_vote_response_text(False, "link_required")
 
 
 def test_poll_vote_response_text_handles_invalid_option():
     assert poll_vote_response_text(False, "invalid_option") == "❌ Invalid option number."
     assert poll_vote_response_text(True, "ok") == "✅ Your vote has been recorded."
+    assert "must be linked first" in poll_vote_response_text(False, "link_required")
 
 
 def test_link_response_text_handles_known_reasons():

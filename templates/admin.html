@@ -454,6 +454,7 @@ document.addEventListener('DOMContentLoaded', function() {
     <p style="color: #888; margin-bottom: 15px;">{{ 'Other settings'|lang }}</p>
     {% set current_poll_mode = get_setting_value('poll_vote_mode', 'both') %}
     {% set current_proposal_mode = get_setting_value('proposal_vote_mode', 'both') %}
+    {% set current_require_linked_telegram_vote = get_setting_value('telegram_require_linked_vote', 'false') %}
     <div style="margin-bottom: 14px; padding: 12px; border: 1px solid #0f3460; border-radius: 8px; background: rgba(15,52,96,0.15);">
         <h4 style="margin: 0 0 8px 0;">Effective vote policy</h4>
         <ul style="margin: 0 0 0 18px; color: #cbd5e1; font-size: 0.92em;">
@@ -503,6 +504,17 @@ document.addEventListener('DOMContentLoaded', function() {
                 <option value="telegram_only" {{ 'selected' if current_proposal_mode == 'telegram_only' else '' }}>Telegram only</option>
             </select>
             <button type="submit" class="btn">Update proposal vote mode</button>
+        </form>
+        <form method="POST" class="settings-panel">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="update_telegram_linked_vote_requirement">
+            <h4>Telegram linked-account votes</h4>
+            <p>Require Telegram accounts to be linked before /vote or /pvote is accepted.</p>
+            <label style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
+                <input type="checkbox" name="telegram_require_linked_vote" {{ 'checked' if current_require_linked_telegram_vote == 'true' else '' }}>
+                <span>Require linked Telegram account for Telegram votes</span>
+            </label>
+            <button type="submit" class="btn">Update linked-account requirement</button>
         </form>
     </div>
 </div>

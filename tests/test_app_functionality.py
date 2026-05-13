@@ -847,6 +847,11 @@ class TestPollTelegramActions(unittest.TestCase):
         )
         self.client.post(
             "/admin",
+            data={"action": "update_telegram_linked_vote_requirement", "csrf_token": ""},
+            follow_redirects=True,
+        )
+        self.client.post(
+            "/admin",
             data={
                 "action": "create_poll",
                 "question": "Where should we meet?",
@@ -879,6 +884,25 @@ class TestPollTelegramActions(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(mock_send.called)
         self.assertIn("Poll sent to Telegram!", response.data.decode("utf-8"))
+
+    def test_admin_can_enable_linked_telegram_vote_requirement(self):
+        response = self.client.post(
+            "/admin",
+            data={
+                "action": "update_telegram_linked_vote_requirement",
+                "telegram_require_linked_vote": "on",
+                "csrf_token": "",
+            },
+            follow_redirects=True,
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Telegram linked-account vote requirement updated", response.data.decode("utf-8"))
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT value FROM settings WHERE key = 'telegram_require_linked_vote'")
+        value = c.fetchone()["value"]
+        conn.close()
+        self.assertEqual(value, "true")
 
     def test_send_poll_telegram_test_requires_admin_id(self):
         poll_id = self._latest_poll_id()
@@ -1330,6 +1354,12 @@ class TestPollTelegramActions(unittest.TestCase):
 
     def test_telegram_webhook_unknown_member_with_user_id_records_vote_as_unlinked(self):
         poll_id = self._latest_poll_id()
+        conn = budget_app.get_db()
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('telegram_require_linked_vote', 'false')"
+        )
+        conn.commit()
+        conn.close()
         from app.web.routes import main_routes
         old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
         main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
@@ -1355,6 +1385,72 @@ class TestPollTelegramActions(unittest.TestCase):
         self.assertIsNotNone(row)
         self.assertEqual(row["member_id"], -999001)
         self.assertEqual(row["option_index"], 0)
+
+    def test_telegram_webhook_unknown_member_with_user_id_rejected_when_link_required(self):
+        poll_id = self._latest_poll_id()
+        conn = budget_app.get_db()
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('telegram_require_linked_vote', 'true')"
+        )
+        conn.commit()
+        conn.close()
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={
+                    "message": {
+                        "text": f"/vote {poll_id} 1",
+                        "from": {"username": "not_a_member", "id": 999001},
+                        "chat": {"id": 12345},
+                    }
+                },
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT member_id, option_index FROM poll_votes WHERE poll_id = ?", (poll_id,))
+        row = c.fetchone()
+        conn.close()
+        self.assertIsNone(row)
+
+    def test_telegram_webhook_proposal_vote_rejected_when_link_required(self):
+        proposal_id = self._ensure_active_proposal_for_telegram_vote_tests()
+        conn = budget_app.get_db()
+        conn.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('proposal_vote_mode', 'telegram_only')")
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('telegram_require_linked_vote', 'true')"
+        )
+        conn.commit()
+        conn.close()
+
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            self.client.post(
+                "/telegram/webhook/hook-secret",
+                json={
+                    "message": {
+                        "text": f"/pvote {proposal_id} yes",
+                        "from": {"username": "not_a_member", "id": 888001},
+                        "chat": {"id": 12345},
+                    }
+                },
+            )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT id FROM votes WHERE proposal_id = ?", (proposal_id,))
+        row = c.fetchone()
+        conn.close()
+        self.assertIsNone(row)
 
 
     def test_telegram_webhook_link_command_links_member(self):
@@ -1870,6 +1966,61 @@ class TestApiPolls(unittest.TestCase):
             self.assertTrue(any(p.get("question") == "API poll question" for p in data.get("polls", [])))
         finally:
             main_routes.ADMIN_API_KEY = old
+
+
+class TestApiVotingSettings(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        budget_app.app.config["TESTING"] = True
+        cls.client = budget_app.app.test_client()
+
+    def test_get_voting_settings_requires_api_key(self):
+        response = self.client.get("/api/settings/voting")
+        self.assertIn(response.status_code, (401, 503))
+
+    def test_get_and_update_voting_settings(self):
+        from app.web.routes import main_routes
+
+        old = main_routes.ADMIN_API_KEY
+        main_routes.ADMIN_API_KEY = "test-key"
+        try:
+            get_response = self.client.get("/api/settings/voting", headers={"X-Admin-Key": "test-key"})
+            self.assertEqual(get_response.status_code, 200)
+            self.assertTrue(get_response.get_json()["success"])
+
+            update_response = self.client.patch(
+                "/api/settings/voting",
+                headers={"X-Admin-Key": "test-key"},
+                json={
+                    "poll_vote_mode": "telegram_only",
+                    "proposal_vote_mode": "web_only",
+                    "telegram_require_linked_vote": True,
+                },
+            )
+            self.assertEqual(update_response.status_code, 200)
+            payload = update_response.get_json()
+            self.assertTrue(payload["success"])
+            self.assertEqual(payload["settings"]["poll_vote_mode"], "telegram_only")
+            self.assertEqual(payload["settings"]["proposal_vote_mode"], "web_only")
+            self.assertTrue(payload["settings"]["telegram_require_linked_vote"])
+        finally:
+            main_routes.ADMIN_API_KEY = old
+
+    def test_update_voting_settings_rejects_invalid_values(self):
+        from app.web.routes import main_routes
+
+        old = main_routes.ADMIN_API_KEY
+        main_routes.ADMIN_API_KEY = "test-key"
+        try:
+            response = self.client.patch(
+                "/api/settings/voting",
+                headers={"X-Admin-Key": "test-key"},
+                json={"telegram_require_linked_vote": "maybe"},
+            )
+        finally:
+            main_routes.ADMIN_API_KEY = old
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["error"]["code"], "invalid_telegram_require_linked_vote")
 
 
 class TestPollsFunctionality(unittest.TestCase):
