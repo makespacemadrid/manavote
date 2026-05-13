@@ -492,21 +492,32 @@ def process_telegram_vote_command(telegram_username, command_text, telegram_user
     conn = get_db()
     c = conn.cursor()
     try:
-        c.execute(
-            "SELECT id FROM members WHERE telegram_user_id = ? OR lower(username) IN (?, ?) OR lower(telegram_username) IN (?, ?)",
-            (
-                telegram_user_id,
-                telegram_username.lower(),
-                f"@{telegram_username.lower()}",
-                telegram_username.lower(),
-                f"@{telegram_username.lower()}",
-            ),
-        )
+        require_linked = require_linked_telegram_for_votes()
+        if require_linked:
+            c.execute(
+                "SELECT id FROM members WHERE telegram_user_id = ? OR lower(telegram_username) IN (?, ?)",
+                (
+                    telegram_user_id,
+                    telegram_username.lower(),
+                    f"@{telegram_username.lower()}",
+                ),
+            )
+        else:
+            c.execute(
+                "SELECT id FROM members WHERE telegram_user_id = ? OR lower(username) IN (?, ?) OR lower(telegram_username) IN (?, ?)",
+                (
+                    telegram_user_id,
+                    telegram_username.lower(),
+                    f"@{telegram_username.lower()}",
+                    telegram_username.lower(),
+                    f"@{telegram_username.lower()}",
+                ),
+            )
         member = c.fetchone()
         if member:
             voter_member_id = member["id"]
         elif telegram_user_id is not None:
-            if require_linked_telegram_for_votes():
+            if require_linked:
                 return False, "link_required"
             voter_member_id = -abs(int(telegram_user_id))
         else:

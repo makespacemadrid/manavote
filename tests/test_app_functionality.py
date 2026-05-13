@@ -1418,6 +1418,51 @@ class TestPollTelegramActions(unittest.TestCase):
         conn.close()
         self.assertIsNone(row)
 
+    def test_telegram_webhook_does_not_match_app_username_when_link_required(self):
+        poll_id = self._latest_poll_id()
+        conn = budget_app.get_db()
+        conn.execute("UPDATE members SET telegram_username = NULL, telegram_user_id = NULL WHERE id = 1")
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('telegram_require_linked_vote', 'true')"
+        )
+        conn.commit()
+        conn.close()
+        from app.web.routes import main_routes
+        sent_messages = []
+
+        def _fake_send_message(self, message):
+            sent_messages.append(message)
+            return True
+
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        old_token = main_routes.TELEGRAM_BOT_TOKEN
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        main_routes.TELEGRAM_BOT_TOKEN = "bot-token"
+        try:
+            with patch.object(main_routes.TelegramClient, "send_message", new=_fake_send_message):
+                self.client.post(
+                    "/telegram/webhook/hook-secret",
+                    json={
+                        "message": {
+                            "text": f"/vote {poll_id} 1",
+                            "from": {"username": "admin", "id": 999001},
+                            "chat": {"id": 12345},
+                        }
+                    }
+                )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+            main_routes.TELEGRAM_BOT_TOKEN = old_token
+
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT member_id, option_index FROM poll_votes WHERE poll_id = ?", (poll_id,))
+        row = c.fetchone()
+        conn.close()
+        self.assertIsNone(row)
+        self.assertTrue(sent_messages)
+        self.assertIn("must be linked first", sent_messages[-1])
+
     def test_telegram_webhook_proposal_vote_rejected_when_link_required(self):
         proposal_id = self._ensure_active_proposal_for_telegram_vote_tests()
         conn = budget_app.get_db()

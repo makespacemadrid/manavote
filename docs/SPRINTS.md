@@ -1,6 +1,6 @@
 # SPRINTS — Implementation Planning and Progress Tracking
 
-Last updated: 2026-05-09
+Last updated: 2026-05-13
 
 This document tracks implementation sequencing, active sprint scope, and completion status.
 Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
@@ -63,6 +63,8 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
 - ✅ Added backup lifecycle audit events for admin-triggered backup creation and failure paths (`admin_backup_created`, `admin_backup_failed`).
 - ✅ Added regression coverage for backup lifecycle audit events across both DB and image backup success/failure paths.
 - ✅ Reframed `docs/IDEAS.md` to forward-looking roadmap content only.
+- ✅ Hardened Telegram poll vote identity enforcement for `telegram_require_linked_vote=true` (no fallback match by app username).
+- ✅ Added Telegram webhook/dispatch regression coverage for linked-account rejection messaging, plus testing-doc updates.
 
 ### Remaining work (execution checklist)
 1. **Route decomposition closure**
