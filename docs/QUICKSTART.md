@@ -26,6 +26,11 @@ Environment variables are read from `.env` (see `sample.env`).
 
 When running with Docker Compose:
 - `.env` is loaded via `env_file`.
+- Compose also overrides a few runtime flags in `docker-compose.yml`:
+  - `APP_DB_PATH=/data/app.db`
+  - `MCP_SERVER_ENABLED=true`
+  - `MCP_SERVER_HOST=0.0.0.0`
+  - `MCP_SERVER_PORT=8765`
 - Persistent data uses Docker named volumes:
   - `app_data` → `/data` (database at `/data/app.db`)
   - `uploads_data` → `/app/static/uploads`
@@ -89,8 +94,11 @@ Additional operational notes:
 ## Backup
 
 - Manual: Admin → Budget → "Backup Database" button
-- Auto: Runs every 24 hours via APScheduler (if installed), keeps last 7 backups
-- Backup files: `app.db`
+- Auto: Runs every 24 hours via APScheduler (if installed), keeps the last 7 days of backups
+- Database backup files: `backups/<db_name>_YYYYMMDD_HHMMSS.db` (for example `backups/app_20260513_120000.db`)
+- Uploads backup files: `backups/uploads_YYYYMMDD_HHMMSS.zip`
+- Default backup directory: `<repo>/backups` (resolved from app repository root)
+- Docker note: the default compose file does **not** mount `backups/` as a named volume, so backup files are not persisted across container recreation unless you add a bind mount or dedicated volume for `/app/backups`.
 
 ## Testing
 ```bash

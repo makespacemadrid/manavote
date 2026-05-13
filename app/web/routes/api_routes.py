@@ -4,6 +4,7 @@ from flask import Blueprint, jsonify, request
 from werkzeug.security import generate_password_hash
 
 from app.extensions import csrf, limiter
+from app.services.telegram_link_diagnostics import LINKED_CONDITION_SQL, link_state_case_sql
 from app.web.routes import main_routes as legacy
 from app.web.routes.helpers.api_helpers import (
     normalize_poll_options,
@@ -247,9 +248,10 @@ def api_list_member_telegram_links():
     c = conn.cursor()
     if include_unlinked:
         c.execute(
-            """
+            f"""
             SELECT id, username, telegram_username, telegram_user_id,
-                   CASE WHEN telegram_username IS NOT NULL AND telegram_username != '' AND telegram_user_id IS NOT NULL THEN 1 ELSE 0 END AS linked
+                   CASE WHEN {LINKED_CONDITION_SQL} THEN 1 ELSE 0 END AS linked,
+                   {link_state_case_sql()} AS link_state
             FROM members
             ORDER BY id ASC
             LIMIT ? OFFSET ?
@@ -258,10 +260,10 @@ def api_list_member_telegram_links():
         )
     else:
         c.execute(
-            """
-            SELECT id, username, telegram_username, telegram_user_id, 1 AS linked
+            f"""
+            SELECT id, username, telegram_username, telegram_user_id, 1 AS linked, 'linked' AS link_state
             FROM members
-            WHERE telegram_username IS NOT NULL AND telegram_username != '' AND telegram_user_id IS NOT NULL
+            WHERE {LINKED_CONDITION_SQL}
             ORDER BY id ASC
             LIMIT ? OFFSET ?
             """,

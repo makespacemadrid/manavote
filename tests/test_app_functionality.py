@@ -368,6 +368,29 @@ class TestAdminFunctionality(unittest.TestCase):
         self.assertIsNone(row["telegram_username"])
         self.assertIsNone(row["telegram_user_id"])
 
+    def test_admin_unlink_telegram_action_emits_audit_event(self):
+        conn = budget_app.get_db()
+        conn.execute(
+            "UPDATE members SET telegram_username = ?, telegram_user_id = ? WHERE id = ?",
+            ("linked_for_audit_test", 889900, 1),
+        )
+        conn.commit()
+        conn.close()
+
+        with patch("app.web.routes.main_routes.log_telegram_link_event") as mock_log:
+            response = self.client.post(
+                "/admin",
+                data={"action": "unlink_telegram", "member_id": 1, "csrf_token": ""},
+                follow_redirects=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        mock_log.assert_called_once()
+        kwargs = mock_log.call_args.kwargs
+        self.assertEqual(kwargs["event"], "admin_telegram_unlink")
+        self.assertEqual(kwargs["target_member_id"], 1)
+        self.assertEqual(kwargs["source"], "admin_panel")
+
     def test_admin_backup_download_route_serves_db_backup_file(self):
         from app.services.backup_service import BACKUP_ROOT
 
@@ -1535,6 +1558,40 @@ class TestPollTelegramActions(unittest.TestCase):
         self.assertEqual(row["telegram_username"], "admin_tg")
         self.assertEqual(row["telegram_user_id"], 555001)
 
+    def test_telegram_webhook_link_command_emits_audit_event(self):
+        conn = budget_app.get_db()
+        conn.execute(
+            "UPDATE members SET password_hash = ?, telegram_username = NULL, telegram_user_id = NULL WHERE id = 1",
+            (budget_app.generate_password_hash("test-admin-password"),),
+        )
+        conn.commit()
+        conn.close()
+
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        try:
+            with patch("app.web.routes.main_routes.log_telegram_link_event") as mock_log:
+                response = self.client.post(
+                    "/telegram/webhook/hook-secret",
+                    json={
+                        "message": {
+                            "text": "/link admin test-admin-password",
+                            "from": {"username": "admin_tg", "id": 555001},
+                            "chat": {"id": 12345},
+                        }
+                    },
+                )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+
+        self.assertEqual(response.status_code, 200)
+        mock_log.assert_called_once()
+        kwargs = mock_log.call_args.kwargs
+        self.assertEqual(kwargs["event"], "telegram_link_updated")
+        self.assertEqual(kwargs["source"], "telegram_command")
+        self.assertEqual(kwargs["target_member_id"], 1)
+
     def test_admin_page_shows_linked_telegram_fields(self):
         conn = budget_app.get_db()
         c = conn.cursor()
@@ -1914,6 +1971,29 @@ class TestTelegramSettingsPage(unittest.TestCase):
         self.assertIsNone(row["telegram_username"])
         self.assertIsNone(row["telegram_user_id"])
 
+    def test_telegram_settings_unlink_action_emits_audit_event(self):
+        conn = budget_app.get_db()
+        conn.execute(
+            "UPDATE members SET telegram_username = ?, telegram_user_id = ? WHERE id = ?",
+            ("linked_user", 777001, 1),
+        )
+        conn.commit()
+        conn.close()
+
+        with patch("app.web.routes.auth_routes.log_telegram_link_event") as mock_log:
+            response = self.client.post(
+                "/telegram-settings",
+                data={"action": "unlink_telegram", "csrf_token": ""},
+                follow_redirects=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        mock_log.assert_called_once()
+        kwargs = mock_log.call_args.kwargs
+        self.assertEqual(kwargs["event"], "member_telegram_unlink")
+        self.assertEqual(kwargs["target_member_id"], 1)
+        self.assertEqual(kwargs["source"], "member_settings")
+
     def test_telegram_settings_page_fields_are_read_only(self):
         response = self.client.get("/telegram-settings")
         self.assertEqual(response.status_code, 200)
@@ -2118,6 +2198,81 @@ class TestApiVotingSettings(unittest.TestCase):
             main_routes.ADMIN_API_KEY = old
         self.assertEqual(response.status_code, 400)
         self.assertEqual(response.get_json()["error"]["code"], "invalid_telegram_require_linked_vote")
+
+
+class TestApiMemberTelegramLinks(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls):
+        budget_app.app.config["TESTING"] = True
+        cls.client = budget_app.app.test_client()
+
+    def test_list_member_telegram_links_includes_link_state_diagnostics(self):
+        from app.web.routes import main_routes
+
+        old = main_routes.ADMIN_API_KEY
+        main_routes.ADMIN_API_KEY = "test-key"
+        conn = budget_app.get_db()
+        conn.execute("DELETE FROM members")
+        conn.executemany(
+            "INSERT INTO members (id, username, password_hash, is_admin, telegram_username, telegram_user_id) VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                (1, "linked", "x", 0, "linked_tg", 1001),
+                (2, "missing_username", "x", 0, "", 1002),
+                (3, "missing_user_id", "x", 0, "only_name", None),
+                (4, "unlinked", "x", 0, None, None),
+            ],
+        )
+        conn.commit()
+        conn.close()
+        try:
+            response = self.client.get(
+                "/api/members/telegram?include_unlinked=true",
+                headers={"X-Admin-Key": "test-key"},
+            )
+        finally:
+            main_routes.ADMIN_API_KEY = old
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue(payload["success"])
+        states = {row["username"]: row["link_state"] for row in payload["members"]}
+        self.assertEqual(states["linked"], "linked")
+        self.assertEqual(states["missing_username"], "missing_username")
+        self.assertEqual(states["missing_user_id"], "missing_user_id")
+        self.assertEqual(states["unlinked"], "unlinked")
+
+    def test_list_member_telegram_links_filtered_mode_returns_only_linked_rows(self):
+        from app.web.routes import main_routes
+
+        old = main_routes.ADMIN_API_KEY
+        main_routes.ADMIN_API_KEY = "test-key"
+        conn = budget_app.get_db()
+        conn.execute("DELETE FROM members")
+        conn.executemany(
+            "INSERT INTO members (id, username, password_hash, is_admin, telegram_username, telegram_user_id) VALUES (?, ?, ?, ?, ?, ?)",
+            [
+                (1, "linked_a", "x", 0, "linked_a_tg", 2001),
+                (2, "missing_username", "x", 0, "", 2002),
+                (3, "linked_b", "x", 0, "linked_b_tg", 2003),
+            ],
+        )
+        conn.commit()
+        conn.close()
+        try:
+            response = self.client.get(
+                "/api/members/telegram?include_unlinked=false",
+                headers={"X-Admin-Key": "test-key"},
+            )
+        finally:
+            main_routes.ADMIN_API_KEY = old
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.get_json()
+        self.assertTrue(payload["success"])
+        usernames = [row["username"] for row in payload["members"]]
+        self.assertEqual(usernames, ["linked_a", "linked_b"])
+        self.assertTrue(all(row["linked"] == 1 for row in payload["members"]))
+        self.assertTrue(all(row["link_state"] == "linked" for row in payload["members"]))
 
 
 class TestPollsFunctionality(unittest.TestCase):

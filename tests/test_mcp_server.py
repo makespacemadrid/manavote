@@ -73,7 +73,9 @@ def test_tools_call_list_member_telegram_links(monkeypatch):
     monkeypatch.setattr(
         mcp_server,
         "_db_rows",
-        lambda *_args, **_kwargs: [{"id": 1, "username": "alice", "telegram_username": "alice_tg", "telegram_user_id": 123, "linked": 1}],
+        lambda *_args, **_kwargs: [
+            {"id": 1, "username": "alice", "telegram_username": "alice_tg", "telegram_user_id": 123, "linked": 1, "link_state": "linked"}
+        ],
     )
 
     response = mcp_server.handle_request(
@@ -82,6 +84,15 @@ def test_tools_call_list_member_telegram_links(monkeypatch):
     payload = json.loads(response["result"]["content"][0]["text"])
     assert payload["count"] == 1
     assert payload["members"][0]["telegram_username"] == "alice_tg"
+    assert payload["members"][0]["link_state"] == "linked"
+
+
+def test_tools_call_list_member_telegram_links_rejects_out_of_range_limit():
+    response = mcp_server.handle_request(
+        _req("tools/call", req_id=401, params={"name": "list_member_telegram_links", "arguments": {"limit": 999}})
+    )
+    assert response["error"]["code"] == -32602
+    assert "limit must be between 1 and 500" in response["error"]["message"]
 
 
 def test_tools_call_get_voting_settings(monkeypatch):

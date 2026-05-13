@@ -1,12 +1,17 @@
+import logging
+
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 from werkzeug.security import generate_password_hash
 
 from app.extensions import limiter
 from app.services.auth_service import verify_and_migrate_password
+from app.services.telegram_link_service import unlink_member_telegram
+from app.web.routes.helpers.admin_audit_helpers import log_telegram_link_event
 from app.web.decorators import login_required
 from app.web.routes import main_routes as legacy
 
 auth_bp = Blueprint("auth", __name__)
+logger = logging.getLogger(__name__)
 
 
 @auth_bp.route("/", endpoint="index")
@@ -121,11 +126,17 @@ def telegram_settings():
     if request.method == "POST":
         action = request.form.get("action", "")
         if action == "unlink_telegram":
-            c.execute(
-                "UPDATE members SET telegram_username = NULL, telegram_user_id = NULL WHERE id = ?",
-                (session["member_id"],),
+            target_member_id = int(session["member_id"])
+            unlink_member_telegram(legacy.get_db, target_member_id)
+            log_telegram_link_event(
+                logger,
+                event="member_telegram_unlink",
+                actor_id=target_member_id,
+                target_member_id=target_member_id,
+                source="member_settings",
+                reason_code="self_unlink",
+                status="success",
             )
-            conn.commit()
             flash("Telegram account unlinked.", "success")
         else:
             flash("Telegram account fields are read-only here. Use /link <app_username> <app_password> in Telegram.", "info")
