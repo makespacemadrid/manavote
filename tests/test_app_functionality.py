@@ -1461,7 +1461,8 @@ class TestPollTelegramActions(unittest.TestCase):
         conn.close()
         self.assertIsNone(row)
         self.assertTrue(sent_messages)
-        self.assertIn("must be linked first", sent_messages[-1])
+        self.assertEqual(sent_messages[-1][0], "50001")
+        self.assertIn("must be linked first", sent_messages[-1][1])
 
     def test_telegram_webhook_proposal_vote_rejected_when_link_required(self):
         proposal_id = self._ensure_active_proposal_for_telegram_vote_tests()
@@ -1687,6 +1688,57 @@ class TestPollTelegramActions(unittest.TestCase):
         conn.close()
         self.assertIsNotNone(row)
         self.assertEqual(row["option_index"], 1)
+
+
+    def test_telegram_webhook_callback_query_link_required_messages_user_guidance(self):
+        poll_id = self._latest_poll_id()
+        conn = budget_app.get_db()
+        conn.execute("UPDATE members SET telegram_username = NULL, telegram_user_id = NULL WHERE id = 1")
+        conn.execute(
+            "INSERT OR REPLACE INTO settings (key, value) VALUES ('telegram_require_linked_vote', 'true')"
+        )
+        conn.commit()
+        conn.close()
+
+        from app.web.routes import main_routes
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        old_token = main_routes.TELEGRAM_BOT_TOKEN
+        sent_messages = []
+        answered = []
+
+        def _fake_send_message(self, message):
+            sent_messages.append((self.chat_id, message))
+            return True
+
+        def _fake_answer_callback(self, callback_query_id, text):
+            answered.append((callback_query_id, text))
+            return True
+
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        main_routes.TELEGRAM_BOT_TOKEN = "token"
+        try:
+            with patch.object(main_routes.TelegramClient, "send_message", new=_fake_send_message), patch.object(main_routes.TelegramClient, "answer_callback_query", new=_fake_answer_callback):
+                response = self.client.post(
+                    "/telegram/webhook/hook-secret",
+                    json={
+                        "callback_query": {
+                            "id": "cbq-link-required",
+                            "data": f"pollvote:{poll_id}:0",
+                            "from": {"username": "admin", "id": 50001},
+                            "message": {"message_id": 9, "chat": {"id": 12345}},
+                        }
+                    },
+                )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+            main_routes.TELEGRAM_BOT_TOKEN = old_token
+
+        self.assertEqual(response.status_code, 200)
+        self.assertTrue(answered)
+        self.assertIn("must be linked first", answered[-1][1])
+        self.assertTrue(sent_messages)
+        self.assertEqual(sent_messages[-1][0], "50001")
+        self.assertIn("must be linked first", sent_messages[-1][1])
 
     def test_telegram_webhook_showvote_callback_edits_message_markup(self):
         poll_id = self._latest_poll_id()

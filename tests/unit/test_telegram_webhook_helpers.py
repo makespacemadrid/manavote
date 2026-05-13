@@ -122,7 +122,12 @@ def test_dispatch_callback_falls_back_to_vote_callback_response():
         process_vote_callback=lambda *_: (False, "telegram_disabled"),
         load_open_poll_options=lambda *_: None,
     )
-    assert result == {"kind": "answer_callback", "text": "❌ Telegram voting is disabled by admin."}
+    assert result == {
+        "kind": "answer_callback",
+        "text": "❌ Telegram voting is disabled by admin.",
+        "success": False,
+        "reason": "telegram_disabled",
+    }
 
 
 def test_dispatch_message_routes_link_and_noop():

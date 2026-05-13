@@ -125,6 +125,8 @@ def dispatch_callback(
     return {
         "kind": "answer_callback",
         "text": callback_vote_response_text(success, reason),
+        "success": success,
+        "reason": reason,
     }
 
 
