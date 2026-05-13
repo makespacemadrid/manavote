@@ -88,3 +88,4 @@ Covers Telegram vote command/callback helper behavior:
 - linked-account guidance text for `link_required` failures
 - shared callback/poll message mappings for common vote rejection reasons
 - callback fallback text for unknown reasons
+- poll-command dispatch path returns linked-account guidance when vote handlers return `link_required`

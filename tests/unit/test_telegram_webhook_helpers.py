@@ -159,3 +159,14 @@ def test_dispatch_message_does_not_call_poll_handler_for_non_command_text():
     )
     assert result == {"kind": "noop"}
     assert called["poll"] == 0
+
+
+def test_dispatch_message_returns_link_required_text_for_poll_vote_command():
+    result = dispatch_message(
+        {"text": "/vote 2 1", "telegram_username": "alice", "telegram_user_id": 5, "chat_id": 1},
+        process_link_command=lambda *_: (True, "ok"),
+        process_proposal_vote_command=lambda *_: (True, "ok"),
+        process_poll_vote_command=lambda *_: (False, "link_required"),
+    )
+    assert result["kind"] == "send_message"
+    assert "must be linked first" in result["text"]
