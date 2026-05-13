@@ -1461,7 +1461,8 @@ class TestPollTelegramActions(unittest.TestCase):
         conn.close()
         self.assertIsNone(row)
         self.assertTrue(sent_messages)
-        self.assertIn("must be linked first", sent_messages[-1])
+        self.assertEqual(sent_messages[-1][0], "50001")
+        self.assertIn("must be linked first", sent_messages[-1][1])
 
     def test_telegram_webhook_proposal_vote_rejected_when_link_required(self):
         proposal_id = self._ensure_active_proposal_for_telegram_vote_tests()
@@ -1689,7 +1690,7 @@ class TestPollTelegramActions(unittest.TestCase):
         self.assertEqual(row["option_index"], 1)
 
 
-    def test_telegram_webhook_callback_query_link_required_sends_chat_guidance(self):
+    def test_telegram_webhook_callback_query_link_required_messages_user_guidance(self):
         poll_id = self._latest_poll_id()
         conn = budget_app.get_db()
         conn.execute("UPDATE members SET telegram_username = NULL, telegram_user_id = NULL WHERE id = 1")
@@ -1706,7 +1707,7 @@ class TestPollTelegramActions(unittest.TestCase):
         answered = []
 
         def _fake_send_message(self, message):
-            sent_messages.append(message)
+            sent_messages.append((self.chat_id, message))
             return True
 
         def _fake_answer_callback(self, callback_query_id, text):
@@ -1736,7 +1737,8 @@ class TestPollTelegramActions(unittest.TestCase):
         self.assertTrue(answered)
         self.assertIn("must be linked first", answered[-1][1])
         self.assertTrue(sent_messages)
-        self.assertIn("must be linked first", sent_messages[-1])
+        self.assertEqual(sent_messages[-1][0], "50001")
+        self.assertIn("must be linked first", sent_messages[-1][1])
 
     def test_telegram_webhook_showvote_callback_edits_message_markup(self):
         poll_id = self._latest_poll_id()

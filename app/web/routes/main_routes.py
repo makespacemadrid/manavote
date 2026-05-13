@@ -711,9 +711,9 @@ def telegram_webhook(secret):
                 result.get("kind") == "answer_callback"
                 and not result.get("success", False)
                 and result.get("reason") in {"link_required", "unknown_member"}
-                and callback_ctx.get("chat_id")
+                and callback_ctx.get("telegram_user_id")
             ):
-                TelegramClient(TELEGRAM_BOT_TOKEN, str(callback_ctx["chat_id"]), "").send_message(result["text"])
+                TelegramClient(TELEGRAM_BOT_TOKEN, str(callback_ctx["telegram_user_id"]), "").send_message(result["text"])
         return {"ok": True}, 200
 
     message_ctx = extract_message_context(payload)
