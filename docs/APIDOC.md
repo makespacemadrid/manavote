@@ -344,9 +344,17 @@ curl -X POST http://localhost:5000/api/polls \
 **Endpoint**: `GET /api/members/telegram`
 
 ### Query params
-- `include_unlinked` (optional, default `false`): when true, include all members and add `linked` field (`1`/`0`).
+- `include_unlinked` (optional, default `false`): when true, include all members and add `linked` (`1`/`0`) plus `link_state`.
 - `limit` (optional): default `100`, max `500`
 - `offset` (optional): default `0`
+
+`link_state` values:
+- `linked` — both `telegram_username` and `telegram_user_id` are present
+- `missing_username` — `telegram_user_id` exists but username is empty/missing
+- `missing_user_id` — username exists but `telegram_user_id` is missing
+- `unlinked` — neither Telegram identity field is set
+
+When `include_unlinked=false` (default), only fully linked members are returned and `link_state` is always `linked`.
 
 ### Success response
 **200 OK**
@@ -360,7 +368,8 @@ curl -X POST http://localhost:5000/api/polls \
       "username": "alice",
       "telegram_username": "alice_tg",
       "telegram_user_id": 123456,
-      "linked": 1
+      "linked": 1,
+      "link_state": "linked"
     }
   ]
 }
@@ -458,6 +467,8 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
   - optional args: `status` (`active|accepted|rejected|purchased`), `limit` (1..200), `offset` (>=0)
 - `current_budget`
 - `list_member_telegram_links` (optional `include_unlinked`, `limit`, `offset`)
+  - result rows include `linked` and `link_state` (`linked|missing_username|missing_user_id|unlinked`)
+  - `limit` validation: must be between `1` and `500`
 - `get_voting_settings`
 - `update_voting_settings`
   - optional args: `poll_vote_mode` (`both|web_only|telegram_only`), `proposal_vote_mode` (`both|web_only|telegram_only`), `telegram_require_linked_vote` (`true`/`false`)

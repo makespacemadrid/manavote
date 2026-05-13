@@ -65,6 +65,10 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
 - ✅ Reframed `docs/IDEAS.md` to forward-looking roadmap content only.
 - ✅ Hardened Telegram poll vote identity enforcement for `telegram_require_linked_vote=true` (no fallback match by app username).
 - ✅ Added Telegram webhook/dispatch regression coverage for linked-account rejection messaging, plus testing-doc updates.
+- ✅ Unified poll/proposal Telegram `link_required` rejection text path and added regression coverage to keep operator/member UX consistent.
+- ✅ Consolidated Telegram link-state SQL classification into a shared service helper to keep REST/MCP diagnostics logic in lockstep.
+- ✅ Added structured Telegram link lifecycle audit events for link + unlink actions across command, member settings, and admin-panel flows.
+- ✅ Extracted Telegram link/unlink persistence logic into `app/services/telegram_link_service.py` to reduce route-level DB orchestration.
 
 ### Remaining work (execution checklist)
 1. **Route decomposition closure**

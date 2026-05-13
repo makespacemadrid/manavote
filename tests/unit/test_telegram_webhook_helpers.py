@@ -89,6 +89,10 @@ def test_callback_and_poll_vote_share_reason_mappings():
     assert callback_vote_response_text(False, "link_required") == poll_vote_response_text(False, "link_required")
 
 
+def test_proposal_and_poll_vote_share_link_required_text():
+    assert proposal_vote_response_text(False, "link_required") == poll_vote_response_text(False, "link_required")
+
+
 def test_dispatch_callback_routes_showvote_with_options():
     ctx = {
         "telegram_username": "alice",

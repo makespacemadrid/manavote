@@ -62,7 +62,7 @@ def proposal_vote_response_text(success, reason):
     mapping = {
         "telegram_disabled": "❌ Telegram proposal voting is disabled by admin.",
         "unknown_member": "❌ Your Telegram username is not linked to a member account.",
-        "link_required": "❌ Your account must be linked first. Use /link <app_username> <app_password> and try again.",
+        "link_required": POLL_VOTE_REASON_MESSAGES["link_required"],
         "proposal_closed": "❌ Proposal is no longer active.",
         "proposal_not_found": "❌ Proposal not found.",
         "invalid_vote": "❌ Invalid vote. Use: yes|no",

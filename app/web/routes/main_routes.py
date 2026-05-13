@@ -38,9 +38,10 @@ from app.repositories.vote_repo import VoteRepository
 from app.services.auth_service import verify_and_migrate_password
 from app.services.budget_service import calculate_min_backers
 from app.services.proposal_service import ProposalService
-from app.web.routes.helpers.admin_audit_helpers import log_admin_backup_event
+from app.web.routes.helpers.admin_audit_helpers import log_admin_backup_event, log_telegram_link_event
 from app.services.proposal_vote_service import can_record_proposal_vote_source, normalize_proposal_vote_mode
 from app.services.settings_service import get_enum_setting
+from app.services.telegram_link_service import process_link_command, unlink_member_telegram
 from app.web.app_setup import app, BASE_DIR, is_production
 from app.web.decorators import login_required, admin_required
 from app.web.routes.helpers.main_helpers import (
@@ -430,41 +431,24 @@ def sync_telegram_webhook(base_url: str) -> bool:
 
 
 def process_telegram_link_command(telegram_username, telegram_user_id, command_text):
-    command = (command_text or "").strip()
-    parts = command.split(maxsplit=2)
-    if len(parts) != 3:
-        return False, "invalid_format"
-    if not (telegram_username or "").strip():
-        return False, "missing_public_username"
-
-    app_username = parts[1].strip()
-    password = parts[2]
-    conn = get_db()
-    c = conn.cursor()
-    try:
-        c.execute("SELECT id, password_hash FROM members WHERE lower(username) = lower(?)", (app_username,))
-        member = c.fetchone()
-        if not member:
-            return False, "unknown_member"
-        ok, new_hash = verify_and_migrate_password(member["password_hash"], password)
-        if not ok:
-            return False, "invalid_credentials"
-        if new_hash:
-            c.execute("UPDATE members SET password_hash = ? WHERE id = ?", (new_hash, member["id"]))
-
-        c.execute("SELECT id FROM members WHERE telegram_user_id = ? AND id != ?", (telegram_user_id, member["id"]))
-        linked = c.fetchone()
-        if linked:
-            return False, "already_linked"
-
-        c.execute(
-            "UPDATE members SET telegram_username = ?, telegram_user_id = ? WHERE id = ?",
-            (telegram_username, int(telegram_user_id), member["id"]),
+    success, reason, linked_member_id = process_link_command(
+        get_db=get_db,
+        verify_and_migrate_password=verify_and_migrate_password,
+        telegram_username=telegram_username,
+        telegram_user_id=telegram_user_id,
+        command_text=command_text,
+    )
+    if success and linked_member_id is not None:
+        log_telegram_link_event(
+            app.logger,
+            event="telegram_link_updated",
+            actor_id=linked_member_id,
+            target_member_id=linked_member_id,
+            source="telegram_command",
+            reason_code="ok",
+            status="success",
         )
-        conn.commit()
-        return True, "ok"
-    finally:
-        conn.close()
+    return success, reason
 
 
 def process_telegram_vote_command(telegram_username, command_text, telegram_user_id=None):
@@ -1475,11 +1459,16 @@ def admin():
 
         elif action == "unlink_telegram":
             member_id = request.form["member_id"]
-            c.execute(
-                "UPDATE members SET telegram_username = NULL, telegram_user_id = NULL WHERE id = ?",
-                (member_id,),
+            unlink_member_telegram(get_db, int(member_id))
+            log_telegram_link_event(
+                app.logger,
+                event="admin_telegram_unlink",
+                actor_id=session.get("member_id"),
+                target_member_id=int(member_id),
+                source="admin_panel",
+                reason_code="manual_unlink",
+                status="success",
             )
-            conn.commit()
             flash("Telegram account unlinked.", "success")
 
         elif action == "trigger_monthly":

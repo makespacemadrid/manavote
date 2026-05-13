@@ -27,3 +27,25 @@ def log_admin_backup_event(
         error,
         datetime.now(timezone.utc).isoformat(),
     )
+
+
+def log_telegram_link_event(
+    logger,
+    *,
+    event,
+    actor_id=None,
+    target_member_id=None,
+    source=None,
+    reason_code=None,
+    status=None,
+):
+    logger.info(
+        "event=%s actor_id=%s target_member_id=%s source=%s reason_code=%s status=%s at=%s",
+        event,
+        actor_id,
+        target_member_id,
+        source,
+        reason_code,
+        status,
+        datetime.now(timezone.utc).isoformat(),
+    )

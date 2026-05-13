@@ -38,6 +38,9 @@ pytest -q tests/test_api_helpers.py tests/test_api_error_envelope.py tests/test_
 ```
 
 Covers API auth/content-type validation, error envelope consistency, proposal API validation, and poll API flows.
+Also includes Telegram member-link diagnostics checks for both:
+- `include_unlinked=true` classification coverage (`linked|missing_username|missing_user_id|unlinked`)
+- `include_unlinked=false` filtered-list coverage (linked-only rows, `link_state=linked`)
 
 ## Admin backup observability checks
 
@@ -77,6 +80,8 @@ Covers contract-alignment scenarios for `PATCH /api/settings/voting` and MCP `up
 - invalid `telegram_require_linked_vote` rejection
 - “no relevant changes provided” rejection
 - successful update response-shape parity for shared setting keys
+- member Telegram link-listing parity for REST `GET /api/members/telegram` and MCP `list_member_telegram_links` (`linked` + `link_state` diagnostics)
+- out-of-range pagination rejection parity (`limit` upper bound enforcement)
 
 ## Telegram webhook vote-response checks
 
@@ -89,3 +94,20 @@ Covers Telegram vote command/callback helper behavior:
 - shared callback/poll message mappings for common vote rejection reasons
 - callback fallback text for unknown reasons
 - poll-command dispatch path returns linked-account guidance when vote handlers return `link_required`
+
+Telegram link-service unit coverage:
+- unlink persistence behavior
+- `/link` invalid-format rejection
+- `/link` success-path linkage persistence
+- duplicate `telegram_user_id` rejection (`already_linked`)
+
+## Telegram link lifecycle audit checks
+
+```bash
+pytest -q tests/test_app_functionality.py -k "unlink_telegram_action_emits_audit_event or telegram_settings_unlink_action_emits_audit_event or telegram_webhook_link_command_emits_audit_event"
+```
+
+Covers structured audit-log emission on:
+- admin-triggered Telegram unlink
+- member self-service Telegram unlink
+- Telegram `/link` command success path

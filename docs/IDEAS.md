@@ -1,6 +1,6 @@
 # IDEAS — Forward Roadmap
 
-Last updated: 2026-05-09
+Last updated: 2026-05-13
 
 This document captures **forward-looking** product and engineering initiatives only.
 Execution sequencing and status tracking belong in [`SPRINTS.md`](SPRINTS.md).
@@ -23,6 +23,37 @@ Planning/development principles and guardrails live in [`STYLE.md`](STYLE.md).
 ---
 
 ## Workstreams & Backlog
+
+## Recent audit notes (2026-05-13)
+
+Audit scope focused on Telegram-link diagnostics/parity paths and adjacent reliability surfaces.
+
+### Confirmed strengths
+- REST and MCP member-link diagnostics now share one canonical SQL classification helper (`app/services/telegram_link_diagnostics.py`), reducing drift risk.
+- REST/MCP parity tests now cover both success shape and invalid pagination bounds for Telegram member-link listing.
+
+### Follow-up gaps to prioritize
+1. **Route exception granularity (P0)**
+   - Several route handlers still use broad `except Exception` blocks and generic failure messages.
+   - Introduce typed exceptions + reason-code mapping for predictable operator diagnostics.
+
+2. **MCP extraction boundary (P1)**
+   - MCP still embeds substantial SQL/business rules inline.
+   - Extract MCP query/use-case logic into service/repository modules shared with REST where feasible.
+
+3. **Query fragment safety/readability (P1)**
+   - Shared SQL snippets are centralized, but still string-composed.
+   - Add a small query-builder utility for reusable fragments and predictable formatting/validation.
+
+4. **Error-contract matrix expansion (P1)**
+   - Extend parity coverage beyond voting + telegram listing:
+     - proposal create/update validation edges,
+     - poll creation bounds,
+     - pagination/type errors across list endpoints.
+
+5. **Observability completion for Telegram lifecycle (P2)**
+   - Add reason-coded audit events for link/unlink operations and blocked votes by policy mode.
+   - Expose `last_linked_at`/`last_unlinked_at` metadata for admin diagnostics.
 
 ## WS-A — Architecture Refactor (P0)
 

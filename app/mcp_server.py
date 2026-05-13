@@ -11,6 +11,7 @@ import sqlite3
 import sys
 from typing import Any
 from werkzeug.security import generate_password_hash
+from app.services.telegram_link_diagnostics import LINKED_CONDITION_SQL, link_state_case_sql
 
 DB_PATH = os.getenv("APP_DB_PATH", os.path.join(os.path.dirname(os.path.dirname(__file__)), "app.db"))
 MCP_API_KEY = os.getenv("MCP_API_KEY", "")
@@ -184,28 +185,30 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
                 return _error(req_id, -32602, "Invalid params: limit/offset must be integers")
             if offset < 0:
                 return _error(req_id, -32602, "Invalid params: offset must be >= 0")
-            limit = max(1, min(limit, 500))
+            if limit < 1 or limit > 500:
+                return _error(req_id, -32602, "Invalid params: limit must be between 1 and 500")
 
             if include_unlinked:
                 rows = _db_rows(
                     """
                     SELECT id, username, telegram_username, telegram_user_id,
-                           CASE WHEN telegram_username IS NOT NULL AND telegram_username != '' AND telegram_user_id IS NOT NULL THEN 1 ELSE 0 END AS linked
+                           CASE WHEN {linked_condition} THEN 1 ELSE 0 END AS linked,
+                           {link_state_case} AS link_state
                     FROM members
                     ORDER BY id ASC
                     LIMIT ? OFFSET ?
-                    """,
+                    """.format(linked_condition=LINKED_CONDITION_SQL, link_state_case=link_state_case_sql()),
                     (limit, offset),
                 )
             else:
                 rows = _db_rows(
                     """
-                    SELECT id, username, telegram_username, telegram_user_id, 1 AS linked
+                    SELECT id, username, telegram_username, telegram_user_id, 1 AS linked, 'linked' AS link_state
                     FROM members
-                    WHERE telegram_username IS NOT NULL AND telegram_username != '' AND telegram_user_id IS NOT NULL
+                    WHERE {linked_condition}
                     ORDER BY id ASC
                     LIMIT ? OFFSET ?
-                    """,
+                    """.format(linked_condition=LINKED_CONDITION_SQL),
                     (limit, offset),
                 )
             return _tool_text(req_id, {"count": len(rows), "limit": limit, "offset": offset, "members": rows})
