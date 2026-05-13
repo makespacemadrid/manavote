@@ -17,6 +17,19 @@ from app.web.routes.helpers.api_helpers import (
 api_bp = Blueprint("api", __name__)
 
 
+def _parse_optional_bool(value):
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return None
+
+
 
 @api_bp.route("/api/register", methods=["POST"], endpoint="api_register")
 @limiter.limit("10 per minute")
@@ -258,6 +271,77 @@ def api_list_member_telegram_links():
     conn.close()
 
     return jsonify({"success": True, "count": len(rows), "limit": limit, "offset": offset, "members": [dict(r) for r in rows]})
+
+
+@api_bp.route("/api/settings/voting", methods=["GET"], endpoint="api_get_voting_settings")
+@csrf.exempt
+def api_get_voting_settings():
+    auth_error = require_api_key(legacy.ADMIN_API_KEY)
+    if auth_error:
+        return auth_error
+    return jsonify(
+        {
+            "success": True,
+            "settings": {
+                "poll_vote_mode": legacy.get_poll_vote_mode(),
+                "proposal_vote_mode": legacy.get_proposal_vote_mode(),
+                "telegram_require_linked_vote": legacy.require_linked_telegram_for_votes(),
+            },
+        }
+    )
+
+
+@api_bp.route("/api/settings/voting", methods=["PUT", "PATCH"], endpoint="api_update_voting_settings")
+@csrf.exempt
+def api_update_voting_settings():
+    auth_error = require_api_key(legacy.ADMIN_API_KEY)
+    if auth_error:
+        return auth_error
+    data, json_error = require_json_body()
+    if json_error:
+        return json_error
+
+    poll_vote_mode = data.get("poll_vote_mode")
+    proposal_vote_mode = data.get("proposal_vote_mode")
+    linked_vote_policy = data.get("telegram_require_linked_vote")
+
+    if poll_vote_mode is None and proposal_vote_mode is None and linked_vote_policy is None:
+        return api_error("no_changes_provided", "at least one voting setting must be provided", 400)
+    if poll_vote_mode is not None and poll_vote_mode not in {"both", "web_only", "telegram_only"}:
+        return api_error("invalid_poll_vote_mode", "poll_vote_mode must be one of: both, web_only, telegram_only", 400)
+    if proposal_vote_mode is not None and proposal_vote_mode not in {"both", "web_only", "telegram_only"}:
+        return api_error("invalid_proposal_vote_mode", "proposal_vote_mode must be one of: both, web_only, telegram_only", 400)
+
+    linked_vote_policy_bool = _parse_optional_bool(linked_vote_policy)
+    if linked_vote_policy is not None and linked_vote_policy_bool is None:
+        return api_error("invalid_telegram_require_linked_vote", "telegram_require_linked_vote must be a boolean", 400)
+
+    conn = legacy.get_db()
+    c = conn.cursor()
+    try:
+        if poll_vote_mode is not None:
+            c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('poll_vote_mode', ?)", (poll_vote_mode,))
+        if proposal_vote_mode is not None:
+            c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('proposal_vote_mode', ?)", (proposal_vote_mode,))
+        if linked_vote_policy_bool is not None:
+            c.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES ('telegram_require_linked_vote', ?)",
+                ("true" if linked_vote_policy_bool else "false",),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+    return jsonify(
+        {
+            "success": True,
+            "settings": {
+                "poll_vote_mode": legacy.get_poll_vote_mode(),
+                "proposal_vote_mode": legacy.get_proposal_vote_mode(),
+                "telegram_require_linked_vote": legacy.require_linked_telegram_for_votes(),
+            },
+        }
+    )
 
 
 @api_bp.route("/api/polls", methods=["GET"], endpoint="api_list_polls")

@@ -458,6 +458,9 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
   - optional args: `status` (`active|accepted|rejected|purchased`), `limit` (1..200), `offset` (>=0)
 - `current_budget`
 - `list_member_telegram_links` (optional `include_unlinked`, `limit`, `offset`)
+- `get_voting_settings`
+- `update_voting_settings`
+  - optional args: `poll_vote_mode` (`both|web_only|telegram_only`), `proposal_vote_mode` (`both|web_only|telegram_only`), `telegram_require_linked_vote` (`true`/`false`)
 - `create_member`
   - required args: `username`, `password`
   - optional args: `is_admin` (`true`/`false`)
@@ -518,8 +521,19 @@ pytest -q tests/test_mcp_server.py
 - `/link <app_username> <app_password>` — link Telegram identity to a member account.
 - `/vote <poll_id> <option_number>` or `/vote <option_number>` — vote in polls (subject to `poll_vote_mode`).
 - `/pvote <proposal_id> <yes|no>` — vote on proposals (subject to `proposal_vote_mode`).
+- If `telegram_require_linked_vote=true`, Telegram vote commands only work for linked accounts; unlinked users are told to run `/link <app_username> <app_password>`.
 - Proposal inline callback payload: `pvote:<proposal_id>:yes|no` (same policy path as `/pvote`).
 - Non-command Telegram messages are ignored by the webhook (no poll/proposal vote side effects).
+
+## Voting settings API
+
+- `GET /api/settings/voting` — returns current voting policy settings:
+  - `poll_vote_mode`
+  - `proposal_vote_mode`
+  - `telegram_require_linked_vote`
+- `PUT|PATCH /api/settings/voting` — updates one or more settings.
+  - Allowed `poll_vote_mode` / `proposal_vote_mode`: `both`, `web_only`, `telegram_only`
+  - Allowed `telegram_require_linked_vote`: boolean (`true`/`false`)
 
 ## API/MCP sprint changelog (recent)
 

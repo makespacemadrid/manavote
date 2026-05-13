@@ -15,6 +15,7 @@ from werkzeug.security import generate_password_hash
 DB_PATH = os.getenv("APP_DB_PATH", os.path.join(os.path.dirname(os.path.dirname(__file__)), "app.db"))
 MCP_API_KEY = os.getenv("MCP_API_KEY", "")
 VALID_PROPOSAL_STATUSES = {"active", "accepted", "rejected", "purchased"}
+VALID_VOTE_MODES = {"both", "web_only", "telegram_only"}
 
 
 def _db_rows(query: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
@@ -79,6 +80,29 @@ def _tool_text(req_id: Any, payload: Any) -> dict[str, Any]:
     return _result(req_id, {"content": [{"type": "text", "text": json.dumps(payload)}]})
 
 
+def _as_bool_or_none(value: Any) -> bool | None:
+    if value is None:
+        return None
+    if isinstance(value, bool):
+        return value
+    normalized = str(value).strip().lower()
+    if normalized in {"1", "true", "yes", "on"}:
+        return True
+    if normalized in {"0", "false", "no", "off"}:
+        return False
+    return None
+
+
+def _read_voting_settings() -> dict[str, Any]:
+    rows = _db_rows("SELECT key, value FROM settings WHERE key IN ('poll_vote_mode', 'proposal_vote_mode', 'telegram_require_linked_vote')")
+    kv = {r["key"]: r["value"] for r in rows}
+    return {
+        "poll_vote_mode": kv.get("poll_vote_mode", "both"),
+        "proposal_vote_mode": kv.get("proposal_vote_mode", "both"),
+        "telegram_require_linked_vote": str(kv.get("telegram_require_linked_vote", "false")).lower() == "true",
+    }
+
+
 def _authorized(req: dict[str, Any], method: str, headers: dict[str, str] | None = None) -> bool:
     if method == "notifications/initialized":
         return True
@@ -113,7 +137,7 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
         return _result(req_id, {"protocolVersion": "2024-11-05", "serverInfo": {"name": "manavote-mcp", "version": "0.3.0"}, "capabilities": {"tools": {}}})
 
     if method == "tools/list":
-        return _result(req_id, {"tools": [{"name": "list_proposals", "description": "List latest proposals, optionally filtered by status.", "inputSchema": {"type": "object", "properties": {"status": {"type": "string", "enum": sorted(VALID_PROPOSAL_STATUSES)}, "limit": {"type": "integer", "minimum": 1, "maximum": 200}, "offset": {"type": "integer", "minimum": 0}}}}, {"name": "current_budget", "description": "Get configured current budget setting.", "inputSchema": {"type": "object", "properties": {}}}, {"name": "list_member_telegram_links", "description": "List members and Telegram link information.", "inputSchema": {"type": "object", "properties": {"include_unlinked": {"type": "boolean"}, "limit": {"type": "integer", "minimum": 1, "maximum": 500}, "offset": {"type": "integer", "minimum": 0}}}}, {"name": "create_member", "description": "Create a member (admin-only action).", "inputSchema": {"type": "object", "required": ["username", "password"], "properties": {"username": {"type": "string", "minLength": 1}, "password": {"type": "string", "minLength": 1}, "is_admin": {"type": "boolean"}}}}, {"name": "create_proposal", "description": "Create a proposal (admin-only action).", "inputSchema": {"type": "object", "required": ["title", "amount", "created_by"], "properties": {"title": {"type": "string", "minLength": 1}, "description": {"type": "string"}, "amount": {"type": "number", "exclusiveMinimum": 0}, "url": {"type": "string"}, "basic_supplies": {"type": "boolean"}, "created_by": {"type": "integer", "minimum": 1}}}}, {"name": "create_poll", "description": "Create a poll (admin-only action).", "inputSchema": {"type": "object", "required": ["question", "options", "created_by"], "properties": {"question": {"type": "string", "minLength": 5, "maxLength": 200}, "options": {"type": "array", "minItems": 2, "maxItems": 12, "items": {"type": "string"}}, "created_by": {"type": "integer", "minimum": 1}}}}]})
+        return _result(req_id, {"tools": [{"name": "list_proposals", "description": "List latest proposals, optionally filtered by status.", "inputSchema": {"type": "object", "properties": {"status": {"type": "string", "enum": sorted(VALID_PROPOSAL_STATUSES)}, "limit": {"type": "integer", "minimum": 1, "maximum": 200}, "offset": {"type": "integer", "minimum": 0}}}}, {"name": "current_budget", "description": "Get configured current budget setting.", "inputSchema": {"type": "object", "properties": {}}}, {"name": "list_member_telegram_links", "description": "List members and Telegram link information.", "inputSchema": {"type": "object", "properties": {"include_unlinked": {"type": "boolean"}, "limit": {"type": "integer", "minimum": 1, "maximum": 500}, "offset": {"type": "integer", "minimum": 0}}}}, {"name": "get_voting_settings", "description": "Get current voting settings.", "inputSchema": {"type": "object", "properties": {}}}, {"name": "update_voting_settings", "description": "Update voting settings.", "inputSchema": {"type": "object", "properties": {"poll_vote_mode": {"type": "string", "enum": sorted(VALID_VOTE_MODES)}, "proposal_vote_mode": {"type": "string", "enum": sorted(VALID_VOTE_MODES)}, "telegram_require_linked_vote": {"type": "boolean"}}}}, {"name": "create_member", "description": "Create a member (admin-only action).", "inputSchema": {"type": "object", "required": ["username", "password"], "properties": {"username": {"type": "string", "minLength": 1}, "password": {"type": "string", "minLength": 1}, "is_admin": {"type": "boolean"}}}}, {"name": "create_proposal", "description": "Create a proposal (admin-only action).", "inputSchema": {"type": "object", "required": ["title", "amount", "created_by"], "properties": {"title": {"type": "string", "minLength": 1}, "description": {"type": "string"}, "amount": {"type": "number", "exclusiveMinimum": 0}, "url": {"type": "string"}, "basic_supplies": {"type": "boolean"}, "created_by": {"type": "integer", "minimum": 1}}}}, {"name": "create_poll", "description": "Create a poll (admin-only action).", "inputSchema": {"type": "object", "required": ["question", "options", "created_by"], "properties": {"question": {"type": "string", "minLength": 5, "maxLength": 200}, "options": {"type": "array", "minItems": 2, "maxItems": 12, "items": {"type": "string"}}, "created_by": {"type": "integer", "minimum": 1}}}}]})
 
     if method == "tools/call":
         params = req.get("params") or {}
@@ -185,6 +209,42 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
                     (limit, offset),
                 )
             return _tool_text(req_id, {"count": len(rows), "limit": limit, "offset": offset, "members": rows})
+
+        if name == "get_voting_settings":
+            return _tool_text(req_id, _read_voting_settings())
+
+        if name == "update_voting_settings":
+            poll_vote_mode = arguments.get("poll_vote_mode")
+            proposal_vote_mode = arguments.get("proposal_vote_mode")
+            linked_required = arguments.get("telegram_require_linked_vote")
+            if poll_vote_mode is None and proposal_vote_mode is None and linked_required is None:
+                return _error(req_id, -32602, "Invalid params: at least one setting must be provided")
+            if poll_vote_mode is not None and str(poll_vote_mode) not in VALID_VOTE_MODES:
+                return _error(req_id, -32602, "Invalid params: poll_vote_mode is invalid")
+            if proposal_vote_mode is not None and str(proposal_vote_mode) not in VALID_VOTE_MODES:
+                return _error(req_id, -32602, "Invalid params: proposal_vote_mode is invalid")
+            linked_required_bool = _as_bool_or_none(linked_required)
+            if linked_required is not None and linked_required_bool is None:
+                return _error(req_id, -32602, "Invalid params: telegram_require_linked_vote must be boolean")
+
+            conn = sqlite3.connect(DB_PATH)
+            try:
+                cur = conn.cursor()
+                if poll_vote_mode is not None:
+                    cur.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('poll_vote_mode', ?)", (str(poll_vote_mode),))
+                if proposal_vote_mode is not None:
+                    cur.execute(
+                        "INSERT OR REPLACE INTO settings (key, value) VALUES ('proposal_vote_mode', ?)", (str(proposal_vote_mode),)
+                    )
+                if linked_required is not None:
+                    cur.execute(
+                        "INSERT OR REPLACE INTO settings (key, value) VALUES ('telegram_require_linked_vote', ?)",
+                        ("true" if linked_required_bool else "false",),
+                    )
+                conn.commit()
+            finally:
+                conn.close()
+            return _tool_text(req_id, _read_voting_settings())
 
         if name == "create_member":
             username = str(arguments.get("username") or "").strip()

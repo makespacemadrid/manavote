@@ -152,6 +152,41 @@ class TestBudgetAdminRefactor(unittest.TestCase):
             self.assertIn("Added €10.0 to budget! New balance:", page)
             self.assertNotIn("Monthly top-up applied!", page)
 
+    def test_add_budget_reprocesses_over_budget_proposals(self):
+        with _temporary_db():
+            conn = budget_app.get_db()
+            c = conn.cursor()
+            c.execute("DELETE FROM activity_log")
+            c.execute("INSERT INTO proposals (title, description, amount, created_by, status) VALUES (?, ?, ?, ?, ?)", ("Needs budget", "x", 30, 1, "active"))
+            proposal_id = c.lastrowid
+            c.execute("INSERT INTO votes (proposal_id, member_id, vote) VALUES (?, ?, 'in_favor')", (proposal_id, 1))
+            conn.commit()
+            conn.close()
+
+            budget_app.process_proposal(proposal_id)
+
+            conn = budget_app.get_db()
+            c = conn.cursor()
+            c.execute("SELECT status FROM proposals WHERE id = ?", (proposal_id,))
+            self.assertEqual(c.fetchone()["status"], "over_budget")
+            conn.close()
+
+            client = budget_app.app.test_client()
+            _set_admin_session(client)
+            _reset_rate_limits_for_test_client()
+            response = client.post(
+                "/admin",
+                data={"action": "add_budget", "amount": "50", "description": "top up for pending"},
+                follow_redirects=True,
+            )
+            self.assertEqual(response.status_code, 200)
+
+            conn = budget_app.get_db()
+            c = conn.cursor()
+            c.execute("SELECT status FROM proposals WHERE id = ?", (proposal_id,))
+            self.assertEqual(c.fetchone()["status"], "approved")
+            conn.close()
+
 
 if __name__ == "__main__":
     unittest.main(verbosity=2)

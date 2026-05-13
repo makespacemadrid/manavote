@@ -335,6 +335,10 @@ def is_telegram_poll_voting_enabled():
     return get_poll_vote_mode() in {"both", "telegram_only"}
 
 
+def require_linked_telegram_for_votes():
+    return str(get_setting_value("telegram_require_linked_vote", "false")).lower() == "true"
+
+
 def get_proposal_vote_mode():
     mode = get_enum_setting(
         get_setting_value,
@@ -502,6 +506,8 @@ def process_telegram_vote_command(telegram_username, command_text, telegram_user
         if member:
             voter_member_id = member["id"]
         elif telegram_user_id is not None:
+            if require_linked_telegram_for_votes():
+                return False, "link_required"
             voter_member_id = -abs(int(telegram_user_id))
         else:
             return False, "unknown_member"
@@ -585,19 +591,29 @@ def process_telegram_proposal_vote_command(telegram_username, command_text, tele
     conn = get_db()
     c = conn.cursor()
     try:
-        c.execute(
-            "SELECT id FROM members WHERE telegram_user_id = ? OR lower(username) IN (?, ?) OR lower(telegram_username) IN (?, ?)",
-            (
-                telegram_user_id,
-                telegram_username.lower(),
-                f"@{telegram_username.lower()}",
-                telegram_username.lower(),
-                f"@{telegram_username.lower()}",
-            ),
-        )
+        if require_linked_telegram_for_votes():
+            c.execute(
+                "SELECT id FROM members WHERE telegram_user_id = ? OR lower(telegram_username) IN (?, ?)",
+                (
+                    telegram_user_id,
+                    telegram_username.lower(),
+                    f"@{telegram_username.lower()}",
+                ),
+            )
+        else:
+            c.execute(
+                "SELECT id FROM members WHERE telegram_user_id = ? OR lower(username) IN (?, ?) OR lower(telegram_username) IN (?, ?)",
+                (
+                    telegram_user_id,
+                    telegram_username.lower(),
+                    f"@{telegram_username.lower()}",
+                    telegram_username.lower(),
+                    f"@{telegram_username.lower()}",
+                ),
+            )
         member = c.fetchone()
         if not member:
-            return False, "unknown_member"
+            return False, "link_required" if require_linked_telegram_for_votes() else "unknown_member"
 
         c.execute("SELECT id, status FROM proposals WHERE id = ?", (proposal_id,))
         proposal = c.fetchone()
@@ -1482,6 +1498,7 @@ def admin():
                     (amount, description),
                 )
                 conn.commit()
+                check_over_budget_proposals()
                 flash(
                     f"Added €{amount} to budget! New balance: €{get_current_budget()}",
                     "success",
@@ -1593,6 +1610,15 @@ def admin():
                 )
                 conn.commit()
                 flash("Proposal vote mode updated", "success")
+
+        elif action == "update_telegram_linked_vote_requirement":
+            require_linked_votes = "true" if request.form.get("telegram_require_linked_vote") == "on" else "false"
+            c.execute(
+                "INSERT OR REPLACE INTO settings (key, value) VALUES ('telegram_require_linked_vote', ?)",
+                (require_linked_votes,),
+            )
+            conn.commit()
+            flash("Telegram linked-account vote requirement updated", "success")
 
 
         elif action == "create_poll":

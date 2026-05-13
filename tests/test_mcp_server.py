@@ -53,7 +53,7 @@ def test_tools_call_list_proposals_invalid_status():
 def test_tools_list_includes_mcp_create_tools():
     response = mcp_server.handle_request(_req("tools/list", req_id=201))
     tool_names = {tool["name"] for tool in response["result"]["tools"]}
-    assert {"create_member", "create_proposal", "create_poll"}.issubset(tool_names)
+    assert {"create_member", "create_proposal", "create_poll", "get_voting_settings", "update_voting_settings"}.issubset(tool_names)
 
 
 def test_tools_call_current_budget_returns_json_text(monkeypatch):
@@ -82,6 +82,45 @@ def test_tools_call_list_member_telegram_links(monkeypatch):
     payload = json.loads(response["result"]["content"][0]["text"])
     assert payload["count"] == 1
     assert payload["members"][0]["telegram_username"] == "alice_tg"
+
+
+def test_tools_call_get_voting_settings(monkeypatch):
+    monkeypatch.setattr(
+        mcp_server,
+        "_db_rows",
+        lambda *_args, **_kwargs: [
+            {"key": "poll_vote_mode", "value": "telegram_only"},
+            {"key": "proposal_vote_mode", "value": "both"},
+            {"key": "telegram_require_linked_vote", "value": "true"},
+        ],
+    )
+    response = mcp_server.handle_request(_req("tools/call", req_id=41, params={"name": "get_voting_settings", "arguments": {}}))
+    payload = json.loads(response["result"]["content"][0]["text"])
+    assert payload["poll_vote_mode"] == "telegram_only"
+    assert payload["proposal_vote_mode"] == "both"
+    assert payload["telegram_require_linked_vote"] is True
+
+
+def test_tools_call_get_voting_settings_defaults(monkeypatch):
+    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [])
+    response = mcp_server.handle_request(_req("tools/call", req_id=411, params={"name": "get_voting_settings", "arguments": {}}))
+    payload = json.loads(response["result"]["content"][0]["text"])
+    assert payload == {
+        "poll_vote_mode": "both",
+        "proposal_vote_mode": "both",
+        "telegram_require_linked_vote": False,
+    }
+
+
+def test_tools_call_update_voting_settings_rejects_invalid_bool():
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=42,
+            params={"name": "update_voting_settings", "arguments": {"telegram_require_linked_vote": "maybe"}},
+        )
+    )
+    assert response["error"]["code"] == -32602
 
 
 def test_tools_call_create_member(monkeypatch):
