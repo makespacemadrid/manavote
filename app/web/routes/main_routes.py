@@ -707,6 +707,13 @@ def telegram_webhook(secret):
             TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(result["callback_query_id"], callback_text)
         elif TELEGRAM_BOT_TOKEN:
             TelegramClient(TELEGRAM_BOT_TOKEN, "", "").answer_callback_query(callback_ctx["callback_query_id"], result["text"])
+            if (
+                result.get("kind") == "answer_callback"
+                and not result.get("success", False)
+                and result.get("reason") in {"link_required", "unknown_member"}
+                and callback_ctx.get("chat_id")
+            ):
+                TelegramClient(TELEGRAM_BOT_TOKEN, str(callback_ctx["chat_id"]), "").send_message(result["text"])
         return {"ok": True}, 200
 
     message_ctx = extract_message_context(payload)
