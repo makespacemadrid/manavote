@@ -10,9 +10,9 @@
     gap: 12px;
 }
 .user-settings-item {
-    border: 1px solid #0f3460;
+    border: 1px solid #4a4a4a;
     border-radius: 8px;
-    background: rgba(15, 52, 96, 0.12);
+    background: #2a2a2a;
     padding: 14px;
 }
 .user-settings-item h4 {
@@ -26,6 +26,13 @@
 .user-settings-item .btn {
     width: 100%;
     text-align: center;
+}
+.language-buttons {
+    display: grid;
+    gap: 8px;
+}
+.language-buttons .btn {
+    min-height: 40px;
 }
 </style>
 
@@ -45,7 +52,7 @@
         <div class="user-settings-item">
             <h4>{{ 'Language'|lang }}</h4>
             <p>Switch your interface language.</p>
-            <div style="display:grid; gap:8px;">
+            <div class="language-buttons">
                 <a class="btn btn-secondary" href="{{ url_for('auth.set_language', lang='en') }}">{{ 'English'|lang }}</a>
                 <a class="btn btn-secondary" href="{{ url_for('auth.set_language', lang='es') }}">{{ 'Español'|lang }}</a>
             </div>
