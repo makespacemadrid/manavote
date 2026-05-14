@@ -14,6 +14,11 @@ def polls_page():
     legacy.ensure_db_ready()
     conn = legacy.get_db()
     c = conn.cursor()
+    expired_poll_ids = legacy.close_expired_polls(conn)
+    for expired_poll_id in expired_poll_ids:
+        message = legacy.build_poll_results_message(conn, expired_poll_id)
+        if message:
+            legacy.send_telegram_message(message)
 
     if request.method == "POST":
         if not legacy.is_web_poll_voting_enabled():

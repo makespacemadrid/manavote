@@ -243,6 +243,91 @@ def ensure_db_ready():
         conn.close()
 
 
+def close_expired_polls(conn):
+    now_iso = datetime.now().isoformat()
+    c = conn.cursor()
+    c.execute(
+        """
+        SELECT id
+        FROM polls
+        WHERE status = 'open'
+          AND closes_at IS NOT NULL
+          AND closes_at != ''
+          AND closes_at <= ?
+        """,
+        (now_iso,),
+    )
+    expired_poll_ids = [row["id"] for row in c.fetchall()]
+    if not expired_poll_ids:
+        return []
+    c.execute(
+        """
+        UPDATE polls
+        SET status = 'closed'
+        WHERE status = 'open'
+          AND closes_at IS NOT NULL
+          AND closes_at != ''
+          AND closes_at <= ?
+        """,
+        (now_iso,),
+    )
+    if c.rowcount:
+        conn.commit()
+    return expired_poll_ids
+
+
+def build_poll_results_message(conn, poll_id):
+    c = conn.cursor()
+    c.execute("SELECT id, question, closes_at FROM polls WHERE id = ?", (poll_id,))
+    poll = c.fetchone()
+    if not poll:
+        return None
+    try:
+        closes_display = (
+            datetime.fromisoformat(poll["closes_at"]).strftime("%Y-%m-%d %H:%M")
+            if poll["closes_at"]
+            else "n/a"
+        )
+    except (TypeError, ValueError):
+        closes_display = poll["closes_at"] or "n/a"
+
+    c.execute(
+        """
+        SELECT pv.option_index, COUNT(*) AS vote_count
+        FROM poll_votes pv
+        WHERE pv.poll_id = ?
+        GROUP BY pv.option_index
+        ORDER BY pv.option_index ASC
+        """,
+        (poll_id,),
+    )
+    counts = {row["option_index"]: row["vote_count"] for row in c.fetchall()}
+    c.execute("SELECT options_json FROM polls WHERE id = ?", (poll_id,))
+    options_row = c.fetchone()
+    try:
+        options = json.loads((options_row["options_json"] if options_row else "[]") or "[]")
+    except (TypeError, json.JSONDecodeError):
+        options = []
+
+    total_votes = sum(counts.values())
+    lines = [f"📊 *Poll closed: #{poll['id']}*", f"*{poll['question']}*", f"⏰ Closed: {closes_display}", ""]
+    if not options:
+        lines.append("No valid poll options were found.")
+        return "\n".join(lines)
+
+    max_count = max([counts.get(idx, 0) for idx in range(len(options))] + [1])
+    for idx, option in enumerate(options):
+        count = counts.get(idx, 0)
+        pct = (count / total_votes * 100.0) if total_votes else 0.0
+        bar_len = int(round((count / max_count) * 12)) if max_count else 0
+        bar = "█" * bar_len + "░" * (12 - bar_len)
+        lines.append(f"{idx + 1}. {option}")
+        lines.append(f"`{bar}` {count} vote(s) ({pct:.1f}%)")
+    lines.append("")
+    lines.append(f"Total votes: *{total_votes}*")
+    return "\n".join(lines)
+
+
 def get_db():
     set_db_path(DB_PATH)
     ensure_db_ready()
@@ -476,6 +561,11 @@ def process_telegram_vote_command(telegram_username, command_text, telegram_user
     conn = get_db()
     c = conn.cursor()
     try:
+        expired_poll_ids = close_expired_polls(conn)
+        for expired_poll_id in expired_poll_ids:
+            message = build_poll_results_message(conn, expired_poll_id)
+            if message:
+                send_telegram_message(message)
         require_linked = require_linked_telegram_for_votes()
         if require_linked:
             c.execute(
@@ -963,7 +1053,7 @@ def new_proposal():
         base_url = get_base_url()
 
         deadline_line = f"\n⏰ Vote by: {deadline_text}" if deadline_text else ""
-        message = f"🆕 *New Proposal!*\n\n*{title}*\nBy: {creator.split('@')[0]}\nAmount: €{amount}{deadline_line}\n\n{description[:200]}{'...' if len(description) > 200 else ''}\n\n👉 {url if url else 'No link'}\n🔗 {base_url}/proposal/{proposal_id}"
+        message = f"*{title}*\n\n🆕 New proposal\nBy: {creator.split('@')[0]}\nAmount: €{amount}{deadline_line}\n\n{description[:200]}{'...' if len(description) > 200 else ''}\n\n👉 {url if url else 'No link'}\n🔗 {base_url}/proposal/{proposal_id}"
         if can_record_proposal_vote("telegram"):
             TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_THREAD_ID).send_proposal_vote_message(message, proposal_id)
         else:
@@ -1410,6 +1500,11 @@ def admin():
     ensure_db_ready()
     conn = get_db()
     c = conn.cursor()
+    expired_poll_ids = close_expired_polls(conn)
+    for expired_poll_id in expired_poll_ids:
+        message = build_poll_results_message(conn, expired_poll_id)
+        if message:
+            send_telegram_message(message)
 
     if request.method == "POST":
         action = request.form.get("action")
@@ -1631,7 +1726,9 @@ def admin():
         elif action == "create_poll":
             question = request.form.get("question", "").strip()
             raw_options = request.form.get("options", "")
+            closes_at_raw = request.form.get("closes_at", "").strip()
             options = [line.strip() for line in raw_options.splitlines() if line.strip()]
+            closes_at = None
             if len(question) < 5:
                 flash("Poll question must be at least 5 characters", "error")
             elif len(question) > 200:
@@ -1642,12 +1739,23 @@ def admin():
                 flash("Please provide at most 12 poll options", "error")
             elif any(len(o) > 120 for o in options):
                 flash("Each option must be 120 characters or fewer", "error")
+            elif not closes_at_raw:
+                flash("Please provide a poll end date", "error")
             else:
+                try:
+                    closes_at = datetime.fromisoformat(closes_at_raw)
+                except ValueError:
+                    flash("Invalid poll end date", "error")
+                else:
+                    if closes_at <= datetime.now():
+                        flash("Poll end date must be in the future", "error")
+                        closes_at = None
+            if closes_at is not None:
+                closes_at_iso = closes_at.isoformat()
                 c.execute(
-                    "INSERT INTO polls (question, options_json, created_by, status) VALUES (?, ?, ?, 'open')",
-                    (question, json.dumps(options), session["member_id"]),
+                    "INSERT INTO polls (question, options_json, created_by, status, closes_at) VALUES (?, ?, ?, 'open', ?)",
+                    (question, json.dumps(options), session["member_id"], closes_at_iso),
                 )
-                poll_id = c.lastrowid
                 conn.commit()
                 flash("Poll created!", "success")
 
@@ -1659,6 +1767,9 @@ def admin():
                 (datetime.now().isoformat(), poll_id),
             )
             conn.commit()
+            results_message = build_poll_results_message(conn, poll_id)
+            if results_message:
+                send_telegram_message(results_message)
             flash("Poll closed", "success")
 
         elif action == "reopen_poll":
@@ -1697,10 +1808,17 @@ def admin():
                         options = []
                 except (TypeError, json.JSONDecodeError):
                     options = []
-                lines = [f"📊 *New Poll*", f"", f"*{poll['question']}*", ""]
+                lines = [f"*{poll['question']}*", "", "📊 New poll", ""]
                 for idx, option in enumerate(options, 1):
                     lines.append(f"{idx}. {option}")
                 lines.append("")
+                if poll["closes_at"]:
+                    try:
+                        closes_at_display = datetime.fromisoformat(poll["closes_at"]).strftime("%Y-%m-%d %H:%M")
+                    except (TypeError, ValueError):
+                        closes_at_display = poll["closes_at"]
+                    lines.append(f"⏰ Closes: {closes_at_display}")
+                    lines.append("")
                 lines.append("Tap a button below to vote.")
 
                 if action == "send_poll_telegram_test":

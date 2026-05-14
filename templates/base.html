@@ -7,18 +7,19 @@
     <title>MakeSpace Madrid Budget Voting</title>
     <style>
         * { box-sizing: border-box; margin: 0; padding: 0; }
-        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #1a1a2e; color: #eee; min-height: 100vh; }
+        body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #111111; color: #eee; min-height: 100vh; }
         .container { max-width: 900px; margin: 0 auto; padding: 20px; }
         h1, h2, h3 { margin-bottom: 15px; text-align: left; }
         h1 { color: #00d9ff; }
-        .card { background: #16213e; border-radius: 8px; padding: 20px; margin-bottom: 20px; border: 1px solid #0f3460; }
-        .btn { display: inline-block; padding: 10px 20px; background: #e94560; color: white; text-decoration: none; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; }
+        .card { background: #1f1f1f; border-radius: 8px; padding: 20px; margin-bottom: 20px; border: 1px solid #3a3a3a; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 20px; background: #ffff00; color: #000000; text-decoration: none; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; line-height: 1.2; vertical-align: middle; }
+        .btn + .btn { margin-left: 8px; }
         .btn:hover { background: #ff6b6b; }
-        .btn-secondary { background: #0f3460; }
-        .btn-secondary:hover { background: #1a4a7a; }
+        .btn-secondary { background: #ffd54f; color: #000000; }
+        .btn-secondary:hover { background: #ffca28; }
         .btn-success { background: #00d9ff; color: #1a1a2e; }
         .btn-success:hover { background: #00b8d9; }
-        input, textarea { width: 100%; padding: 10px; margin-bottom: 10px; background: #0f3460; border: 1px solid #1a4a7a; color: #eee; border-radius: 4px; }
+        input, textarea { width: 100%; padding: 10px; margin-bottom: 10px; background: #2a2a2a; border: 1px solid #4a4a4a; color: #eee; border-radius: 4px; }
         textarea { min-height: 100px; resize: vertical; }
         label { display: block; margin-bottom: 5px; color: #aaa; }
         .flash { padding: 10px 15px; border-radius: 4px; margin-bottom: 15px; }
@@ -26,7 +27,7 @@
         .flash.error { background: #e9456022; color: #e94560; border: 1px solid #e94560; }
         .budget { font-size: 2.5em; color: #00d9ff; font-weight: bold; }
         .proposal-list { list-style: none; }
-        .proposal-item { display: flex; padding: 15px; background: #0f3460; border-radius: 6px; margin-bottom: 10px; }
+        .proposal-item { display: flex; padding: 15px; background: #2a2a2a; border-radius: 6px; margin-bottom: 10px; }
         .proposal-info { flex: 1; min-width: 0; display: flex; flex-direction: column; }
         .title-row { display: flex; align-items: center; justify-content: space-between; width: 100%; }
         .title-row a { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; color: #eee; text-decoration: none; }
@@ -49,14 +50,14 @@
         .vote-btn.approve:hover, .vote-btn.approve.active { background: #00d9ff; color: #1a1a2e; }
         .vote-btn.reject { border-color: #e94560; color: #e94560; }
         .vote-btn.reject:hover, .vote-btn.reject.active { background: #e94560; color: white; }
-        .nav { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #0f3460; }
+        .nav { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #3a3a3a; }
         .nav-header { display: contents; }
         .nav-links { display: flex; flex-wrap: wrap; gap: 15px; }
         .nav a { color: #00d9ff; text-decoration: none; }
         .nav a:hover { text-decoration: underline; }
-        .nav-toggle { display: none; margin-left: auto; background: #0f3460; color: #00d9ff; border: 1px solid #1a4a7a; border-radius: 4px; padding: 4px 10px; font-size: 1.1em; cursor: pointer; }
+        .nav-toggle { display: none; margin-left: auto; background: #2a2a2a; color: #00d9ff; border: 1px solid #4a4a4a; border-radius: 4px; padding: 4px 10px; font-size: 1.1em; cursor: pointer; }
         table { width: 100%; border-collapse: collapse; }
-        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #0f3460; }
+        th, td { padding: 10px; text-align: left; border-bottom: 1px solid #3a3a3a; }
         th { color: #888; }
         .amount-positive { color: #00ff88; }
         .amount-negative { color: #e94560; }
@@ -64,10 +65,10 @@
         .lang-selector a { opacity: 0.6; font-size: 0.85em; }
         .lang-selector a.active { opacity: 1; font-weight: bold; }
         .settings-dropdown { position: relative; margin-left: auto; }
-        .settings-menu { display: none; position: absolute; right: 0; top: 20px; background: #16213e; border: 1px solid #0f3460; border-radius: 4px; padding: 10px; min-width: 150px; z-index: 100; }
+        .settings-menu { display: none; position: absolute; right: 0; top: 20px; background: #1f1f1f; border: 1px solid #3a3a3a; border-radius: 4px; padding: 10px; min-width: 150px; z-index: 100; }
         .settings-dropdown:hover .settings-menu { display: block; }
         .settings-menu a { display: block; padding: 5px 10px; color: #00d9ff; text-decoration: none; }
-        .settings-menu a:hover { background: #0f3460; }
+        .settings-menu a:hover { background: #2a2a2a; }
         @media (max-width: 600px) {
             .nav { display: block; }
             .nav-header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 10px; }
