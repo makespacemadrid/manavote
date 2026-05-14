@@ -13,9 +13,9 @@ admin_bp = Blueprint("admin", __name__)
 
 
 def _admin_redirect_with_tab():
-    tab = request.values.get("tab", "all")
-    allowed_tabs = {"all", "members", "budget", "polls", "settings"}
-    safe_tab = tab if tab in allowed_tabs else "all"
+    tab = request.values.get("tab", "members")
+    allowed_tabs = {"members", "budget", "polls", "settings"}
+    safe_tab = tab if tab in allowed_tabs else "members"
     return redirect(url_for("admin.admin", tab=safe_tab))
 
 

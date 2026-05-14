@@ -88,7 +88,7 @@
     </div>
     
     {% if proposal.status == 'active' and not is_web_proposal_vote_enabled and proposal_vote_mode == 'telegram_only' %}
-    <p style="color: #9b59b6; margin: 10px 0;">{{ 'Proposal voting Telegram-only banner'|lang }}</p>
+    <p style="color: #e94560; margin: 10px 0;">{{ 'Proposal voting Telegram-only banner'|lang }}</p>
     {% endif %}
 
     {% if proposal.status == 'active' and is_web_proposal_vote_enabled %}

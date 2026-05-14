@@ -3,6 +3,7 @@ import sys
 import unittest
 import tempfile
 import os
+from datetime import datetime, timedelta
 from unittest.mock import patch
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
@@ -420,10 +421,10 @@ class TestAdminFunctionality(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("/admin?tab=settings", response.headers.get("Location", ""))
 
-    def test_admin_backup_download_invalid_tab_redirects_to_all_tab(self):
+    def test_admin_backup_download_invalid_tab_redirects_to_members_tab(self):
         response = self.client.get("/admin/backups/nope/file.zip?tab=not-a-real-tab", follow_redirects=False)
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/admin?tab=all", response.headers.get("Location", ""))
+        self.assertIn("/admin?tab=members", response.headers.get("Location", ""))
 
     def test_admin_backup_download_emits_audit_log_event(self):
         from app.services.backup_service import BACKUP_ROOT
@@ -879,6 +880,7 @@ class TestPollTelegramActions(unittest.TestCase):
                 "action": "create_poll",
                 "question": "Where should we meet?",
                 "options": "Room A\nRoom B",
+                "closes_at": (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M"),
                 "csrf_token": "",
             },
             follow_redirects=True,
@@ -1339,6 +1341,7 @@ class TestPollTelegramActions(unittest.TestCase):
                 "action": "create_poll",
                 "question": "Another open poll?",
                 "options": "Yes\nNo",
+                "closes_at": (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M"),
                 "csrf_token": "",
             },
             follow_redirects=True,
