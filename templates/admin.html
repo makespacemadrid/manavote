@@ -400,17 +400,20 @@ document.addEventListener('DOMContentLoaded', function() {
         <input type="text" name="question" required>
         <label>{{ 'Options (one per line)'|lang }}</label>
         <textarea name="options" rows="4" required placeholder="{{ 'Option examples'|lang }}"></textarea>
+        <label>Poll end date</label>
+        <input type="datetime-local" name="closes_at" required>
         <small style="color:#888; display:block; margin-top:6px;">{{ 'Options format help'|lang }}</small>
         <button type="submit" class="btn">{{ 'Create Poll'|lang }}</button>
     </form>
 
     <h4>{{ 'Recent Polls'|lang }}</h4>
     <table>
-        <thead><tr><th>{{ 'Date'|lang }}</th><th>{{ 'Question'|lang }}</th><th>{{ 'Status'|lang }}</th><th>{{ 'By'|lang }}</th><th>{{ 'Votes'|lang }}</th><th>{{ 'Action'|lang }}</th></tr></thead>
+        <thead><tr><th>{{ 'Date'|lang }}</th><th>Ends</th><th>{{ 'Question'|lang }}</th><th>{{ 'Status'|lang }}</th><th>{{ 'By'|lang }}</th><th>{{ 'Votes'|lang }}</th><th>{{ 'Action'|lang }}</th></tr></thead>
         <tbody>
             {% for poll in polls %}
             <tr>
                 <td>{{ poll.created_at|localtime("%Y-%m-%d %H:%M") }}</td>
+                <td>{{ poll.closes_at|localtime("%Y-%m-%d %H:%M") if poll.closes_at else '—' }}</td>
                 <td>{{ poll.question }}</td>
                 <td>{{ poll.status }}</td>
                 <td>{{ poll.creator|username }}</td>
@@ -675,7 +678,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <p style="color:#94a3b8; font-size:0.9em; margin-top:8px;">Please confirm to continue.</p>
         <div style="display:flex; gap:10px; margin-top:14px;">
             <button type="button" class="btn btn-secondary" onclick="hideDangerAction()">Cancel</button>
-            <button type="button" class="btn" style="background:#e94560;" onclick="submitDangerAction()">Confirm</button>
+            <button type="button" class="btn" style="background:#ffff00; color:#000000;" onclick="submitDangerAction()">Confirm</button>
         </div>
     </div>
 </div>

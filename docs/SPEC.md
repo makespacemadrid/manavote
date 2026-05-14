@@ -183,6 +183,9 @@ Committed series behavior:
   3. Option callbacks use `pollvote:<poll_id>:<option_index>` and are translated to the same backend vote path as `/vote`.
 - Web voting can be disabled by admin via poll vote mode.
 - Open polls accept votes; closed polls are read-only.
+- Polls can be created with an explicit end datetime (`closes_at`); expired open polls are auto-closed during active poll flows.
+- When a poll closes (manual close or automatic expiry), the app posts a Telegram results summary including per-option totals, percentages, and a text bar-graph.
+- Telegram poll/proposal announcement messages start with the poll question / proposal title as the first line.
 - Results are transparent by design (counts, horizontal bars, and voter-choice list are visible).
 
 ## 8) HTTP routes

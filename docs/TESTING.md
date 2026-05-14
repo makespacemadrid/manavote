@@ -101,6 +101,17 @@ Telegram link-service unit coverage:
 - `/link` success-path linkage persistence
 - duplicate `telegram_user_id` rejection (`already_linked`)
 
+## Poll auto-close + Telegram result message checks
+
+```bash
+pytest -q tests/unit/test_poll_closing.py
+```
+
+Covers:
+- `close_expired_polls` closes only expired open polls.
+- `build_poll_results_message` includes title, totals, and graph output.
+- invalid/malformed `options_json` fallback messaging for closed-poll summaries.
+
 ## Telegram link lifecycle audit checks
 
 ```bash
