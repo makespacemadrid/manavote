@@ -26,7 +26,7 @@
             
             {# Card 1: Votes so far with bars #}
             <div style="display:flex;gap:12px;flex-wrap:wrap;margin-top:12px;">
-                <div style="flex:1;min-width:200px;background:#1b1f3a;padding:12px;border-radius:8px;border:1px solid #2d335f;">
+                <div style="flex:1;min-width:200px;background:#232323;padding:12px;border-radius:8px;border:1px solid #3a3a3a;">
                     <h4 style="margin:0 0 8px 0;font-size:0.95em;">📊 {{ 'Votes so far'|lang }} ({{ p.counts|sum }})</h4>
                     {% for option in p.options %}
                         {% set option_votes = p.counts[loop.index0] %}
@@ -44,7 +44,7 @@
                 </div>
                 
                 {# Card 2: Who voted what #}
-                <div style="flex:1;min-width:200px;background:#1b1f3a;padding:12px;border-radius:8px;border:1px solid #2d335f;">
+                <div style="flex:1;min-width:200px;background:#232323;padding:12px;border-radius:8px;border:1px solid #3a3a3a;">
                     <h4 style="margin:0 0 8px 0;font-size:0.95em;">👥 {{ 'Who voted what'|lang }}</h4>
                     {% if p.votes %}
                         <details>
@@ -61,7 +61,7 @@
                 </div>
                 
                 {# Card 3: Vote via web #}
-                <div style="flex:1;min-width:200px;background:#1b1f3a;padding:12px;border-radius:8px;border:1px solid #2d335f;">
+                <div style="flex:1;min-width:200px;background:#232323;padding:12px;border-radius:8px;border:1px solid #3a3a3a;">
                     <h4 style="margin:0 0 8px 0;font-size:0.95em;">🖱️ {{ 'Vote via web'|lang }}</h4>
                     {% if is_web_vote_enabled %}
                         <form method="POST" style="margin-top:8px;">

@@ -11,7 +11,6 @@
     <button type="button" class="btn btn-secondary admin-tab-btn" data-section="budget" onclick="showSection('budget', this)">{{ 'Budget'|lang }}</button>
     <button type="button" class="btn btn-secondary admin-tab-btn" data-section="polls" onclick="showSection('polls', this)">{{ 'Polls'|lang }}</button>
     <button type="button" class="btn btn-secondary admin-tab-btn" data-section="settings" onclick="showSection('settings', this)">{{ 'Settings'|lang }}</button>
-    <button type="button" class="btn admin-tab-btn active" data-section="all" onclick="showSection('', this)">{{ 'Show All'|lang }}</button>
 </div>
 
 <style>
@@ -31,10 +30,10 @@
 }
 
 .settings-panel {
-    border: 1px solid #0f3460;
+    border: 1px solid #3a3a3a;
     border-radius: 8px;
     padding: 14px;
-    background: rgba(15, 52, 96, 0.15);
+    background: rgba(58, 58, 58, 0.35);
 }
 
 .settings-panel h4 {
@@ -62,18 +61,18 @@
 }
 
 .admin-page .card {
-    border: 1px solid #0f3460;
+    border: 1px solid #3a3a3a;
     box-shadow: 0 4px 14px rgba(0, 0, 0, 0.2);
 }
 
 .admin-page h3 {
-    border-bottom: 1px solid rgba(15, 52, 96, 0.7);
+    border-bottom: 1px solid rgba(58, 58, 58, 0.9);
     padding-bottom: 8px;
     margin-bottom: 14px;
 }
 
 .admin-page table th {
-    background: rgba(15, 52, 96, 0.55);
+    background: rgba(58, 58, 58, 0.65);
 }
 
 .admin-page table td {
@@ -84,7 +83,7 @@
 <script>
 function getActiveSection() {
     var activeBtn = document.querySelector('.admin-tab-btn.active');
-    return activeBtn ? (activeBtn.dataset.section || 'all') : 'all';
+    return activeBtn ? (activeBtn.dataset.section || 'members') : 'members';
 }
 
 function showSection(sectionId, buttonEl) {
@@ -100,27 +99,21 @@ function showSection(sectionId, buttonEl) {
 
 
     if (window.sessionStorage) {
-        sessionStorage.setItem('adminActiveTab', sectionId || 'all');
+        sessionStorage.setItem('adminActiveTab', sectionId || 'members');
     }
 
-    var selectedIds = sectionId ? (sections[sectionId] || []) : null;
+    var selectedIds = sections[sectionId] || sections.members;
     document.querySelectorAll('.card').forEach(function(el) {
-        if (!selectedIds) {
-            el.style.display = 'block';
-            return;
-        }
         el.style.display = selectedIds.includes(el.id) ? 'block' : 'none';
     });
 }
 
 document.addEventListener('DOMContentLoaded', function() {
-    var serverTab = {{ (active_admin_tab or 'all')|tojson }};
+    var serverTab = {{ (active_admin_tab or 'members')|tojson }};
     var urlTab = new URLSearchParams(window.location.search).get('tab');
-    var savedTab = urlTab || (serverTab !== 'all' ? serverTab : null) || (window.sessionStorage ? sessionStorage.getItem('adminActiveTab') : null);
-    if (savedTab && savedTab !== 'all') {
-        var tabBtn = document.querySelector('.admin-tab-btn[data-section="' + savedTab + '"]');
-        showSection(savedTab, tabBtn || null);
-    }
+    var savedTab = urlTab || serverTab || (window.sessionStorage ? sessionStorage.getItem('adminActiveTab') : null) || 'members';
+    var tabBtn = document.querySelector('.admin-tab-btn[data-section="' + savedTab + '"]');
+    showSection(savedTab, tabBtn || document.querySelector('.admin-tab-btn[data-section="members"]'));
 
     document.querySelectorAll('.admin-page form[method="POST"]').forEach(function(formEl) {
         formEl.addEventListener('submit', function() {
@@ -458,7 +451,7 @@ document.addEventListener('DOMContentLoaded', function() {
     {% set current_poll_mode = get_setting_value('poll_vote_mode', 'both') %}
     {% set current_proposal_mode = get_setting_value('proposal_vote_mode', 'both') %}
     {% set current_require_linked_telegram_vote = get_setting_value('telegram_require_linked_vote', 'false') %}
-    <div style="margin-bottom: 14px; padding: 12px; border: 1px solid #0f3460; border-radius: 8px; background: rgba(15,52,96,0.15);">
+    <div style="margin-bottom: 14px; padding: 12px; border: 1px solid #3a3a3a; border-radius: 8px; background: rgba(58,58,58,0.35);">
         <h4 style="margin: 0 0 8px 0;">Effective vote policy</h4>
         <ul style="margin: 0 0 0 18px; color: #cbd5e1; font-size: 0.92em;">
             <li>
@@ -575,7 +568,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <tbody>
                 {% for f in backups %}
                 <tr>
-                    <td><span class="status" style="background:#0ea5e922; color:#7dd3fc;">DB</span></td>
+                    <td><span class="status" style="background:#3a3a3a55; color:#d1d5db;">DB</span></td>
                     <td>{{ f.name }}</td>
                     <td>{{ f.size }} bytes</td>
                     <td>{{ f.modified[:19] }}</td>
@@ -647,7 +640,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <div id="changePasswordModal" style="display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); z-index:1000; overflow-y: auto;">
-    <div style="max-width: 400px; margin: 50px auto; background: #1a1a2e; padding: 20px; border-radius: 8px; width: 90%;">
+    <div style="max-width: 400px; margin: 50px auto; background: #1f1f1f; padding: 20px; border-radius: 8px; width: 90%;">
         <h3 style="margin-top: 0;">{{ 'Change Password'|lang }}</h3>
         <h3>{{ 'Change Password'|lang }}</h3>
         <p id="changePasswordUser" style="color: #888;"></p>
@@ -672,7 +665,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <div id="dangerActionModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); z-index:1100; overflow-y:auto;">
-    <div style="max-width: 480px; margin: 60px auto; background:#1a1a2e; border:1px solid #e94560; border-radius:8px; width:92%; padding:20px;">
+    <div style="max-width: 480px; margin: 60px auto; background:#1f1f1f; border:1px solid #e94560; border-radius:8px; width:92%; padding:20px;">
         <h3 style="margin-top:0; color:#ff8fa3;">Confirm action</h3>
         <p id="dangerActionMessage" style="color:#cbd5e1; line-height:1.45;"></p>
         <p style="color:#94a3b8; font-size:0.9em; margin-top:8px;">Please confirm to continue.</p>
