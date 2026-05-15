@@ -6,7 +6,7 @@ from pathlib import Path
 sys.path.insert(0, ".")
 
 import app as budget_app
-from app.web.routes import main_routes
+from app.web.routes import main_routes, proposal_routes
 from app.web import app_setup
 
 
@@ -310,7 +310,7 @@ class TestCalendarBudgetData(unittest.TestCase):
 
     def test_calendar_approved_query_includes_all_approvals(self):
         """Calendar approved bars include all approved proposals, not only over-budget ones"""
-        source = inspect.getsource(main_routes.calendar)
+        source = inspect.getsource(proposal_routes.calendar)
         self.assertIn("status = 'approved' AND processed_at IS NOT NULL GROUP BY day", source)
         self.assertIn("status = 'approved' AND processed_at IS NOT NULL AND over_budget_at IS NOT NULL GROUP BY day", source)
 

@@ -22,8 +22,8 @@
         </p>
 
         <div style="text-align: center; margin-top: 15px;">
-            <a href="{{ url_for('auth.set_language', lang='en') }}" style="color: #888; font-size: 0.85em;">English</a> |
-            <a href="{{ url_for('auth.set_language', lang='es') }}" style="color: #888; font-size: 0.85em;">Español</a>
+        <a href="{{ url_for('auth.set_language', lang='en') }}" style="color: #888; font-size: 0.85em;">{{ 'English'|lang }}</a> |
+        <a href="{{ url_for('auth.set_language', lang='es') }}" style="color: #888; font-size: 0.85em;">{{ 'Español'|lang }}</a>
         </div>
     </div>
 </div>
