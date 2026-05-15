@@ -179,7 +179,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <th>{{ 'Username'|lang }}</th>
                 <th>{{ 'Role'|lang }}</th>
                 <th>{{ 'Joined'|lang }}</th>
-                <th>Telegram</th>
+                <th>{{ 'Telegram'|lang }}</th>
                 <th>{{ 'Action'|lang }}</th>
             </tr>
         </thead>
@@ -217,7 +217,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="action" value="unlink_telegram">
                             <input type="hidden" name="member_id" value="{{ m.id }}">
-                            <button type="submit" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" onclick="return confirmDangerAction(this.form, 'Unlink Telegram account for {{ m.username }}? They will need to run /link again.')">Unlink Telegram</button>
+                            <button type="submit" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" onclick="return confirmDangerAction(this.form, '{{ ('Unlink Telegram account for %s? They will need to run /link again.')|lang|replace('%s', m.username) }}')">{{ 'Unlink Telegram'|lang }}</button>
                         </form>
                         {% endif %}
                         <button type="button" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" onclick="showChangePassword({{ m.id }}, '{{ m.username }}')">{{ 'Change Password'|lang }}</button>

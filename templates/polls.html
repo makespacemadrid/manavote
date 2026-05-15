@@ -29,9 +29,9 @@
     </div>
     {% if not is_telegram_linked %}
     <div style="margin:10px 0 14px;padding:10px;background:#f59e0b22;border:1px solid #f59e0b;border-radius:8px;font-size:0.9em;color:#fcd34d;">
-        <strong>Telegram account not linked yet.</strong><br>
-        Send <code>/link &lt;app_username&gt; &lt;app_password&gt;</code> to the bot, then refresh this page.
-        You can find the same instructions under <a href="{{ url_for('telegram_settings') }}" style="color:#fde68a;text-decoration:underline;">Telegram Settings</a>.
+        <strong>{{ 'Telegram account not linked yet.'|lang }}</strong><br>
+        {{ 'Send /link command in the bot, then refresh this page.'|lang }}
+        {{ 'You can find the same instructions under'|lang }} <a href="{{ url_for('telegram_settings') }}" style="color:#fde68a;text-decoration:underline;">{{ 'Telegram Settings'|lang }}</a>.
     </div>
     {% endif %}
     {% if polls %}
@@ -54,7 +54,7 @@
                                 <span>{{ option_votes }}{% if total_votes > 0 %} ({{ '%.1f'|format(pct) }}%){% endif %}</span>
                             </div>
                             <div style="width:100%;height:12px;background:#0d1117;border-radius:999px;overflow:hidden;">
-                                <div style="width: {{ '%.2f'|format(pct) }}%; height:100%; background: linear-gradient(90deg,#00d9ff,#4ade80);"></div>
+                                <div style="width: {{ '%.2f'|format(pct) }}%; height:100%; background: linear-gradient(90deg,#fde047,#f59e0b);"></div>
                             </div>
                         </div>
                     {% endfor %}
