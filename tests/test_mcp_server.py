@@ -194,6 +194,38 @@ def test_tools_call_create_proposal_rejects_non_positive_amount(monkeypatch):
     assert response["error"]["code"] == -32602
 
 
+
+
+def test_tools_call_crreate_proposal_alias(monkeypatch):
+    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"id": 1}])
+    monkeypatch.setattr(mcp_server, "_create_proposal_record", lambda *_args, **_kwargs: 78)
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=63,
+            params={
+                "name": "crreate_proposal",
+                "arguments": {"title": "Keyboard", "amount": 45, "created_by": 1},
+            },
+        )
+    )
+    payload = json.loads(response["result"]["content"][0]["text"])
+    assert payload["success"] is True
+    assert payload["proposal_id"] == 78
+    assert "Deprecated tool alias" in payload["warning"]
+
+
+
+def test_tools_call_unknown_typo_tool_name_is_rejected():
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=64,
+            params={"name": "creat_proposal", "arguments": {"title": "Keyboard", "amount": 45, "created_by": 1}},
+        )
+    )
+    assert response["error"]["code"] == -32601
+
 def test_tools_call_create_poll(monkeypatch):
     monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"id": 1}])
     monkeypatch.setattr(mcp_server, "_db_execute", lambda *_args, **_kwargs: 13)
