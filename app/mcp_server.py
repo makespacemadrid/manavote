@@ -288,7 +288,12 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
             member = _db_rows("SELECT id FROM members WHERE id = ? LIMIT 1", (created_by_val,))
             if not member:
                 return _error(req_id, -32004, "Not found: creator member not found")
-            proposal_id = _create_proposal_record(title, description, amount_val, url, created_by_val, basic_supplies)
+            try:
+                proposal_id = _create_proposal_record(title, description, amount_val, url, created_by_val, basic_supplies)
+            except sqlite3.IntegrityError as exc:
+                return _error(req_id, -32011, f"Conflict: create_proposal failed integrity checks ({exc})")
+            except sqlite3.OperationalError as exc:
+                return _error(req_id, -32012, f"Unavailable: create_proposal database operation failed ({exc})")
             payload = {"success": True, "proposal_id": proposal_id}
             if alias_warning:
                 payload["warning"] = alias_warning
@@ -341,7 +346,11 @@ def _process_jsonrpc_body(body: str, headers: dict[str, str] | None = None) -> t
             if not isinstance(item, dict):
                 responses.append(_error(None, -32600, "Invalid Request"))
                 continue
-            resp = handle_request(item, headers=headers)
+            item_id = item.get("id")
+            try:
+                resp = handle_request(item, headers=headers)
+            except Exception as exc:
+                resp = _error(item_id, -32000, f"Server error: {exc}")
             if resp is not None:
                 responses.append(resp)
         if not responses:
@@ -351,10 +360,11 @@ def _process_jsonrpc_body(body: str, headers: dict[str, str] | None = None) -> t
     if not isinstance(req, dict):
         return 400, json.dumps(_error(None, -32600, "Invalid Request: body must be an object")).encode("utf-8")
 
+    req_id = req.get("id") if isinstance(req, dict) else None
     try:
         resp = handle_request(req, headers=headers)
     except Exception as exc:
-        return 500, json.dumps(_error(None, -32000, f"Server error: {exc}")).encode("utf-8")
+        return 500, json.dumps(_error(req_id, -32000, f"Server error: {exc}")).encode("utf-8")
     if resp is None:
         return 202, b"{}"
     return 200, json.dumps(resp).encode("utf-8")

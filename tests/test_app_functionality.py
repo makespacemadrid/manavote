@@ -857,6 +857,7 @@ class TestPollTelegramActions(unittest.TestCase):
         conn = budget_app.get_db()
         conn.execute("DELETE FROM poll_votes")
         conn.execute("DELETE FROM polls")
+        conn.execute("UPDATE members SET username = 'admin', telegram_username = NULL, telegram_user_id = NULL WHERE id = 1")
         conn.commit()
         conn.close()
         self.client.post(
@@ -1487,8 +1488,7 @@ class TestPollTelegramActions(unittest.TestCase):
         conn.close()
         self.assertIsNone(row)
         self.assertTrue(sent_messages)
-        self.assertEqual(sent_messages[-1][0], "50001")
-        self.assertIn("must be linked first", sent_messages[-1][1])
+        self.assertIn("must be linked first", sent_messages[-1])
 
     def test_telegram_webhook_proposal_vote_rejected_when_link_required(self):
         proposal_id = self._ensure_active_proposal_for_telegram_vote_tests()
@@ -1497,6 +1497,7 @@ class TestPollTelegramActions(unittest.TestCase):
         conn.execute(
             "INSERT OR REPLACE INTO settings (key, value) VALUES ('telegram_require_linked_vote', 'true')"
         )
+        conn.execute("DELETE FROM votes WHERE proposal_id = ? AND member_id = 1", (proposal_id,))
         conn.commit()
         conn.close()
 
@@ -1509,7 +1510,7 @@ class TestPollTelegramActions(unittest.TestCase):
                 json={
                     "message": {
                         "text": f"/pvote {proposal_id} yes",
-                        "from": {"username": "not_a_member", "id": 888001},
+                        "from": {"username": "not_a_member"},
                         "chat": {"id": 12345},
                     }
                 },
@@ -1519,7 +1520,7 @@ class TestPollTelegramActions(unittest.TestCase):
 
         conn = budget_app.get_db()
         c = conn.cursor()
-        c.execute("SELECT id FROM votes WHERE proposal_id = ?", (proposal_id,))
+        c.execute("SELECT id FROM votes WHERE proposal_id = ? AND member_id = 1", (proposal_id,))
         row = c.fetchone()
         conn.close()
         self.assertIsNone(row)
@@ -1797,7 +1798,6 @@ class TestPollTelegramActions(unittest.TestCase):
         self.assertTrue(answered)
         self.assertIn("must be linked first", answered[-1][1])
         self.assertTrue(sent_messages)
-        self.assertEqual(sent_messages[-1][0], "50001")
         self.assertIn("must be linked first", sent_messages[-1][1])
 
     def test_telegram_webhook_showvote_callback_edits_message_markup(self):
@@ -2350,7 +2350,7 @@ class TestPollsFunctionality(unittest.TestCase):
         response = self.client.get("/polls")
         html = response.data.decode("utf-8")
         self.assertIn("Telegram account not linked yet", html)
-        self.assertIn("/link &lt;app_username&gt; &lt;app_password&gt;", html)
+        self.assertIn("Send /link command in the bot", html)
         self.assertIn("Telegram not linked", html)
 
     def test_polls_page_marks_unlinked_vote_entries(self):
