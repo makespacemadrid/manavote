@@ -143,18 +143,18 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
 
     if method == "tools/call":
         params = req.get("params") or {}
-        name = params.get("name")
+        tool_name = params.get("name")
         arguments = params.get("arguments") or {}
-        if not isinstance(name, str):
+        if not isinstance(tool_name, str):
             return _error(req_id, -32602, "Invalid params: tool name is required")
-        normalized_name = TOOL_ALIASES.get(name, name)
+        normalized_name = TOOL_ALIASES.get(tool_name, tool_name)
         alias_warning = None
-        if normalized_name != name:
-            alias_warning = f"Deprecated tool alias '{name}' used; please use '{normalized_name}'"
+        if normalized_name != tool_name:
+            alias_warning = f"Deprecated tool alias '{tool_name}' used; please use '{normalized_name}'"
         if not isinstance(arguments, dict):
             return _error(req_id, -32602, "Invalid params: arguments must be an object")
 
-        if name == "list_proposals":
+        if normalized_name == "list_proposals":
             status = str(arguments.get("status") or "").strip().lower()
             if status and status not in VALID_PROPOSAL_STATUSES:
                 return _error(req_id, -32602, "Invalid params: unknown status filter")
@@ -175,13 +175,13 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
             rows = _db_rows(query, query_params + (limit, offset))
             return _tool_text(req_id, {"count": len(rows), "limit": limit, "offset": offset, "proposals": rows})
 
-        if name == "current_budget":
+        if normalized_name == "current_budget":
             rows = _db_rows("SELECT value FROM settings WHERE key='current_budget' LIMIT 1")
             value = rows[0]["value"] if rows else None
             return _tool_text(req_id, {"current_budget": value})
 
 
-        if name == "list_member_telegram_links":
+        if normalized_name == "list_member_telegram_links":
             include_unlinked = bool(arguments.get("include_unlinked", False))
             try:
                 limit = int(arguments.get("limit") or 200)
@@ -218,10 +218,10 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
                 )
             return _tool_text(req_id, {"count": len(rows), "limit": limit, "offset": offset, "members": rows})
 
-        if name == "get_voting_settings":
+        if normalized_name == "get_voting_settings":
             return _tool_text(req_id, _read_voting_settings())
 
-        if name == "update_voting_settings":
+        if normalized_name == "update_voting_settings":
             poll_vote_mode = arguments.get("poll_vote_mode")
             proposal_vote_mode = arguments.get("proposal_vote_mode")
             linked_required = arguments.get("telegram_require_linked_vote")
@@ -254,7 +254,7 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
                 conn.close()
             return _tool_text(req_id, _read_voting_settings())
 
-        if name == "create_member":
+        if normalized_name == "create_member":
             username = str(arguments.get("username") or "").strip()
             password = str(arguments.get("password") or "")
             is_admin = bool(arguments.get("is_admin", False))
@@ -294,7 +294,7 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
                 payload["warning"] = alias_warning
             return _tool_text(req_id, payload)
 
-        if name == "create_poll":
+        if normalized_name == "create_poll":
             question = str(arguments.get("question") or "").strip()
             options = arguments.get("options")
             created_by = arguments.get("created_by")
@@ -320,7 +320,7 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
             )
             return _tool_text(req_id, {"success": True, "poll_id": poll_id})
 
-        return _error(req_id, -32601, f"Unknown tool: {name}")
+        return _error(req_id, -32601, f"Unknown tool: {tool_name}")
 
     return _error(req_id, -32601, f"Unknown method: {method}")
 
