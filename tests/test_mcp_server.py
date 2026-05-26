@@ -244,6 +244,23 @@ def test_tools_call_create_poll(monkeypatch):
     assert payload["poll_id"] == 13
 
 
+def test_tools_call_accepts_tool_name_alias_for_name(monkeypatch):
+    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"id": 1}])
+    monkeypatch.setattr(mcp_server, "_db_execute", lambda *_args, **_kwargs: 21)
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=212,
+            params={
+                "tool_name": "create_poll",
+                "arguments": {"question": "Alias-based question", "options": ["A", "B"], "created_by": 1},
+            },
+        )
+    )
+    payload = json.loads(response["result"]["content"][0]["text"])
+    assert payload["poll_id"] == 21
+
+
 def test_tools_call_create_poll_rejects_short_question(monkeypatch):
     monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"id": 1}])
     response = mcp_server.handle_request(
