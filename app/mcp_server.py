@@ -17,6 +17,7 @@ DB_PATH = os.getenv("APP_DB_PATH", os.path.join(os.path.dirname(os.path.dirname(
 MCP_API_KEY = os.getenv("MCP_API_KEY", "")
 VALID_PROPOSAL_STATUSES = {"active", "accepted", "rejected", "purchased"}
 VALID_VOTE_MODES = {"both", "web_only", "telegram_only"}
+TOOL_ALIASES = {"crreate_proposal": "create_proposal"}
 
 
 def _db_rows(query: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
@@ -146,6 +147,10 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
         arguments = params.get("arguments") or {}
         if not isinstance(name, str):
             return _error(req_id, -32602, "Invalid params: tool name is required")
+        normalized_name = TOOL_ALIASES.get(name, name)
+        alias_warning = None
+        if normalized_name != name:
+            alias_warning = f"Deprecated tool alias '{name}' used; please use '{normalized_name}'"
         if not isinstance(arguments, dict):
             return _error(req_id, -32602, "Invalid params: arguments must be an object")
 
@@ -264,7 +269,7 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
             )
             return _tool_text(req_id, {"success": True, "member_id": member_id, "username": username})
 
-        if name == "create_proposal":
+        if normalized_name == "create_proposal":
             title = str(arguments.get("title") or "").strip()
             description = str(arguments.get("description") or "")
             url = str(arguments.get("url") or "")
@@ -284,7 +289,10 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
             if not member:
                 return _error(req_id, -32004, "Not found: creator member not found")
             proposal_id = _create_proposal_record(title, description, amount_val, url, created_by_val, basic_supplies)
-            return _tool_text(req_id, {"success": True, "proposal_id": proposal_id})
+            payload = {"success": True, "proposal_id": proposal_id}
+            if alias_warning:
+                payload["warning"] = alias_warning
+            return _tool_text(req_id, payload)
 
         if name == "create_poll":
             question = str(arguments.get("question") or "").strip()
