@@ -426,3 +426,55 @@ def test_http_mcp_endpoint_accepts_x_api_key_header():
 
     assert body["id"] == 30
     assert body["result"]["serverInfo"]["name"] == "manavote-mcp"
+
+
+def test_tools_call_create_proposal_returns_integrity_error_code(monkeypatch):
+    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"id": 1}])
+
+    def _raise_integrity(*_args, **_kwargs):
+        raise mcp_server.sqlite3.IntegrityError("constraint failed")
+
+    monkeypatch.setattr(mcp_server, "_create_proposal_record", _raise_integrity)
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=65,
+            params={"name": "create_proposal", "arguments": {"title": "Desk", "amount": 10, "created_by": 1}},
+        )
+    )
+    assert response["error"]["code"] == -32011
+
+
+def test_process_jsonrpc_body_preserves_request_id_on_server_error(monkeypatch):
+    def _boom(*_args, **_kwargs):
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(mcp_server, "handle_request", _boom)
+    status, payload = mcp_server._process_jsonrpc_body(json.dumps(_req("initialize", req_id=999)))
+    body = json.loads(payload.decode("utf-8"))
+    assert status == 500
+    assert body["id"] == 999
+    assert body["error"]["code"] == -32000
+
+
+def test_process_jsonrpc_body_batch_preserves_item_id_on_server_error(monkeypatch):
+    def _boom(req, headers=None):
+        if req.get("id") == 2:
+            raise RuntimeError("boom")
+        return mcp_server._result(req.get("id"), {"ok": True})
+
+    monkeypatch.setattr(mcp_server, "handle_request", _boom)
+    status, payload = mcp_server._process_jsonrpc_body(
+        json.dumps(
+            [
+                {"jsonrpc": "2.0", "id": 1, "method": "initialize", "params": {}},
+                {"jsonrpc": "2.0", "id": 2, "method": "initialize", "params": {}},
+            ]
+        )
+    )
+    body = json.loads(payload.decode("utf-8"))
+    assert status == 200
+    assert body[0]["id"] == 1
+    assert body[0]["result"]["ok"] is True
+    assert body[1]["id"] == 2
+    assert body[1]["error"]["code"] == -32000
