@@ -144,6 +144,11 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
     if method == "tools/call":
         params = req.get("params") or {}
         tool_name = params.get("name")
+        if tool_name is None:
+            # Compatibility alias for clients that avoid placing `name` in
+            # logging extras because Python logging treats it as a reserved
+            # LogRecord attribute.
+            tool_name = params.get("tool_name") or params.get("tool")
         arguments = params.get("arguments") or {}
         if not isinstance(tool_name, str):
             return _error(req_id, -32602, "Invalid params: tool name is required")
