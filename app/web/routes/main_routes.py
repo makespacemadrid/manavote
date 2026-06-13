@@ -1196,8 +1196,6 @@ def edit_comment(comment_id):
         "edit_comment.html",
         comment=comment,
         session_lang=session.get("lang", "en"),
-        backups=backups,
-        polls=polls,
     )
 
 
@@ -1359,8 +1357,6 @@ def edit_proposal(proposal_id):
         current_budget=current_budget,
         thresholds=thresholds,
         session_lang=session.get("lang", "en"),
-        backups=backups,
-        polls=polls,
     )
 
 
