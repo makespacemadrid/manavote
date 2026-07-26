@@ -5,6 +5,9 @@ CREATE TABLE IF NOT EXISTS members (
     is_admin INTEGER DEFAULT 0,
     telegram_username TEXT,
     telegram_user_id INTEGER,
+    oidc_sub TEXT UNIQUE,
+    email TEXT,
+    display_name TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
 CREATE TABLE IF NOT EXISTS proposals (

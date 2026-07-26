@@ -122,3 +122,16 @@ Covers structured audit-log emission on:
 - admin-triggered Telegram unlink
 - member self-service Telegram unlink
 - Telegram `/link` command success path
+
+## OpenID Connect regression tests
+
+Run the focused Makespace SSO regression pack with:
+
+```bash
+pytest -q tests/test_oidc_auth.py
+```
+
+It covers additive migration and `sub` uniqueness, disabled SSO behavior, public
+callback selection, required-group enforcement, missing identity claims, session
+rotation without token persistence, provider logout, idempotent claim updates,
+administrator removal, and local username collisions.

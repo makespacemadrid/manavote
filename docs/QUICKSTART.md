@@ -54,6 +54,13 @@ When running with Docker Compose:
 | `TELEGRAM_THREAD_ID` | _empty_ | Optional Telegram topic/thread id for forum chats |
 | `TELEGRAM_ADMIN_ID` | _empty_ | Optional Telegram user/chat id for poll test messages from admin panel |
 | `TELEGRAM_WEBHOOK_SECRET` | _empty_ | Secret path segment used by Telegram webhook endpoint for command/inline-button poll voting |
+| `OIDC_CLIENT_SECRET` | _empty_ | Enables Makespace SSO; confidential value supplied by the Keycloak operator |
+| `OIDC_ISSUER` | Makespace realm URL | Expected `iss` value and provider logout base URL |
+| `OIDC_DISCOVERY_URL` | Makespace discovery URL | Provider endpoints and JWKS metadata |
+| `OIDC_CLIENT_ID` | `manavote` | Confidential Keycloak client identifier |
+| `OIDC_REDIRECT_URI` | generated from request | Exact HTTPS callback registered for the Keycloak client |
+| `OIDC_POST_LOGOUT_REDIRECT_URI` | generated from request | Exact HTTPS destination registered for provider logout |
+| `OIDC_REQUIRED_GROUP` | `members-active` | Keycloak group required to sign in; set empty to disable this membership check |
 
 ### Telegram poll delivery notes (important)
 - Poll text is sent as plain text (no forced Markdown parse mode) to avoid Telegram rejecting messages with unescaped markdown-like characters.
@@ -110,3 +117,69 @@ Focused regression slice for the ongoing route decomposition:
 ```bash
 pytest -q tests/test_blueprint_registration.py tests/test_blueprint_endpoint_aliases.py tests/test_api_helpers.py tests/test_production_config.py
 ```
+## Makespace SSO
+
+Manavote supports OpenID Connect Authorization Code login with PKCE through the
+Makespace Keycloak realm. Set `OIDC_CLIENT_SECRET` in the server environment (or
+secret manager) to enable the **Login with Makespace SSO** button. Never expose
+this value to browser-side code. The remaining defaults are shown in
+`sample.env`; override them only when the Keycloak client changes.
+
+Register this login redirect URI in Keycloak:
+
+```
+https://manavote.mksmad.org/auth/callback/keycloak
+```
+
+For provider logout redirection, also allow
+`https://manavote.mksmad.org/login` as a valid post-logout redirect URI. The app
+requests `openid profile email`, validates the ID token using the provider's
+discovery metadata/JWKS, and creates a local member keyed by the stable `sub`
+claim. Membership in the `admins` group controls the local administrator flag.
+The `members-active` group is required by default, preventing former or inactive
+members from signing in. Tokens and the confidential client secret are not
+stored in browser sessions.
+
+### Keycloak client checklist
+
+1. Configure `manavote` as a **confidential** client with Standard Flow enabled.
+2. Register `https://manavote.mksmad.org/auth/callback/keycloak` as an exact
+   valid redirect URI.
+3. Register `https://manavote.mksmad.org/login` as a valid post-logout redirect
+   URI.
+4. Include a `groups` array in the ID token: `members-active` grants access and
+   `admins` grants local administrator privileges.
+5. Include `telegram_handle` when it is available.
+6. Deliver the generated client secret through the deployment secret manager,
+   never through source control or client-side code.
+
+Restart Manavote after changing its environment. The SSO button is hidden until
+`OIDC_CLIENT_SECRET` is non-empty.
+
+### Account and session behavior
+
+- The immutable Keycloak `sub` identifies a local member. Profile changes do not
+  create another account.
+- A first-login username collision gets a numeric suffix. Manavote never silently
+  attaches an SSO identity to an existing password account.
+- The `admins` group is synchronized at every login, including removal of local
+  administrator access when the group is removed.
+- Access and refresh tokens are discarded after the server-side callback.
+  Manavote does not need to refresh tokens because it makes no subsequent
+  Keycloak API calls.
+- Password login remains available. Only SSO-created sessions use provider
+  logout.
+
+### Troubleshooting
+
+- **SSO button missing:** set `OIDC_CLIENT_SECRET` in the running process and
+  restart it.
+- **Invalid redirect URI:** compare `OIDC_REDIRECT_URI` byte-for-byte with the
+  registered URI, including scheme and path.
+- **403 after callback:** ensure the ID token contains `groups` with
+  `members-active`, or set `OIDC_REQUIRED_GROUP=` to disable this check.
+- **Logout redirect rejected:** register the exact
+  `OIDC_POST_LOGOUT_REDIRECT_URI` in Keycloak.
+- **Token validation failure:** verify discovery/issuer settings, system clock,
+  client ID, and client secret. Do not replace discovery/JWKS validation with the
+  static realm public key.
