@@ -3,7 +3,7 @@ import logging
 from flask import Flask
 
 from app.config import Config
-from app.extensions import limiter, csrf
+from app.extensions import limiter, csrf, oauth
 from app.startup_policy import validate_startup_policy
 
 BASE_DIR = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
@@ -42,3 +42,14 @@ app.jinja_env.cache = None
 
 limiter.init_app(app)
 csrf.init_app(app)
+oauth.init_app(app)
+oauth.register(
+    name="keycloak",
+    client_id=app.config["OIDC_CLIENT_ID"],
+    client_secret=app.config["OIDC_CLIENT_SECRET"],
+    server_metadata_url=app.config["OIDC_DISCOVERY_URL"],
+    client_kwargs={
+        "scope": app.config["OIDC_SCOPES"],
+        "code_challenge_method": "S256",
+    },
+)

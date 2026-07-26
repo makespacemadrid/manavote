@@ -5,6 +5,13 @@
     <div class="card">
         <h1 style="text-align: center;">🔧 MakeSpace Madrid</h1>
         <p style="text-align: center; color: #888; margin-bottom: 30px;">{{ 'Budget'|lang }} {{ 'Proposals'|lang }}</p>
+
+        {% if oidc_enabled %}
+        <a href="{{ url_for('auth.keycloak_login') }}" class="btn" style="display: block; width: 100%; box-sizing: border-box; text-align: center; margin-bottom: 24px;">Login with Makespace SSO</a>
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; color: #888;">
+            <span style="height: 1px; background: #555; flex: 1;"></span><span>or</span><span style="height: 1px; background: #555; flex: 1;"></span>
+        </div>
+        {% endif %}
         
         <form method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">

@@ -1,9 +1,11 @@
 import logging
+import secrets
+from urllib.parse import urlencode
 
-from flask import Blueprint, flash, redirect, render_template, request, session, url_for
+from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
 from werkzeug.security import generate_password_hash
 
-from app.extensions import limiter
+from app.extensions import limiter, oauth
 from app.services.auth_service import verify_and_migrate_password
 from app.services.telegram_link_service import unlink_member_telegram
 from app.web.routes.helpers.admin_audit_helpers import log_telegram_link_event
@@ -65,12 +67,117 @@ def login():
 
         flash("Invalid credentials", "error")
 
-    return render_template("login.html", session_lang=session.get("lang", "en"))
+    return render_template(
+        "login.html",
+        session_lang=session.get("lang", "en"),
+        oidc_enabled=current_app.config["OIDC_ENABLED"],
+    )
+
+
+@auth_bp.route("/auth/login/keycloak", endpoint="keycloak_login")
+@limiter.limit("10 per minute")
+def keycloak_login():
+    """Start Authorization Code flow; Authlib generates state, nonce and PKCE."""
+    if not current_app.config["OIDC_ENABLED"]:
+        abort(503, description="Makespace SSO is not configured")
+    redirect_uri = current_app.config["OIDC_REDIRECT_URI"] or url_for(
+        "auth.keycloak_callback", _external=True
+    )
+    return oauth.keycloak.authorize_redirect(redirect_uri)
+
+
+@auth_bp.route("/auth/callback/keycloak", endpoint="keycloak_callback")
+@limiter.limit("10 per minute")
+def keycloak_callback():
+    """Validate the OIDC response and provision/update the local member."""
+    if not current_app.config["OIDC_ENABLED"]:
+        abort(503, description="Makespace SSO is not configured")
+
+    try:
+        token = oauth.keycloak.authorize_access_token()
+    except Exception:  # Authlib errors vary by provider response and validation stage.
+        logger.exception("Makespace OIDC callback failed")
+        flash("Makespace SSO login failed. Please try again.", "error")
+        return redirect(url_for("auth.login"))
+
+    # authorize_access_token parses and validates the signed ID token against
+    # discovery/JWKS, including nonce, issuer, audience and expiry.
+    claims = token.get("userinfo") or {}
+    subject = claims.get("sub")
+    if not subject:
+        abort(400, description="The identity response has no subject")
+
+    groups = claims.get("groups") if isinstance(claims.get("groups"), list) else []
+    required_group = current_app.config["OIDC_REQUIRED_GROUP"]
+    if required_group and required_group not in groups:
+        logger.warning("OIDC login rejected for subject without required group")
+        session.clear()
+        abort(403, description="An active Makespace membership is required")
+
+    preferred_language = session.get("lang", "en")
+    member = _upsert_oidc_member(claims)
+    session.clear()  # Prevent session fixation and discard OIDC transient values.
+    session["member_id"] = member["id"]
+    session["username"] = member["username"]
+    session["is_admin"] = member["is_admin"]
+    session["lang"] = preferred_language
+    session["oidc_login"] = True
+    session.permanent = True
+    return redirect(url_for("dashboard"))
+
+
+def _upsert_oidc_member(claims):
+    subject = str(claims["sub"])
+    preferred = (claims.get("preferred_username") or claims.get("email") or f"oidc-{subject[:12]}").strip()
+    email = (claims.get("email") or "").strip() or None
+    display_name = (claims.get("name") or "").strip() or None
+    telegram = (claims.get("telegram_handle") or "").strip().lstrip("@") or None
+    groups = claims.get("groups") if isinstance(claims.get("groups"), list) else []
+    is_admin = int("admins" in groups)
+
+    conn = legacy.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM members WHERE oidc_sub = ?", (subject,))
+    member = cursor.fetchone()
+    if member:
+        cursor.execute(
+            "UPDATE members SET email = ?, display_name = ?, is_admin = ?, telegram_username = COALESCE(?, telegram_username) WHERE id = ?",
+            (email, display_name, is_admin, telegram, member["id"]),
+        )
+        member_id = member["id"]
+    else:
+        username = preferred
+        suffix = 1
+        while cursor.execute("SELECT 1 FROM members WHERE username = ?", (username,)).fetchone():
+            suffix += 1
+            username = f"{preferred}-{suffix}"
+        cursor.execute(
+            "INSERT INTO members (username, password_hash, is_admin, telegram_username, oidc_sub, email, display_name) VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (username, generate_password_hash(secrets.token_urlsafe(32)), is_admin, telegram, subject, email, display_name),
+        )
+        member_id = cursor.lastrowid
+    conn.commit()
+    cursor.execute("SELECT id, username, is_admin FROM members WHERE id = ?", (member_id,))
+    result = cursor.fetchone()
+    conn.close()
+    return result
 
 
 @auth_bp.route("/logout", endpoint="logout")
 def logout():
+    used_oidc = session.get("oidc_login", False)
     session.clear()
+    if used_oidc and current_app.config["OIDC_ENABLED"]:
+        post_logout_uri = current_app.config["OIDC_POST_LOGOUT_REDIRECT_URI"] or url_for(
+            "auth.login", _external=True
+        )
+        params = urlencode(
+            {
+                "client_id": current_app.config["OIDC_CLIENT_ID"],
+                "post_logout_redirect_uri": post_logout_uri,
+            }
+        )
+        return redirect(f"{current_app.config['OIDC_ISSUER']}/protocol/openid-connect/logout?{params}")
     return redirect(url_for("auth.login"))
 
 
