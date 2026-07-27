@@ -58,6 +58,23 @@ class TestAppStartup(unittest.TestCase):
         self.assertIn('scheduler_start_failed', message)
         self.assertIn('auto_backup_check_failed', message)
 
+    def test_startup_synchronizes_configured_telegram_webhook(self):
+        with patch("app.startup.ensure_db_ready"), \
+             patch("app.startup.sync_telegram_webhook_on_startup", return_value="synced") as sync_mock:
+            run_startup_steps(app.flask_app, "test.db", "uploads", app_env="test")
+
+        sync_mock.assert_called_once_with()
+
+    def test_startup_reports_telegram_webhook_configuration_problem(self):
+        with patch("app.startup.ensure_db_ready"), \
+             patch("app.startup.sync_telegram_webhook_on_startup", return_value="missing_base_url"), \
+             patch("app.startup.logging.info") as info_mock:
+            run_startup_steps(app.flask_app, "test.db", "uploads", app_env="test")
+
+        message = info_mock.call_args[0][1]
+        self.assertIn('"status": "degraded"', message)
+        self.assertIn('telegram_webhook_missing_base_url', message)
+
 
 if __name__ == "__main__":
     unittest.main()

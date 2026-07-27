@@ -515,6 +515,27 @@ def sync_telegram_webhook(base_url: str) -> bool:
     return client.set_webhook(webhook_url)
 
 
+def sync_telegram_webhook_on_startup() -> str:
+    """Synchronize a configured bot webhook after the database is ready.
+
+    Returning a small status value lets startup distinguish an intentionally
+    unconfigured integration from a Telegram API failure.
+    """
+    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_WEBHOOK_SECRET:
+        return "skipped"
+    base_url = get_base_url().rstrip("/")
+    if not base_url:
+        app.logger.warning(
+            "Telegram bot is configured but its Base URL is empty; webhook was not synchronized"
+        )
+        return "missing_base_url"
+    if sync_telegram_webhook(base_url):
+        app.logger.info("Telegram webhook synchronized")
+        return "synced"
+    app.logger.warning("Telegram webhook synchronization failed")
+    return "failed"
+
+
 def process_telegram_link_command(telegram_username, telegram_user_id, command_text):
     success, reason, linked_member_id = process_link_command(
         get_db=get_db,

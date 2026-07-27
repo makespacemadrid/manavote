@@ -8,7 +8,7 @@ from datetime import datetime, timedelta
 
 from .services.backup_service import start_scheduler
 from .startup_policy import get_startup_runtime_policy
-from .web.routes.main_routes import ensure_db_ready
+from .web.routes.main_routes import ensure_db_ready, sync_telegram_webhook_on_startup
 
 
 def check_auto_backup(db_path, upload_dir=None):
@@ -41,6 +41,10 @@ def run_startup_steps(app, db_path, upload_folder, app_env=None):
     status = "ready"
 
     ensure_db_ready()
+
+    telegram_status = sync_telegram_webhook_on_startup()
+    if telegram_status not in {"skipped", "synced"}:
+        degraded_reasons.append(f"telegram_webhook_{telegram_status}")
 
     runtime_policy = get_startup_runtime_policy(env)
     if runtime_policy["run_scheduler"]:

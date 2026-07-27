@@ -30,13 +30,17 @@ def extract_message_context(payload):
 
 
 def classify_message_command(text: str) -> str:
-    lowered = (text or "").strip().lower()
-    if lowered.startswith("/link"):
+    command = (text or "").strip().split(maxsplit=1)[0].lower()
+    # Telegram appends @botname to commands sent from group chats.
+    command = command.split("@", maxsplit=1)[0]
+    if command == "/link":
         return "link"
-    if lowered.startswith("/pvote"):
+    if command == "/pvote":
         return "proposal_vote"
-    if lowered.startswith("/vote"):
+    if command == "/vote":
         return "poll_vote"
+    if command in {"/start", "/help"}:
+        return "help"
     return "other"
 
 
@@ -82,6 +86,7 @@ def link_response_text(success, reason):
         return "✅ Your Telegram account is now linked."
     mapping = {
         "invalid_format": "❌ Usage: /link <app_username> <app_password>",
+        "unknown_member": "❌ No member account has that app username.",
         "invalid_credentials": "❌ Invalid username or password.",
         "already_linked": "❌ This Telegram account is already linked to another member.",
     }
@@ -139,6 +144,15 @@ def dispatch_message(
     """Dispatch plain-message commands and return transport-agnostic action."""
     text = message_ctx["text"]
     command_type = classify_message_command(text)
+    if command_type == "help":
+        return {
+            "kind": "send_message",
+            "text": (
+                "👋 ManaVote bot is running.\n\n"
+                "Link your account in a private chat with:\n"
+                "/link <app_username> <app_password>"
+            ),
+        }
     if command_type == "link":
         if message_ctx["telegram_user_id"] is None:
             return {"kind": "noop"}
