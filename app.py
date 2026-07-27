@@ -14,7 +14,7 @@ def _start_mcp_if_enabled():
 
     from app.mcp_server import start_http_server, start_tcp_server
 
-    host = os.getenv("MCP_SERVER_HOST", "127.0.0.1")
+    host = os.getenv("MCP_SERVER_HOST", "0.0.0.0")
     port = int(os.getenv("MCP_SERVER_PORT", "8765"))
     transport = os.getenv("MCP_SERVER_TRANSPORT", "http").strip().lower()
     target = start_http_server if transport == "http" else start_tcp_server
@@ -25,4 +25,4 @@ def _start_mcp_if_enabled():
 
 if __name__ == "__main__":
     _start_mcp_if_enabled()
-    app.run(host="0.0.0.0", port=5000)
+    app.run(host="0.0.0.0", port=45000)
