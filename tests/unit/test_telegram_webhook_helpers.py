@@ -83,6 +83,25 @@ def test_classify_message_command_routes_supported_commands():
     assert classify_message_command("hello") == "other"
 
 
+def test_classify_message_command_accepts_group_mentions_but_not_prefixes():
+    assert classify_message_command("/link@ManaVoteBot user pass") == "link"
+    assert classify_message_command("/help@ManaVoteBot") == "help"
+    assert classify_message_command("/linked user pass") == "other"
+
+
+def test_dispatch_message_answers_start_as_bot_health_check():
+    result = dispatch_message(
+        {"text": "/start", "telegram_username": "alice", "telegram_user_id": 5, "chat_id": 1},
+        process_link_command=lambda *_: (False, "unused"),
+        process_proposal_vote_command=lambda *_: (False, "unused"),
+        process_poll_vote_command=lambda *_: (False, "unused"),
+    )
+
+    assert result["kind"] == "send_message"
+    assert "ManaVote bot is running" in result["text"]
+    assert "/link <app_username> <app_password>" in result["text"]
+
+
 def test_callback_and_poll_vote_share_reason_mappings():
     assert callback_vote_response_text(False, "unknown_member") == poll_vote_response_text(False, "unknown_member")
     assert callback_vote_response_text(False, "link_required") == poll_vote_response_text(False, "link_required")

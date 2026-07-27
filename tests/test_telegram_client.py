@@ -3,6 +3,8 @@ import sys
 import unittest
 from unittest.mock import patch
 
+import requests
+
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from app.integrations.telegram_client import TelegramClient
@@ -60,6 +62,14 @@ class TestTelegramClient(unittest.TestCase):
         kb = payload["reply_markup"]["inline_keyboard"]
         self.assertEqual(kb[0][0]["callback_data"], "pvote:12:yes")
         self.assertEqual(kb[1][0]["callback_data"], "pvote:12:no")
+
+    @patch("app.integrations.telegram_client.requests.post")
+    def test_set_webhook_handles_network_failure(self, mock_post):
+        mock_post.side_effect = requests.RequestException("network unavailable")
+
+        synced = TelegramClient("token", "", "").set_webhook("https://example.org/telegram/webhook/secret")
+
+        self.assertFalse(synced)
 
 if __name__ == "__main__":
     unittest.main()

@@ -117,4 +117,7 @@ class TelegramClient:
         if not self.bot_token or not webhook_url:
             return False
         url = f"https://api.telegram.org/bot{self.bot_token}/setWebhook"
-        return self._telegram_ok(url, {"url": webhook_url})
+        try:
+            return self._telegram_ok(url, {"url": webhook_url})
+        except RequestException:
+            return False
