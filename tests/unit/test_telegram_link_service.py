@@ -82,6 +82,31 @@ def test_process_link_command_links_member_on_valid_credentials():
         assert row["telegram_user_id"] == 9001
 
 
+def test_process_link_command_does_not_require_public_telegram_username():
+    with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
+        _init_db(tmp.name)
+
+        def get_db():
+            conn = sqlite3.connect(tmp.name)
+            conn.row_factory = sqlite3.Row
+            return conn
+
+        ok, reason, member_id = process_link_command(
+            get_db=get_db,
+            verify_and_migrate_password=lambda *_: (True, None),
+            telegram_username="",
+            telegram_user_id=9001,
+            command_text="/link admin good-pass",
+        )
+
+        assert (ok, reason, member_id) == (True, "ok", 1)
+        conn = get_db()
+        row = conn.execute("SELECT telegram_username, telegram_user_id FROM members WHERE id = 1").fetchone()
+        conn.close()
+        assert row["telegram_username"] is None
+        assert row["telegram_user_id"] == 9001
+
+
 def test_process_link_command_rejects_already_linked_user_id():
     with tempfile.NamedTemporaryFile(suffix=".db") as tmp:
         _init_db(tmp.name)

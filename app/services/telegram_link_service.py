@@ -22,11 +22,9 @@ def process_link_command(
     parts = command.split(maxsplit=2)
     if len(parts) != 3:
         return False, "invalid_format", None
-    if not (telegram_username or "").strip():
-        return False, "missing_public_username", None
-
     app_username = parts[1].strip()
     password = parts[2]
+    normalized_telegram_username = (telegram_username or "").strip() or None
     conn = get_db()
     c = conn.cursor()
     try:
@@ -47,7 +45,7 @@ def process_link_command(
 
         c.execute(
             "UPDATE members SET telegram_username = ?, telegram_user_id = ? WHERE id = ?",
-            (telegram_username, int(telegram_user_id), member["id"]),
+            (normalized_telegram_username, int(telegram_user_id), member["id"]),
         )
         conn.commit()
         return True, "ok", int(member["id"])
