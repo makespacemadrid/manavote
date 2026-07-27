@@ -40,6 +40,7 @@ def test_oidc_login_is_unavailable_without_client_secret(monkeypatch):
     response = app.test_client().get("/auth/login/keycloak")
 
     assert response.status_code == 503
+    assert b'href="/auth/login/keycloak"' not in app.test_client().get("/login").data
 
 
 def test_oidc_login_uses_configured_public_callback(monkeypatch):
@@ -61,6 +62,9 @@ def test_oidc_login_uses_configured_public_callback(monkeypatch):
 
     assert response.get_data(as_text=True) == "redirected"
     assert seen["redirect_uri"] == "https://manavote.mksmad.org/auth/callback/keycloak"
+    login_page = app.test_client().get("/login")
+    assert b'href="/auth/login/keycloak"' in login_page.data
+    assert b"Sign in with MakeSpace SSO" in login_page.data
 
 
 def test_oidc_callback_rejects_inactive_members(monkeypatch):
