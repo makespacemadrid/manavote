@@ -1528,19 +1528,48 @@ def admin():
 
         if action == "add_member":
             username = request.form["username"]
+            email = request.form.get("email", "").strip().lower() or None
             password = request.form["password"]
             is_admin = 1 if request.form.get("is_admin") else 0
             password_hash = generate_password_hash(password)
 
-            try:
+            if email and c.execute(
+                "SELECT 1 FROM members WHERE lower(email) = lower(?)", (email,)
+            ).fetchone():
+                flash("Username or email already exists", "error")
+            else:
+                try:
+                    c.execute(
+                        "INSERT INTO members (username, email, password_hash, is_admin) VALUES (?, ?, ?, ?)",
+                        (username, email, password_hash, is_admin),
+                    )
+                    conn.commit()
+                    flash(f"Member {username} added!", "success")
+                except sqlite3.IntegrityError:
+                    flash("Username or email already exists", "error")
+
+        elif action == "edit_member_identity":
+            member_id = int(request.form["member_id"])
+            username = request.form.get("username", "").strip()
+            email = request.form.get("email", "").strip().lower() or None
+            if not username:
+                flash("Username is required", "error")
+            elif email and "@" not in email:
+                flash("Enter a valid email address", "error")
+            elif c.execute(
+                "SELECT 1 FROM members WHERE id != ? AND (username = ? OR (? IS NOT NULL AND lower(email) = lower(?)))",
+                (member_id, username, email, email),
+            ).fetchone():
+                flash("Username or email already exists", "error")
+            else:
                 c.execute(
-                    "INSERT INTO members (username, password_hash, is_admin) VALUES (?, ?, ?)",
-                    (username, password_hash, is_admin),
+                    "UPDATE members SET username = ?, email = ? WHERE id = ?",
+                    (username, email, member_id),
                 )
                 conn.commit()
-                flash(f"Member {username} added!", "success")
-            except sqlite3.IntegrityError:
-                flash("Username already exists", "error")
+                if member_id == session["member_id"]:
+                    session["username"] = username
+                flash("Member account updated!", "success")
 
         elif action == "remove_member":
             member_id = request.form["member_id"]
@@ -1997,6 +2026,7 @@ def admin():
         SELECT 
             m.id,
             m.username,
+            m.email,
             m.is_admin,
             (SELECT COUNT(*) FROM votes v JOIN proposals p ON v.proposal_id = p.id WHERE v.member_id = m.id) as vote_count,
             (SELECT COUNT(*) FROM proposals p WHERE p.created_by = m.id) as proposal_count,
@@ -2011,6 +2041,7 @@ def admin():
         SELECT
             m.id,
             m.username,
+            m.email,
             m.is_admin,
             (SELECT COUNT(*) FROM poll_votes pv WHERE pv.member_id = m.id) AS poll_vote_count,
             (SELECT COUNT(*) FROM polls p WHERE p.created_by = m.id) AS poll_created_count

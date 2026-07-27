@@ -5,6 +5,7 @@ import pytest
 from app import create_app
 from app.db.migrations import run_migrations
 from app.web.routes import auth_routes
+from app.web.routes import main_routes
 
 
 def configure_app(monkeypatch, **values):
@@ -238,3 +239,37 @@ def test_oidc_member_does_not_take_existing_local_username(isolated_db_path):
     )
 
     assert member["username"] == "alice-2"
+
+
+def test_oidc_member_matches_existing_local_account_by_email(monkeypatch, isolated_db_path):
+    monkeypatch.setattr(main_routes, "DB_PATH", str(isolated_db_path))
+    conn = auth_routes.legacy.get_db()
+    conn.execute(
+        "INSERT INTO members (username, email, password_hash, is_admin) VALUES (?, ?, ?, 0)",
+        ("local-alice", "Alice@Example.org", "local-hash"),
+    )
+    conn.commit()
+    local_id = conn.execute(
+        "SELECT id FROM members WHERE username = 'local-alice'"
+    ).fetchone()["id"]
+    conn.close()
+
+    member = auth_routes._upsert_oidc_member(
+        {
+            "sub": "new-subject",
+            "preferred_username": "different-name",
+            "email": "alice@example.org",
+            "groups": ["members-active"],
+        }
+    )
+
+    assert member["id"] == local_id
+    assert member["username"] == "local-alice"
+    conn = auth_routes.legacy.get_db()
+    rows = conn.execute(
+        "SELECT id, oidc_sub FROM members WHERE lower(email) = lower(?)",
+        ("alice@example.org",),
+    ).fetchall()
+    conn.close()
+    assert len(rows) == 1
+    assert rows[0]["oidc_sub"] == "new-subject"

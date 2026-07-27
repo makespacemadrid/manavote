@@ -32,12 +32,20 @@ def healthz():
 @limiter.limit("5 per minute")
 def login():
     if request.method == "POST":
-        username = request.form["username"]
+        username = request.form["username"].strip()
         password = request.form["password"]
 
         conn = legacy.get_db()
         c = conn.cursor()
-        c.execute("SELECT * FROM members WHERE username = ?", (username,))
+        c.execute(
+            """
+            SELECT * FROM members
+            WHERE username = ? OR (email IS NOT NULL AND lower(email) = lower(?))
+            ORDER BY CASE WHEN username = ? THEN 0 ELSE 1 END
+            LIMIT 1
+            """,
+            (username, username, username),
+        )
         member = c.fetchone()
 
         if member:
@@ -139,10 +147,20 @@ def _upsert_oidc_member(claims):
     cursor = conn.cursor()
     cursor.execute("SELECT * FROM members WHERE oidc_sub = ?", (subject,))
     member = cursor.fetchone()
+    if not member and email:
+        cursor.execute(
+            """
+            SELECT * FROM members
+            WHERE oidc_sub IS NULL AND email IS NOT NULL AND lower(email) = lower(?)
+            LIMIT 1
+            """,
+            (email,),
+        )
+        member = cursor.fetchone()
     if member:
         cursor.execute(
-            "UPDATE members SET email = ?, display_name = ?, is_admin = ?, telegram_username = COALESCE(?, telegram_username) WHERE id = ?",
-            (email, display_name, is_admin, telegram, member["id"]),
+            "UPDATE members SET oidc_sub = ?, email = COALESCE(?, email), display_name = ?, is_admin = ?, telegram_username = COALESCE(?, telegram_username) WHERE id = ?",
+            (subject, email, display_name, is_admin, telegram, member["id"]),
         )
         member_id = member["id"]
     else:
@@ -266,10 +284,41 @@ def telegram_settings():
     )
 
 
-@auth_bp.route("/settings", endpoint="settings_page")
+@auth_bp.route("/settings", methods=["GET", "POST"], endpoint="settings_page")
 @login_required
 def settings_page():
-    return render_template("settings.html", session_lang=session.get("lang", "en"))
+    conn = legacy.get_db()
+    cursor = conn.cursor()
+    cursor.execute("SELECT email FROM members WHERE id = ?", (session["member_id"],))
+    member = cursor.fetchone()
+
+    if request.method == "POST":
+        existing_email = (member["email"] or "").strip() if member else ""
+        email = request.form.get("email", "").strip().lower()
+        if existing_email:
+            flash("Your email address cannot be changed once it has been added.", "error")
+        elif not email or "@" not in email:
+            flash("Enter a valid email address.", "error")
+        elif cursor.execute(
+            "SELECT 1 FROM members WHERE lower(email) = lower(?) AND id != ?",
+            (email, session["member_id"]),
+        ).fetchone():
+            flash("That email address is already in use.", "error")
+        else:
+            cursor.execute(
+                "UPDATE members SET email = ? WHERE id = ? AND (email IS NULL OR trim(email) = '')",
+                (email, session["member_id"]),
+            )
+            conn.commit()
+            flash("Email address added.", "success")
+        conn.close()
+        return redirect(url_for("auth.settings_page"))
+
+    email = (member["email"] or "").strip() if member else ""
+    conn.close()
+    return render_template(
+        "settings.html", email=email, session_lang=session.get("lang", "en")
+    )
 
 
 @auth_bp.route("/register", methods=["GET", "POST"], endpoint="register")
