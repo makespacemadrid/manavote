@@ -18,8 +18,8 @@
         
         <form method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <label>{{ 'Username'|lang }}</label>
-            <input type="text" name="username" required autofocus>
+            <label>{{ 'Username or email'|lang }}</label>
+            <input type="text" name="username" autocomplete="username" required autofocus>
             
             <label>{{ 'Password'|lang }}</label>
             <input type="password" name="password" required>

@@ -162,6 +162,10 @@ document.addEventListener('DOMContentLoaded', function() {
             <label>{{ 'Password'|lang }}</label>
             <input type="password" name="password" required>
         </div>
+        <div style="flex: 1; min-width: 180px;">
+            <label>{{ 'Email'|lang }}</label>
+            <input type="email" name="email">
+        </div>
         <div>
             <label style="display: flex; align-items: center; gap: 5px;">
                 <input type="checkbox" name="is_admin" style="width: auto;"> {{ 'Admin'|lang }}
@@ -177,6 +181,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <thead>
             <tr>
                 <th>{{ 'Username'|lang }}</th>
+                <th>{{ 'Email'|lang }}</th>
                 <th>{{ 'Role'|lang }}</th>
                 <th>{{ 'Joined'|lang }}</th>
                 <th>{{ 'Telegram'|lang }}</th>
@@ -186,7 +191,16 @@ document.addEventListener('DOMContentLoaded', function() {
         <tbody>
             {% for m in members %}
             <tr>
-                <td>{{ m.username }}</td>
+                <td colspan="2">
+                    <form method="POST" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 5px; align-items: center;">
+                        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                        <input type="hidden" name="action" value="edit_member_identity">
+                        <input type="hidden" name="member_id" value="{{ m.id }}">
+                        <input type="text" name="username" value="{{ m.username }}" required aria-label="{{ 'Username'|lang }}">
+                        <input type="email" name="email" value="{{ m.email or '' }}" aria-label="{{ 'Email'|lang }}">
+                        <button type="submit" class="btn btn-secondary" style="padding: 4px 8px;">{{ 'Save'|lang }}</button>
+                    </form>
+                </td>
                 <td>{{ 'Admin'|lang if m.is_admin else 'Member'|lang }}</td>
                 <td>{{ m.created_at|localtime("%Y-%m-%d") }}</td>
                 <td style="font-size: 0.85em;">
@@ -238,6 +252,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <thead>
             <tr>
                 <th>{{ 'Member'|lang }}</th>
+                <th>{{ 'Email'|lang }}</th>
                 <th>{{ 'Votes'|lang }}</th>
                 <th>{{ 'Proposals'|lang }}</th>
                 <th>{{ 'Approved'|lang }}</th>
@@ -248,6 +263,7 @@ document.addEventListener('DOMContentLoaded', function() {
             {% for stat in member_stats %}
             <tr>
                 <td>{{ stat.username|username }} {% if stat.is_admin %}({{ 'Admin'|lang|lower }}){% endif %}</td>
+                <td>{{ stat.email or '—' }}</td>
                 <td>{{ stat.vote_count }}</td>
                 <td>{{ stat.proposal_count }}</td>
                 <td>{{ stat.approved_count }}</td>
@@ -264,6 +280,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <thead>
             <tr>
                 <th>{{ 'Member'|lang }}</th>
+                <th>{{ 'Email'|lang }}</th>
                 <th>{{ 'Poll Votes'|lang }}</th>
                 <th>{{ 'Polls Created'|lang }}</th>
             </tr>
@@ -272,6 +289,7 @@ document.addEventListener('DOMContentLoaded', function() {
             {% for stat in member_poll_stats %}
             <tr>
                 <td>{{ stat.username|username }} {% if stat.is_admin %}({{ 'Admin'|lang|lower }}){% endif %}</td>
+                <td>{{ stat.email or '—' }}</td>
                 <td>{{ stat.poll_vote_count }}</td>
                 <td>{{ stat.poll_created_count }}</td>
             </tr>

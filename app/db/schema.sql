@@ -10,6 +10,8 @@ CREATE TABLE IF NOT EXISTS members (
     display_name TEXT,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP
 );
+CREATE INDEX IF NOT EXISTS idx_members_email_nocase
+    ON members(email COLLATE NOCASE) WHERE email IS NOT NULL;
 CREATE TABLE IF NOT EXISTS proposals (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     title TEXT NOT NULL,

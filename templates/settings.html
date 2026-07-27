@@ -46,6 +46,21 @@
     <h2>{{ 'Settings'|lang }}</h2>
     <div class="user-settings-grid">
         <div class="user-settings-item">
+            <h4>{{ 'Email'|lang }}</h4>
+            {% if email %}
+            <p>{{ 'Your email address is used as an alternative login.'|lang }}</p>
+            <input type="email" value="{{ email }}" readonly aria-label="{{ 'Email'|lang }}">
+            <small style="color: #888;">{{ 'Email cannot be changed after it is added.'|lang }}</small>
+            {% else %}
+            <p>{{ 'Add an email address to use it as an alternative login.'|lang }}</p>
+            <form method="POST">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="email" name="email" autocomplete="email" required placeholder="you@example.com" aria-label="{{ 'Email'|lang }}">
+                <button type="submit" class="btn btn-secondary">{{ 'Add Email'|lang }}</button>
+            </form>
+            {% endif %}
+        </div>
+        <div class="user-settings-item">
             <h4>{{ 'Change Password'|lang }}</h4>
             <p>{{ 'Update your account password.'|lang }}</p>
             <a class="btn btn-secondary" href="{{ url_for('auth.change_password') }}">{{ 'Change Password'|lang }}</a>
