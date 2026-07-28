@@ -139,7 +139,8 @@ def _upsert_oidc_member(claims):
     preferred = (claims.get("preferred_username") or claims.get("email") or f"oidc-{subject[:12]}").strip()
     email = (claims.get("email") or "").strip() or None
     display_name = (claims.get("name") or "").strip() or None
-    telegram = (claims.get("telegram_handle") or "").strip().lstrip("@") or None
+    telegram_username = (claims.get("telegram_handle") or "").strip().lstrip("@") or None
+    telegram_user_id = claims.get("telegram_id") or None
     groups = claims.get("groups") if isinstance(claims.get("groups"), list) else []
     is_admin = int("admins" in groups)
 
@@ -159,8 +160,8 @@ def _upsert_oidc_member(claims):
         member = cursor.fetchone()
     if member:
         cursor.execute(
-            "UPDATE members SET oidc_sub = ?, email = COALESCE(?, email), display_name = ?, is_admin = ?, telegram_username = COALESCE(?, telegram_username) WHERE id = ?",
-            (subject, email, display_name, is_admin, telegram, member["id"]),
+            "UPDATE members SET oidc_sub = ?, email = COALESCE(?, email), display_name = ?, is_admin = ?, telegram_username = COALESCE(?, telegram_username), telegram_user_id = COALESCE(?, telegram_user_id) WHERE id = ?",
+            (subject, email, display_name, is_admin, telegram_username, telegram_user_id, member["id"]),
         )
         member_id = member["id"]
     else:
@@ -170,8 +171,8 @@ def _upsert_oidc_member(claims):
             suffix += 1
             username = f"{preferred}-{suffix}"
         cursor.execute(
-            "INSERT INTO members (username, password_hash, is_admin, telegram_username, oidc_sub, email, display_name) VALUES (?, ?, ?, ?, ?, ?, ?)",
-            (username, generate_password_hash(secrets.token_urlsafe(32)), is_admin, telegram, subject, email, display_name),
+            "INSERT INTO members (username, password_hash, is_admin, telegram_username, telegram_user_id, oidc_sub, email, display_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
+            (username, generate_password_hash(secrets.token_urlsafe(32)), is_admin, telegram_username, telegram_user_id, subject, email, display_name),
         )
         member_id = cursor.lastrowid
     conn.commit()

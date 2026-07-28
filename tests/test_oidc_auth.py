@@ -170,6 +170,7 @@ def test_oidc_member_is_provisioned_and_admin_group_is_mapped(isolated_db_path):
         "name": "Alice Member",
         "groups": ["members-active", "admins"],
         "telegram_handle": "@alice_mks",
+        "telegram_id": 123456789,
     }
 
     member = auth_routes._upsert_oidc_member(claims)
@@ -178,7 +179,7 @@ def test_oidc_member_is_provisioned_and_admin_group_is_mapped(isolated_db_path):
     assert member["is_admin"] == 1
     conn = auth_routes.legacy.get_db()
     stored = conn.execute(
-        "SELECT oidc_sub, email, display_name, telegram_username FROM members WHERE id = ?",
+        "SELECT oidc_sub, email, display_name, telegram_username, telegram_user_id FROM members WHERE id = ?",
         (member["id"],),
     ).fetchone()
     conn.close()
@@ -187,6 +188,7 @@ def test_oidc_member_is_provisioned_and_admin_group_is_mapped(isolated_db_path):
         "email": "alice@example.org",
         "display_name": "Alice Member",
         "telegram_username": "alice_mks",
+        "telegram_user_id": 123456789,
     }
 
 
