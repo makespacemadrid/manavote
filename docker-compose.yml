@@ -13,19 +13,18 @@ services:
       MCP_SERVER_HOST: "0.0.0.0"
       MCP_SERVER_PORT: "8765"
     volumes:
-      - app_data:/data
+      - ./app.db:/data/app.db
       - uploads_data:/app/static/uploads
     ports:
-      - "5000:5000"
+      - "45000:45000"
       - "8765:8765"
     healthcheck:
-      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:5000/healthz', timeout=3)"]
+      test: ["CMD", "python", "-c", "import urllib.request; urllib.request.urlopen('http://127.0.0.1:45000/healthz', timeout=3)"]
       interval: 30s
       timeout: 5s
       retries: 3
       start_period: 15s
-    restart: unless-stopped
+    restart: always
 
 volumes:
-  app_data:
   uploads_data:
