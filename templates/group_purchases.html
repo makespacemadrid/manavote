@@ -1,0 +1,185 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "_top_nav.html" %}
+<style>
+    .purchase-header { display:flex; justify-content:space-between; gap:12px; align-items:flex-start; }
+    .component { background:#292929; border:1px solid #404040; border-radius:6px; padding:12px; margin-top:10px; }
+    .component-row { display:grid; grid-template-columns:minmax(120px, 1fr) auto; gap:16px; align-items:center; }
+    .quantity-form { display:flex; gap:8px; align-items:end; }
+    .quantity-form input { width:85px; margin:0; }
+    .quantity-form label { margin:0; font-size:.8em; }
+    .orders { color:#aaa; font-size:.85em; margin-top:8px; }
+    .hint { color:#999; font-size:.9em; margin:-4px 0 12px; }
+    .component-input-row { display:grid; grid-template-columns:1fr 140px auto; gap:8px; align-items:end; margin-bottom:8px; }
+    @media (max-width:600px) { .component-row, .component-input-row { grid-template-columns:1fr; } .quantity-form { align-items:center; } .remove-component { width:fit-content; } }
+</style>
+
+<div class="card">
+    <h1>🛒 {{ 'Group purchases'|lang }}</h1>
+    <p class="hint">{{ 'Group purchases intro'|lang }}</p>
+    <form method="post" enctype="multipart/form-data">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label for="title">{{ 'Title'|lang }}</label>
+        <input id="title" name="title" maxlength="150" required value="{{ submitted.get('title', '') }}" placeholder="{{ 'Group purchase example'|lang }}">
+        <label for="description">{{ 'Description'|lang }}</label>
+        <textarea id="description" name="description" placeholder="{{ 'Group purchase description placeholder'|lang }}">{{ submitted.get('description', '') }}</textarea>
+        <label for="deadline">{{ 'Order deadline (optional)'|lang }}</label>
+        <input id="deadline" type="date" name="deadline" value="{{ submitted.get('deadline', '') }}">
+        <label for="url">{{ 'URL (optional)'|lang }}</label>
+        <input id="url" type="url" name="url" value="{{ submitted.get('url', '') }}" placeholder="{{ 'Product URL placeholder'|lang }}">
+        <label for="image">{{ 'Image optional JPG PNG only'|lang }}</label>
+        <input id="image" type="file" name="image" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
+        <label for="payment_method">{{ 'Payment method (optional)'|lang }}</label>
+        <input id="payment_method" name="payment_method" maxlength="250" value="{{ submitted.get('payment_method', '') }}" placeholder="{{ 'Payment method placeholder'|lang }}">
+        <label>{{ 'Components and prices'|lang }}</label>
+        <p class="hint">{{ 'Component rows help'|lang }}</p>
+        <div id="component-rows">
+            {% for component_name, component_price in submitted_components %}
+            <div class="component-input-row">
+                <div><label>{{ 'Component'|lang }}</label><input name="component_name" maxlength="100" value="{{ component_name }}" placeholder="AA" required></div>
+                <div><label>{{ 'Unit price'|lang }} (€)</label><input name="component_price" type="number" min="0" max="1000000" step="0.01" value="{{ component_price }}" placeholder="2.50" required></div>
+                <button class="btn btn-secondary remove-component" type="button" aria-label="{{ 'Remove'|lang }}">×</button>
+            </div>
+            {% endfor %}
+        </div>
+        <button id="add-component" class="btn btn-secondary" type="button" style="margin-bottom:12px;">+ {{ 'Add component'|lang }}</button><br>
+        <label>{{ 'Shared costs'|lang }}</label>
+        <p class="hint">{{ 'Shared costs help'|lang }}</p>
+        <div id="cost-rows">
+            {% for cost_label, cost_amount in submitted_costs %}
+            <div class="component-input-row cost-input-row">
+                <div><label>{{ 'Cost description'|lang }}</label><input name="cost_label" maxlength="100" value="{{ cost_label }}" placeholder="{{ 'Shipping'|lang }}" required></div>
+                <div><label>{{ 'Amount'|lang }} (€)</label><input name="cost_amount" type="number" min="0" max="1000000" step="0.01" value="{{ cost_amount }}" required></div>
+                <button class="btn btn-secondary remove-cost" type="button" aria-label="{{ 'Remove'|lang }}">×</button>
+            </div>
+            {% endfor %}
+        </div>
+        <button id="add-cost" class="btn btn-secondary" type="button" style="margin-bottom:12px;">+ {{ 'Add shared cost'|lang }}</button><br>
+        <button class="btn" type="submit">{{ 'Create group purchase'|lang }}</button>
+    </form>
+</div>
+
+{% for purchase in purchases %}
+<article class="card" id="purchase-{{ purchase.id }}">
+    <div class="purchase-header">
+        <div>
+            <h2>{{ purchase.title }}</h2>
+            <p class="proposal-meta">{{ 'By'|lang }} {{ purchase.creator|username }} · {{ purchase.created_at|localtime }}</p>
+        </div>
+        <span class="status status-active">{{ purchase.status|lang }}</span>
+    </div>
+    {% if purchase.description %}<p style="margin:10px 0;white-space:pre-wrap">{{ purchase.description }}</p>{% endif %}
+    {% if purchase.image_filename %}
+        <img src="{{ url_for('static', filename='uploads/' + purchase.image_filename) }}" alt="{{ purchase.title }}" style="display:block;max-width:100%;max-height:320px;border-radius:6px;margin:12px 0;">
+    {% endif %}
+    {% if purchase.deadline or purchase.url %}
+        <p class="proposal-meta" style="margin:10px 0;">
+            {% if purchase.deadline %}📅 {{ 'Order deadline'|lang }}: <strong>{{ purchase.deadline }}</strong>{% endif %}
+            {% if purchase.deadline and purchase.url %} · {% endif %}
+            {% if purchase.url %}<a href="{{ purchase.url }}" target="_blank" rel="noopener noreferrer">🔗 {{ 'Product link'|lang }}</a>{% endif %}
+        </p>
+    {% endif %}
+    {% if purchase.payment_method %}<p style="margin:8px 0;">💳 <strong>{{ 'Payment method'|lang }}:</strong> {{ purchase.payment_method }}</p>{% endif %}
+    {% if purchase.shared_costs %}
+        <p style="margin:8px 0;">➕ <strong>{{ 'Shared costs'|lang }}:</strong>
+            {% for cost in purchase.shared_costs %}{{ cost.label }}: €{{ '%.2f'|format(cost.amount) }}{% if not loop.last %}, {% endif %}{% endfor %}
+            ({{ 'Total'|lang }}: €{{ '%.2f'|format(purchase.shared_cost_total) }})
+        </p>
+    {% endif %}
+    {% if purchase.created_by == session.member_id %}
+        <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;">
+            {% if purchase.status == 'open' %}
+                <a class="btn btn-secondary" href="{{ url_for('group_purchases.edit_purchase', purchase_id=purchase.id) }}">{{ 'Edit'|lang }}</a>
+                <form method="post" action="{{ url_for('group_purchases.update_status', purchase_id=purchase.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="status" value="ordered">
+                    <button class="btn" type="submit">{{ 'Mark order placed'|lang }}</button>
+                </form>
+            {% elif purchase.status == 'ordered' %}
+                <form method="post" action="{{ url_for('group_purchases.update_status', purchase_id=purchase.id) }}">
+                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="status" value="received">
+                    <button class="btn btn-success" type="submit">{{ 'Mark shipment received'|lang }}</button>
+                </form>
+            {% endif %}
+        </div>
+    {% endif %}
+    {% for component in purchase.components %}
+    <section class="component">
+        <div class="component-row">
+            <div><strong>{{ component.name }}</strong><br><span class="proposal-meta">{{ 'Unit price'|lang }}: €{{ '%.2f'|format(component.unit_price) }} · {{ 'Total units'|lang }}: {{ component.total_quantity }}</span></div>
+            {% if purchase.status == 'open' %}<form class="quantity-form" method="post" action="{{ url_for('group_purchases.set_quantity', purchase_id=purchase.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="component_id" value="{{ component.id }}">
+                <div><label for="quantity-{{ component.id }}">{{ 'Your units'|lang }}</label><input id="quantity-{{ component.id }}" type="number" name="quantity" min="0" max="999" value="{{ component.user_quantity }}" required></div>
+                <button class="btn" type="submit">{{ 'Update'|lang }}</button>
+            </form>{% endif %}
+        </div>
+        <div class="orders">
+            {% if component.orders %}
+                {% for order in component.orders %}{{ order.username|username }}: {{ order.quantity }}{% if not loop.last %}, {% endif %}{% endfor %}
+            {% else %}{{ 'Nobody has added units yet'|lang }}{% endif %}
+        </div>
+    </section>
+    {% endfor %}
+    <section class="component" style="margin-top:16px;">
+        <h3>💶 {{ 'Amounts owed'|lang }}</h3>
+        {% if purchase.debts %}
+            <table>
+                <thead><tr><th>{{ 'Member'|lang }}</th><th>{{ 'Amount owed'|lang }}</th><th>{{ 'Payment'|lang }}</th></tr></thead>
+                <tbody>{% for debt in purchase.debts %}<tr>
+                    <td>{{ debt.username|username }}</td><td>€{{ '%.2f'|format(debt.amount_owed) }}<br><span class="proposal-meta">€{{ '%.2f'|format(debt.selection_amount) }} + €{{ '%.2f'|format(debt.shared_cost_share) }} ({{ '%.1f'|format(debt.selection_percentage) }}%)</span></td>
+                    <td>
+                        {% if debt.received_at %}<span class="amount-positive">✓ {{ 'Received'|lang }}</span>{% else %}<span class="proposal-meta">{{ 'Pending'|lang }}</span>{% endif %}
+                        {% if purchase.created_by == session.member_id %}
+                        <form method="post" action="{{ url_for('group_purchases.update_payment', purchase_id=purchase.id, member_id=debt.member_id) }}" style="display:inline;margin-left:8px;">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="received" value="{{ '0' if debt.received_at else '1' }}">
+                            <button class="btn btn-secondary" type="submit" style="padding:5px 8px;">{% if debt.received_at %}{{ 'Undo payment'|lang }}{% else %}{{ 'Mark payment received'|lang }}{% endif %}</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                </tr>{% endfor %}</tbody>
+            </table>
+        {% else %}<p class="proposal-meta">{{ 'No amounts owed yet'|lang }}</p>{% endif %}
+    </section>
+</article>
+{% else %}
+<div class="card"><p>{{ 'No group purchases yet'|lang }}</p></div>
+{% endfor %}
+<template id="component-row-template">
+    <div class="component-input-row">
+        <div><label>{{ 'Component'|lang }}</label><input name="component_name" maxlength="100" placeholder="AAA" required></div>
+        <div><label>{{ 'Unit price'|lang }} (€)</label><input name="component_price" type="number" min="0" max="1000000" step="0.01" placeholder="3.75" required></div>
+        <button class="btn btn-secondary remove-component" type="button" aria-label="{{ 'Remove'|lang }}">×</button>
+    </div>
+</template>
+<template id="cost-row-template">
+    <div class="component-input-row cost-input-row">
+        <div><label>{{ 'Cost description'|lang }}</label><input name="cost_label" maxlength="100" placeholder="{{ 'Shipping'|lang }}" required></div>
+        <div><label>{{ 'Amount'|lang }} (€)</label><input name="cost_amount" type="number" min="0" max="1000000" step="0.01" placeholder="10.00" required></div>
+        <button class="btn btn-secondary remove-cost" type="button" aria-label="{{ 'Remove'|lang }}">×</button>
+    </div>
+</template>
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+    const rows = document.getElementById('component-rows');
+    const template = document.getElementById('component-row-template');
+    const costRows = document.getElementById('cost-rows');
+    const costTemplate = document.getElementById('cost-row-template');
+    document.getElementById('add-component').addEventListener('click', function () {
+        if (rows.children.length < 30) rows.appendChild(template.content.cloneNode(true));
+    });
+    rows.addEventListener('click', function (event) {
+        if (event.target.classList.contains('remove-component') && rows.children.length > 1) {
+            event.target.closest('.component-input-row').remove();
+        }
+    });
+    document.getElementById('add-cost').addEventListener('click', function () {
+        if (costRows.children.length < 20) costRows.appendChild(costTemplate.content.cloneNode(true));
+    });
+    costRows.addEventListener('click', function (event) {
+        if (event.target.classList.contains('remove-cost')) {
+            event.target.closest('.cost-input-row').remove();
+        }
+    });
+});
+</script>
+{% endblock %}

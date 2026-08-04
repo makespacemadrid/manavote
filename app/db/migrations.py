@@ -14,6 +14,55 @@ def add_column_if_missing(cursor, table_name, ddl):
 
 def run_migrations(cursor):
     cursor.execute("""
+    CREATE TABLE IF NOT EXISTS group_purchases (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        title TEXT NOT NULL,
+        description TEXT,
+        created_by INTEGER NOT NULL,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        status TEXT DEFAULT 'open'
+    )
+    """)
+    add_column_if_missing(cursor, "group_purchases", "deadline TEXT")
+    add_column_if_missing(cursor, "group_purchases", "url TEXT")
+    add_column_if_missing(cursor, "group_purchases", "image_filename TEXT")
+    add_column_if_missing(cursor, "group_purchases", "payment_method TEXT")
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS group_purchase_components (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_purchase_id INTEGER NOT NULL,
+        name TEXT NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0
+    )
+    """)
+    add_column_if_missing(cursor, "group_purchase_components", "unit_price REAL NOT NULL DEFAULT 0")
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS group_purchase_quantities (
+        component_id INTEGER NOT NULL,
+        member_id INTEGER NOT NULL,
+        quantity INTEGER NOT NULL,
+        updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (component_id, member_id)
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS group_purchase_payments (
+        group_purchase_id INTEGER NOT NULL,
+        member_id INTEGER NOT NULL,
+        received_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY (group_purchase_id, member_id)
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS group_purchase_shared_costs (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        group_purchase_id INTEGER NOT NULL,
+        label TEXT NOT NULL,
+        amount REAL NOT NULL,
+        position INTEGER NOT NULL DEFAULT 0
+    )
+    """)
+    cursor.execute("""
     CREATE TABLE IF NOT EXISTS polls (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         question TEXT NOT NULL,

@@ -79,6 +79,13 @@ Primary modules and responsibilities:
 - `id`, `poll_id`, `member_id`, `option_index`, `created_at`
 - Unique pair: `(poll_id, member_id)` (latest vote replaces prior vote)
 
+### Group purchases
+- `group_purchases`: title, description, creator, deadline, product URL, image, payment method, and lifecycle status (`open`, `ordered`, `received`).
+- `group_purchase_components`: named options with a unit price and stable display position.
+- `group_purchase_quantities`: one requested quantity per member and component.
+- `group_purchase_payments`: records that the purchase creator has received a participant's payment.
+- `group_purchase_shared_costs`: shipping, taxes, or other costs allocated proportionally by each participant's selected-product value.
+
 Default seeded settings:
 - `current_budget = 300` (legacy key; runtime budget is derived from `activity_log`)
 - `monthly_topup = 50`
@@ -177,6 +184,7 @@ Committed series behavior:
 - Members vote in Telegram with inline poll buttons (or `/vote <poll_id> <option_number>` fallback).
 - "Who voted what" displays linked Telegram usernames when available (from `/link`), and falls back to app usernames for unlinked accounts.
 - If the current member is not linked to Telegram, page shows a `/link <app_username> <app_password>` reminder.
+
 - Poll message interaction flow:
   1. Poll announcement shows a `Vote` button with callback `showvote:<poll_id>`.
   2. Webhook resolves open poll and edits message reply markup into option buttons.
@@ -187,6 +195,16 @@ Committed series behavior:
 - When a poll closes (manual close or automatic expiry), the app posts a Telegram results summary including per-option totals, percentages, and a text bar-graph.
 - Telegram poll/proposal announcement messages start with the poll question / proposal title as the first line.
 - Results are transparent by design (counts, horizontal bars, and voter-choice list are visible).
+
+### Group purchases page (`/group-purchases`)
+- Any authenticated member can propose a shared purchase and add up to 30 option rows, each with its own name and unit price.
+- A proposal may include a deadline, product URL, image, and payment instructions.
+- The creator can add shared costs such as shipping or taxes. Each participant pays the same percentage of those costs as their percentage of the total selected-product value.
+- Creating a proposal announces it in the configured Telegram group/thread, including its options and prices.
+- The configured Telegram group/thread is notified again when the creator marks the order as placed and when the shipment is received.
+- While the purchase is `open`, members can update their requested quantities and the creator can edit its details and option prices.
+- The creator advances the lifecycle from `open` to `ordered`, then to `received`; quantities and prices are frozen once ordered.
+- The page calculates the amount owed by every participant and lets the creator mark each payment as received.
 
 ## 8) HTTP routes
 
@@ -200,6 +218,11 @@ Committed series behavior:
 - `GET /dashboard`
 - `GET /calendar`
 - `GET|POST /polls`
+- `GET|POST /group-purchases`
+- `GET|POST /group-purchases/<purchase_id>/edit` (creator only while open)
+- `POST /group-purchases/<purchase_id>/quantity`
+- `POST /group-purchases/<purchase_id>/status` (creator only)
+- `POST /group-purchases/<purchase_id>/payments/<member_id>` (creator only)
 - `GET /about`
 - `GET /logout`
 - `GET /set-language/<lang>`

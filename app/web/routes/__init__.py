@@ -3,6 +3,7 @@ from app.web.routes.api_routes import api_bp
 from app.web.routes.auth_routes import auth_bp
 from app.web.routes.poll_routes import poll_bp
 from app.web.routes.proposal_routes import proposal_bp
+from app.web.routes.group_purchase_routes import group_purchase_bp
 
 
 def register_blueprints(app):
@@ -14,6 +15,7 @@ def register_blueprints(app):
     app.register_blueprint(proposal_bp)
     app.register_blueprint(poll_bp)
     app.register_blueprint(admin_bp)
+    app.register_blueprint(group_purchase_bp)
 
     legacy_endpoint_aliases = {
         "login": "auth.login",
