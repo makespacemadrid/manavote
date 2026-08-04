@@ -18,6 +18,7 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 
 - **Proposals**: weighted vote thresholds, creator auto-vote, edit/delete by owner/admin, approval undo, purchase tracking.
 - **Polls**: 2..12 options, transparent results, close/reopen/delete, web/Telegram vote modes.
+- **Group purchases**: shared orders with individually priced options, proportional shipping/tax costs, per-member quantities, deadlines, payment tracking, fulfillment states, and Telegram lifecycle notifications.
 - **Telegram integration**: `/link`, `/vote`, `/pvote`, inline poll/proposal callbacks, webhook processing.
 - **Budget lifecycle**: approval when threshold+budget are met, over-budget queue with auto-approval later.
 - **Timezone-aware UI**: all timestamps are rendered in configured timezone.

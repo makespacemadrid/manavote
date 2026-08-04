@@ -7,6 +7,7 @@
         <a href="{{ url_for('dashboard') }}">{{ 'Dashboard'|lang }}</a>
         <a href="{{ url_for('calendar') }}">{{ 'Calendar'|lang }}</a>
         <a href="{{ url_for('polls.polls_page') }}">{{ 'Polls'|lang }}</a>
+        <a href="{{ url_for('group_purchases.group_purchases_page') }}">{{ 'Group purchases'|lang }}</a>
         {% if session.is_admin %}
         <a href="{{ url_for('admin.admin') }}">{{ 'Admin'|lang }}</a>
         {% endif %}

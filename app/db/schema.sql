@@ -71,3 +71,42 @@ CREATE TABLE IF NOT EXISTS poll_votes (
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     UNIQUE(poll_id, member_id)
 );
+CREATE TABLE IF NOT EXISTS group_purchases (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    title TEXT NOT NULL,
+    description TEXT,
+    created_by INTEGER NOT NULL,
+    created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    status TEXT DEFAULT 'open',
+    deadline TEXT,
+    url TEXT,
+    image_filename TEXT,
+    payment_method TEXT
+);
+CREATE TABLE IF NOT EXISTS group_purchase_components (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_purchase_id INTEGER NOT NULL,
+    name TEXT NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0,
+    unit_price REAL NOT NULL DEFAULT 0
+);
+CREATE TABLE IF NOT EXISTS group_purchase_quantities (
+    component_id INTEGER NOT NULL,
+    member_id INTEGER NOT NULL,
+    quantity INTEGER NOT NULL,
+    updated_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (component_id, member_id)
+);
+CREATE TABLE IF NOT EXISTS group_purchase_payments (
+    group_purchase_id INTEGER NOT NULL,
+    member_id INTEGER NOT NULL,
+    received_at TEXT DEFAULT CURRENT_TIMESTAMP,
+    PRIMARY KEY (group_purchase_id, member_id)
+);
+CREATE TABLE IF NOT EXISTS group_purchase_shared_costs (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    group_purchase_id INTEGER NOT NULL,
+    label TEXT NOT NULL,
+    amount REAL NOT NULL,
+    position INTEGER NOT NULL DEFAULT 0
+);
