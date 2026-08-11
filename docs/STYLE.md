@@ -26,3 +26,12 @@ A change is complete only when:
 - Logs/events include stable machine-readable fields.
 - Migration/config impacts are documented.
 - User-visible behavior changes are reflected in i18n and templates.
+
+## 4) React migration rules
+
+- Prefer progressive hydration over replacing server markup: shared shell UI must remain usable before JavaScript starts.
+- Keep authorization and business decisions on the Flask side. Browser props may describe allowed UI, but they are never an authorization boundary.
+- Serialize component props with Jinja's `tojson` filter and preserve equivalent semantic markup in Jinja and React.
+- Use semantic elements and state attributes (`aria-current`, `aria-expanded`, `aria-controls`) for navigation behavior.
+- Do not add inline JavaScript to Jinja templates; initialize React islands from `frontend/src/main.jsx`.
+- Update the React component test, Flask integration test, and relevant documentation whenever the hydration contract changes.

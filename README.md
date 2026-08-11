@@ -47,3 +47,18 @@ See [`docs/QUICKSTART.md`](docs/QUICKSTART.md) for Docker/local setup, bootstrap
 
 - Main docs index: [`docs/INDEX.md`](docs/INDEX.md)
 - Direct links: [`docs/QUICKSTART.md`](docs/QUICKSTART.md), [`docs/APIDOC.md`](docs/APIDOC.md), [`docs/SPEC.md`](docs/SPEC.md), [`docs/TESTING.md`](docs/TESTING.md)
+
+## Frontend development
+
+The shared application shell is implemented in React and built with Vite, while Flask
+continues to provide routing, authentication, and server-rendered page content during
+the incremental migration.
+
+```bash
+npm install
+npm run dev      # continuously rebuilds assets while Flask is running
+npm run build    # writes production assets to static/react
+npm test
+```
+
+The production Docker image builds the React bundle automatically.

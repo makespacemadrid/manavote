@@ -1,17 +1,34 @@
-<div class="nav" data-mobile-nav>
-    <div class="nav-header">
-        <span>{{ 'Logged in as'|lang }}: <strong>{{ session.username|username }}</strong></span>
-        <button class="nav-toggle" type="button" aria-label="Toggle navigation" aria-expanded="false" data-nav-toggle>☰</button>
-    </div>
-    <div class="nav-links" data-nav-links>
-        <a href="{{ url_for('dashboard') }}">{{ 'Dashboard'|lang }}</a>
-        <a href="{{ url_for('calendar') }}">{{ 'Calendar'|lang }}</a>
-        <a href="{{ url_for('polls.polls_page') }}">{{ 'Polls'|lang }}</a>
-        <a href="{{ url_for('group_purchases.group_purchases_page') }}">{{ 'Group purchases'|lang }}</a>
-        {% if session.is_admin %}
-        <a href="{{ url_for('admin.admin') }}">{{ 'Admin'|lang }}</a>
-        {% endif %}
-        <a href="{{ url_for('about') }}">{{ 'About'|lang }}</a>
-        <a href="{{ url_for('settings_page') }}">{{ 'Settings'|lang }}</a>
-    </div>
+{% set nav_links = [
+    {'href': url_for('dashboard'), 'label': 'Dashboard'|lang},
+    {'href': url_for('calendar'), 'label': 'Calendar'|lang},
+    {'href': url_for('polls.polls_page'), 'label': 'Polls'|lang},
+    {'href': url_for('group_purchases.group_purchases_page'), 'label': 'Group purchases'|lang}
+] %}
+{% if session.is_admin %}
+    {% set nav_links = nav_links + [{'href': url_for('admin.admin'), 'label': 'Admin'|lang}] %}
+{% endif %}
+{% set nav_links = nav_links + [
+    {'href': url_for('about'), 'label': 'About'|lang},
+    {'href': url_for('settings_page'), 'label': 'Settings'|lang}
+] %}
+{% set nav_props = {
+    'username': {
+        'label': 'Logged in as'|lang,
+        'value': session.username|username,
+        'toggleLabel': 'Toggle navigation'|lang,
+        'navigationLabel': 'Primary navigation'|lang
+    },
+    'currentPath': request.path,
+    'links': nav_links
+} %}
+<div data-react-nav data-react-props="{{ nav_props|tojson|forceescape }}">
+    <nav class="nav" data-mobile-nav aria-label="{{ 'Primary navigation'|lang }}">
+        <div class="nav-header">
+            <span>{{ 'Logged in as'|lang }}: <strong>{{ session.username|username }}</strong></span>
+            <button class="nav-toggle" type="button" aria-label="{{ 'Toggle navigation'|lang }}" aria-expanded="false" aria-controls="primary-navigation" data-nav-toggle>☰</button>
+        </div>
+        <div class="nav-links" id="primary-navigation" data-nav-links>
+            {% for link in nav_links %}<a href="{{ link.href }}"{% if link.href == request.path %} aria-current="page"{% endif %}>{{ link.label }}</a>{% endfor %}
+        </div>
+    </nav>
 </div>

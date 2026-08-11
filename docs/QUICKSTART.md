@@ -11,11 +11,13 @@ docker compose up --build
 python -m venv .venv
 source .venv/bin/activate
 pip install -r requirements.txt
+npm install
+npm run build
 cp sample.env .env
 python app.py
 ```
 
-App runs on `http://localhost:5000`.
+App runs on `http://localhost:5000`. For frontend development, run `npm run dev` in a second terminal; it watches the React sources and continuously rebuilds the Flask-served assets.
 
 ## Initial admin bootstrap
 - Username: `admin`
@@ -110,6 +112,8 @@ Additional operational notes:
 ## Testing
 ```bash
 pytest -q
+npm test
+npm run build
 ```
 
 Focused regression slice for the ongoing route decomposition:

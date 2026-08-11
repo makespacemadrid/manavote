@@ -11,7 +11,8 @@ Primary goals:
 
 ## 2) Technology
 
-- Python + Flask (server-rendered Jinja2 templates)
+- Python + Flask (routing, authentication, business logic, and server-rendered page content)
+- React 19 + Vite (progressively hydrated application shell)
 - SQLite database
 - Chart.js for budget visualization
 - Optional Telegram notifications for proposal events
@@ -28,7 +29,7 @@ At startup (`python app.py`):
 6. Flask starts on host `0.0.0.0`, port `5000`.
 
 Container runtime (`docker compose up --build`):
-1. Compose builds from `Dockerfile` and starts the `web` service.
+1. Compose builds the React assets in the Dockerfile Node stage, then assembles and starts the Flask `web` service.
 2. `.env` is loaded through `env_file`.
 3. `app.db` and `static/uploads` are bind-mounted for persistence.
 4. App is exposed on `http://localhost:5000`.
@@ -45,7 +46,10 @@ Primary modules and responsibilities:
 - `app/repositories/` — DB access helpers.
 - `app/db/` — schema, migrations, and DB connection helper.
 - `app/mcp_server.py` — MCP JSON-RPC server for admin tooling (list/read/create operations).
-- `templates/` — server-rendered HTML (Jinja2).
+- `templates/` — server-rendered HTML and accessible pre-hydration markup (Jinja2).
+- `frontend/src/` — React application-shell components, hydration entry point, and source styles.
+- `static/react/` — Flask-served frontend assets; development fallbacks are replaced by the Vite production build.
+- `vite.config.js` — deterministic frontend build output configuration.
 - `tests/` — unit and functional tests.
 
 ## 4) Data model
@@ -129,6 +133,14 @@ A proposal is approvable when both are true:
 If a proposal marked basic supplies has amount > €20, basic flag is auto-removed and a comment is inserted.
 
 ## 7) UI/feature behavior
+
+### React application shell
+
+- Flask remains the source of truth for routes, sessions, authorization, localization, and page data.
+- Shared navigation is rendered by Jinja first, so links remain available without JavaScript, then hydrated by React using JSON props from `data-react-props`.
+- The server and React markup must remain structurally equivalent to avoid hydration recovery and layout shifts.
+- The active route is represented with `aria-current="page"`; the mobile menu exposes `aria-expanded` and `aria-controls` and closes on link selection or Escape.
+- Vite writes fixed `app.js` and `style.css` filenames to `static/react`, matching the Flask base template.
 
 ### Dashboard
 - Budget card with current budget, member count, and vote requirements display.

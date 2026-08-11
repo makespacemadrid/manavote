@@ -1,3 +1,9 @@
+FROM node:20-alpine AS frontend
+WORKDIR /build
+COPY package.json vite.config.js ./
+COPY frontend ./frontend
+RUN npm install && npm run build
+
 FROM python:3.11-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -12,6 +18,7 @@ RUN pip install -r requirements.txt
 COPY app ./app
 COPY templates ./templates
 COPY static ./static
+COPY --from=frontend /build/static/react ./static/react
 COPY translations.py app.py ./
 
 RUN mkdir -p /app/static/uploads

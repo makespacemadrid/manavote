@@ -4,6 +4,7 @@
 
 ```bash
 pytest -q
+npm test
 ```
 
 ## Targeted regression packs
@@ -11,6 +12,18 @@ pytest -q
 ```bash
 pytest -q tests/test_template_guards.py tests/test_production_config.py tests/test_app_startup.py tests/test_startup_policy.py tests/unit/test_settings_service.py tests/unit/test_vote_repository_contract.py
 ```
+
+### Frontend regression checks
+
+```bash
+pytest -q tests/test_react_frontend.py
+npm test
+```
+
+- The Python integration pack renders the Jinja navigation, decodes its React hydration props, checks member/admin link visibility, verifies the active-page accessibility state, and requests fallback assets through Flask.
+- Vitest renders the React navigation component and checks its semantic navigation label, mobile-menu relationships, collapsed state, and current-page marker.
+- Run `npm run build` when changing JSX, Vite configuration, or shared styles; the production files are written to `static/react`.
+- Backend-only environments may use the committed fallback assets, but CI and production images should build the React bundle.
 
 ### Coverage summary
 

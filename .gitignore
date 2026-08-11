@@ -11,3 +11,5 @@ cookies.txt
 
 backups/*
 !backups/.gitkeep
+
+node_modules/
