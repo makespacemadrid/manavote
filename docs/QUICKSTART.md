@@ -17,7 +17,7 @@ cp sample.env .env
 python app.py
 ```
 
-App runs on `http://localhost:5000`. For frontend development, run `npm run dev` in a second terminal; it watches the React sources and continuously rebuilds the Flask-served assets.
+App runs on `http://localhost:45000`. For frontend development, run `npm run dev` in a second terminal; it watches the React sources and continuously rebuilds the Flask-served assets.
 
 ## Initial admin bootstrap
 - Username: `admin`
@@ -36,6 +36,23 @@ When running with Docker Compose:
 - Persistent data uses Docker named volumes:
   - `app_data` → `/data` (database at `/data/app.db`)
   - `uploads_data` → `/app/static/uploads`
+
+### Migrating an existing Docker database
+
+Older Compose configurations mounted `./app.db` directly. Back it up before moving to
+the named volume, then copy it into the new container after the volume is created:
+
+```bash
+cp app.db app.db.backup
+docker compose up --no-start
+docker compose cp app.db web:/data/app.db
+docker compose run --rm --no-deps --user root web chown appuser:appuser /data/app.db
+docker compose up
+```
+
+Skip this migration for a new installation. Do not remove the original database or
+its backup until the application starts and the expected proposals and members are
+visible.
 
 | Variable | Default | Purpose |
 |---|---:|---|

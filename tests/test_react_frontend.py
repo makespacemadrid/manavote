@@ -46,6 +46,16 @@ def test_development_fallback_assets_are_served_by_flask():
     assert stylesheet.mimetype == "text/css"
 
 
+def test_button_groups_use_gap_without_misaligned_adjacent_margins():
+    source_styles = (ROOT / "frontend" / "src" / "styles.css").read_text()
+    fallback_styles = (ROOT / "static" / "react" / "style.css").read_text()
+
+    for styles in (source_styles, fallback_styles):
+        assert ".button-row" in styles
+        assert "align-items: center" in styles
+        assert ".btn + .btn" not in styles
+
+
 def test_navigation_serializes_hydration_props_and_current_page_markup():
     markup = _render_navigation(path="/dashboard")
     props = _navigation_props(markup)

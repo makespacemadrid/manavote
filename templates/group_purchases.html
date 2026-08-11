@@ -86,15 +86,21 @@
             ({{ 'Total'|lang }}: €{{ '%.2f'|format(purchase.shared_cost_total) }})
         </p>
     {% endif %}
-    {% if purchase.created_by == session.member_id %}
+    {% if purchase.created_by == session.member_id or session.get('is_admin') %}
         <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;">
             {% if purchase.status == 'open' %}
                 <a class="btn btn-secondary" href="{{ url_for('group_purchases.edit_purchase', purchase_id=purchase.id) }}">{{ 'Edit'|lang }}</a>
+            {% endif %}
+            <form method="post" action="{{ url_for('group_purchases.delete_purchase', purchase_id=purchase.id) }}" onsubmit="return confirm('{{ 'Delete this group purchase?'|lang }}');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-secondary" type="submit">{{ 'Delete'|lang }}</button>
+            </form>
+            {% if purchase.created_by == session.member_id and purchase.status == 'open' %}
                 <form method="post" action="{{ url_for('group_purchases.update_status', purchase_id=purchase.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="status" value="ordered">
                     <button class="btn" type="submit">{{ 'Mark order placed'|lang }}</button>
                 </form>
-            {% elif purchase.status == 'ordered' %}
+            {% elif purchase.created_by == session.member_id and purchase.status == 'ordered' %}
                 <form method="post" action="{{ url_for('group_purchases.update_status', purchase_id=purchase.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="status" value="received">
                     <button class="btn btn-success" type="submit">{{ 'Mark shipment received'|lang }}</button>

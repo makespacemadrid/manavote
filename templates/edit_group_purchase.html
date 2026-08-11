@@ -30,8 +30,10 @@
         {% endfor %}
         </div>
         <button id="add-edit-cost" class="btn btn-secondary" type="button" style="margin-bottom:12px;">+ {{ 'Add shared cost'|lang }}</button><br>
-        <button class="btn" type="submit">{{ 'Save'|lang }}</button>
-        <a class="btn btn-secondary" href="{{ url_for('group_purchases.group_purchases_page') }}#purchase-{{ purchase.id }}">{{ 'Cancel'|lang }}</a>
+        <div class="button-row">
+            <button class="btn" type="submit">{{ 'Save'|lang }}</button>
+            <a class="btn btn-secondary" href="{{ url_for('group_purchases.group_purchases_page') }}#purchase-{{ purchase.id }}">{{ 'Cancel'|lang }}</a>
+        </div>
     </form>
 </div>
 <template id="edit-cost-template">

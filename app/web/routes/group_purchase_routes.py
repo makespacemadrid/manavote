@@ -412,6 +412,17 @@ def set_quantity(purchase_id):
     return redirect(url_for("group_purchases.group_purchases_page") + f"#purchase-{purchase_id}")
 
 
+def _manageable_purchase(cursor, purchase_id):
+    """Return a purchase when the current member may administer it."""
+    cursor.execute("SELECT * FROM group_purchases WHERE id = ?", (purchase_id,))
+    purchase = cursor.fetchone()
+    if purchase is None:
+        return None
+    if purchase["created_by"] == session["member_id"] or session.get("is_admin"):
+        return purchase
+    return None
+
+
 def _creator_purchase(cursor, purchase_id):
     cursor.execute(
         "SELECT * FROM group_purchases WHERE id = ? AND created_by = ?",
@@ -426,10 +437,10 @@ def edit_purchase(purchase_id):
     legacy.ensure_db_ready()
     conn = legacy.get_db()
     cursor = conn.cursor()
-    purchase = _creator_purchase(cursor, purchase_id)
+    purchase = _manageable_purchase(cursor, purchase_id)
     if purchase is None:
         conn.close()
-        flash("Only the creator can edit this group purchase", "error")
+        flash("Only the creator or an admin can edit this group purchase", "error")
         return redirect(url_for("group_purchases.group_purchases_page"))
     if purchase["status"] != "open":
         conn.close()
@@ -507,7 +518,7 @@ def edit_purchase(purchase_id):
                     """
                     UPDATE group_purchases
                     SET title = ?, description = ?, deadline = ?, url = ?, image_filename = ?, payment_method = ?
-                    WHERE id = ? AND created_by = ?
+                    WHERE id = ?
                     """,
                     (
                         title,
@@ -517,7 +528,6 @@ def edit_purchase(purchase_id):
                         image_filename,
                         payment_method or None,
                         purchase_id,
-                        session["member_id"],
                     ),
                 )
                 cursor.executemany(
@@ -562,6 +572,43 @@ def edit_purchase(purchase_id):
         ),
         session_lang=session.get("lang", "en"),
     )
+
+
+@group_purchase_bp.post("/group-purchases/<int:purchase_id>/delete")
+@login_required
+def delete_purchase(purchase_id):
+    legacy.ensure_db_ready()
+    conn = legacy.get_db()
+    cursor = conn.cursor()
+    purchase = _manageable_purchase(cursor, purchase_id)
+    if purchase is None:
+        conn.close()
+        flash("Only the creator or an admin can delete this group purchase", "error")
+        return redirect(url_for("group_purchases.group_purchases_page"))
+
+    cursor.execute(
+        """
+        DELETE FROM group_purchase_quantities
+        WHERE component_id IN (
+            SELECT id FROM group_purchase_components WHERE group_purchase_id = ?
+        )
+        """,
+        (purchase_id,),
+    )
+    cursor.execute("DELETE FROM group_purchase_payments WHERE group_purchase_id = ?", (purchase_id,))
+    cursor.execute("DELETE FROM group_purchase_shared_costs WHERE group_purchase_id = ?", (purchase_id,))
+    cursor.execute("DELETE FROM group_purchase_components WHERE group_purchase_id = ?", (purchase_id,))
+    cursor.execute("DELETE FROM group_purchases WHERE id = ?", (purchase_id,))
+    conn.commit()
+    conn.close()
+
+    image_filename = purchase["image_filename"]
+    if image_filename:
+        image_path = os.path.join(current_app.config["UPLOAD_FOLDER"], image_filename)
+        if os.path.exists(image_path):
+            os.remove(image_path)
+    flash("Group purchase deleted", "success")
+    return redirect(url_for("group_purchases.group_purchases_page"))
 
 
 @group_purchase_bp.post("/group-purchases/<int:purchase_id>/status")

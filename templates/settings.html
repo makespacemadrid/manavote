@@ -27,18 +27,25 @@
 }
 .user-settings-item .btn {
     width: 100%;
+    min-height: 40px;
     text-align: center;
 }
 .user-settings-item > .btn,
+.user-settings-item > .email-settings-form,
 .language-buttons {
     margin-top: auto;
 }
+.email-settings-form {
+    display: flex;
+    flex-direction: column;
+}
 .language-buttons {
     display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     gap: 8px;
 }
 .language-buttons .btn {
-    min-height: 40px;
+    min-width: 0;
 }
 </style>
 
@@ -53,7 +60,7 @@
             <small style="color: #888;">{{ 'Email cannot be changed after it is added.'|lang }}</small>
             {% else %}
             <p>{{ 'Add an email address to use it as an alternative login.'|lang }}</p>
-            <form method="POST">
+            <form method="POST" class="email-settings-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="email" name="email" autocomplete="email" required placeholder="you@example.com" aria-label="{{ 'Email'|lang }}">
                 <button type="submit" class="btn btn-secondary">{{ 'Add Email'|lang }}</button>
