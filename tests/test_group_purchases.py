@@ -228,6 +228,29 @@ def test_invalid_purchase_keeps_submitted_values(group_purchase_client):
     assert b'value="Remember this title"' in response.data
 
 
+def test_creator_can_delete_own_purchase(group_purchase_client):
+    client, db_path = group_purchase_client
+    client.post("/group-purchases", data={"title": "Creator order", "components": "Part"})
+    conn = sqlite3.connect(db_path)
+    purchase_id = conn.execute("SELECT id FROM group_purchases").fetchone()[0]
+    conn.close()
+    with client.session_transaction() as user_session:
+        user_session["is_admin"] = 0
+
+    page = client.get("/group-purchases")
+    assert f'/group-purchases/{purchase_id}/edit'.encode() in page.data
+    assert f'/group-purchases/{purchase_id}/delete'.encode() in page.data
+
+    response = client.post(
+        f"/group-purchases/{purchase_id}/delete",
+        follow_redirects=True,
+    )
+    assert b"Group purchase deleted" in response.data
+    conn = sqlite3.connect(db_path)
+    assert conn.execute("SELECT COUNT(*) FROM group_purchases").fetchone()[0] == 0
+    conn.close()
+
+
 def test_only_creator_can_edit_status_and_payments(group_purchase_client):
     client, db_path = group_purchase_client
     client.post("/group-purchases", data={"title": "Order", "components": "Part"})
@@ -248,9 +271,84 @@ def test_only_creator_can_edit_status_and_payments(group_purchase_client):
         data={"status": "ordered"},
         follow_redirects=True,
     )
+    delete_response = client.post(
+        f"/group-purchases/{purchase_id}/delete",
+        follow_redirects=True,
+    )
 
-    assert b"Only the creator can edit" in edit_response.data
+    assert b"Only the creator or an admin can edit" in edit_response.data
     assert b"Invalid status change" in status_response.data
+    assert b"Only the creator or an admin can delete" in delete_response.data
     conn = sqlite3.connect(db_path)
     assert conn.execute("SELECT status FROM group_purchases").fetchone()[0] == "open"
+    conn.close()
+
+
+def test_admin_can_edit_and_delete_another_members_purchase(group_purchase_client):
+    client, db_path = group_purchase_client
+    conn = sqlite3.connect(db_path)
+    conn.execute(
+        "INSERT INTO members (username, password_hash, is_admin) VALUES ('creator', 'x', 0)"
+    )
+    creator_id = conn.execute("SELECT id FROM members WHERE username = 'creator'").fetchone()[0]
+    conn.execute(
+        "INSERT INTO group_purchases (title, created_by, image_filename) VALUES (?, ?, ?)",
+        ("Member order", creator_id, "group-test.png"),
+    )
+    purchase_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    conn.execute(
+        "INSERT INTO group_purchase_components (group_purchase_id, name, unit_price) VALUES (?, 'Part', 2.5)",
+        (purchase_id,),
+    )
+    component_id = conn.execute("SELECT last_insert_rowid()").fetchone()[0]
+    conn.execute(
+        "INSERT INTO group_purchase_quantities (component_id, member_id, quantity) VALUES (?, ?, 2)",
+        (component_id, creator_id),
+    )
+    conn.execute(
+        "INSERT INTO group_purchase_payments (group_purchase_id, member_id) VALUES (?, ?)",
+        (purchase_id, creator_id),
+    )
+    conn.execute(
+        "INSERT INTO group_purchase_shared_costs (group_purchase_id, label, amount) VALUES (?, 'Shipping', 3)",
+        (purchase_id,),
+    )
+    conn.commit()
+    conn.close()
+    image_path = app.config["UPLOAD_FOLDER"] + "/group-test.png"
+    with open(image_path, "wb") as image:
+        image.write(b"test")
+
+    page = client.get("/group-purchases")
+    assert f'/group-purchases/{purchase_id}/edit'.encode() in page.data
+    assert f'/group-purchases/{purchase_id}/delete'.encode() in page.data
+
+    edit_response = client.post(
+        f"/group-purchases/{purchase_id}/edit",
+        data={
+            "title": "Admin corrected order",
+            f"component_name_{component_id}": "Corrected part",
+            f"component_price_{component_id}": "4.50",
+        },
+        follow_redirects=True,
+    )
+    assert b"Group purchase updated" in edit_response.data
+    assert b"Admin corrected order" in edit_response.data
+
+    delete_response = client.post(
+        f"/group-purchases/{purchase_id}/delete",
+        follow_redirects=True,
+    )
+    assert b"Group purchase deleted" in delete_response.data
+    assert not os.path.exists(image_path)
+
+    conn = sqlite3.connect(db_path)
+    for table in (
+        "group_purchase_quantities",
+        "group_purchase_payments",
+        "group_purchase_shared_costs",
+        "group_purchase_components",
+        "group_purchases",
+    ):
+        assert conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0
     conn.close()

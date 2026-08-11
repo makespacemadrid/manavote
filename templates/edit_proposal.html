@@ -37,8 +37,10 @@
             <input type="checkbox" name="basic_supplies" value="1" {{ 'checked' if proposal.basic_supplies else '' }}> {{ 'Basic'|lang }} supplies ({{ thresholds.basic }}% backers required) <span style="color: #888; font-size: 0.85em;">(auto-removed if over €20)</span>
         </label>
         
-        <button type="submit" class="btn">{{ 'Save Changes'|lang }}</button>
-        <a href="{{ url_for('proposals.proposal_detail', proposal_id=proposal.id) }}" class="btn btn-secondary">{{ 'Cancel'|lang }}</a>
+        <div class="button-row">
+            <button type="submit" class="btn">{{ 'Save Changes'|lang }}</button>
+            <a href="{{ url_for('proposals.proposal_detail', proposal_id=proposal.id) }}" class="btn btn-secondary">{{ 'Cancel'|lang }}</a>
+        </div>
     </form>
 </div>
 {% endblock %}
