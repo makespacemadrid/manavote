@@ -6,8 +6,11 @@
         a { color: #ffff00; text-decoration: none; }
         a:hover { text-decoration: underline; }
         .card { background: #1f1f1f; border-radius: 8px; padding: 20px; margin-bottom: 20px; border: 1px solid #3a3a3a; }
-        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 20px; background: #ffff00; color: #000000; text-decoration: none; border-radius: 4px; border: none; cursor: pointer; font-size: 14px; line-height: 1.2; vertical-align: middle; }
-        .button-row { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; }
+        .btn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; padding: 10px 20px; background: #ffff00; color: #000000; text-decoration: none; border-radius: 4px; border: none; cursor: pointer; font-family: inherit; font-size: 14px; line-height: 1.2; vertical-align: middle; }
+        .button-row { display: flex; align-items: stretch; flex-wrap: wrap; gap: 8px; }
+        .button-row > .btn { min-height: 40px; }
+        .button-row > form { display: flex; margin: 0; }
+        .button-row > form > .btn { height: 100%; }
         .btn:hover { background: #ff6b6b; }
         .btn-secondary { background: #ffff00; color: #000000; }
         .btn-secondary:hover { background: #ff6b6b; }

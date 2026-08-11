@@ -52,8 +52,16 @@ def test_button_groups_use_gap_without_misaligned_adjacent_margins():
 
     for styles in (source_styles, fallback_styles):
         assert ".button-row" in styles
-        assert "align-items: center" in styles
+        assert ".button-row { display: flex; align-items: stretch" in styles
+        assert ".button-row > form > .btn { height: 100%; }" in styles
+        assert "font-family: inherit" in styles
         assert ".btn + .btn" not in styles
+
+
+def test_group_purchase_actions_use_shared_aligned_button_row():
+    template = (ROOT / "templates" / "group_purchases.html").read_text()
+
+    assert '<div class="button-row" style="margin:10px 0;">' in template
 
 
 def test_navigation_serializes_hydration_props_and_current_page_markup():
@@ -67,6 +75,14 @@ def test_navigation_serializes_hydration_props_and_current_page_markup():
     assert '<nav class="nav"' in markup
     assert 'href="/dashboard" aria-current="page"' in markup
     assert 'aria-controls="primary-navigation"' in markup
+    assert re.search(r'data-react-props="[^"]+"><nav', markup)
+    assert "</nav></div>" in markup
+
+
+def test_react_navigation_reports_successful_hydration_for_browser_diagnostics():
+    component = (ROOT / "frontend" / "src" / "Nav.jsx").read_text()
+
+    assert "data-react-hydrated" in component
 
 
 def test_navigation_only_exposes_admin_link_to_admin_sessions():
