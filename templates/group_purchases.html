@@ -87,7 +87,7 @@
         </p>
     {% endif %}
     {% if purchase.created_by == session.member_id or session.get('is_admin') %}
-        <div style="display:flex;gap:8px;flex-wrap:wrap;margin:10px 0;">
+        <div class="button-row" style="margin:10px 0;">
             {% if purchase.status == 'open' %}
                 <a class="btn btn-secondary" href="{{ url_for('group_purchases.edit_purchase', purchase_id=purchase.id) }}">{{ 'Edit'|lang }}</a>
             {% endif %}

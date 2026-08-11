@@ -21,14 +21,5 @@
     'currentPath': request.path,
     'links': nav_links
 } %}
-<div data-react-nav data-react-props="{{ nav_props|tojson|forceescape }}">
-    <nav class="nav" data-mobile-nav aria-label="{{ 'Primary navigation'|lang }}">
-        <div class="nav-header">
-            <span>{{ 'Logged in as'|lang }}: <strong>{{ session.username|username }}</strong></span>
-            <button class="nav-toggle" type="button" aria-label="{{ 'Toggle navigation'|lang }}" aria-expanded="false" aria-controls="primary-navigation" data-nav-toggle>☰</button>
-        </div>
-        <div class="nav-links" id="primary-navigation" data-nav-links>
-            {% for link in nav_links %}<a href="{{ link.href }}"{% if link.href == request.path %} aria-current="page"{% endif %}>{{ link.label }}</a>{% endfor %}
-        </div>
-    </nav>
-</div>
+{# Inter-element whitespace is intentionally omitted so React can hydrate this exact tree. #}
+<div data-react-nav data-react-props="{{ nav_props|tojson|forceescape }}"><nav class="nav" data-mobile-nav aria-label="{{ 'Primary navigation'|lang }}"><div class="nav-header"><span>{{ 'Logged in as'|lang }}: <strong>{{ session.username|username }}</strong></span><button class="nav-toggle" type="button" aria-label="{{ 'Toggle navigation'|lang }}" aria-expanded="false" aria-controls="primary-navigation" data-nav-toggle>☰</button></div><div class="nav-links" id="primary-navigation" data-nav-links>{% for link in nav_links %}<a href="{{ link.href }}"{% if link.href == request.path %} aria-current="page"{% endif %}>{{ link.label }}</a>{% endfor %}</div></nav></div>
