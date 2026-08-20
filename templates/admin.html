@@ -7,11 +7,9 @@
 <h2>{{ 'Admin'|lang }}</h2>
 
 <div class="admin-toolbar">
-    <button type="button" class="btn btn-secondary admin-tab-btn" data-section="members" onclick="showSection('members', this)">{{ 'Members'|lang }}</button>
-    <button type="button" class="btn btn-secondary admin-tab-btn" data-section="budget" onclick="showSection('budget', this)">{{ 'Budget'|lang }}</button>
-    <button type="button" class="btn btn-secondary admin-tab-btn" data-section="polls" onclick="showSection('polls', this)">{{ 'Polls'|lang }}</button>
-    <button type="button" class="btn btn-secondary admin-tab-btn" data-section="group_purchases" onclick="showSection('group_purchases', this)">{{ 'Group purchases'|lang }}</button>
-    <button type="button" class="btn btn-secondary admin-tab-btn" data-section="settings" onclick="showSection('settings', this)">{{ 'Settings'|lang }}</button>
+    {% for section, label in [('members', 'Members'), ('budget', 'Budget'), ('polls', 'Polls'), ('group_purchases', 'Group purchases'), ('settings', 'Settings')] %}
+    <a href="{{ url_for('admin.admin', tab=section) }}" class="btn btn-secondary admin-tab-btn{% if active_admin_tab == section %} active{% endif %}" data-section="{{ section }}" onclick="showSection('{{ section }}', this); return false;">{{ label|lang }}</a>
+    {% endfor %}
 </div>
 
 <style>

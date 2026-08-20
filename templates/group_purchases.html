@@ -14,8 +14,9 @@
     @media (max-width:600px) { .component-row, .component-input-row { grid-template-columns:1fr; } .quantity-form { align-items:center; } .remove-component { width:fit-content; } }
 </style>
 
+{% if show_create_form %}
 <div class="card">
-    <h1>🛒 {{ 'Group purchases'|lang }}</h1>
+    <h1>🛒 {{ 'Create group purchase'|lang }}</h1>
     <p class="hint">{{ 'Group purchases intro'|lang }}</p>
     <form method="post" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
@@ -56,9 +57,22 @@
         </div>
         <button id="add-cost" class="btn btn-secondary" type="button" style="margin-bottom:12px;">+ {{ 'Add shared cost'|lang }}</button><br>
         <button class="btn" type="submit">{{ 'Create group purchase'|lang }}</button>
+        <a class="btn btn-secondary" href="{{ url_for('group_purchases.group_purchases_page') }}">{{ 'Cancel'|lang }}</a>
     </form>
 </div>
+{% else %}
+<div class="card">
+    <div class="purchase-header">
+        <div>
+            <h1>🛒 {{ 'Group purchases'|lang }}</h1>
+            <p class="hint">{{ 'Group purchases intro'|lang }}</p>
+        </div>
+        <a class="btn" href="{{ url_for('group_purchases.new_purchase') }}">+ {{ 'New group purchase'|lang }}</a>
+    </div>
+</div>
+{% endif %}
 
+{% if not show_create_form %}
 {% for purchase in purchases %}
 <article class="card" id="purchase-{{ purchase.id }}">
     <div class="purchase-header">
@@ -148,6 +162,8 @@
 {% else %}
 <div class="card"><p>{{ 'No group purchases yet'|lang }}</p></div>
 {% endfor %}
+{% endif %}
+{% if show_create_form %}
 <template id="component-row-template">
     <div class="component-input-row">
         <div><label>{{ 'Component'|lang }}</label><input name="component_name" maxlength="100" placeholder="AAA" required></div>
@@ -186,4 +202,5 @@ document.addEventListener('DOMContentLoaded', function () {
     });
 });
 </script>
+{% endif %}
 {% endblock %}
