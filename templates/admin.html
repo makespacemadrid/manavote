@@ -10,6 +10,7 @@
     <button type="button" class="btn btn-secondary admin-tab-btn" data-section="members" onclick="showSection('members', this)">{{ 'Members'|lang }}</button>
     <button type="button" class="btn btn-secondary admin-tab-btn" data-section="budget" onclick="showSection('budget', this)">{{ 'Budget'|lang }}</button>
     <button type="button" class="btn btn-secondary admin-tab-btn" data-section="polls" onclick="showSection('polls', this)">{{ 'Polls'|lang }}</button>
+    <button type="button" class="btn btn-secondary admin-tab-btn" data-section="group_purchases" onclick="showSection('group_purchases', this)">{{ 'Group purchases'|lang }}</button>
     <button type="button" class="btn btn-secondary admin-tab-btn" data-section="settings" onclick="showSection('settings', this)">{{ 'Settings'|lang }}</button>
 </div>
 
@@ -91,6 +92,7 @@ function showSection(sectionId, buttonEl) {
         members: ['add-member', 'registration-settings', 'members', 'stats', 'poll-stats'],
         budget: ['thresholds', 'budget', 'budget-history', 'proposal-history'],
         polls: ['polls'],
+        group_purchases: ['group-purchases'],
         settings: ['settings', 'timezone', 'backup', 'telegram']
     };
 
@@ -456,6 +458,44 @@ document.addEventListener('DOMContentLoaded', function() {
                     </form>
                 </td>
             </tr>
+            {% endfor %}
+        </tbody>
+    </table>
+</div>
+
+
+<div id="group-purchases" class="card">
+    <h3>🛒 {{ 'Group purchases'|lang }}</h3>
+    <table>
+        <thead>
+            <tr>
+                <th>{{ 'Date'|lang }}</th>
+                <th>{{ 'Title'|lang }}</th>
+                <th>{{ 'By'|lang }}</th>
+                <th>{{ 'Status'|lang }}</th>
+                <th>{{ 'Action'|lang }}</th>
+            </tr>
+        </thead>
+        <tbody>
+            {% for purchase in group_purchases %}
+            <tr>
+                <td>{{ purchase.created_at|localtime("%Y-%m-%d %H:%M") }}</td>
+                <td><a href="{{ url_for('group_purchases.group_purchases_page') }}#purchase-{{ purchase.id }}">{{ purchase.title }}</a></td>
+                <td>{{ purchase.creator|username }}</td>
+                <td>{{ purchase.status|lang }}</td>
+                <td>
+                    <div class="button-row">
+                        <a class="btn btn-secondary" href="{{ url_for('group_purchases.edit_purchase', purchase_id=purchase.id) }}">{{ 'Edit'|lang }}</a>
+                        <form method="POST" action="{{ url_for('group_purchases.delete_purchase', purchase_id=purchase.id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                            <input type="hidden" name="return_to" value="admin">
+                            <button type="submit" class="btn btn-secondary" onclick="return confirmDangerAction(this.form, '{{ 'Delete this group purchase?'|lang }}')">{{ 'Delete'|lang }}</button>
+                        </form>
+                    </div>
+                </td>
+            </tr>
+            {% else %}
+            <tr><td colspan="5" style="text-align: center; color: #888;">{{ 'No group purchases yet'|lang }}</td></tr>
             {% endfor %}
         </tbody>
     </table>

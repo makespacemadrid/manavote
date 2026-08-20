@@ -88,9 +88,7 @@
     {% endif %}
     {% if purchase.created_by == session.member_id or session.get('is_admin') %}
         <div class="button-row" style="margin:10px 0;">
-            {% if purchase.status == 'open' %}
-                <a class="btn btn-secondary" href="{{ url_for('group_purchases.edit_purchase', purchase_id=purchase.id) }}">{{ 'Edit'|lang }}</a>
-            {% endif %}
+            <a class="btn btn-secondary" href="{{ url_for('group_purchases.edit_purchase', purchase_id=purchase.id) }}">{{ 'Edit'|lang }}</a>
             <form method="post" action="{{ url_for('group_purchases.delete_purchase', purchase_id=purchase.id) }}" onsubmit="return confirm('{{ 'Delete this group purchase?'|lang }}');">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-secondary" type="submit">{{ 'Delete'|lang }}</button>
