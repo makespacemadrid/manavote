@@ -150,6 +150,9 @@ def _send_status_notification(purchase, status):
 
 
 @group_purchase_bp.route("/group-purchases", methods=["GET", "POST"])
+@group_purchase_bp.route(
+    "/group-purchases/new", methods=["GET", "POST"], endpoint="new_purchase"
+)
 @login_required
 def group_purchases_page():
     legacy.ensure_db_ready()
@@ -362,6 +365,9 @@ def group_purchases_page():
             else []
         ),
         session_lang=session.get("lang", "en"),
+        show_create_form=(
+            request.endpoint == "group_purchases.new_purchase" or request.method == "POST"
+        ),
     )
 
 

@@ -111,6 +111,28 @@ def test_group_purchase_migration_supports_quantities_per_member():
     ).fetchone()[0] == 3
 
 
+def test_group_purchase_list_leads_with_purchases_and_new_purchase_button(
+    group_purchase_client,
+):
+    client, _ = group_purchase_client
+
+    response = client.get("/group-purchases")
+
+    assert response.status_code == 200
+    assert b'href="/group-purchases/new"' in response.data
+    assert b'id="title"' not in response.data
+
+
+def test_new_group_purchase_page_contains_creation_form(group_purchase_client):
+    client, _ = group_purchase_client
+
+    response = client.get("/group-purchases/new")
+
+    assert response.status_code == 200
+    assert b'id="title"' in response.data
+    assert b'href="/group-purchases"' in response.data
+
+
 def test_member_can_create_purchase_and_update_quantity(group_purchase_client):
     client, db_path = group_purchase_client
 
@@ -393,6 +415,7 @@ def test_admin_panel_lists_group_purchase_actions(group_purchase_client):
 
     assert response.status_code == 200
     assert b'data-section="group_purchases"' in response.data
+    assert b'href="/admin?tab=group_purchases"' in response.data
     assert b"Admin-managed order" in response.data
     assert b'/group-purchases/1/edit' in response.data
     assert b'/group-purchases/1/delete' in response.data
