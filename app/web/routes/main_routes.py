@@ -2100,12 +2100,20 @@ def admin():
     except Exception:
         polls = []
 
+    c.execute("""
+        SELECT gp.id, gp.title, gp.status, gp.created_at, m.username AS creator
+        FROM group_purchases gp
+        JOIN members m ON m.id = gp.created_by
+        ORDER BY gp.created_at DESC, gp.id DESC
+    """)
+    group_purchases = [dict(row) for row in c.fetchall()]
+
     c.execute("SELECT value FROM settings WHERE key = 'timezone'")
     tz_row = c.fetchone()
     current_timezone = tz_row["value"] if tz_row else "Europe/Madrid"
 
     requested_tab = request.values.get("tab", "all")
-    allowed_tabs = {"all", "members", "budget", "polls", "settings"}
+    allowed_tabs = {"all", "members", "budget", "polls", "group_purchases", "settings"}
     active_admin_tab = requested_tab if requested_tab in allowed_tabs else "all"
 
     conn.close()
@@ -2126,6 +2134,7 @@ def admin():
         backups=backups,
         image_backups=image_backups,
         polls=polls,
+        group_purchases=group_purchases,
         active_admin_tab=active_admin_tab,
     )
 

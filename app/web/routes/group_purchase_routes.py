@@ -442,10 +442,6 @@ def edit_purchase(purchase_id):
         conn.close()
         flash("Only the creator or an admin can edit this group purchase", "error")
         return redirect(url_for("group_purchases.group_purchases_page"))
-    if purchase["status"] != "open":
-        conn.close()
-        flash("An order can only be edited before it is placed", "error")
-        return redirect(url_for("group_purchases.group_purchases_page") + f"#purchase-{purchase_id}")
 
     cursor.execute(
         "SELECT * FROM group_purchase_components WHERE group_purchase_id = ? ORDER BY position, id",
@@ -608,6 +604,8 @@ def delete_purchase(purchase_id):
         if os.path.exists(image_path):
             os.remove(image_path)
     flash("Group purchase deleted", "success")
+    if request.form.get("return_to") == "admin" and session.get("is_admin"):
+        return redirect(url_for("admin.admin", tab="group_purchases"))
     return redirect(url_for("group_purchases.group_purchases_page"))
 
 

@@ -352,3 +352,64 @@ def test_admin_can_edit_and_delete_another_members_purchase(group_purchase_clien
     ):
         assert conn.execute(f"SELECT COUNT(*) FROM {table}").fetchone()[0] == 0
     conn.close()
+
+
+def test_creator_can_edit_purchase_after_order_is_placed(group_purchase_client):
+    client, db_path = group_purchase_client
+    client.post("/group-purchases", data={"title": "Placed order", "components": "Part"})
+    conn = sqlite3.connect(db_path)
+    purchase_id = conn.execute("SELECT id FROM group_purchases").fetchone()[0]
+    component_id = conn.execute("SELECT id FROM group_purchase_components").fetchone()[0]
+    conn.execute("UPDATE group_purchases SET status = 'ordered' WHERE id = ?", (purchase_id,))
+    conn.commit()
+    conn.close()
+
+    page = client.get("/group-purchases")
+    assert f'/group-purchases/{purchase_id}/edit'.encode() in page.data
+
+    response = client.post(
+        f"/group-purchases/{purchase_id}/edit",
+        data={
+            "title": "Corrected placed order",
+            f"component_name_{component_id}": "Corrected part",
+            f"component_price_{component_id}": "3.50",
+        },
+        follow_redirects=True,
+    )
+
+    assert b"Group purchase updated" in response.data
+    conn = sqlite3.connect(db_path)
+    assert conn.execute(
+        "SELECT title, status FROM group_purchases WHERE id = ?", (purchase_id,)
+    ).fetchone() == ("Corrected placed order", "ordered")
+    conn.close()
+
+
+def test_admin_panel_lists_group_purchase_actions(group_purchase_client):
+    client, _ = group_purchase_client
+    client.post("/group-purchases", data={"title": "Admin-managed order", "components": "Part"})
+
+    response = client.get("/admin?tab=group_purchases")
+
+    assert response.status_code == 200
+    assert b'data-section="group_purchases"' in response.data
+    assert b"Admin-managed order" in response.data
+    assert b'/group-purchases/1/edit' in response.data
+    assert b'/group-purchases/1/delete' in response.data
+
+
+def test_admin_panel_delete_returns_to_group_purchase_section(group_purchase_client):
+    client, db_path = group_purchase_client
+    client.post("/group-purchases", data={"title": "Delete in admin", "components": "Part"})
+
+    response = client.post(
+        "/group-purchases/1/delete",
+        data={"return_to": "admin"},
+        follow_redirects=False,
+    )
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/admin?tab=group_purchases")
+    conn = sqlite3.connect(db_path)
+    assert conn.execute("SELECT COUNT(*) FROM group_purchases").fetchone()[0] == 0
+    conn.close()
