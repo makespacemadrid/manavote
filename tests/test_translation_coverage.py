@@ -45,3 +45,11 @@ def test_flash_messages_are_rendered_through_translation_filter():
     base_template = (ROOT / "templates" / "base.html").read_text()
 
     assert "{{ message|lang }}" in base_template
+
+
+def test_proposals_balance_subtitle_uses_available_translation():
+    proposals_template = (ROOT / "templates" / "proposals.html").read_text()
+
+    assert "💰 {{ 'Available'|lang }}" in proposals_template
+    assert TRANSLATIONS["en"]["Available"] == "Available"
+    assert TRANSLATIONS["es"]["Available"] == "Disponible"
