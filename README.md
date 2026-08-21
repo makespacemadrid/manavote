@@ -3,12 +3,12 @@
 A Flask + SQLite application for managing budget proposals in a hackerspace.
 
 ![Proposals](/static/img/proposals.png)
-![Calendar](/static/img/calendar.png)
+![Budget](/static/img/calendar.png)
 
 ## What it does
 
 - Members can create, discuss, and vote on proposals.
-- Members can monitor progress from Dashboard and Calendar views.
+- Members can monitor progress from the Proposals and Budget views.
 - Proposals are auto-processed based on vote thresholds and available budget.
 - Members can participate in transparent polls in web and Telegram.
 - Admins can manage members, thresholds, settings, and budget movements.

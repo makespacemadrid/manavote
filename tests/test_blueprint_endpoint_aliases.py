@@ -16,7 +16,7 @@ def test_legacy_endpoints_are_registered_after_blueprint_split():
         "api_create_proposal",
         "api_list_proposals",
         "about",
-        "calendar",
+        "budget",
         "proposal_detail",
         "polls_page",
         "admin",
@@ -40,8 +40,8 @@ def test_root_redirect_uses_login_url_without_build_error():
     assert response.headers.get("Location", "").endswith("/login")
 
 
-def test_calendar_and_about_expose_blueprint_aliases():
-    assert "calendar" in app.view_functions
-    assert "proposals.calendar" in app.view_functions
+def test_budget_and_about_expose_blueprint_aliases():
+    assert "budget" in app.view_functions
+    assert "proposals.budget" in app.view_functions
     assert "about" in app.view_functions
     assert "proposals.about" in app.view_functions

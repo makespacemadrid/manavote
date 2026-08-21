@@ -142,7 +142,7 @@ If a proposal marked basic supplies has amount > €20, basic flag is auto-remov
 - The active route is represented with `aria-current="page"`; the mobile menu exposes `aria-expanded` and `aria-controls` and closes on link selection or Escape.
 - Vite writes fixed `app.js` and `style.css` filenames to `static/react`, matching the Flask base template.
 
-### Dashboard
+### Proposals
 - Budget card with current budget, member count, and vote requirements display.
 - Proposal list with status/category filters (filters inside Proposals card).
 - Filter buttons show amounts (no decimals) with color-coded styling.
@@ -227,8 +227,8 @@ Committed series behavior:
 - `GET|POST /register` (if enabled)
 
 ### Authenticated member
-- `GET /dashboard`
-- `GET /calendar`
+- `GET /proposals`
+- `GET /budget`
 - `GET|POST /polls`
 - `GET|POST /group-purchases`
 - `GET|POST /group-purchases/<purchase_id>/edit` (creator only while open)

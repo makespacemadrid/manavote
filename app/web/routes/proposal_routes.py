@@ -11,8 +11,8 @@ def about():
     return render_template("about.html", session_lang=session.get("lang", "en"))
 
 
-@proposal_bp.route("/calendar", endpoint="calendar")
-def calendar():
+@proposal_bp.route("/budget", endpoint="budget")
+def budget():
     if not session.get("member_id"):
         return redirect(url_for("auth.login"))
 
@@ -136,7 +136,7 @@ def calendar():
 
     conn.close()
     return render_template(
-        "calendar.html",
+        "budget.html",
         calendar_items=calendar_items,
         daily_budget=daily_budget,
         session_lang=session.get("lang", "en"),
