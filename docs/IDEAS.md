@@ -133,7 +133,7 @@ Proposed startup lifecycle:
 ## Voting & Admin UX — Forward Outlook
 
 ### Product coherence
-- Keep blocked-channel guidance consistent across dashboard, proposal detail, and Telegram responses.
+- Keep blocked-channel guidance consistent across proposals, proposal detail, and Telegram responses.
 - Show admins an "effective vote policy" summary with current mode and implications.
 
 ### Observability and governance
@@ -148,7 +148,7 @@ Proposed startup lifecycle:
 ### UX quality gates
 - `telegram_only`: web controls hidden/disabled with clear next-step text.
 - `web_only`: Telegram responses provide actionable guidance.
-- Add a compact behavior matrix test suite across dashboard, proposal detail, polls, and Telegram webhook flows.
+- Add a compact behavior matrix test suite across proposals, proposal detail, polls, and Telegram webhook flows.
 
 ---
 

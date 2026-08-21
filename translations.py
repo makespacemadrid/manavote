@@ -2,7 +2,6 @@ TRANSLATIONS = {
     "en": {
         "active": "active",
         "approved": "approved",
-        "Dashboard": "Dashboard",
         "New Proposal": "New Proposal",
         "Calendar": "Calendar",
         "Polls": "Polls",
@@ -229,7 +228,7 @@ TRANSLATIONS = {
         "About flow undo": "Admins can undo an approval if needed, restoring budget and returning the proposal to active status.",
         "About funding 1": "Budget is tracked from activity log entries (cash in and cash out), so current balance is always derived from real movements.",
         "About funding 2": "Default seed values start with €300 and €50 monthly top-up, and admins can add or withdraw entries from the budget log.",
-        "About tracking 1": "Dashboard and calendar views show proposal lifecycle events, voting activity, and budget history.",
+        "About tracking 1": "Proposals and calendar views show proposal lifecycle events, voting activity, and budget history.",
         "About tracking 2": "The budget chart includes Budget Balance, Committed, Cash In, and Cash Out to visualize financial health over time.",
         "About tracking 3": "Pending over-budget proposals are tracked separately so members can see future commitments before new spending.",
         "About governance": "Any member can suggest improvements to the platform via",
@@ -330,7 +329,6 @@ TRANSLATIONS = {
     "es": {
         "active": "activo",
         "approved": "aprobado",
-        "Dashboard": "Panel",
         "New Proposal": "Nueva Propuesta",
         "Calendar": "Calendario",
         "Polls": "Encuestas",

@@ -17,7 +17,7 @@ def admin_required(f):
     def decorated_function(*args, **kwargs):
         if "member_id" not in session or not session.get("is_admin"):
             flash("Admin access required", "error")
-            return redirect(url_for("dashboard"))
+            return redirect(url_for("proposals"))
         return f(*args, **kwargs)
 
     return decorated_function

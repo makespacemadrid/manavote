@@ -420,7 +420,7 @@ pytest -q tests/test_api_helpers.py tests/test_api_error_envelope.py tests/test_
 
 ## Related UI budget chart note (non-API)
 
-Although not part of the REST API surface, the `/calendar` page renders a mixed Chart.js line/bar chart where:
+Although not part of the REST API surface, the `/budget` page renders a mixed Chart.js line/bar chart where:
 - `pending` accumulates from proposals when they go over_budget (tracked by `over_budget_at`).
 - `pending` decreases when over_budget proposals get approved.
 - `Committed = cash_balance - pending`.

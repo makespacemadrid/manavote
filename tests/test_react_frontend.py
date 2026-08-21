@@ -14,7 +14,7 @@ ROOT = Path(__file__).parents[1]
 PROPS_PATTERN = re.compile(r'data-react-props="([^"]+)"')
 
 
-def _render_navigation(*, path="/dashboard", is_admin=False):
+def _render_navigation(*, path="/proposals", is_admin=False):
     with app.test_request_context(path):
         session.update(username="test-member", member_id=42, is_admin=is_admin)
         return render_template("_top_nav.html")
@@ -65,15 +65,21 @@ def test_group_purchase_actions_use_shared_aligned_button_row():
 
 
 def test_navigation_serializes_hydration_props_and_current_page_markup():
-    markup = _render_navigation(path="/dashboard")
+    markup = _render_navigation(path="/proposals")
     props = _navigation_props(markup)
 
-    assert props["currentPath"] == "/dashboard"
+    assert props["currentPath"] == "/proposals"
     assert props["username"]["value"] == "test-member"
     assert props["username"]["navigationLabel"] == "Primary navigation"
-    assert any(link == {"href": "/dashboard", "label": "Dashboard"} for link in props["links"])
+    assert any(link == {"href": "/proposals", "label": "Proposals"} for link in props["links"])
+    assert props["links"][:4] == [
+        {"href": "/proposals", "label": "Proposals"},
+        {"href": "/polls", "label": "Polls"},
+        {"href": "/group-purchases", "label": "Group purchases"},
+        {"href": "/budget", "label": "Budget"},
+    ]
     assert '<nav class="nav"' in markup
-    assert 'href="/dashboard" aria-current="page"' in markup
+    assert 'href="/proposals" aria-current="page"' in markup
     assert 'aria-controls="primary-navigation"' in markup
     assert re.search(r'data-react-props="[^"]+"><nav', markup)
     assert "</nav></div>" in markup

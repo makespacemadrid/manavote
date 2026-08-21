@@ -137,18 +137,18 @@ class TestRouteAccessControl(unittest.TestCase):
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login", response.headers.get("Location", ""))
 
-    def test_index_redirects_to_dashboard_when_logged_in(self):
-        """Root route redirects authenticated users to dashboard"""
+    def test_index_redirects_to_proposals_when_logged_in(self):
+        """Root route redirects authenticated users to proposals"""
         _set_member_session(self.client)
         response = self.client.get("/", follow_redirects=False)
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/dashboard", response.headers.get("Location", ""))
+        self.assertIn("/proposals", response.headers.get("Location", ""))
 
-    def test_dashboard_requires_authentication(self):
-        """Dashboard requires login and redirects anonymous users"""
+    def test_proposals_requires_authentication(self):
+        """Proposals requires login and redirects anonymous users"""
         with self.client.session_transaction() as session:
             session.clear()
-        response = self.client.get("/dashboard", follow_redirects=False)
+        response = self.client.get("/proposals", follow_redirects=False)
         self.assertEqual(response.status_code, 302)
         self.assertIn("/login", response.headers.get("Location", ""))
 
@@ -157,7 +157,7 @@ class TestRouteAccessControl(unittest.TestCase):
         _set_member_session(self.client)
         response = self.client.get("/admin", follow_redirects=False)
         self.assertEqual(response.status_code, 302)
-        self.assertIn("/dashboard", response.headers.get("Location", ""))
+        self.assertIn("/proposals", response.headers.get("Location", ""))
 
 
 class TestProposalCreation(unittest.TestCase):
@@ -572,31 +572,37 @@ class TestNavigation(unittest.TestCase):
         budget_app.app.config["WTF_CSRF_ENABLED"] = False
         cls.client = budget_app.app.test_client()
 
-    def test_dashboard_in_nav(self):
-        """Dashboard link in navigation"""
+    def test_proposals_in_nav(self):
+        """Proposals link in navigation"""
         _set_member_session(self.client)
-        response = self.client.get("/dashboard")
+        response = self.client.get("/proposals")
         html = response.data.decode("utf-8")
-        self.assertIn("Dashboard", html)
+        self.assertIn("Proposals", html)
 
-    def test_calendar_in_nav(self):
-        """Calendar link in navigation"""
+    def test_budget_in_nav(self):
+        """Budget link in navigation points to the calendar page"""
         _set_member_session(self.client)
-        response = self.client.get("/dashboard")
+        response = self.client.get("/proposals")
         html = response.data.decode("utf-8")
-        self.assertIn("Calendar", html)
+        self.assertIn('<a href="/budget">Budget</a>', html)
+
+    def test_budget_route_replaces_calendar_route(self):
+        """The budget view is served at /budget, not the former /calendar URL."""
+        _set_member_session(self.client)
+        self.assertEqual(self.client.get("/budget").status_code, 200)
+        self.assertEqual(self.client.get("/calendar").status_code, 404)
 
     def test_about_in_nav(self):
         """About link in navigation"""
         _set_member_session(self.client)
-        response = self.client.get("/dashboard")
+        response = self.client.get("/proposals")
         html = response.data.decode("utf-8")
         self.assertIn("About", html)
 
     def test_new_proposal_in_nav(self):
         """New Proposal link in navigation"""
         _set_member_session(self.client)
-        response = self.client.get("/dashboard")
+        response = self.client.get("/proposals")
         html = response.data.decode("utf-8")
         self.assertIn("New Proposal", html)
 
@@ -638,7 +644,7 @@ class TestProposalTags(unittest.TestCase):
 
     def test_proposal_has_status_tag(self):
         """Proposal list shows status tags"""
-        response = self.client.get("/dashboard")
+        response = self.client.get("/proposals")
         html = response.data.decode("utf-8")
         self.assertIn("active", html.lower())
 
@@ -653,9 +659,9 @@ class TestBudgetDisplay(unittest.TestCase):
     def setUp(self):
         _set_member_session(self.client)
 
-    def test_dashboard_shows_budget_amount(self):
-        """Dashboard displays budget amount"""
-        response = self.client.get("/dashboard")
+    def test_proposals_shows_budget_amount(self):
+        """Proposals displays budget amount"""
+        response = self.client.get("/proposals")
         html = response.data.decode("utf-8")
         self.assertIn("€", html)
 
@@ -695,14 +701,14 @@ class TestProposalList(unittest.TestCase):
     def setUp(self):
         _set_member_session(self.client)
 
-    def test_dashboard_shows_proposals(self):
-        """Dashboard displays proposal list"""
-        response = self.client.get("/dashboard")
+    def test_proposals_shows_proposals(self):
+        """Proposals displays proposal list"""
+        response = self.client.get("/proposals")
         self.assertEqual(response.status_code, 200)
 
     def test_proposal_list_shows_items(self):
         """Proposal list contains proposals"""
-        response = self.client.get("/dashboard")
+        response = self.client.get("/proposals")
         html = response.data.decode("utf-8")
         self.assertIn("proposal", html.lower())
 
@@ -770,8 +776,8 @@ class TestPasswordSecurity(unittest.TestCase):
         self.assertTrue(budget_app.app.secret_key)
 
 
-class TestDashboardFeatures(unittest.TestCase):
-    """Test new dashboard features: filters, tags, vote display"""
+class TestProposalsFeatures(unittest.TestCase):
+    """Test new proposals features: filters, tags, vote display"""
     
     @classmethod
     def setUpClass(cls):
@@ -782,16 +788,16 @@ class TestDashboardFeatures(unittest.TestCase):
     def setUp(self):
         _set_member_session(self.client)
 
-    def test_dashboard_shows_budget_card(self):
-        """Dashboard displays budget card with current budget"""
-        response = self.client.get("/dashboard")
+    def test_proposals_shows_budget_card(self):
+        """Proposals displays budget card with current budget"""
+        response = self.client.get("/proposals")
         html = response.data.decode("utf-8")
         self.assertIn("Budget", html)
         self.assertIn("€", html)
 
-    def test_dashboard_filters_inside_proposals_card(self):
-        """Filter buttons are displayed on dashboard"""
-        response = self.client.get("/dashboard")
+    def test_proposals_filters_inside_proposals_card(self):
+        """Filter buttons are displayed on proposals"""
+        response = self.client.get("/proposals")
         html = response.data.decode("utf-8")
         self.assertIn("All", html)
         self.assertIn("Active", html)
@@ -799,24 +805,24 @@ class TestDashboardFeatures(unittest.TestCase):
 
     def test_filter_buttons_show_amounts(self):
         """Filter buttons display amounts without decimals"""
-        response = self.client.get("/dashboard")
+        response = self.client.get("/proposals")
         html = response.data.decode("utf-8")
         self.assertIn("€", html)
 
-    def test_dashboard_defaults_to_active_filter(self):
-        """Dashboard defaults to showing active proposals"""
-        response = self.client.get("/dashboard")
+    def test_proposals_defaults_to_active_filter(self):
+        """Proposals defaults to showing active proposals"""
+        response = self.client.get("/proposals")
         self.assertEqual(response.status_code, 200)
 
     def test_pending_budget_filter_displays(self):
         """Pending Budget filter button is displayed"""
-        response = self.client.get("/dashboard")
+        response = self.client.get("/proposals")
         html = response.data.decode("utf-8")
         self.assertIn("Pending Budget", html)
 
     def test_vote_display_shows_required_count(self):
         """Vote counts show required votes"""
-        response = self.client.get("/dashboard")
+        response = self.client.get("/proposals")
         html = response.data.decode("utf-8")
         self.assertIn("required", html.lower())
 
@@ -840,7 +846,7 @@ class TestPasswordChange(unittest.TestCase):
 
     def test_settings_menu_item_displays(self):
         """Settings link appears in top navigation"""
-        response = self.client.get("/dashboard")
+        response = self.client.get("/proposals")
         html = response.data.decode("utf-8")
         self.assertIn(">Settings<", html)
 
@@ -2457,7 +2463,7 @@ class TestPollsFunctionality(unittest.TestCase):
         )
         self.assertIn("Web voting is disabled by admin", response.data.decode("utf-8"))
 
-    def test_dashboard_hides_proposal_vote_buttons_when_mode_is_telegram_only(self):
+    def test_proposals_hides_proposal_vote_buttons_when_mode_is_telegram_only(self):
         self.client.post(
             "/admin",
             data={"action": "update_proposal_vote_mode", "proposal_vote_mode": "telegram_only", "csrf_token": ""},

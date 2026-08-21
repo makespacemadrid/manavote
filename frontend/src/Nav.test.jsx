@@ -9,8 +9,8 @@ const props = {
     toggleLabel: 'Toggle navigation',
     navigationLabel: 'Primary navigation',
   },
-  currentPath: '/dashboard',
-  links: [{ href: '/dashboard', label: 'Dashboard' }],
+  currentPath: '/proposals',
+  links: [{ href: '/proposals', label: 'Proposals' }],
 };
 
 describe('Nav', () => {

@@ -19,7 +19,7 @@ logger = logging.getLogger(__name__)
 @auth_bp.route("/", endpoint="index")
 def index():
     if "member_id" in session:
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("proposals"))
     return redirect(url_for("auth.login"))
 
 
@@ -71,7 +71,7 @@ def login():
                 session["lang"] = "en"
             session.permanent = True
 
-            return redirect(url_for("dashboard"))
+            return redirect(url_for("proposals"))
 
         flash("Invalid credentials", "error")
 
@@ -131,7 +131,7 @@ def keycloak_callback():
     session["lang"] = preferred_language
     session["oidc_login"] = True
     session.permanent = True
-    return redirect(url_for("dashboard"))
+    return redirect(url_for("proposals"))
 
 
 def _upsert_oidc_member(claims):
@@ -205,7 +205,7 @@ def set_language(lang):
     if lang in ("en", "es"):
         session["lang"] = lang
         session.permanent = True
-    return redirect(request.headers.get("Referer", url_for("dashboard")))
+    return redirect(request.headers.get("Referer", url_for("proposals")))
 
 
 @auth_bp.route("/change-password", methods=["GET", "POST"], endpoint="change_password")
@@ -238,7 +238,7 @@ def change_password():
         conn.close()
 
         flash("Password changed successfully!", "success")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("proposals"))
 
     return render_template("change_password.html", session_lang=session.get("lang", "en"))
 

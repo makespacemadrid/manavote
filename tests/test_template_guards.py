@@ -4,7 +4,7 @@ import re
 
 TEMPLATES_WITH_CSRF_FORMS = [
     "templates/admin.html",
-    "templates/dashboard.html",
+    "templates/proposals.html",
     "templates/new_proposal.html",
     "templates/edit_proposal.html",
     "templates/proposal_detail.html",

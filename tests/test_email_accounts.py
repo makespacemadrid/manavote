@@ -36,7 +36,7 @@ def test_email_can_be_used_to_log_in_case_insensitively(monkeypatch, isolated_db
     )
 
     assert response.status_code == 302
-    assert response.location.endswith("/dashboard")
+    assert response.location.endswith("/proposals")
     with client.session_transaction() as session:
         assert session["username"] == "mail-login-alice"
 

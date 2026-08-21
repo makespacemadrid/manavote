@@ -835,11 +835,11 @@ def about():
     return about_impl()
 
 
-@app.route("/calendar")
-def calendar():
-    from app.web.routes.proposal_routes import calendar as calendar_impl
+@app.route("/budget")
+def budget():
+    from app.web.routes.proposal_routes import budget as budget_impl
 
-    return calendar_impl()
+    return budget_impl()
 
 
 @app.route("/settings")
@@ -863,9 +863,9 @@ def register():
     return register_impl()
 
 
-@app.route("/dashboard")
+@app.route("/proposals")
 @login_required
-def dashboard():
+def proposals():
     from flask import make_response
 
     conn = get_db()
@@ -965,7 +965,7 @@ def dashboard():
     lang = session.get("lang", "en")
 
     return render_template(
-        "dashboard.html",
+        "proposals.html",
         proposals=proposals,
         filter=filter_type,
         total_count=total_count,
@@ -1081,7 +1081,7 @@ def new_proposal():
             send_telegram_message(message)
 
         flash("Proposal created!", "success")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("proposals"))
 
     current_budget = get_current_budget()
     thresholds = get_thresholds()
@@ -1107,7 +1107,7 @@ def proposal_detail(proposal_id):
     if not proposal:
         conn.close()
         flash("Proposal not found", "error")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("proposals"))
 
     c.execute(
         "SELECT v.*, m.username FROM votes v JOIN members m ON v.member_id = m.id WHERE proposal_id = ?",
@@ -1188,7 +1188,7 @@ def proposal_detail(proposal_id):
 def edit_comment(comment_id):
     if not session.get("is_admin"):
         flash("Admin access required", "error")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("proposals"))
 
     conn = get_db()
     c = conn.cursor()
@@ -1199,7 +1199,7 @@ def edit_comment(comment_id):
     if not comment:
         conn.close()
         flash("Comment not found", "error")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("proposals"))
 
     if request.method == "POST":
         content = request.form["content"].strip()
@@ -1224,7 +1224,7 @@ def edit_comment(comment_id):
 def delete_comment(comment_id):
     if not session.get("is_admin"):
         flash("Admin access required", "error")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("proposals"))
 
     conn = get_db()
     c = conn.cursor()
@@ -1235,7 +1235,7 @@ def delete_comment(comment_id):
     if not comment:
         conn.close()
         flash("Comment not found", "error")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("proposals"))
 
     proposal_id = comment["proposal_id"]
     c.execute("DELETE FROM comments WHERE id = ?", (comment_id,))
@@ -1257,7 +1257,7 @@ def delete_proposal(proposal_id):
     if not proposal:
         conn.close()
         flash("Proposal not found", "error")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("proposals"))
 
     if proposal["status"] != "active":
         conn.close()
@@ -1276,7 +1276,7 @@ def delete_proposal(proposal_id):
     conn.close()
 
     flash("Proposal deleted!", "success")
-    return redirect(url_for("dashboard"))
+    return redirect(url_for("proposals"))
 
 
 @login_required
@@ -1290,17 +1290,17 @@ def edit_proposal(proposal_id):
     if not proposal:
         conn.close()
         flash("Proposal not found", "error")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("proposals"))
 
     if proposal["created_by"] != session["member_id"] and not session.get("is_admin"):
         conn.close()
         flash("You can only edit your own proposals", "error")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("proposals"))
 
     if proposal["status"] != "active":
         conn.close()
         flash("Cannot edit processed proposals", "error")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("proposals"))
 
     if request.method == "POST":
         title = request.form["title"]
@@ -1385,12 +1385,12 @@ def edit_proposal(proposal_id):
 def quick_vote(proposal_id):
     if not can_record_proposal_vote("web"):
         flash("Web voting is disabled by admin", "error")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("proposals"))
 
     vote = request.form.get("vote")
     record_proposal_vote(proposal_id, session["member_id"], vote, source="web")
     flash("Vote recorded!", "success")
-    return redirect(url_for("dashboard"))
+    return redirect(url_for("proposals"))
 
 
 @login_required
@@ -1404,7 +1404,7 @@ def withdraw_vote(proposal_id):
     if status and status["status"] != "active":
         conn.close()
         flash("Cannot withdraw vote on processed proposals", "error")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("proposals"))
 
     c.execute(
         "DELETE FROM votes WHERE proposal_id = ? AND member_id = ?",
@@ -1420,7 +1420,7 @@ def withdraw_vote(proposal_id):
     conn.close()
 
     flash("Vote withdrawn!", "success")
-    return redirect(url_for("dashboard"))
+    return redirect(url_for("proposals"))
 
 
 @admin_required
@@ -1451,7 +1451,7 @@ def undo_approve(proposal_id):
         flash("Approval undone, budget restored", "success")
 
     conn.close()
-    return redirect(url_for("dashboard"))
+    return redirect(url_for("proposals"))
 
 
 @login_required
@@ -1465,7 +1465,7 @@ def mark_purchased(proposal_id):
     if not proposal:
         conn.close()
         flash("Proposal not found", "error")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("proposals"))
 
     if proposal["status"] != "approved":
         conn.close()
@@ -1494,12 +1494,12 @@ def unmark_purchased(proposal_id):
     if not proposal:
         conn.close()
         flash("Proposal not found", "error")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("proposals"))
 
     if proposal["status"] != "approved":
         conn.close()
         flash("Proposal not found", "error")
-        return redirect(url_for("dashboard"))
+        return redirect(url_for("proposals"))
 
     c.execute(
         "UPDATE proposals SET purchased_at = NULL WHERE id = ?",

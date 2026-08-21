@@ -1,8 +1,8 @@
 {% set nav_links = [
-    {'href': url_for('dashboard'), 'label': 'Dashboard'|lang},
-    {'href': url_for('calendar'), 'label': 'Calendar'|lang},
+    {'href': url_for('proposals'), 'label': 'Proposals'|lang},
     {'href': url_for('polls.polls_page'), 'label': 'Polls'|lang},
-    {'href': url_for('group_purchases.group_purchases_page'), 'label': 'Group purchases'|lang}
+    {'href': url_for('group_purchases.group_purchases_page'), 'label': 'Group purchases'|lang},
+    {'href': url_for('budget'), 'label': 'Budget'|lang}
 ] %}
 {% if session.is_admin %}
     {% set nav_links = nav_links + [{'href': url_for('admin.admin'), 'label': 'Admin'|lang}] %}
