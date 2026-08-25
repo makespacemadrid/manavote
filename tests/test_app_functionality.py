@@ -2075,7 +2075,7 @@ class TestApiPolls(unittest.TestCase):
         finally:
             main_routes.ADMIN_API_KEY = old
         self.assertEqual(response.status_code, 400)
-        self.assertIn("options must be an array", response.get_json().get("error", ""))
+        self.assertIn("options must be an array", response.get_json()["error"]["message"])
 
     def test_create_poll_rejects_invalid_question_length(self):
         from app.web.routes import main_routes
@@ -2091,7 +2091,7 @@ class TestApiPolls(unittest.TestCase):
         finally:
             main_routes.ADMIN_API_KEY = old
         self.assertEqual(response.status_code, 400)
-        self.assertIn("question must be between 5 and 200 characters", response.get_json().get("error", ""))
+        self.assertIn("question must be between 5 and 200 characters", response.get_json()["error"]["message"])
 
     def test_create_poll_requires_created_by(self):
         from app.web.routes import main_routes
@@ -2107,7 +2107,7 @@ class TestApiPolls(unittest.TestCase):
         finally:
             main_routes.ADMIN_API_KEY = old
         self.assertEqual(response.status_code, 400)
-        self.assertIn("created_by is required", response.get_json().get("error", ""))
+        self.assertIn("created_by is required", response.get_json()["error"]["message"])
 
     def test_create_poll_rejects_unknown_created_by(self):
         from app.web.routes import main_routes
@@ -2123,7 +2123,7 @@ class TestApiPolls(unittest.TestCase):
         finally:
             main_routes.ADMIN_API_KEY = old
         self.assertEqual(response.status_code, 404)
-        self.assertIn("Creator member not found", response.get_json().get("error", ""))
+        self.assertIn("Creator member not found", response.get_json()["error"]["message"])
 
     def test_create_and_list_polls(self):
         from app.web.routes import main_routes

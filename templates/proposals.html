@@ -61,7 +61,7 @@
                             {% if p.basic_supplies %}<span class="status" style="background: #CD7F32; color: #000;">{{ 'basic'|lang }}</span>{% endif %}
                             {% if p.amount > 50 %}<span class="status" style="background: #FFD70022; color: #FFD700;">{{ 'expensive'|lang }}</span>{% endif %}
                             {% if not p.basic_supplies and p.amount <= 50 %}<span class="status" style="background: #C0C0C022; color: #C0C0C0;">{{ 'standard'|lang }}</span>{% endif %}
-                            {% if p.old_age_threshold %}<span class="status" style="background: #e9456022; color: #e94560;">{{ 'Old'|lang }}</span>{% endif %}
+                            {% if p.old_age_threshold %}<span class="status" style="background: #e9456022; color: #e94560;">{{ 'old'|lang }}</span>{% endif %}
                         </div>
                         <div style="flex: 1; min-width: 0; overflow: hidden;">
                             <a href="{{ url_for('proposals.proposal_detail', proposal_id=p.id) }}" style="color: #eee; text-decoration: none; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ p.title }}</a>

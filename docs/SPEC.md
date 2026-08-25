@@ -272,20 +272,22 @@ Committed series behavior:
 ### Admin-key REST API
 - `POST /api/register`
 - `POST /api/proposals`
-- `GET /api/proposals` (supports `status`, `limit`, `offset`)
+- `GET /api/proposals` (supports domain `status` values, `age=recent|old`, `limit`, `offset`; age filters select active proposals around the 30-day boundary)
 - `GET /api/proposals/<proposal_id>`
 - `PUT|PATCH /api/proposals/<proposal_id>`
 - `GET /api/polls`
 - `POST /api/polls`
 - `GET /api/members/telegram` (supports `include_unlinked`, `limit`, `offset`)
+- `GET /api/members/statistics` (paginated per-user proposal, poll, vote, and comment counts)
 - `GET /api/settings/voting`
 - `PUT|PATCH /api/settings/voting`
 
 ### MCP JSON-RPC tools (`/mcp`)
 - Read/list tools:
-  - `list_proposals` (optional `status`, `limit`, `offset`)
+  - `list_proposals` (optional `status`, `age=recent|old`, `limit`, `offset`; age filters select active proposals around the 30-day boundary)
   - `current_budget`
   - `list_member_telegram_links` (optional `include_unlinked`, `limit`, `offset`)
+  - `list_user_statistics` (optional `limit`, `offset`)
 - Create tools:
   - `create_member` (`username`, `password`, optional `is_admin`)
   - `create_proposal` (`title`, `amount`, `created_by`, optional `description`/`url`/`basic_supplies`)

@@ -1,6 +1,6 @@
 # IDEAS — Forward Roadmap
 
-Last updated: 2026-05-13
+Last updated: 2026-08-25
 
 This document captures **forward-looking** product and engineering initiatives only.
 Execution sequencing and status tracking belong in [`SPRINTS.md`](SPRINTS.md).
@@ -18,19 +18,23 @@ Planning/development principles and guardrails live in [`STYLE.md`](STYLE.md).
 1. Route layer becomes thin and modular (Blueprint-oriented, low coupling).
 2. Startup becomes deterministic and auditable (single orchestrator + explicit checks).
 3. API behavior becomes contract-driven (stable schemas + standardized errors).
-4. Operations become diagnosable (structured events, key counters, backup confidence).
+4. Operations become diagnosable (structured events, participation metrics, key counters, backup confidence).
 
 ---
 
 ## Workstreams & Backlog
 
-## Recent audit notes (2026-05-13)
+## Recent audit notes (2026-08-25)
 
-Audit scope focused on Telegram-link diagnostics/parity paths and adjacent reliability surfaces.
+Audit scope focused on the REST/MCP proposal-list and user-statistics contracts, while
+rechecking the previously audited Telegram-link parity paths.
 
 ### Confirmed strengths
 - REST and MCP member-link diagnostics now share one canonical SQL classification helper (`app/services/telegram_link_diagnostics.py`), reducing drift risk.
 - REST/MCP parity tests now cover both success shape and invalid pagination bounds for Telegram member-link listing.
+- Proposal age filtering has an explicit shared contract (`recent|old`, 30-day boundary) across REST and MCP.
+- User participation statistics are available through REST and MCP, backed by one canonical query in `app/services/user_statistics.py`.
+- Parity tests cover the user-statistics response shape and invalid pagination bounds.
 
 ### Follow-up gaps to prioritize
 1. **Route exception granularity (P0)**
@@ -38,15 +42,16 @@ Audit scope focused on Telegram-link diagnostics/parity paths and adjacent relia
    - Introduce typed exceptions + reason-code mapping for predictable operator diagnostics.
 
 2. **MCP extraction boundary (P1)**
-   - MCP still embeds substantial SQL/business rules inline.
-   - Extract MCP query/use-case logic into service/repository modules shared with REST where feasible.
+   - User statistics and Telegram link classification now have shared boundaries, but proposal listing, voting-setting writes, and create operations remain embedded in `app/mcp_server.py`.
+   - Extract one use case at a time behind service/repository interfaces shared with REST; avoid a broad rewrite.
 
-3. **Query fragment safety/readability (P1)**
-   - Shared SQL snippets are centralized, but still string-composed.
-   - Add a small query-builder utility for reusable fragments and predictable formatting/validation.
+3. **Statistics scale and semantics (P1)**
+   - The user-statistics query uses correlated count subqueries and has no total-row metadata for pagination.
+   - Capture `EXPLAIN QUERY PLAN` results with production-like data, add indexes only where evidence supports them, and define whether future clients need `total` in addition to page `count`.
+   - Decide whether statistics remain lifetime-only or gain explicit `from`/`to` time windows; do not silently change existing lifetime semantics.
 
 4. **Error-contract matrix expansion (P1)**
-   - Extend parity coverage beyond voting + telegram listing:
+   - Extend parity coverage beyond voting, Telegram listing, proposal age filtering, and user statistics:
      - proposal create/update validation edges,
      - poll creation bounds,
      - pagination/type errors across list endpoints.
@@ -54,6 +59,10 @@ Audit scope focused on Telegram-link diagnostics/parity paths and adjacent relia
 5. **Observability completion for Telegram lifecycle (P2)**
    - Add reason-coded audit events for link/unlink operations and blocked votes by policy mode.
    - Expose `last_linked_at`/`last_unlinked_at` metadata for admin diagnostics.
+
+6. **Statistics privacy and authorization review (P2)**
+   - User statistics expose member email addresses to API/MCP administrators.
+   - Document the operator need for that field, consider an `include_email` opt-in defaulting to false, and add an authorization regression test before expanding the statistics surface.
 
 ## WS-A — Architecture Refactor (P0)
 
@@ -103,6 +112,8 @@ Proposed startup lifecycle:
 ### C2. Request/response schema checks
 - Define endpoint schemas.
 - Validate inbound payloads and guarantee outbound response shape.
+- Publish one canonical field dictionary for REST/MCP user statistics, including count semantics and nullable fields.
+- Add compatibility tests that fail on accidental field removal or type changes.
 
 ### C3. Proposal lifecycle state machine
 - Centralize legal transitions.
@@ -111,6 +122,12 @@ Proposed startup lifecycle:
 ### C4. Query/index optimization pass
 - Add indexes for high-frequency filters/lookups.
 - Capture before/after query plans for key endpoints.
+- Benchmark proposal age filters and user-statistics aggregation with production-like row counts before choosing indexes or query rewrites.
+
+### C5. Participation analytics evolution
+- Preserve the current lifetime, per-user statistics response as the stable baseline.
+- Evaluate optional date windows, explicit sort keys, and aggregate totals from concrete admin workflows.
+- Keep email/identity fields minimal and require administrator authentication for every analytics surface.
 
 ---
 

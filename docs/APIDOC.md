@@ -105,9 +105,9 @@ curl -X POST http://localhost:5000/api/register \
 
 ### Error responses
 - `415` content type is not `application/json`
-- `400` invalid payload / missing required fields / non-positive amount
-- `404` creator member not found
-- `500` unexpected DB/runtime error
+- `400` `title_amount_required`, `amount_must_be_positive`, or `created_by_required`
+- `404` `creator_member_not_found`
+- `500` `proposal_create_failed`
 
 ### Notes
 - API proposal creation does **not** auto-vote.
@@ -223,7 +223,8 @@ curl -X PATCH http://localhost:5000/api/proposals/12 \
 **Endpoint**: `GET /api/proposals`
 
 ### Query params
-- `status` (optional): one of `active`, `accepted`, `rejected`, `purchased`
+- `status` (optional): one of `active`, `approved`, `over_budget`, `rejected`
+- `age` (optional): `recent` selects active proposals newer than 30 days; `old` selects active proposals at least 30 days old. It may only be combined with `status=active`.
 - `limit` (optional): default `50`, max `200`
 - `offset` (optional): default `0`
 
@@ -246,8 +247,11 @@ curl -X PATCH http://localhost:5000/api/proposals/12 \
 }
 ```
 
+`yes_votes` counts stored `in_favor` votes and `no_votes` counts stored `against`
+votes; the response names are retained for API compatibility.
+
 ### Error responses
-- `400` invalid `status` filter
+- `400` invalid `status`/`age` filter or `age` combined with a non-active status
 
 ---
 
@@ -325,8 +329,9 @@ curl http://localhost:5000/api/polls \
 - `401` unauthorized (missing or wrong `X-Admin-Key`)
 - `503` API not configured (`ADMIN_API_KEY` missing)
 - `415` content type is not `application/json`
-- `400` invalid payload / validation failure
-- `404` creator member not found
+- `400` `invalid_poll_question`, `invalid_poll_options`, or `created_by_required`
+- `404` `creator_member_not_found`
+- `500` `poll_create_failed`
 
 ### Example
 ```bash
@@ -431,6 +436,51 @@ Although not part of the REST API surface, the `/budget` page renders a mixed Ch
 
 ---
 
+## User statistics API
+
+**Endpoint**: `GET /api/members/statistics`
+
+Returns one row per member with proposal votes, proposals created, approved proposals,
+comments, poll votes, and polls created. Results are ordered by participation and
+support `limit` (default `100`, maximum `500`) and `offset` (default `0`).
+
+```bash
+curl "http://localhost:5000/api/members/statistics?limit=100&offset=0" \
+  -H "X-Admin-Key: your_api_key"
+```
+
+Each user contains `id`, `username`, `email`, `is_admin`, `proposal_vote_count`,
+`proposal_count`, `approved_proposal_count`, `comment_count`, `poll_vote_count`,
+and `poll_count`.
+
+```json
+{
+  "success": true,
+  "count": 1,
+  "limit": 100,
+  "offset": 0,
+  "users": [
+    {
+      "id": 7,
+      "username": "member1",
+      "email": "member1@example.com",
+      "is_admin": 0,
+      "proposal_vote_count": 12,
+      "proposal_count": 3,
+      "approved_proposal_count": 2,
+      "comment_count": 5,
+      "poll_vote_count": 4,
+      "poll_count": 1
+    }
+  ]
+}
+```
+
+`count` is the number of users in the current page. Invalid pagination returns a
+standard API error with HTTP `400`.
+
+---
+
 ## MCP Server
 
 The project also exposes an MCP JSON-RPC server (`app/mcp_server.py`) for admin tooling.
@@ -464,11 +514,16 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
 
 ### Implemented MCP tools
 - `list_proposals`
-  - optional args: `status` (`active|accepted|rejected|purchased`), `limit` (1..200), `offset` (>=0)
+  - optional args: `status` (`active|approved|over_budget|rejected`), `age` (`recent|old`), `limit` (1..200), `offset` (>=0)
+  - `age=recent` returns active proposals newer than 30 days; `age=old` returns active proposals at least 30 days old. It may only be combined with `status=active`.
+  - out-of-range pagination is rejected with `-32602`; values are not silently clamped.
 - `current_budget`
+- `list_user_statistics` (optional `limit` from 1..500 and `offset` >= 0)
+  - returns the same per-user participation fields as `GET /api/members/statistics`
 - `list_member_telegram_links` (optional `include_unlinked`, `limit`, `offset`)
   - result rows include `linked` and `link_state` (`linked|missing_username|missing_user_id|unlinked`)
   - `limit` validation: must be between `1` and `500`
+  - invalid boolean values for `include_unlinked` are rejected with `-32602`
 - `get_voting_settings`
 - `update_voting_settings`
   - optional args: `poll_vote_mode` (`both|web_only|telegram_only`), `proposal_vote_mode` (`both|web_only|telegram_only`), `telegram_require_linked_vote` (`true`/`false`)
@@ -482,7 +537,7 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
   - required args: `question`, `options` (2..12 items), `created_by` (existing member id)
 
 ### MCP error code conventions
-- `-32602`: invalid params / validation failures (bad types, missing fields, range/length constraints)
+- `-32602`: invalid params / validation failures (bad types, missing fields, range/length constraints). JSON-RPC `params` and tool `arguments` must be objects when provided.
 - `-32010`: conflict class errors (currently used for duplicate member username)
 - `-32004`: not found class errors (for example missing `created_by` member)
 - `-32001`: authentication failures (`MCP_API_KEY` missing/invalid)
