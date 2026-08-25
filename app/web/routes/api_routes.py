@@ -1,10 +1,14 @@
 import json
+import sqlite3
+from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, jsonify, request
 from werkzeug.security import generate_password_hash
 
+from app.domain.enums import ProposalStatus
 from app.extensions import csrf, limiter
 from app.services.telegram_link_diagnostics import LINKED_CONDITION_SQL, link_state_case_sql
+from app.services.user_statistics import user_statistics_query
 from app.web.routes import main_routes as legacy
 from app.web.routes.helpers.api_helpers import (
     normalize_poll_options,
@@ -70,7 +74,7 @@ def api_register():
         member_id = c.lastrowid
         conn.close()
         return jsonify({"success": True, "message": f"User {username} created", "member_id": member_id}), 201
-    except Exception as e:
+    except sqlite3.Error:
         conn.close()
         return api_error("register_failed", "Failed to create user", 500)
 
@@ -85,7 +89,7 @@ def api_create_proposal():
     if json_error:
         return json_error
 
-    title = data.get("title")
+    title = str(data.get("title") or "").strip()
     description = data.get("description", "")
     amount = data.get("amount")
     url = data.get("url", "")
@@ -98,14 +102,14 @@ def api_create_proposal():
     if amount is None:
         return api_error("amount_must_be_positive", "amount must be positive", 400)
     if not created_by:
-        return jsonify({"error": "created_by is required"}), 400
+        return api_error("created_by_required", "created_by is required", 400)
 
     conn = legacy.get_db()
     c = conn.cursor()
     c.execute("SELECT id FROM members WHERE id = ?", (created_by,))
     if not c.fetchone():
         conn.close()
-        return jsonify({"error": "Creator member not found"}), 404
+        return api_error("creator_member_not_found", "Creator member not found", 404)
 
     try:
         c.execute(
@@ -123,7 +127,7 @@ def api_create_proposal():
             conn.commit()
         conn.close()
         return jsonify({"success": True, "message": "Proposal created", "proposal_id": proposal_id}), 201
-    except Exception as e:
+    except sqlite3.Error:
         conn.close()
         return api_error("proposal_create_failed", "Failed to create proposal", 500)
 
@@ -135,24 +139,39 @@ def api_list_proposals():
     if auth_error:
         return auth_error
     status = (request.args.get("status") or "").strip().lower()
-    valid_statuses = {"active", "accepted", "rejected", "purchased"}
+    age = (request.args.get("age") or "").strip().lower()
+    valid_statuses = {proposal_status.value for proposal_status in ProposalStatus}
     limit, offset, pagination_error = parse_pagination_params(default_limit=50, max_limit=200)
     if pagination_error:
         return pagination_error
+    if age not in {"", "recent", "old"}:
+        return api_error("invalid_age_filter", "age must be one of: recent, old", 400)
+    if status and status not in valid_statuses:
+        return api_error("invalid_status_filter", "invalid status filter", 400)
+    if age and status and status != "active":
+        return api_error("incompatible_proposal_filters", "age can only be combined with status=active", 400)
 
     params = []
     query = """
         SELECT p.id, p.title, p.description, p.amount, p.url, p.created_by, p.status, p.created_at, p.basic_supplies,
-               COALESCE(SUM(CASE WHEN v.vote = 'yes' THEN 1 ELSE 0 END), 0) AS yes_votes,
-               COALESCE(SUM(CASE WHEN v.vote = 'no' THEN 1 ELSE 0 END), 0) AS no_votes
+               COALESCE(SUM(CASE WHEN v.vote = 'in_favor' THEN 1 ELSE 0 END), 0) AS yes_votes,
+               COALESCE(SUM(CASE WHEN v.vote = 'against' THEN 1 ELSE 0 END), 0) AS no_votes
         FROM proposals p
         LEFT JOIN votes v ON v.proposal_id = p.id
     """
+    conditions = []
     if status:
-        if status not in valid_statuses:
-            return api_error("invalid_status_filter", "invalid status filter", 400)
-        query += " WHERE p.status = ?"
+        conditions.append("p.status = ?")
         params.append(status)
+    if age:
+        if not status:
+            conditions.append("p.status = 'active'")
+        comparator = ">" if age == "recent" else "<="
+        conditions.append(f"datetime(p.created_at) {comparator} datetime(?)")
+        cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).replace(tzinfo=None).isoformat(sep=" ")
+        params.append(cutoff)
+    if conditions:
+        query += " WHERE " + " AND ".join(conditions)
 
     query += " GROUP BY p.id ORDER BY p.created_at DESC LIMIT ? OFFSET ?"
     params.extend([limit, offset])
@@ -275,6 +294,35 @@ def api_list_member_telegram_links():
     return jsonify({"success": True, "count": len(rows), "limit": limit, "offset": offset, "members": [dict(r) for r in rows]})
 
 
+@api_bp.route("/api/members/statistics", methods=["GET"], endpoint="api_list_user_statistics")
+@csrf.exempt
+def api_list_user_statistics():
+    auth_error = require_api_key(legacy.ADMIN_API_KEY)
+    if auth_error:
+        return auth_error
+
+    limit, offset, pagination_error = parse_pagination_params(default_limit=100, max_limit=500)
+    if pagination_error:
+        return pagination_error
+
+    query, params = user_statistics_query(limit, offset)
+    conn = legacy.get_db()
+    try:
+        rows = conn.execute(query, params).fetchall()
+    finally:
+        conn.close()
+
+    return jsonify(
+        {
+            "success": True,
+            "count": len(rows),
+            "limit": limit,
+            "offset": offset,
+            "users": [dict(row) for row in rows],
+        }
+    )
+
+
 @api_bp.route("/api/settings/voting", methods=["GET"], endpoint="api_get_voting_settings")
 @csrf.exempt
 def api_get_voting_settings():
@@ -391,23 +439,31 @@ def api_create_poll():
     options = normalize_poll_options(data.get("options"))
     created_by = data.get("created_by")
     if len(question) < 5 or len(question) > 200:
-        return jsonify({"error": "question must be between 5 and 200 characters"}), 400
+        return api_error("invalid_poll_question", "question must be between 5 and 200 characters", 400)
     if options is None:
-        return jsonify({"error": "options must be an array with 2..12 non-empty items (max 120 chars each)"}), 400
+        return api_error(
+            "invalid_poll_options",
+            "options must be an array with 2..12 non-empty items (max 120 chars each)",
+            400,
+        )
     if not created_by:
-        return jsonify({"error": "created_by is required"}), 400
+        return api_error("created_by_required", "created_by is required", 400)
 
     conn = legacy.get_db()
     c = conn.cursor()
     c.execute("SELECT id FROM members WHERE id = ?", (created_by,))
     if not c.fetchone():
         conn.close()
-        return jsonify({"error": "Creator member not found"}), 404
-    c.execute(
-        "INSERT INTO polls (question, options_json, created_by, status) VALUES (?, ?, ?, 'open')",
-        (question, json.dumps(options), created_by),
-    )
-    conn.commit()
-    poll_id = c.lastrowid
-    conn.close()
+        return api_error("creator_member_not_found", "Creator member not found", 404)
+    try:
+        c.execute(
+            "INSERT INTO polls (question, options_json, created_by, status) VALUES (?, ?, ?, 'open')",
+            (question, json.dumps(options), created_by),
+        )
+        conn.commit()
+        poll_id = c.lastrowid
+    except sqlite3.Error:
+        return api_error("poll_create_failed", "Failed to create poll", 500)
+    finally:
+        conn.close()
     return jsonify({"success": True, "message": "Poll created", "poll_id": poll_id}), 201

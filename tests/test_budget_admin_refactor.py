@@ -263,6 +263,7 @@ class TestBudgetAdminRefactor(unittest.TestCase):
             self.assertNotIn("Recent proposal", old_html)
             self.assertIn("Old proposal", old_html)
             self.assertIn("Very old proposal", old_html)
+            self.assertIn(">old</span>", old_html)
             self.assertIn("Over 30 days old", old_html)
             self.assertIn("Over 90 days old", old_html)
             self.assertIn("proposal-age-watermark", old_html)

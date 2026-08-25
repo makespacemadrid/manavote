@@ -2,20 +2,26 @@
 
 from __future__ import annotations
 
-import json
+import hmac
 import http.server
+import json
 import logging
 import os
 import socketserver
 import sqlite3
 import sys
+from datetime import datetime, timedelta, timezone
 from typing import Any
+
 from werkzeug.security import generate_password_hash
+
+from app.domain.enums import ProposalStatus
 from app.services.telegram_link_diagnostics import LINKED_CONDITION_SQL, link_state_case_sql
+from app.services.user_statistics import user_statistics_query
 
 DB_PATH = os.getenv("APP_DB_PATH", os.path.join(os.path.dirname(os.path.dirname(__file__)), "app.db"))
 MCP_API_KEY = os.getenv("MCP_API_KEY", "")
-VALID_PROPOSAL_STATUSES = {"active", "accepted", "rejected", "purchased"}
+VALID_PROPOSAL_STATUSES = {status.value for status in ProposalStatus}
 VALID_VOTE_MODES = {"both", "web_only", "telegram_only"}
 TOOL_ALIASES = {"crreate_proposal": "create_proposal"}
 
@@ -114,11 +120,123 @@ def _authorized(req: dict[str, Any], method: str, headers: dict[str, str] | None
         auth_header = headers.get("authorization", "")
         if auth_header.lower().startswith("bearer "):
             header_key = auth_header[7:]
-    params = req.get("params") or {}
-    body_key = params.get("api_key")
+    params = req.get("params")
+    body_key = params.get("api_key") if isinstance(params, dict) else None
     provided = header_key or (body_key if isinstance(body_key, str) else "")
-    return bool(MCP_API_KEY) and provided == MCP_API_KEY
+    return bool(MCP_API_KEY) and hmac.compare_digest(provided, MCP_API_KEY)
 
+
+
+def _pagination_properties(maximum: int) -> dict[str, Any]:
+    return {
+        "limit": {"type": "integer", "minimum": 1, "maximum": maximum},
+        "offset": {"type": "integer", "minimum": 0},
+    }
+
+
+def _tool_definitions() -> list[dict[str, Any]]:
+    """Return the MCP discovery contract in a reviewable structure."""
+
+    return [
+        {
+            "name": "list_proposals",
+            "description": "List latest proposals, optionally filtered by status and age.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "status": {"type": "string", "enum": sorted(VALID_PROPOSAL_STATUSES)},
+                    "age": {
+                        "type": "string",
+                        "enum": ["recent", "old"],
+                        "description": "Active proposals newer than 30 days (recent) or at least 30 days old (old).",
+                    },
+                    **_pagination_properties(200),
+                },
+            },
+        },
+        {
+            "name": "list_user_statistics",
+            "description": "List per-user proposal, poll, vote, and comment statistics.",
+            "inputSchema": {"type": "object", "properties": _pagination_properties(500)},
+        },
+        {
+            "name": "current_budget",
+            "description": "Get configured current budget setting.",
+            "inputSchema": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "list_member_telegram_links",
+            "description": "List members and Telegram link information.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {"include_unlinked": {"type": "boolean"}, **_pagination_properties(500)},
+            },
+        },
+        {
+            "name": "get_voting_settings",
+            "description": "Get current voting settings.",
+            "inputSchema": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "update_voting_settings",
+            "description": "Update voting settings.",
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "poll_vote_mode": {"type": "string", "enum": sorted(VALID_VOTE_MODES)},
+                    "proposal_vote_mode": {"type": "string", "enum": sorted(VALID_VOTE_MODES)},
+                    "telegram_require_linked_vote": {"type": "boolean"},
+                },
+            },
+        },
+        {
+            "name": "create_member",
+            "description": "Create a member (admin-only action).",
+            "inputSchema": {
+                "type": "object",
+                "required": ["username", "password"],
+                "properties": {
+                    "username": {"type": "string", "minLength": 1},
+                    "password": {"type": "string", "minLength": 1},
+                    "is_admin": {"type": "boolean"},
+                },
+            },
+        },
+        {
+            "name": "create_proposal",
+            "description": "Create a proposal (admin-only action).",
+            "inputSchema": {
+                "type": "object",
+                "required": ["title", "amount", "created_by"],
+                "properties": {
+                    "title": {"type": "string", "minLength": 1},
+                    "description": {"type": "string"},
+                    "amount": {"type": "number", "exclusiveMinimum": 0},
+                    "url": {"type": "string"},
+                    "basic_supplies": {"type": "boolean"},
+                    "created_by": {"type": "integer", "minimum": 1},
+                },
+            },
+        },
+        {
+            "name": "create_poll",
+            "description": "Create a poll (admin-only action).",
+            "inputSchema": {
+                "type": "object",
+                "required": ["question", "options", "created_by"],
+                "properties": {
+                    "question": {"type": "string", "minLength": 5, "maxLength": 200},
+                    "options": {
+                        "type": "array",
+                        "minItems": 2,
+                        "maxItems": 12,
+                        "items": {"type": "string"},
+                    },
+                    "created_by": {"type": "integer", "minimum": 1},
+                },
+            },
+        },
+    ]
 
 def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -> dict[str, Any] | None:
     req_id = req.get("id")
@@ -132,6 +250,12 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
     if req_id is None and method in {"notifications/initialized"}:
         return None
 
+    params = req.get("params", {})
+    if params is None:
+        params = {}
+    if not isinstance(params, dict):
+        return _error(req_id, -32602, "Invalid params: params must be an object")
+
     if not _authorized(req, method, headers):
         return _error(req_id, -32001, "Unauthorized: invalid or missing MCP api_key")
 
@@ -139,17 +263,18 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
         return _result(req_id, {"protocolVersion": "2024-11-05", "serverInfo": {"name": "manavote-mcp", "version": "0.3.0"}, "capabilities": {"tools": {}}})
 
     if method == "tools/list":
-        return _result(req_id, {"tools": [{"name": "list_proposals", "description": "List latest proposals, optionally filtered by status.", "inputSchema": {"type": "object", "properties": {"status": {"type": "string", "enum": sorted(VALID_PROPOSAL_STATUSES)}, "limit": {"type": "integer", "minimum": 1, "maximum": 200}, "offset": {"type": "integer", "minimum": 0}}}}, {"name": "current_budget", "description": "Get configured current budget setting.", "inputSchema": {"type": "object", "properties": {}}}, {"name": "list_member_telegram_links", "description": "List members and Telegram link information.", "inputSchema": {"type": "object", "properties": {"include_unlinked": {"type": "boolean"}, "limit": {"type": "integer", "minimum": 1, "maximum": 500}, "offset": {"type": "integer", "minimum": 0}}}}, {"name": "get_voting_settings", "description": "Get current voting settings.", "inputSchema": {"type": "object", "properties": {}}}, {"name": "update_voting_settings", "description": "Update voting settings.", "inputSchema": {"type": "object", "properties": {"poll_vote_mode": {"type": "string", "enum": sorted(VALID_VOTE_MODES)}, "proposal_vote_mode": {"type": "string", "enum": sorted(VALID_VOTE_MODES)}, "telegram_require_linked_vote": {"type": "boolean"}}}}, {"name": "create_member", "description": "Create a member (admin-only action).", "inputSchema": {"type": "object", "required": ["username", "password"], "properties": {"username": {"type": "string", "minLength": 1}, "password": {"type": "string", "minLength": 1}, "is_admin": {"type": "boolean"}}}}, {"name": "create_proposal", "description": "Create a proposal (admin-only action).", "inputSchema": {"type": "object", "required": ["title", "amount", "created_by"], "properties": {"title": {"type": "string", "minLength": 1}, "description": {"type": "string"}, "amount": {"type": "number", "exclusiveMinimum": 0}, "url": {"type": "string"}, "basic_supplies": {"type": "boolean"}, "created_by": {"type": "integer", "minimum": 1}}}}, {"name": "create_poll", "description": "Create a poll (admin-only action).", "inputSchema": {"type": "object", "required": ["question", "options", "created_by"], "properties": {"question": {"type": "string", "minLength": 5, "maxLength": 200}, "options": {"type": "array", "minItems": 2, "maxItems": 12, "items": {"type": "string"}}, "created_by": {"type": "integer", "minimum": 1}}}}]})
+        return _result(req_id, {"tools": _tool_definitions()})
 
     if method == "tools/call":
-        params = req.get("params") or {}
         tool_name = params.get("name")
         if tool_name is None:
             # Compatibility alias for clients that avoid placing `name` in
             # logging extras because Python logging treats it as a reserved
             # LogRecord attribute.
             tool_name = params.get("tool_name") or params.get("tool")
-        arguments = params.get("arguments") or {}
+        arguments = params.get("arguments", {})
+        if arguments is None:
+            arguments = {}
         if not isinstance(tool_name, str):
             return _error(req_id, -32602, "Invalid params: tool name is required")
         normalized_name = TOOL_ALIASES.get(tool_name, tool_name)
@@ -161,24 +286,58 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
 
         if normalized_name == "list_proposals":
             status = str(arguments.get("status") or "").strip().lower()
+            age = str(arguments.get("age") or "").strip().lower()
             if status and status not in VALID_PROPOSAL_STATUSES:
                 return _error(req_id, -32602, "Invalid params: unknown status filter")
+            if age not in {"", "recent", "old"}:
+                return _error(req_id, -32602, "Invalid params: age must be recent or old")
+            if age and status and status != "active":
+                return _error(req_id, -32602, "Invalid params: age can only be combined with status=active")
             try:
-                limit = int(arguments.get("limit") or 20)
-                offset = int(arguments.get("offset") or 0)
+                limit = int(arguments["limit"]) if "limit" in arguments else 20
+                offset = int(arguments["offset"]) if "offset" in arguments else 0
             except (TypeError, ValueError):
                 return _error(req_id, -32602, "Invalid params: limit/offset must be integers")
+            if limit < 1 or limit > 200:
+                return _error(req_id, -32602, "Invalid params: limit must be between 1 and 200")
             if offset < 0:
                 return _error(req_id, -32602, "Invalid params: offset must be >= 0")
-            limit = max(1, min(limit, 200))
             query = "SELECT id,title,description,amount,status,created_at FROM proposals"
-            query_params: tuple[Any, ...] = ()
+            conditions: list[str] = []
+            query_params: list[Any] = []
             if status:
-                query += " WHERE status = ?"
-                query_params = (status,)
+                conditions.append("status = ?")
+                query_params.append(status)
+            if age:
+                if not status:
+                    conditions.append("status = 'active'")
+                comparator = ">" if age == "recent" else "<="
+                conditions.append(f"datetime(created_at) {comparator} datetime(?)")
+                cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).replace(tzinfo=None).isoformat(sep=" ")
+                query_params.append(cutoff)
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
             query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
-            rows = _db_rows(query, query_params + (limit, offset))
+            rows = _db_rows(query, tuple(query_params) + (limit, offset))
             return _tool_text(req_id, {"count": len(rows), "limit": limit, "offset": offset, "proposals": rows})
+
+        if normalized_name == "list_user_statistics":
+            try:
+                limit = int(arguments["limit"]) if "limit" in arguments else 100
+                offset = int(arguments["offset"]) if "offset" in arguments else 0
+            except (TypeError, ValueError):
+                return _error(req_id, -32602, "Invalid params: limit/offset must be integers")
+            if limit < 1 or limit > 500:
+                return _error(req_id, -32602, "Invalid params: limit must be between 1 and 500")
+            if offset < 0:
+                return _error(req_id, -32602, "Invalid params: offset must be >= 0")
+
+            query, query_params = user_statistics_query(limit, offset)
+            rows = _db_rows(query, query_params)
+            return _tool_text(
+                req_id,
+                {"count": len(rows), "limit": limit, "offset": offset, "users": rows},
+            )
 
         if normalized_name == "current_budget":
             rows = _db_rows("SELECT value FROM settings WHERE key='current_budget' LIMIT 1")
@@ -187,10 +346,12 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
 
 
         if normalized_name == "list_member_telegram_links":
-            include_unlinked = bool(arguments.get("include_unlinked", False))
+            include_unlinked = _as_bool_or_none(arguments.get("include_unlinked", False))
+            if include_unlinked is None:
+                return _error(req_id, -32602, "Invalid params: include_unlinked must be boolean")
             try:
-                limit = int(arguments.get("limit") or 200)
-                offset = int(arguments.get("offset") or 0)
+                limit = int(arguments["limit"]) if "limit" in arguments else 200
+                offset = int(arguments["offset"]) if "offset" in arguments else 0
             except (TypeError, ValueError):
                 return _error(req_id, -32602, "Invalid params: limit/offset must be integers")
             if offset < 0:
@@ -262,9 +423,11 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
         if normalized_name == "create_member":
             username = str(arguments.get("username") or "").strip()
             password = str(arguments.get("password") or "")
-            is_admin = bool(arguments.get("is_admin", False))
+            is_admin = _as_bool_or_none(arguments.get("is_admin", False))
             if not username or not password:
                 return _error(req_id, -32602, "Invalid params: username and password are required")
+            if is_admin is None:
+                return _error(req_id, -32602, "Invalid params: is_admin must be boolean")
             exists = _db_rows("SELECT id FROM members WHERE username = ? LIMIT 1", (username,))
             if exists:
                 return _error(req_id, -32010, "Conflict: username already exists")
@@ -278,7 +441,10 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
             title = str(arguments.get("title") or "").strip()
             description = str(arguments.get("description") or "")
             url = str(arguments.get("url") or "")
-            basic_supplies = 1 if bool(arguments.get("basic_supplies", False)) else 0
+            basic_supplies_value = _as_bool_or_none(arguments.get("basic_supplies", False))
+            if basic_supplies_value is None:
+                return _error(req_id, -32602, "Invalid params: basic_supplies must be boolean")
+            basic_supplies = 1 if basic_supplies_value else 0
             created_by = arguments.get("created_by")
             amount = arguments.get("amount")
             if not title or created_by is None or amount is None:

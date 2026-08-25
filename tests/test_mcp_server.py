@@ -29,6 +29,25 @@ def test_unauthorized_request_rejected():
     assert response["error"]["code"] == -32001
 
 
+def test_non_object_params_are_rejected_without_server_error():
+    response = mcp_server.handle_request(
+        {"jsonrpc": "2.0", "id": 10, "method": "tools/list", "params": []},
+        headers={"x-api-key": "test-mcp-key"},
+    )
+    assert response["error"] == {"code": -32602, "message": "Invalid params: params must be an object"}
+
+
+def test_non_object_tool_arguments_are_rejected_even_when_empty():
+    for arguments in ([], "", False, 0):
+        response = mcp_server.handle_request(
+            _req("tools/call", req_id=101, params={"name": "current_budget", "arguments": arguments})
+        )
+        assert response["error"] == {
+            "code": -32602,
+            "message": "Invalid params: arguments must be an object",
+        }
+
+
 def test_authorized_via_x_api_key_header():
     response = mcp_server.handle_request(
         {"jsonrpc": "2.0", "id": 11, "method": "initialize", "params": {}},
@@ -50,10 +69,97 @@ def test_tools_call_list_proposals_invalid_status():
     assert response["error"]["code"] == -32602
 
 
+def test_tools_call_list_proposals_rejects_invalid_pagination():
+    for arguments in ({"limit": 0}, {"limit": 201}, {"offset": -1}, {"limit": "many"}):
+        response = mcp_server.handle_request(
+            _req("tools/call", req_id=19, params={"name": "list_proposals", "arguments": arguments})
+        )
+        assert response["error"]["code"] == -32602
+
+
+def test_tools_list_advertises_domain_proposal_statuses():
+    response = mcp_server.handle_request(_req("tools/list", req_id=20))
+    list_proposals = next(tool for tool in response["result"]["tools"] if tool["name"] == "list_proposals")
+
+    assert set(list_proposals["inputSchema"]["properties"]["status"]["enum"]) == {
+        "active",
+        "approved",
+        "over_budget",
+        "rejected",
+    }
+
+
+def test_tools_call_list_proposals_filters_old_active_proposals(monkeypatch):
+    captured = {}
+
+    def fake_db_rows(query, params=()):
+        captured.update(query=query, params=params)
+        return []
+
+    monkeypatch.setattr(mcp_server, "_db_rows", fake_db_rows)
+    response = mcp_server.handle_request(
+        _req("tools/call", req_id=21, params={"name": "list_proposals", "arguments": {"age": "old"}})
+    )
+
+    assert "status = 'active'" in captured["query"]
+    assert "datetime(created_at) <= datetime(?)" in captured["query"]
+    assert len(captured["params"]) == 3
+    assert json.loads(response["result"]["content"][0]["text"])["count"] == 0
+
+
+def test_tools_call_list_proposals_rejects_incompatible_age_and_status():
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=22,
+            params={"name": "list_proposals", "arguments": {"age": "recent", "status": "approved"}},
+        )
+    )
+    assert response["error"]["code"] == -32602
+
+
 def test_tools_list_includes_mcp_create_tools():
     response = mcp_server.handle_request(_req("tools/list", req_id=201))
     tool_names = {tool["name"] for tool in response["result"]["tools"]}
-    assert {"create_member", "create_proposal", "create_poll", "get_voting_settings", "update_voting_settings"}.issubset(tool_names)
+    assert {
+        "create_member",
+        "create_proposal",
+        "create_poll",
+        "get_voting_settings",
+        "update_voting_settings",
+        "list_user_statistics",
+    }.issubset(tool_names)
+
+
+def test_tools_call_list_user_statistics(monkeypatch):
+    row = {
+        "id": 1,
+        "username": "alice",
+        "email": "alice@example.com",
+        "is_admin": 0,
+        "proposal_vote_count": 3,
+        "proposal_count": 2,
+        "approved_proposal_count": 1,
+        "comment_count": 4,
+        "poll_vote_count": 5,
+        "poll_count": 1,
+    }
+    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [row])
+
+    response = mcp_server.handle_request(
+        _req("tools/call", req_id=202, params={"name": "list_user_statistics", "arguments": {"limit": 25}})
+    )
+    payload = json.loads(response["result"]["content"][0]["text"])
+
+    assert payload == {"count": 1, "limit": 25, "offset": 0, "users": [row]}
+
+
+def test_tools_call_list_user_statistics_rejects_invalid_pagination():
+    for arguments in ({"offset": -1}, {"limit": 0}, {"limit": 501}, {"limit": "many"}):
+        response = mcp_server.handle_request(
+            _req("tools/call", req_id=203, params={"name": "list_user_statistics", "arguments": arguments})
+        )
+        assert response["error"]["code"] == -32602
 
 
 def test_tools_call_current_budget_returns_json_text(monkeypatch):
@@ -88,11 +194,23 @@ def test_tools_call_list_member_telegram_links(monkeypatch):
 
 
 def test_tools_call_list_member_telegram_links_rejects_out_of_range_limit():
+    for limit in (0, 501, 999):
+        response = mcp_server.handle_request(
+            _req("tools/call", req_id=401, params={"name": "list_member_telegram_links", "arguments": {"limit": limit}})
+        )
+        assert response["error"]["code"] == -32602
+        assert "limit must be between 1 and 500" in response["error"]["message"]
+
+
+def test_tools_call_list_member_telegram_links_rejects_invalid_boolean():
     response = mcp_server.handle_request(
-        _req("tools/call", req_id=401, params={"name": "list_member_telegram_links", "arguments": {"limit": 999}})
+        _req(
+            "tools/call",
+            req_id=402,
+            params={"name": "list_member_telegram_links", "arguments": {"include_unlinked": "sometimes"}},
+        )
     )
     assert response["error"]["code"] == -32602
-    assert "limit must be between 1 and 500" in response["error"]["message"]
 
 
 def test_tools_call_get_voting_settings(monkeypatch):
@@ -153,6 +271,17 @@ def test_tools_call_create_member_rejects_duplicate_username(monkeypatch):
     assert response["error"]["code"] == -32010
 
 
+def test_tools_call_create_member_rejects_invalid_admin_flag():
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=52,
+            params={"name": "create_member", "arguments": {"username": "bob", "password": "secret", "is_admin": "maybe"}},
+        )
+    )
+    assert response["error"]["code"] == -32602
+
+
 def test_tools_call_create_proposal(monkeypatch):
     monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"id": 1}])
     monkeypatch.setattr(mcp_server, "_create_proposal_record", lambda *_args, **_kwargs: 77)
@@ -189,6 +318,20 @@ def test_tools_call_create_proposal_rejects_non_positive_amount(monkeypatch):
             "tools/call",
             req_id=62,
             params={"name": "create_proposal", "arguments": {"title": "New printer", "amount": 0, "created_by": 1}},
+        )
+    )
+    assert response["error"]["code"] == -32602
+
+
+def test_tools_call_create_proposal_rejects_invalid_basic_supplies_flag():
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=621,
+            params={
+                "name": "create_proposal",
+                "arguments": {"title": "New printer", "amount": 10, "created_by": 1, "basic_supplies": "maybe"},
+            },
         )
     )
     assert response["error"]["code"] == -32602

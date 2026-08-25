@@ -206,6 +206,56 @@ def test_member_telegram_link_listing_shape_matches_between_rest_and_mcp():
     assert rest_view == mcp_view
 
 
+def test_user_statistics_success_shape_matches_between_rest_and_mcp():
+    budget_app.app.config["TESTING"] = True
+    client = budget_app.app.test_client()
+
+    from app.web.routes import main_routes
+
+    old_key = _with_admin_api_key()
+    try:
+        rest = client.get(
+            "/api/members/statistics?limit=50&offset=0",
+            headers={"X-Admin-Key": "test-key"},
+        )
+    finally:
+        main_routes.ADMIN_API_KEY = old_key
+
+    mcp = mcp_server.handle_request(
+        _mcp_req("list_user_statistics", {"limit": 50, "offset": 0}, req_id=7)
+    )
+
+    assert rest.status_code == 200
+    rest_payload = rest.get_json()
+    mcp_payload = json.loads(mcp["result"]["content"][0]["text"])
+    assert rest_payload["count"] == mcp_payload["count"]
+    assert rest_payload["users"] == mcp_payload["users"]
+
+
+def test_user_statistics_invalid_limit_rejected_by_rest_and_mcp():
+    budget_app.app.config["TESTING"] = True
+    client = budget_app.app.test_client()
+
+    from app.web.routes import main_routes
+
+    old_key = _with_admin_api_key()
+    try:
+        rest = client.get(
+            "/api/members/statistics?limit=501",
+            headers={"X-Admin-Key": "test-key"},
+        )
+    finally:
+        main_routes.ADMIN_API_KEY = old_key
+
+    mcp = mcp_server.handle_request(
+        _mcp_req("list_user_statistics", {"limit": 501}, req_id=8)
+    )
+
+    assert rest.status_code == 400
+    assert rest.get_json()["error"]["code"] == "limit_out_of_range"
+    assert mcp["error"]["code"] == -32602
+
+
 def test_member_telegram_link_listing_invalid_limit_rejected_by_rest_and_mcp():
     budget_app.app.config["TESTING"] = True
     client = budget_app.app.test_client()
