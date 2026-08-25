@@ -3,6 +3,7 @@ import sys
 import unittest
 import tempfile
 from contextlib import contextmanager
+from datetime import datetime, timedelta, timezone
 
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
@@ -149,8 +150,57 @@ class TestBudgetAdminRefactor(unittest.TestCase):
 
             self.assertEqual(response.status_code, 200)
             page = response.data.decode("utf-8")
-            self.assertIn("Added €10.0 to budget! New balance:", page)
+            self.assertIn("Budget item recorded: €10.00. New balance:", page)
             self.assertNotIn("Monthly top-up applied!", page)
+
+    def test_add_budget_accepts_negative_items(self):
+        with _temporary_db():
+            conn = budget_app.get_db()
+            starting_budget = budget_app.get_current_budget()
+            conn.close()
+
+            client = budget_app.app.test_client()
+            _set_admin_session(client)
+            _reset_rate_limits_for_test_client()
+
+            response = client.post(
+                "/admin",
+                data={
+                    "action": "add_budget",
+                    "amount": "-20",
+                    "description": "Cash stolen",
+                },
+                follow_redirects=True,
+            )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertIn(
+                "Budget item recorded: €-20.00.", response.data.decode("utf-8")
+            )
+
+            conn = budget_app.get_db()
+            row = conn.execute(
+                "SELECT amount, description FROM activity_log ORDER BY id DESC LIMIT 1"
+            ).fetchone()
+            conn.close()
+            self.assertEqual(row["amount"], -20)
+            self.assertEqual(row["description"], "Cash stolen")
+            self.assertEqual(budget_app.get_current_budget(), starting_budget - 20)
+
+    def test_add_budget_rejects_zero_items(self):
+        with _temporary_db():
+            client = budget_app.app.test_client()
+            _set_admin_session(client)
+            _reset_rate_limits_for_test_client()
+
+            response = client.post(
+                "/admin",
+                data={"action": "add_budget", "amount": "0", "description": "Nothing"},
+                follow_redirects=True,
+            )
+
+            self.assertEqual(response.status_code, 200)
+            self.assertIn("Amount must be non-zero", response.data.decode("utf-8"))
 
     def test_add_budget_reprocesses_over_budget_proposals(self):
         with _temporary_db():
@@ -186,6 +236,36 @@ class TestBudgetAdminRefactor(unittest.TestCase):
             c.execute("SELECT status FROM proposals WHERE id = ?", (proposal_id,))
             self.assertEqual(c.fetchone()["status"], "approved")
             conn.close()
+
+    def test_proposal_age_filters_split_active_proposals(self):
+        with _temporary_db():
+            conn = budget_app.get_db()
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
+            conn.executemany(
+                "INSERT INTO proposals (title, description, amount, created_by, status, created_at, image_filename) VALUES (?, 'x', ?, 1, 'active', ?, ?)",
+                [
+                    ("Recent proposal", 10, (now - timedelta(days=29)).isoformat(), "recent.png"),
+                    ("Old proposal", 20, (now - timedelta(days=31)).isoformat(), "old.png"),
+                    ("Very old proposal", 30, (now - timedelta(days=95)).isoformat(), "very-old.png"),
+                ],
+            )
+            conn.commit()
+            conn.close()
+
+            client = budget_app.app.test_client()
+            _set_admin_session(client)
+
+            recent_html = client.get("/proposals?filter=recent").data.decode("utf-8")
+            self.assertIn("Recent proposal", recent_html)
+            self.assertNotIn("Old proposal", recent_html)
+
+            old_html = client.get("/proposals?filter=old").data.decode("utf-8")
+            self.assertNotIn("Recent proposal", old_html)
+            self.assertIn("Old proposal", old_html)
+            self.assertIn("Very old proposal", old_html)
+            self.assertIn("Over 30 days old", old_html)
+            self.assertIn("Over 90 days old", old_html)
+            self.assertIn("proposal-age-watermark", old_html)
 
 
 if __name__ == "__main__":

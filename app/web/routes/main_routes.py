@@ -872,6 +872,8 @@ def proposals():
     c = conn.cursor()
 
     filter_type = request.args.get("filter", "active")
+    now = datetime.now(timezone.utc)
+    old_cutoff = (now - timedelta(days=30)).replace(tzinfo=None).isoformat(sep=" ")
 
     if filter_type == "basic":
         c.execute(
@@ -881,6 +883,16 @@ def proposals():
         c.execute(
             "SELECT p.*, m.username as creator FROM proposals p JOIN members m ON p.created_by = m.id WHERE p.status = ? ORDER BY p.created_at DESC",
             (filter_type,),
+        )
+    elif filter_type == "old":
+        c.execute(
+            "SELECT p.*, m.username as creator FROM proposals p JOIN members m ON p.created_by = m.id WHERE p.status = 'active' AND datetime(p.created_at) <= datetime(?) ORDER BY p.created_at DESC",
+            (old_cutoff,),
+        )
+    elif filter_type == "recent":
+        c.execute(
+            "SELECT p.*, m.username as creator FROM proposals p JOIN members m ON p.created_by = m.id WHERE p.status = 'active' AND datetime(p.created_at) > datetime(?) ORDER BY p.created_at DESC",
+            (old_cutoff,),
         )
     elif filter_type == "purchased":
         c.execute(
@@ -927,6 +939,16 @@ def proposals():
 
     c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'active'")
     active_proposals_sum = c.fetchone()[0]
+    c.execute(
+        "SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'active' AND datetime(created_at) <= datetime(?)",
+        (old_cutoff,),
+    )
+    old_proposals_sum = c.fetchone()[0]
+    c.execute(
+        "SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'active' AND datetime(created_at) > datetime(?)",
+        (old_cutoff,),
+    )
+    recent_proposals_sum = c.fetchone()[0]
     c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'over_budget'")
     committed = c.fetchone()[0]
     c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'approved' AND purchased_at IS NULL")
@@ -945,6 +967,11 @@ def proposals():
     all_sum = c.fetchone()[0]
 
     for p in proposals:
+        created_at = datetime.fromisoformat(str(p["created_at"]).replace("Z", "+00:00"))
+        if created_at.tzinfo is None:
+            created_at = created_at.replace(tzinfo=timezone.utc)
+        p["age_days"] = max(0, (now - created_at.astimezone(timezone.utc)).days)
+        p["old_age_threshold"] = (p["age_days"] // 30) * 30 if p["status"] == "active" and p["age_days"] >= 30 else None
         p["min_backers"] = calculate_min_backers(
             member_count,
             p["amount"],
@@ -973,6 +1000,8 @@ def proposals():
         budget_history=budget_history,
         member_count=member_count,
         active_proposals_sum=active_proposals_sum,
+        old_proposals_sum=old_proposals_sum,
+        recent_proposals_sum=recent_proposals_sum,
         approved_sum=approved_sum,
         committed=committed,
         pending_purchase_sum=pending_purchase_sum,
@@ -1633,8 +1662,8 @@ def admin():
         elif action == "add_budget":
             amount = float(request.form["amount"])
             description = request.form["description"].strip()
-            if amount <= 0:
-                flash("Amount must be positive", "error")
+            if amount == 0:
+                flash("Amount must be non-zero", "error")
             else:
                 current = get_current_budget()
                 c.execute(
@@ -1646,9 +1675,10 @@ def admin():
                     (amount, description),
                 )
                 conn.commit()
-                check_over_budget_proposals()
+                if amount > 0:
+                    check_over_budget_proposals()
                 flash(
-                    f"Added €{amount} to budget! New balance: €{get_current_budget()}",
+                    f"Budget item recorded: €{amount:.2f}. New balance: €{get_current_budget():.2f}",
                     "success",
                 )
 
