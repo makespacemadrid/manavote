@@ -339,9 +339,9 @@ document.addEventListener('DOMContentLoaded', function() {
             </div>
             <div style="flex: 1; min-width: 120px;">
                 <label>{{ 'Amount'|lang }} (EUR)</label>
-                <input type="number" name="amount" step="0.01" min="0.01" required>
+                <input type="number" name="amount" step="0.01" placeholder="{{ 'e.g. 50 or -20'|lang }}" required>
             </div>
-            <button type="submit" class="btn">{{ 'Add to Budget'|lang }}</button>
+            <button type="submit" class="btn">{{ 'Add Budget Item'|lang }}</button>
         </div>
     </form>
 </div>

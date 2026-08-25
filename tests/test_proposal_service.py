@@ -135,6 +135,18 @@ class TestProposalService(unittest.TestCase):
         self.assertIn("Approved: 3D printer nozzles", latest_budget[1])
         self.telegram_client.send_message.assert_called_once()
 
+    def test_process_proposal_formats_currency_to_two_decimal_places(self):
+        proposal_id = self._insert_proposal("Resin", 4.13)
+        self._insert_vote(proposal_id, 1, "in_favor")
+        self._add_budget(67.02, "initial topup")
+
+        self.service.process_proposal(proposal_id)
+
+        message = self.telegram_client.send_message.call_args.args[0]
+        self.assertIn("*Amount:* €4.13", message)
+        self.assertIn("*Remaining budget:* €62.89", message)
+        self.assertNotIn("62.889999", message)
+
     def test_process_proposal_marks_over_budget_when_votes_pass_but_budget_missing(self):
         proposal_id = self._insert_proposal("Laser cutter filter", 250)
         self._insert_vote(proposal_id, 1, "in_favor")
@@ -177,6 +189,18 @@ class TestProposalService(unittest.TestCase):
         remaining_budget = self.conn.execute("SELECT SUM(amount) FROM activity_log").fetchone()[0]
         self.assertEqual(remaining_budget, 25)
         self.telegram_client.send_message.assert_called_once()
+
+    def test_check_over_budget_proposals_formats_currency_to_two_decimal_places(self):
+        proposal_id = self._insert_proposal("Resin", 4.13, status="over_budget")
+        self._insert_vote(proposal_id, 1, "in_favor")
+        self._add_budget(67.02, "new funds")
+
+        self.service.check_over_budget_proposals()
+
+        message = self.telegram_client.send_message.call_args.args[0]
+        self.assertIn("*Amount:* €4.13", message)
+        self.assertIn("*Remaining budget:* €62.89", message)
+        self.assertNotIn("62.889999", message)
 
     def test_undo_approval_restores_budget_and_clears_timestamps(self):
         # Create approved proposal
