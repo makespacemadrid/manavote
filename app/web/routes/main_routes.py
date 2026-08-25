@@ -4,6 +4,7 @@ import hashlib
 import secrets
 import hmac
 import logging
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, date, timedelta, timezone
 from zoneinfo import ZoneInfo
 try:
@@ -27,7 +28,12 @@ from app.extensions import limiter, csrf
 from app.db.connection import get_db as repo_get_db, set_db_path
 from app.db.migrations import run_migrations
 from app.integrations.telegram_client import TelegramClient
+from app.integrations.mcp_client import MCPClient
+from app.integrations.telegram_mcp import run_telegram_mcp_command
+from app.integrations.llm_client import LLMClient
+from app.integrations.telegram_llm import ConversationStore, DEFAULT_SYSTEM_PROMPT, UpdateDeduplicator, run_telegram_assistant
 from app.integrations.telegram_webhook import (
+    classify_message_command,
     dispatch_callback,
     dispatch_message,
     extract_callback_context,
@@ -99,6 +105,21 @@ TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 TELEGRAM_THREAD_ID = os.environ.get("TELEGRAM_THREAD_ID", "")
 TELEGRAM_ADMIN_ID = os.environ.get("TELEGRAM_ADMIN_ID", "")
 TELEGRAM_WEBHOOK_SECRET = os.environ.get("TELEGRAM_WEBHOOK_SECRET", "")
+TELEGRAM_MCP_URL = os.environ.get("TELEGRAM_MCP_URL", "http://127.0.0.1:8765/mcp")
+TELEGRAM_MCP_ALLOWED_USER_IDS = os.environ.get("TELEGRAM_MCP_ALLOWED_USER_IDS", "")
+TELEGRAM_MCP_ALLOW_GROUPS = os.environ.get("TELEGRAM_MCP_ALLOW_GROUPS", "false").lower() in {"1", "true", "yes", "on"}
+MCP_API_KEY = os.environ.get("MCP_API_KEY", "")
+TELEGRAM_LLM_API_KEY = os.environ.get("TELEGRAM_LLM_API_KEY", "")
+TELEGRAM_LLM_MODEL = os.environ.get("TELEGRAM_LLM_MODEL", "")
+TELEGRAM_LLM_BASE_URL = os.environ.get("TELEGRAM_LLM_BASE_URL", "https://api.openai.com/v1")
+TELEGRAM_LLM_SYSTEM_PROMPT = os.environ.get("TELEGRAM_LLM_SYSTEM_PROMPT", "").strip() or DEFAULT_SYSTEM_PROMPT
+TELEGRAM_LLM_HISTORY_TTL = int(os.environ.get("TELEGRAM_LLM_HISTORY_TTL", "1800"))
+TELEGRAM_LLM_WORKERS = max(1, int(os.environ.get("TELEGRAM_LLM_WORKERS", "2")))
+telegram_conversations = ConversationStore(ttl_seconds=TELEGRAM_LLM_HISTORY_TTL)
+telegram_assistant_updates = UpdateDeduplicator()
+telegram_assistant_executor = ThreadPoolExecutor(
+    max_workers=TELEGRAM_LLM_WORKERS, thread_name_prefix="telegram-assistant"
+)
 ADMIN_API_KEY = os.environ.get("ADMIN_API_KEY", "")
 
 
@@ -557,6 +578,78 @@ def process_telegram_link_command(telegram_username, telegram_user_id, command_t
     return success, reason
 
 
+def _telegram_mcp_allowed_ids():
+    allowed_ids = {item.strip() for item in TELEGRAM_MCP_ALLOWED_USER_IDS.split(",") if item.strip()}
+    conn = get_db()
+    try:
+        rows = conn.execute(
+            "SELECT telegram_user_id FROM members WHERE telegram_user_id IS NOT NULL"
+        ).fetchall()
+        allowed_ids.update(str(row["telegram_user_id"]) for row in rows)
+    finally:
+        conn.close()
+    return allowed_ids
+
+
+def process_telegram_mcp_command(message_ctx):
+    """Expose MCP tools to linked members and explicitly allow-listed users."""
+    return run_telegram_mcp_command(
+        message_ctx,
+        client=MCPClient(TELEGRAM_MCP_URL, MCP_API_KEY),
+        allowed_user_ids=_telegram_mcp_allowed_ids(),
+        allow_group_chats=TELEGRAM_MCP_ALLOW_GROUPS,
+    )
+
+
+def process_telegram_assistant_message(message_ctx):
+    """Answer natural language only for authorized private-chat users."""
+    if str(message_ctx.get("telegram_user_id")) not in _telegram_mcp_allowed_ids():
+        return None
+    if message_ctx.get("chat_type") not in {None, "private"} and not TELEGRAM_MCP_ALLOW_GROUPS:
+        return None
+    llm = LLMClient(TELEGRAM_LLM_BASE_URL, TELEGRAM_LLM_API_KEY, TELEGRAM_LLM_MODEL)
+    if not llm.configured:
+        return None
+    user_id = message_ctx["telegram_user_id"]
+    text = message_ctx["text"].strip()
+    if text.lower() in {"forget", "reset conversation", "start over"}:
+        telegram_conversations.clear(user_id)
+        return "✅ Conversation reset. What would you like to do?"
+    if text.lower().strip(".! ") in {"cancel", "never mind", "nevermind"}:
+        telegram_conversations.clear_pending_write(user_id)
+        return "✅ Pending action cancelled."
+    history = telegram_conversations.get(user_id)
+    confirmation = text.lower().strip(".! ") in {"yes", "confirm", "confirmed", "do it", "go ahead"}
+    approved_write = telegram_conversations.get_pending_write(user_id) if confirmation else None
+    if confirmation and not approved_write:
+        return "There is no pending action to confirm. What would you like to do?"
+    if approved_write:
+        telegram_conversations.clear_pending_write(user_id)
+    response = run_telegram_assistant(
+        message_ctx["text"],
+        llm_client=llm,
+        mcp_client=MCPClient(TELEGRAM_MCP_URL, MCP_API_KEY),
+        system_prompt=TELEGRAM_LLM_SYSTEM_PROMPT,
+        history=history,
+        approved_write=approved_write,
+        on_write_blocked=lambda name, arguments: telegram_conversations.set_pending_write(
+            user_id, name, arguments
+        ),
+    )
+    telegram_conversations.append_exchange(user_id, text, response)
+    return response
+
+
+def _send_telegram_assistant_response(message_ctx):
+    """Run slow LLM/MCP work outside Telegram's webhook request."""
+    try:
+        response = process_telegram_assistant_message(message_ctx)
+        if response and TELEGRAM_BOT_TOKEN and message_ctx.get("chat_id"):
+            TelegramClient(TELEGRAM_BOT_TOKEN, str(message_ctx["chat_id"]), "").send_message(response)
+    except Exception:
+        app.logger.exception("Unhandled Telegram assistant background error")
+
+
 def process_telegram_vote_command(telegram_username, command_text, telegram_user_id=None):
     if not is_telegram_poll_voting_enabled():
         return False, "telegram_disabled"
@@ -816,11 +909,22 @@ def telegram_webhook(secret):
     if not message_ctx["text"]:
         return {"ok": True}, 200
 
+    if (
+        classify_message_command(message_ctx["text"]) == "assistant"
+        and TELEGRAM_LLM_API_KEY
+        and TELEGRAM_LLM_MODEL
+    ):
+        if telegram_assistant_updates.claim(payload.get("update_id")):
+            telegram_assistant_executor.submit(_send_telegram_assistant_response, dict(message_ctx))
+        return {"ok": True}, 200
+
     result = dispatch_message(
         message_ctx,
         process_link_command=process_telegram_link_command,
         process_proposal_vote_command=process_telegram_proposal_vote_command,
         process_poll_vote_command=process_telegram_vote_command,
+        process_mcp_command=process_telegram_mcp_command,
+        process_assistant_message=process_telegram_assistant_message,
     )
     if TELEGRAM_BOT_TOKEN and chat_id and result["kind"] == "send_message":
         TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "").send_message(result["text"])

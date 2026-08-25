@@ -44,6 +44,7 @@ def test_extract_message_context_prefers_edited_message_when_message_missing():
     assert ctx["telegram_username"] == "bob"
     assert ctx["telegram_user_id"] == 12
     assert ctx["chat_id"] == 999
+    assert ctx["chat_type"] is None
 
 
 def test_callback_vote_response_text_handles_disabled_reason():
@@ -80,7 +81,8 @@ def test_classify_message_command_routes_supported_commands():
     assert classify_message_command("/link a b") == "link"
     assert classify_message_command("/pvote 1 yes") == "proposal_vote"
     assert classify_message_command("/vote 1 2") == "poll_vote"
-    assert classify_message_command("hello") == "other"
+    assert classify_message_command("/mcp tools") == "mcp"
+    assert classify_message_command("hello") == "assistant"
 
 
 def test_classify_message_command_accepts_group_mentions_but_not_prefixes():
@@ -100,6 +102,7 @@ def test_dispatch_message_answers_start_as_bot_health_check():
     assert result["kind"] == "send_message"
     assert "ManaVote bot is running" in result["text"]
     assert "/link <app_username> <app_password>" in result["text"]
+    assert "send /mcp" in result["text"]
 
 
 def test_callback_and_poll_vote_share_reason_mappings():
@@ -186,6 +189,18 @@ def test_dispatch_message_does_not_call_poll_handler_for_non_command_text():
     )
     assert result == {"kind": "noop"}
     assert called["poll"] == 0
+
+
+def test_dispatch_message_routes_mcp_with_full_context():
+    context = {"text": "/mcp tools", "telegram_username": "alice", "telegram_user_id": 5, "chat_id": 1}
+    result = dispatch_message(
+        context,
+        process_link_command=lambda *_: (False, "unused"),
+        process_proposal_vote_command=lambda *_: (False, "unused"),
+        process_poll_vote_command=lambda *_: (False, "unused"),
+        process_mcp_command=lambda received: "tools found" if received is context else "wrong context",
+    )
+    assert result == {"kind": "send_message", "text": "tools found"}
 
 
 def test_dispatch_message_returns_link_required_text_for_poll_vote_command():

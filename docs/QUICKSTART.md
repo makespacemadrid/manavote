@@ -73,6 +73,15 @@ visible.
 | `TELEGRAM_THREAD_ID` | _empty_ | Optional Telegram topic/thread id for forum chats |
 | `TELEGRAM_ADMIN_ID` | _empty_ | Optional Telegram user/chat id for poll test messages from admin panel |
 | `TELEGRAM_WEBHOOK_SECRET` | _empty_ | Secret path segment used by Telegram webhook endpoint for command/inline-button poll voting |
+| `TELEGRAM_MCP_URL` | `http://127.0.0.1:8765/mcp` | MCP endpoint used by the Telegram `/mcp` command |
+| `TELEGRAM_MCP_ALLOWED_USER_IDS` | _empty_ | Optional comma-separated additional Telegram numeric user IDs; linked member IDs are allowed automatically |
+| `TELEGRAM_MCP_ALLOW_GROUPS` | `false` | Allows MCP commands and potentially sensitive results in group chats when explicitly enabled |
+| `TELEGRAM_LLM_API_KEY` | _empty_ | Enables natural-language Telegram messages through an OpenAI-compatible API |
+| `TELEGRAM_LLM_MODEL` | _empty_ | Chat model used by the Telegram assistant; required with the API key |
+| `TELEGRAM_LLM_BASE_URL` | `https://api.openai.com/v1` | OpenAI-compatible API base URL |
+| `TELEGRAM_LLM_SYSTEM_PROMPT` | built in | Optional custom instructions for the Telegram assistant |
+| `TELEGRAM_LLM_HISTORY_TTL` | `1800` | Seconds to retain each user's in-memory conversation context |
+| `TELEGRAM_LLM_WORKERS` | `2` | Background workers for LLM replies, keeping Telegram webhooks responsive |
 | `OIDC_CLIENT_SECRET` | _empty_ | Enables Makespace SSO; confidential value supplied by the Keycloak operator |
 | `OIDC_ISSUER` | Makespace realm URL | Expected `iss` value and provider logout base URL |
 | `OIDC_DISCOVERY_URL` | Makespace discovery URL | Provider endpoints and JWKS metadata |
@@ -99,6 +108,50 @@ You do **not** need to run `/setwebhook` manually in BotFather.
 
 The app configures webhook URL as:
 `https://<base-url>/telegram/webhook/<TELEGRAM_WEBHOOK_SECRET>`
+
+### Telegram MCP commands
+
+The bot can act as a restricted MCP client. Configure `MCP_API_KEY`,
+`TELEGRAM_MCP_URL`, and `TELEGRAM_MCP_ALLOWED_USER_IDS`, then use:
+
+```text
+/mcp
+/mcp tools
+/mcp current_budget
+/mcp list_proposals status=active limit=5
+/mcp call current_budget
+/mcp call list_proposals {"status":"active","limit":5}
+```
+
+The short `key=value` form is recommended for Telegram users. JSON and the
+explicit `call` form remain available for automation and complex arguments.
+The client performs the MCP initialize/initialized lifecycle handshake and supports
+server-issued `Mcp-Session-Id` values for stateful HTTP MCP servers.
+
+For the friendliest experience, set `TELEGRAM_LLM_API_KEY` and
+`TELEGRAM_LLM_MODEL`. Linked members can then send ordinary messages such as
+“What is the current budget?” or “Show me the five active proposals.” The model
+receives the MCP tool definitions and calls the appropriate tools automatically;
+slash commands remain available as a deterministic fallback. The API must implement
+the OpenAI-compatible `/chat/completions` tool-calling contract.
+
+The assistant remembers the last few messages for 30 minutes by default, so users
+can ask follow-up questions. Send `forget`, `reset conversation`, or `start over` to
+clear that context. Write tools are not executed immediately: the assistant must ask
+for confirmation, and the user must answer `confirm`, `yes`, `do it`, or `go ahead`.
+The confirmation is bound to the exact tool and arguments originally proposed; if
+the model changes either, the new action requires another confirmation.
+Send `cancel` or `never mind` to discard a pending action.
+
+Natural-language replies run in a bounded background worker pool so Telegram receives
+an immediate webhook acknowledgement instead of retrying during a slow model/tool
+request. Telegram `update_id` values are deduplicated before work is submitted.
+
+Members with a linked numeric Telegram user ID are allowed automatically. The
+allowlist can grant access to additional numeric user IDs; never put a public chat
+ID or Telegram username in it because MCP tools have administrative access.
+Commands are private-chat-only by default; leave
+`TELEGRAM_MCP_ALLOW_GROUPS=false` unless exposing MCP results in a group is intended.
 
 If webhook is missing/misconfigured, poll messages may appear but inline button taps will not record votes.
 

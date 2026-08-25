@@ -26,6 +26,7 @@ def extract_message_context(payload):
         "telegram_username": (from_user.get("username") or "").strip(),
         "telegram_user_id": from_user.get("id"),
         "chat_id": message.get("chat", {}).get("id"),
+        "chat_type": message.get("chat", {}).get("type"),
     }
 
 
@@ -39,9 +40,11 @@ def classify_message_command(text: str) -> str:
         return "proposal_vote"
     if command == "/vote":
         return "poll_vote"
+    if command == "/mcp":
+        return "mcp"
     if command in {"/start", "/help"}:
         return "help"
-    return "other"
+    return "assistant" if not command.startswith("/") else "other"
 
 
 POLL_VOTE_REASON_MESSAGES = {
@@ -140,6 +143,8 @@ def dispatch_message(
     process_link_command,
     process_proposal_vote_command,
     process_poll_vote_command,
+    process_mcp_command=lambda *_: "❌ MCP is not configured.",
+    process_assistant_message=lambda *_: None,
 ):
     """Dispatch plain-message commands and return transport-agnostic action."""
     text = message_ctx["text"]
@@ -150,7 +155,8 @@ def dispatch_message(
             "text": (
                 "👋 ManaVote bot is running.\n\n"
                 "Link your account in a private chat with:\n"
-                "/link <app_username> <app_password>"
+                "/link <app_username> <app_password>\n\n"
+                "Once linked, send /mcp to see the tools you can use."
             ),
         }
     if command_type == "link":
@@ -172,4 +178,9 @@ def dispatch_message(
             message_ctx["telegram_username"], text, message_ctx["telegram_user_id"]
         )
         return {"kind": "send_message", "text": poll_vote_response_text(success, reason)}
+    if command_type == "mcp":
+        return {"kind": "send_message", "text": process_mcp_command(message_ctx)}
+    if command_type == "assistant":
+        response = process_assistant_message(message_ctx)
+        return {"kind": "send_message", "text": response} if response else {"kind": "noop"}
     return {"kind": "noop"}
