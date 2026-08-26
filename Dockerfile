@@ -21,7 +21,7 @@ COPY static ./static
 COPY --from=frontend /build/static/react ./static/react
 COPY translations.py app.py ./
 
-RUN mkdir -p /app/static/uploads
+RUN mkdir -p /app/static/uploads /app/backups
 RUN mkdir -p /data \
     && useradd --create-home --shell /usr/sbin/nologin appuser \
     && chown -R appuser:appuser /app /data
