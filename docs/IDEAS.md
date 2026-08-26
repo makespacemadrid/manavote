@@ -49,6 +49,8 @@ rechecking the previously audited Telegram-link parity paths.
    - The user-statistics query uses correlated count subqueries and has no total-row metadata for pagination.
    - Capture `EXPLAIN QUERY PLAN` results with production-like data, add indexes only where evidence supports them, and define whether future clients need `total` in addition to page `count`.
    - Decide whether statistics remain lifetime-only or gain explicit `from`/`to` time windows; do not silently change existing lifetime semantics.
+   - Progress (2026-08-26): REST and MCP statistics now return explicit matching `total`
+     alongside page `count`; lifetime semantics remain unchanged and documented.
 
 4. **Error-contract matrix expansion (P1)**
    - Extend parity coverage beyond voting, Telegram listing, proposal age filtering, and user statistics:
@@ -63,6 +65,9 @@ rechecking the previously audited Telegram-link parity paths.
 6. **Statistics privacy and authorization review (P2)**
    - User statistics expose member email addresses to API/MCP administrators.
    - Document the operator need for that field, consider an `include_email` opt-in defaulting to false, and add an authorization regression test before expanding the statistics surface.
+   - Progress (2026-08-26): REST and MCP now omit email by default and require an
+     explicit administrator-only `include_email` opt-in. Parity and invalid-value tests
+     cover both transports, and the canonical field/count semantics are documented.
 
 ## Telegram natural-language + MCP audit (2026-08-26)
 

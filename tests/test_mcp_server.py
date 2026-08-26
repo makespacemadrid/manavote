@@ -102,7 +102,7 @@ def test_tools_call_list_proposals_filters_old_active_proposals(monkeypatch):
     )
 
     assert "status = 'active'" in captured["query"]
-    assert "datetime(created_at) <= datetime(?)" in captured["query"]
+    assert "datetime(p.created_at) <= datetime(?)" in captured["query"]
     assert len(captured["params"]) == 3
     assert json.loads(response["result"]["content"][0]["text"])["count"] == 0
 
@@ -140,18 +140,48 @@ def test_tools_call_list_user_statistics(monkeypatch):
         "proposal_vote_count": 3,
         "proposal_count": 2,
         "approved_proposal_count": 1,
+        "proposed_budget": 250,
+        "approved_proposal_budget": 100,
+        "approved_budget_percentage": 40,
         "comment_count": 4,
         "poll_vote_count": 5,
         "poll_count": 1,
+        "open_poll_count": 1,
+        "closed_poll_count": 0,
+        "created_poll_vote_count": 6,
+        "average_votes_per_created_poll": 6,
+        "group_purchase_count": 2,
+        "open_group_purchase_count": 1,
+        "created_group_purchase_order_value": 125,
+        "created_group_purchase_participant_count": 4,
     }
-    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [row])
+    monkeypatch.setattr(
+        mcp_server,
+        "_db_rows",
+        lambda query, *_args, **_kwargs: [{"total": 1}] if "COUNT(*) AS total" in query else [row],
+    )
 
     response = mcp_server.handle_request(
         _req("tools/call", req_id=202, params={"name": "list_user_statistics", "arguments": {"limit": 25}})
     )
     payload = json.loads(response["result"]["content"][0]["text"])
 
-    assert payload == {"count": 1, "limit": 25, "offset": 0, "users": [row]}
+    expected_row = {key: value for key, value in row.items() if key != "email"}
+    assert payload == {"count": 1, "total": 1, "limit": 25, "offset": 0, "users": [expected_row]}
+
+
+def test_tools_call_list_user_statistics_email_is_explicit_opt_in(monkeypatch):
+    row = {"id": 1, "username": "alice", "email": "alice@example.com"}
+    monkeypatch.setattr(
+        mcp_server,
+        "_db_rows",
+        lambda query, *_args, **_kwargs: [{"total": 1}] if "COUNT(*) AS total" in query else [row],
+    )
+    response = mcp_server.handle_request(_req("tools/call", req_id=212, params={
+        "name": "list_user_statistics", "arguments": {"include_email": True},
+    }))
+    payload = json.loads(response["result"]["content"][0]["text"])
+    assert payload["users"][0]["email"] == "alice@example.com"
 
 
 def test_tools_call_list_user_statistics_rejects_invalid_pagination():
@@ -160,6 +190,175 @@ def test_tools_call_list_user_statistics_rejects_invalid_pagination():
             _req("tools/call", req_id=203, params={"name": "list_user_statistics", "arguments": arguments})
         )
         assert response["error"]["code"] == -32602
+
+
+def test_tools_call_list_user_statistics_filters_and_ranks_budget(monkeypatch):
+    captured = []
+
+    def fake_db_rows(query, params=()):
+        captured.append((query, params))
+        return []
+
+    monkeypatch.setattr(mcp_server, "_db_rows", fake_db_rows)
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=204,
+            params={
+                "name": "list_user_statistics",
+                "arguments": {
+                    "username": "Alice",
+                    "sort_by": "approved_budget_percentage",
+                    "sort_direction": "asc",
+                },
+            },
+        )
+    )
+
+    page_query, page_params = captured[0]
+    assert "WHERE m.username = ? COLLATE NOCASE" in page_query
+    assert "ORDER BY approved_budget_percentage ASC" in page_query
+    assert page_params == ("Alice", 100, 0)
+    assert json.loads(response["result"]["content"][0]["text"])["users"] == []
+
+
+def test_tools_call_list_user_statistics_rejects_invalid_budget_query():
+    for arguments in (
+        {"username": "  "},
+        {"sort_by": "money"},
+        {"sort_direction": "sideways"},
+    ):
+        response = mcp_server.handle_request(
+            _req("tools/call", req_id=205, params={"name": "list_user_statistics", "arguments": arguments})
+        )
+        assert response["error"]["code"] == -32602
+
+
+def test_tools_call_list_user_statistics_ranks_created_poll_engagement(monkeypatch):
+    captured = []
+    monkeypatch.setattr(
+        mcp_server,
+        "_db_rows",
+        lambda query, params=(): captured.append((query, params)) or [],
+    )
+
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=206,
+            params={
+                "name": "list_user_statistics",
+                "arguments": {"sort_by": "average_votes_per_created_poll"},
+            },
+        )
+    )
+
+    assert "ORDER BY average_votes_per_created_poll DESC" in captured[0][0]
+    assert json.loads(response["result"]["content"][0]["text"])["users"] == []
+
+
+def test_tools_call_list_polls_returns_creator_options_and_votes(monkeypatch):
+    captured = {}
+
+    def fake_db_rows(query, params=()):
+        if "FROM poll_votes WHERE" in query:
+            return [
+                {"poll_id": 4, "option_index": 0, "votes": 5},
+                {"poll_id": 4, "option_index": 1, "votes": 2},
+            ]
+        captured.update(query=query, params=params)
+        return [{
+            "id": 4, "question": "Choose", "options_json": '["A", "B"]',
+            "status": "closed", "created_at": "2026-01-01", "closes_at": None,
+            "created_by": 2, "username": "alice", "total_votes": 7,
+        }]
+
+    monkeypatch.setattr(mcp_server, "_db_rows", fake_db_rows)
+    response = mcp_server.handle_request(
+        _req("tools/call", req_id=207, params={"name": "list_polls", "arguments": {
+            "status": "closed", "username": "Alice",
+        }})
+    )
+    payload = json.loads(response["result"]["content"][0]["text"])
+
+    assert "p.status = ?" in captured["query"]
+    assert "m.username = ? COLLATE NOCASE" in captured["query"]
+    assert captured["params"] == ("closed", "Alice", 20, 0)
+    assert payload["polls"][0]["options"] == ["A", "B"]
+    assert payload["polls"][0]["results"] == [
+        {"option_index": 0, "option": "A", "votes": 5},
+        {"option_index": 1, "option": "B", "votes": 2},
+    ]
+    assert payload["polls"][0]["total_votes"] == 7
+    assert "options_json" not in payload["polls"][0]
+
+
+def test_tools_call_list_polls_rejects_invalid_filters_and_pagination():
+    for arguments in ({"status": "active"}, {"username": " "}, {"limit": 201}, {"offset": -1}):
+        response = mcp_server.handle_request(
+            _req("tools/call", req_id=208, params={"name": "list_polls", "arguments": arguments})
+        )
+        assert response["error"]["code"] == -32602
+
+
+def test_tools_call_list_group_purchases_returns_costs_participants_and_payments(monkeypatch):
+    captured = {}
+
+    def fake_db_rows(query, params=()):
+        if "FROM group_purchase_components" in query:
+            return [{"id": 10, "name": "Keyboard", "unit_price": 20, "total_quantity": 3}]
+        if "FROM group_purchase_shared_costs" in query:
+            return [{"label": "Shipping", "amount": 10}]
+        if "FROM group_purchase_quantities" in query:
+            return [
+                {"member_id": 2, "username": "alice", "selection_amount": 40, "paid": 1},
+                {"member_id": 3, "username": "bob", "selection_amount": 20, "paid": 0},
+            ]
+        captured.update(query=query, params=params)
+        return [{
+            "id": 5, "title": "Keyboards", "description": "Bulk order", "status": "open",
+            "created_at": "2026-01-01", "deadline": None, "url": None,
+            "payment_method": "cash", "created_by": 2, "username": "alice",
+        }]
+
+    monkeypatch.setattr(mcp_server, "_db_rows", fake_db_rows)
+    response = mcp_server.handle_request(
+        _req("tools/call", req_id=209, params={"name": "list_group_purchases", "arguments": {
+            "status": "open", "username": "Alice",
+        }})
+    )
+    payload = json.loads(response["result"]["content"][0]["text"])
+    purchase = payload["group_purchases"][0]
+
+    assert captured["params"] == ("open", "Alice", 20, 0)
+    assert purchase["selection_total"] == 60
+    assert purchase["shared_cost_total"] == 10
+    assert purchase["total_cost"] == 70
+    assert purchase["participant_count"] == 2
+    assert purchase["paid_participant_count"] == 1
+    assert [person["amount_owed"] for person in purchase["participants"]] == [46.67, 23.33]
+
+
+def test_tools_call_list_group_purchases_rejects_invalid_filters_and_pagination():
+    for arguments in ({"status": " "}, {"status": "cancelled"}, {"username": " "}, {"limit": 201}, {"offset": -1}):
+        response = mcp_server.handle_request(
+            _req("tools/call", req_id=210, params={"name": "list_group_purchases", "arguments": arguments})
+        )
+        assert response["error"]["code"] == -32602
+
+
+def test_tools_call_list_user_statistics_ranks_group_purchase_value(monkeypatch):
+    captured = []
+    monkeypatch.setattr(
+        mcp_server,
+        "_db_rows",
+        lambda query, params=(): captured.append((query, params)) or [],
+    )
+    mcp_server.handle_request(_req("tools/call", req_id=211, params={
+        "name": "list_user_statistics",
+        "arguments": {"sort_by": "created_group_purchase_order_value"},
+    }))
+    assert "ORDER BY created_group_purchase_order_value DESC" in captured[0][0]
 
 
 def test_tools_call_current_budget_returns_json_text(monkeypatch):
