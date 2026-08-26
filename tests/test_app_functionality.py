@@ -1700,6 +1700,41 @@ class TestPollTelegramActions(unittest.TestCase):
         conn.close()
         self.assertEqual(total, 0)
 
+    def test_telegram_webhook_command_reply_stays_in_forum_topic(self):
+        from app.web.routes import main_routes
+
+        clients = []
+
+        def _fake_send_message(client, message):
+            clients.append((client.chat_id, client.thread_id, message))
+            return True
+
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        old_token = main_routes.TELEGRAM_BOT_TOKEN
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        main_routes.TELEGRAM_BOT_TOKEN = "bot-token"
+        try:
+            with patch.object(main_routes.TelegramClient, "send_message", new=_fake_send_message):
+                response = self.client.post(
+                    "/telegram/webhook/hook-secret",
+                    json={
+                        "message": {
+                            "text": "/help",
+                            "from": {"username": "admin"},
+                            "chat": {"id": -100123, "type": "supergroup"},
+                            "message_thread_id": 42,
+                        }
+                    },
+                )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+            main_routes.TELEGRAM_BOT_TOKEN = old_token
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(clients), 1)
+        self.assertEqual(clients[0][:2], ("-100123", "42"))
+        self.assertIn("ManaVote bot is running", clients[0][2])
+
     def test_telegram_webhook_supports_edited_message_payload(self):
         poll_id = self._latest_poll_id()
         from app.web.routes import main_routes

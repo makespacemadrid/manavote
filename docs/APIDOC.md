@@ -646,7 +646,8 @@ In private chats every non-command message is eligible. In groups, the assistant
 responds when a member addresses it with an `@mention` or replies to one of its
 messages; other group conversation is ignored. Set `TELEGRAM_BOT_USERNAME` so
 mentions can be matched exactly when the bot's Telegram privacy mode is disabled.
-Responses stay in the incoming forum topic when `message_thread_id` is present.
+Assistant and command responses stay in the incoming forum topic when
+`message_thread_id` is present.
 Mutating tool calls are never executed immediately: the administrator must send
 `/confirm` within `TELEGRAM_CONFIRM_TTL_SECONDS` (default: 300) to execute the
 pending action or `/cancel` to discard it. Conversation
