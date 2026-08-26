@@ -69,7 +69,7 @@ visible.
 | `MCP_SERVER_PORT` | `8765` | MCP server port |
 | `APP_DB_PATH` | `<repo>/app.db` | Optional SQLite path override (useful for test isolation) |
 | `TELEGRAM_BOT_TOKEN` | _empty_ | Telegram integration token |
-| `TELEGRAM_BOT_USERNAME` | _empty_ | Bot username used for exact group mention/reply matching |
+| `TELEGRAM_BOT_USERNAME` | _empty_ | Bot username used for exact group mention/reply matching. Required whenever group privacy mode is disabled and the group is not the configured forum topic — without it, any `@mention` or `/command` in the group (even ones addressed to someone else) is treated as directed at this bot |
 | `TELEGRAM_CHAT_ID` | _empty_ | Telegram target chat |
 | `TELEGRAM_THREAD_ID` | _empty_ | Optional Telegram topic/thread id for forum chats |
 | `TELEGRAM_ADMIN_ID` | _empty_ | Optional Telegram user/chat id for poll test messages from admin panel |
@@ -125,8 +125,10 @@ message, so account links, unlinks, and administrator-role changes apply immedia
    asks Telegram to delete every credential-bearing `/link` message after receipt.
 6. Ask a question such as `What is our current budget?`. The bot displays a temporary
    thinking message and replaces it with the completed response. In a group, mention
-   the bot or reply to one of its messages; set `TELEGRAM_BOT_USERNAME` to the bot's
-   username for exact mention matching when Telegram privacy mode is disabled.
+   the bot or reply to one of its messages. If group privacy mode is disabled, set
+   `TELEGRAM_BOT_USERNAME` to the bot's username so only mentions/commands aimed at
+   this bot count as addressed — otherwise the assistant will also respond to
+   mentions of other users and commands aimed at other bots in the same group.
 7. For an administrator mutation, inspect the proposed arguments and send `/confirm`
    within the configured TTL, or `/cancel`. Use `/reset` to clear the conversation.
 

@@ -1,6 +1,6 @@
 # SPRINTS — Implementation Planning and Progress Tracking
 
-Last updated: 2026-05-13
+Last updated: 2026-08-26
 
 This document tracks implementation sequencing, active sprint scope, and completion status.
 Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
@@ -13,12 +13,14 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
 
 ---
 
-## Current implementation focus (Q2 2026)
+## Current implementation focus (Q3 2026)
 
 1. Complete remaining route decomposition and reduce `main_routes.py` to a minimal compatibility layer.
 2. Harden API/MCP contract parity for validation and error-shape consistency.
 3. Improve admin/operator reliability paths (backups, Telegram identity lifecycle, policy observability).
-4. Keep docs synchronized so `README.md` stays concise and `docs/*` remain canonical.
+4. Make the Telegram natural-language assistant safe under multiple application workers and
+   cover its webhook lifecycle end-to-end (see `IDEAS.md` P0 items).
+5. Keep docs synchronized so `README.md` stays concise and `docs/*` remain canonical.
 
 ---
 
@@ -51,6 +53,8 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
 1. Finish extraction of remaining route logic from `main_routes.py`.
 2. Strengthen operator-facing admin reliability and UX continuity.
 3. Maintain strict parity expectations between REST and MCP validation behavior.
+4. Ship and harden the Telegram natural-language assistant (MCP-backed), added mid-sprint
+   as a new scope area alongside the original three goals.
 
 ### Delivered so far
 - ✅ Migrated additional handlers from `main_routes.py` into blueprint modules while preserving compatibility shims.
@@ -69,6 +73,29 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
 - ✅ Consolidated Telegram link-state SQL classification into a shared service helper to keep REST/MCP diagnostics logic in lockstep.
 - ✅ Added structured Telegram link lifecycle audit events for link + unlink actions across command, member settings, and admin-panel flows.
 - ✅ Extracted Telegram link/unlink persistence logic into `app/services/telegram_link_service.py` to reduce route-level DB orchestration.
+- ✅ Shipped the MCP-backed Telegram natural-language assistant (`app/integrations/telegram_agent.py`):
+  database-backed allowlist, bounded model-request queue, mutation confirmation via
+  `/confirm`/`/cancel` with a bounded TTL, and Telegram-limit-aware chunked replies.
+- ✅ Restricted the assistant's MCP tool registry to an explicit allowlist and excluded
+  `create_member` from Telegram entirely; redacted password/secret/token/API-key fields
+  from confirmation display arguments.
+- ✅ Moved webhook update deduplication and pending-confirmation state to SQLite so they
+  are shared across application workers and survive restarts, with atomic consume before
+  execution.
+- ✅ Hardened MCP JSON-RPC parameter validation and Telegram account-linking flows.
+- ✅ Added canonical, privacy-reviewed REST/MCP user-statistics and Telegram member-link
+  diagnostics services with parity tests, including an administrator-only `include_email`
+  opt-in (email is withheld by default).
+- ✅ Hardened Telegram group message addressing (`@mention`/reply/`bot_command` entity
+  matching) and added forum-topic-aware routing so a configured `TELEGRAM_CHAT_ID` +
+  `TELEGRAM_THREAD_ID` topic behaves as an always-on assistant conversation, with replies
+  correctly threaded back via `message_thread_id`/`reply_parameters`.
+- ✅ Normalized Telegram's group-only `/confirm@botname` and `/cancel@botname` syntax.
+
+Remaining Telegram-assistant hardening (multi-worker/restart-safe conversation history and
+queue state, an end-to-end webhook contract test, public MCP application boundary,
+background-job observability, fair-use limits, and confirmation audit records) is tracked
+as forward-looking backlog in [`IDEAS.md`](IDEAS.md) rather than duplicated here.
 
 ### Remaining work (execution checklist)
 1. **Route decomposition closure**
@@ -86,11 +113,18 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
 4. **Docs synchronization pass**
    - Keep `APIDOC.md`, `SPEC.md`, `TESTING.md`, and sprint notes aligned for any contract or workflow change.
 
+5. **Telegram-assistant reliability closure**
+   - Move conversation history and queue state off process-local storage (see `IDEAS.md`
+     P0 item on shared state for multi-worker/restart safety).
+   - Add the end-to-end natural-language webhook contract test called for in `IDEAS.md`.
+
 ### Exit Criteria
 - `main_routes.py` is reduced to compatibility routing with minimal orchestration logic.
 - Admin reliability operations are observable through logs/events without ad-hoc DB inspection.
 - REST and MCP validation/error contracts are consistent for high-value endpoints/tools.
 - Docs remain synchronized with implementation behavior.
+- The Telegram assistant is safe to run behind multiple application workers without losing
+  pending confirmations or conversation state.
 
 **Status:** 🟡 In Progress.
 

@@ -644,8 +644,10 @@ Non-command messages from IDs outside that allowlist are acknowledged but ignore
 they are not placed on the model worker queue. `/help` and `/link` remain available.
 In private chats every non-command message is eligible. In groups, the assistant
 responds when a member addresses it with an `@mention` or replies to one of its
-messages; other group conversation is ignored. Set `TELEGRAM_BOT_USERNAME` so
-mentions can be matched exactly when the bot's Telegram privacy mode is disabled.
+messages; other group conversation is ignored. `TELEGRAM_BOT_USERNAME` must be set
+whenever the bot's Telegram privacy mode is disabled outside the configured forum
+topic: without it, any `@mention` or `/command` entity in the group is treated as
+addressed to this bot, including ones aimed at a different user or bot.
 Assistant and command responses stay in the incoming forum topic when
 `message_thread_id` is present. The forum topic selected by `TELEGRAM_CHAT_ID` and
 `TELEGRAM_THREAD_ID` is treated as a dedicated assistant conversation, so linked
