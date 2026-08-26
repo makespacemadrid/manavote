@@ -35,6 +35,7 @@ from app.integrations.telegram_webhook import (
     dispatch_message,
     extract_callback_context,
     extract_message_context,
+    is_configured_forum_topic,
     is_natural_language_message,
     TelegramUpdateDeduplicator,
 )
@@ -899,7 +900,15 @@ def telegram_webhook(secret):
     # natural-language work is completed outside the request thread.
     if (
         classify_message_command(message_ctx["text"]) == "other"
-        and is_natural_language_message(message_ctx, TELEGRAM_BOT_USERNAME)
+        and (
+            is_natural_language_message(message_ctx, TELEGRAM_BOT_USERNAME)
+            # A configured forum topic is a dedicated assistant conversation.
+            # Telegram does not attach a mention entity to ordinary messages in
+            # that topic, so requiring an @mention makes it appear unresponsive.
+            or is_configured_forum_topic(
+                message_ctx, TELEGRAM_CHAT_ID, TELEGRAM_THREAD_ID
+            )
+        )
         and telegram_agent.is_configured()
         and TELEGRAM_BOT_TOKEN
         and chat_id

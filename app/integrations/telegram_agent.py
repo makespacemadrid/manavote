@@ -251,6 +251,14 @@ def _action_result_text(action: PendingAction, result: str) -> str:
     return f"✅ {action.tool_name} completed.{suffix}"
 
 
+def _normalized_confirmation_command(text: str) -> str:
+    """Normalize Telegram's group-only ``/command@botname`` syntax."""
+    normalized = (text or "").strip().lower()
+    if normalized.startswith("/") and not any(character.isspace() for character in normalized):
+        return normalized.split("@", maxsplit=1)[0]
+    return normalized
+
+
 def answer(
     chat_id: int,
     text: str,
@@ -266,7 +274,7 @@ def answer(
         raise RuntimeError("Natural-language Telegram support is not configured.")
 
     key = _conversation_key(chat_id, telegram_user_id)
-    normalized_text = text.strip().lower()
+    normalized_text = _normalized_confirmation_command(text)
     if normalized_text in {"/cancel", "cancel"}:
         removed = _pop_pending(key)
         return "✅ Pending action cancelled." if removed else "There is no pending action to cancel."

@@ -7,6 +7,7 @@ from app.integrations.telegram_webhook import (
     dispatch_message,
     extract_callback_context,
     extract_message_context,
+    is_configured_forum_topic,
     is_natural_language_message,
     link_response_text,
     poll_vote_response_text,
@@ -152,6 +153,15 @@ def test_extract_message_context_detects_group_reply_and_topic():
     assert ctx["reply_to_bot"] is True
     assert ctx["reply_to_bot_username"] == ""
     assert ctx["message_thread_id"] == 7
+
+
+def test_configured_forum_topic_accepts_unmentioned_messages_only_in_exact_topic():
+    context = {"chat_id": -100123, "message_thread_id": 42}
+
+    assert is_configured_forum_topic(context, "-100123", "42") is True
+    assert is_configured_forum_topic(context, "-100123", "43") is False
+    assert is_configured_forum_topic(context, "-100999", "42") is False
+    assert is_configured_forum_topic(context, "-100123", "") is False
 
 
 def test_callback_vote_response_text_handles_disabled_reason():

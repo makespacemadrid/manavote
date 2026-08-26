@@ -132,6 +132,20 @@ def is_natural_language_message(message_ctx, bot_username: str = "") -> bool:
     return False
 
 
+def is_configured_forum_topic(
+    message_ctx, chat_id: str = "", thread_id: str = ""
+) -> bool:
+    """Return whether a message belongs to the configured assistant forum topic."""
+    configured_chat = str(chat_id or "").strip()
+    configured_thread = str(thread_id or "").strip()
+    if not configured_chat or not configured_thread:
+        return False
+    return (
+        str(message_ctx.get("chat_id") or "").strip() == configured_chat
+        and str(message_ctx.get("message_thread_id") or "").strip() == configured_thread
+    )
+
+
 def classify_message_command(text: str) -> str:
     command = (text or "").strip().split(maxsplit=1)[0].lower()
     # Telegram appends @botname to commands sent from group chats.
