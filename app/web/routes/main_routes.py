@@ -945,7 +945,14 @@ def telegram_webhook(secret):
         ),
     )
     if TELEGRAM_BOT_TOKEN and chat_id and result["kind"] == "send_message":
-        TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "").send_message(result["text"])
+        # Commands can arrive inside a forum topic just like natural-language
+        # messages.  Keep their deterministic replies in that same topic rather
+        # than silently posting them to the supergroup's General topic.
+        TelegramClient(
+            TELEGRAM_BOT_TOKEN,
+            str(chat_id),
+            str(message_ctx.get("message_thread_id") or ""),
+        ).send_message(result["text"])
 
     return {"ok": True}, 200
 
