@@ -29,6 +29,8 @@ Environment variables are read from `.env` (see `sample.env`).
 When running with Docker Compose:
 - `.env` is loaded via `env_file`.
 - Compose also overrides a few runtime flags in `docker-compose.yml`:
+  - `FLASK_DEBUG=false`
+  - `FLASK_SECURE_COOKIES=true`
   - `APP_DB_PATH=/data/app.db`
   - `MCP_SERVER_ENABLED=true`
   - `MCP_SERVER_HOST=0.0.0.0`
@@ -57,16 +59,18 @@ visible.
 | Variable | Default | Purpose |
 |---|---:|---|
 | `FLASK_ENV` | _empty_ | Set to `production` to enable production-safe checks |
-| `SECRET_KEY` | _empty_ | Required when `FLASK_ENV=production`; used for session + CSRF signing |
+| `SECRET_KEY` | `dev-insecure-secret-change-me` | Used for session + CSRF signing; startup refuses this default value when `FLASK_ENV=production` |
 | `FLASK_DEBUG` | `false` | Flask debug mode |
 | `FLASK_CSRF` | `true` | Flask-WTF CSRF protection toggle (enabled by default) |
-| `FLASK_SECURE_COOKIES` | `true` | Enables `SESSION_COOKIE_SECURE` (recommended default) |
+| `FLASK_SECURE_COOKIES` | `false` (`true` when `FLASK_ENV=production`) | Enables `SESSION_COOKIE_SECURE` |
+| `FLASK_RATE_LIMITS` | `true` (`false` when `FLASK_ENV=test`) | Toggle for Flask-Limiter rate limiting |
 | `ADMIN_BOOTSTRAP_PASSWORD` | _empty_ | Required for first-time admin creation in production; non-production falls back to insecure default with warning |
 | `ADMIN_API_KEY` | _empty_ | Required for REST API endpoints |
 | `MCP_API_KEY` | _empty_ | Required for MCP JSON-RPC authentication |
 | `MCP_SERVER_ENABLED` | `false` | Enables in-process MCP server when set to `true` |
-| `MCP_SERVER_HOST` | `127.0.0.1` | MCP bind host (`0.0.0.0` for container/network access) |
+| `MCP_SERVER_HOST` | `0.0.0.0` | MCP bind host — binds all interfaces by default; set `127.0.0.1` to restrict to localhost (`sample.env` ships that override) |
 | `MCP_SERVER_PORT` | `8765` | MCP server port |
+| `MCP_SERVER_TRANSPORT` | `http` | MCP transport; any other value starts the TCP server instead of the HTTP server |
 | `APP_DB_PATH` | `<repo>/app.db` | Optional SQLite path override (useful for test isolation) |
 | `TELEGRAM_BOT_TOKEN` | _empty_ | Telegram integration token |
 | `TELEGRAM_BOT_USERNAME` | _empty_ | Bot username used for exact group mention/reply matching. Required whenever group privacy mode is disabled and the group is not the configured forum topic — without it, any `@mention` or `/command` in the group (even ones addressed to someone else) is treated as directed at this bot |
@@ -79,6 +83,7 @@ visible.
 | `OCABRA_MODEL` | `ocabra` | Model used by the natural-language Telegram assistant |
 | `OCABRA_TIMEOUT_SECONDS` | `60` | Timeout for each model request |
 | `TELEGRAM_CONFIRM_TTL_SECONDS` | `300` | Seconds before a pending mutating MCP action expires |
+| `TELEGRAM_AGENT_SYSTEM_PROMPT` | built-in ManaVote assistant prompt | Overrides the natural-language assistant's system prompt |
 | `OIDC_CLIENT_SECRET` | _empty_ | Enables Makespace SSO; confidential value supplied by the Keycloak operator |
 | `OIDC_ISSUER` | Makespace realm URL | Expected `iss` value and provider logout base URL |
 | `OIDC_DISCOVERY_URL` | Makespace discovery URL | Provider endpoints and JWKS metadata |
@@ -220,8 +225,10 @@ Restart Manavote after changing its environment. The SSO button is hidden until
 
 - The immutable Keycloak `sub` identifies a local member. Profile changes do not
   create another account.
-- A first-login username collision gets a numeric suffix. Manavote never silently
-  attaches an SSO identity to an existing password account.
+- On first login, an existing password account with a matching email (case-insensitive)
+  is silently attached to the SSO identity — its `oidc_sub` is set and its admin flag is
+  synced from the `admins` group. Only when no email match exists does Manavote create a
+  new account, applying a numeric suffix on a username collision.
 - The `admins` group is synchronized at every login, including removal of local
   administrator access when the group is removed.
 - Access and refresh tokens are discarded after the server-side callback.

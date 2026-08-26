@@ -2264,7 +2264,9 @@ class TestApiMemberTelegramLinks(unittest.TestCase):
             "INSERT INTO members (id, username, password_hash, is_admin, telegram_username, telegram_user_id) VALUES (?, ?, ?, ?, ?, ?)",
             [
                 (1, "linked", "x", 0, "linked_tg", 1001),
-                (2, "missing_username", "x", 0, "", 1002),
+                # A member can link via Telegram user ID alone; a public Telegram
+                # username is optional and its absence does not change link_state.
+                (2, "linked_without_public_username", "x", 0, "", 1002),
                 (3, "missing_user_id", "x", 0, "only_name", None),
                 (4, "unlinked", "x", 0, None, None),
             ],
@@ -2284,7 +2286,7 @@ class TestApiMemberTelegramLinks(unittest.TestCase):
         self.assertTrue(payload["success"])
         states = {row["username"]: row["link_state"] for row in payload["members"]}
         self.assertEqual(states["linked"], "linked")
-        self.assertEqual(states["missing_username"], "missing_username")
+        self.assertEqual(states["linked_without_public_username"], "linked")
         self.assertEqual(states["missing_user_id"], "missing_user_id")
         self.assertEqual(states["unlinked"], "unlinked")
 
@@ -2299,8 +2301,12 @@ class TestApiMemberTelegramLinks(unittest.TestCase):
             "INSERT INTO members (id, username, password_hash, is_admin, telegram_username, telegram_user_id) VALUES (?, ?, ?, ?, ?, ?)",
             [
                 (1, "linked_a", "x", 0, "linked_a_tg", 2001),
-                (2, "missing_username", "x", 0, "", 2002),
+                # Linked via Telegram user ID alone (no public username) — still
+                # counts as linked and must appear in the filtered list.
+                (2, "linked_without_public_username", "x", 0, "", 2002),
                 (3, "linked_b", "x", 0, "linked_b_tg", 2003),
+                (4, "missing_user_id", "x", 0, "only_name", None),
+                (5, "unlinked", "x", 0, None, None),
             ],
         )
         conn.commit()
@@ -2317,7 +2323,7 @@ class TestApiMemberTelegramLinks(unittest.TestCase):
         payload = response.get_json()
         self.assertTrue(payload["success"])
         usernames = [row["username"] for row in payload["members"]]
-        self.assertEqual(usernames, ["linked_a", "linked_b"])
+        self.assertEqual(usernames, ["linked_a", "linked_without_public_username", "linked_b"])
         self.assertTrue(all(row["linked"] == 1 for row in payload["members"]))
         self.assertTrue(all(row["link_state"] == "linked" for row in payload["members"]))
 

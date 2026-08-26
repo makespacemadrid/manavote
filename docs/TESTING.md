@@ -52,8 +52,15 @@ pytest -q tests/test_api_helpers.py tests/test_api_error_envelope.py tests/test_
 
 Covers API auth/content-type validation, error envelope consistency, proposal API validation, and poll API flows.
 Also includes Telegram member-link diagnostics checks for both:
-- `include_unlinked=true` classification coverage (`linked|missing_username|missing_user_id|unlinked`)
+- `include_unlinked=true` classification coverage (`linked|missing_user_id|unlinked`)
 - `include_unlinked=false` filtered-list coverage (linked-only rows, `link_state=linked`)
+
+```bash
+pytest -q tests/unit/test_telegram_link_diagnostics.py
+```
+
+Covers the shared SQL classification helper (`LINKED_CONDITION_SQL`, `link_state_case_sql`)
+backing the `link_state`/`include_unlinked` behavior above.
 
 ## Admin backup observability checks
 
@@ -80,6 +87,8 @@ Covers MCP auth, tool discovery, create-tool happy paths, and key negative-path 
 - validation failures (`-32602`)
 - conflict class (`-32010`)
 - not-found class (`-32004`)
+- `list_user_statistics` success shape, admin-only `include_email` opt-in, invalid
+  pagination, and budget/poll/group-purchase ranking and filtering
 
 ## Voting settings REST/MCP parity checks
 
@@ -95,11 +104,13 @@ Covers contract-alignment scenarios for `PATCH /api/settings/voting` and MCP `up
 - successful update response-shape parity for shared setting keys
 - member Telegram link-listing parity for REST `GET /api/members/telegram` and MCP `list_member_telegram_links` (`linked` + `link_state` diagnostics)
 - out-of-range pagination rejection parity (`limit` upper bound enforcement)
+- `list_user_statistics` parity: success shape, invalid `limit`, and the `include_email`
+  opt-in (and its invalid-value rejection) between REST and MCP
 
 ## Telegram webhook vote-response checks
 
 ```bash
-pytest -q tests/unit/test_telegram_webhook_helpers.py
+pytest -q tests/unit/test_telegram_webhook_helpers.py tests/unit/test_telegram_link_service.py
 ```
 
 Covers Telegram vote command/callback helper behavior:
@@ -107,11 +118,17 @@ Covers Telegram vote command/callback helper behavior:
 - shared callback/poll message mappings for common vote rejection reasons
 - callback fallback text for unknown reasons
 - poll-command dispatch path returns linked-account guidance when vote handlers return `link_required`
+- group `@mention`/reply/`bot_command` addressing (`is_natural_language_message`), using
+  UTF-16 entity offsets and ignoring mentions/commands aimed at other bots
+- forum-topic detection (`is_configured_forum_topic`) and recovering `message_thread_id`
+  from `reply_to_message` when it is absent on the outer message
+- `/reset` dispatch clearing the natural-language conversation, group-chat `/link`
+  credential rejection, and `showvote`/vote callback dispatch routing
 
 Telegram link-service unit coverage:
 - unlink persistence behavior
 - `/link` invalid-format rejection
-- `/link` success-path linkage persistence
+- `/link` success-path linkage persistence (with and without a public Telegram username)
 - duplicate `telegram_user_id` rejection (`already_linked`)
 
 ## Natural-language Telegram + MCP checks
@@ -187,3 +204,26 @@ It covers additive migration and `sub` uniqueness, disabled SSO behavior, public
 callback selection, required-group enforcement, missing identity claims, session
 rotation without token persistence, provider logout, idempotent claim updates,
 administrator removal, and local username collisions.
+
+## Other regression packs
+
+Not part of a themed pack above, but each exercises real, otherwise-undocumented behavior:
+
+- `tests/test_backup_service.py` — unit-level backup scheduler, upload-backup, and
+  database-backup behavior (distinct from the admin-observability pack above, which
+  covers the admin-panel/audit-event layer on top of this).
+- `tests/test_group_purchases.py` — group-purchase creation, per-member quantities,
+  proportional shared-cost splitting, and lifecycle migrations.
+- `tests/test_budget_admin_refactor.py` — admin budget-tab behavior after the `/budget`
+  route split.
+- `tests/test_language.py` — language switching, translation coverage, proposal
+  filters/status, and calendar/budget chart data.
+- `tests/test_email_accounts.py` — email-based login and account-linking.
+- `tests/test_proposal_service.py`, `tests/test_proposal_edit_route.py`,
+  `tests/test_proposal_vote_mode.py`, `tests/test_settings_layout.py`,
+  `tests/test_translation_coverage.py`, `tests/test_main_route_helpers.py`,
+  `tests/test_blueprint_endpoint_aliases.py`, `tests/test_blueprint_registration.py`,
+  `tests/test_db_fixture.py`, `tests/test_docker_configuration.py`,
+  `tests/unit/test_admin_audit_helpers.py`, `tests/unit/test_services.py` — narrower unit
+  and route-level coverage for their namesake area; run individually with
+  `pytest -q <path>` or rely on the full `pytest -q` run at the top of this document.

@@ -220,6 +220,28 @@ natural-language/MCP audit above.
      `mentioned`, `reply_to_bot`, `forum_topic`, `unaddressed`) to each webhook
      decision.
 
+## Docs audit findings requiring a product decision (2026-08-26)
+
+A full audit of `docs/*.md` against the current codebase (see the four commits fixing
+`APIDOC.md`, `SPEC.md`, `QUICKSTART.md`, and `TESTING.md`) surfaced one behavior that
+docs previously described incorrectly and that deserves an explicit decision rather than
+a silent doc fix:
+
+1. **OIDC/SSO login silently attaches to an existing password account by email match (P1)**
+   - `_upsert_oidc_member` (`app/web/routes/auth_routes.py`) looks up a member with
+     `oidc_sub IS NULL` and a matching `email` (case-insensitive) whenever no member is
+     yet linked to the incoming `sub`, and attaches the SSO identity to that account —
+     including syncing `is_admin` from the token's `groups` claim. `docs/QUICKSTART.md`
+     previously claimed the opposite ("Manavote never silently attaches an SSO identity
+     to an existing password account"); the docs now describe the real behavior.
+   - This is likely intentional (letting an existing password-account member adopt SSO
+     without creating a duplicate account), but it means a member's local `email` field
+     — which is not itself verified — controls which account a future Keycloak login
+     takes over, including a potential admin-role grant. Confirm this is the intended
+     trust model, and consider requiring the email match to also come from a currently
+     `oidc_sub IS NULL` account created through a trusted path (not self-service email
+     edits) before relying on it for admin accounts.
+
 ## WS-A — Architecture Refactor (P0)
 
 ### A1. Decompose route concerns
