@@ -594,6 +594,27 @@ pytest -q tests/test_mcp_server.py
 
 ### Natural-language Telegram + MCP
 
+The Telegram assistant exposes an explicit, deny-by-default subset of MCP tools.
+`create_member` is never supplied to the model or callable through the Telegram adapter
+because its arguments contain a password; member creation remains available through
+authenticated MCP clients outside Telegram.
+
+Accepted Telegram `update_id` values are stored in the application database with a
+bounded retention window. Duplicate webhook deliveries are therefore suppressed across
+application workers and restarts, before commands, votes, model calls, or MCP actions run.
+
+For Telegram proposal and poll creation, `created_by` is not model-supplied. The adapter
+binds it to the database member linked to the sender's Telegram ID and rechecks that
+identity when the administrator confirms the action.
+After a confirmed Telegram proposal is saved, the adapter publishes the same proposal
+announcement and voting controls to the configured group/thread as web-created proposals.
+If Telegram rejects that delivery, the confirmation response explicitly reports that the
+proposal was saved but its group notification failed.
+
+Pending mutation confirmations are stored in SQLite by chat and Telegram user. They
+therefore survive application restarts and can be confirmed on a different worker; a
+confirmation is atomically consumed before its MCP mutation executes.
+
 This integration is inspired by Luis Rivera's
 [`ocabra_telegram`](https://github.com/luisriverag/ocabra_telegram) project and adapts
 its OpenAI-compatible conversational pattern to ManaVote's webhook and MCP runtime.

@@ -54,6 +54,20 @@ CREATE TABLE IF NOT EXISTS settings (
     value TEXT
 );
 
+CREATE TABLE IF NOT EXISTS telegram_update_dedup (
+    update_id INTEGER PRIMARY KEY,
+    accepted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS telegram_pending_actions (
+    chat_id INTEGER NOT NULL,
+    telegram_user_id INTEGER NOT NULL,
+    tool_name TEXT NOT NULL,
+    arguments_json TEXT NOT NULL,
+    actor_member_id INTEGER,
+    created_at REAL NOT NULL,
+    PRIMARY KEY (chat_id, telegram_user_id)
+);
+
 CREATE TABLE IF NOT EXISTS polls (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     question TEXT NOT NULL,

@@ -88,7 +88,7 @@ backpressure, Telegram transport, retry behavior, documentation, and focused tes
 
 ### Production blockers and follow-up priorities
 
-1. **Secret-bearing MCP tools and confirmation output (P0)**
+1. **Secret-bearing MCP tools and confirmation output (mitigated 2026-08-26)**
    - `create_member` accepts a password, and the current generic confirmation text can
      echo every tool argument back into Telegram. Do not expose password-bearing tools
      until the assistant has per-field secret classification and redaction.
@@ -96,6 +96,12 @@ backpressure, Telegram transport, retry behavior, documentation, and focused tes
      with a one-time server-generated enrollment flow.
    - Add regression tests proving secrets never enter prompts, history, logs, confirmation
      messages, MCP error text, or Telegram responses.
+   - Progress: `create_member` is excluded from the Telegram tool registry for every
+     actor, including administrators. The registry is now an explicit allowlist, so new
+     MCP tools are denied by default. Confirmation display arguments also redact nested
+     password, secret, token, and API-key fields. Regression tests cover schema,
+     direct-call, and confirmation boundaries; broader log/history controls remain
+     follow-up work.
 
 2. **Shared state for multi-worker/restart safety (P0)**
    - Conversation history, pending confirmations, update deduplication, and queue state
@@ -104,6 +110,10 @@ backpressure, Telegram transport, retry behavior, documentation, and focused tes
    - Either document/enforce a single application worker for the initial release or move
      pending actions and idempotency keys to SQLite/Redis with expiry and atomic consume.
    - Treat mutation idempotency as a database/MCP invariant, not only a webhook cache.
+   - Progress (2026-08-26): webhook update IDs and pending confirmations now use SQLite,
+     are shared by all application workers, and survive restarts. Confirmations are
+     atomically consumed before execution. Conversation history and queue state remain
+     process-local and still require the shared-state work above.
 
 3. **End-to-end natural-language webhook contract (P0)**
    - Existing functional webhook tests exercise deterministic commands and callbacks,
