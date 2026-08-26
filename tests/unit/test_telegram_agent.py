@@ -211,6 +211,46 @@ def test_mutating_tool_waits_for_explicit_confirmation(monkeypatch):
     ]
 
 
+def test_group_command_mention_confirms_pending_action(monkeypatch):
+    monkeypatch.setenv("OCABRA_CHAT_URL", "https://ocabra.example/v1/chat/completions")
+    key = telegram_agent._conversation_key(70, 7)
+    telegram_agent._put_pending(
+        key,
+        telegram_agent.PendingAction(
+            "create_poll", {"question": "Choose?", "options": ["A", "B"]}, actor_member_id=42
+        ),
+    )
+    monkeypatch.setattr(
+        telegram_agent,
+        "_call_mcp",
+        lambda *_args, **_kwargs: '{"poll_id": 9}',
+    )
+
+    reply = telegram_agent.answer(
+        70,
+        "/confirm@manavote_bot",
+        telegram_user_id=7,
+        actor_member_id=42,
+        is_admin=True,
+    )
+
+    assert "create_poll completed" in reply
+    assert "Poll id: 9" in reply
+
+
+def test_group_command_mention_cancels_pending_action(monkeypatch):
+    monkeypatch.setenv("OCABRA_CHAT_URL", "https://ocabra.example/v1/chat/completions")
+    key = telegram_agent._conversation_key(80, 8)
+    telegram_agent._put_pending(key, telegram_agent.PendingAction("create_poll", {}))
+
+    reply = telegram_agent.answer(
+        80, "/cancel@manavote_bot", telegram_user_id=8, is_admin=True
+    )
+
+    assert reply == "✅ Pending action cancelled."
+    assert telegram_agent._get_pending(key) is None
+
+
 def test_create_tool_schemas_bind_creator_to_linked_member():
     tools = telegram_agent._openai_tools(is_admin=True, actor_member_id=42)
     create_tools = {

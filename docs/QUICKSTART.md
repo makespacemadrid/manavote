@@ -114,14 +114,20 @@ message, so account links, unlinks, and administrator-role changes apply immedia
 2. Set `OCABRA_CHAT_URL` to the model server's OpenAI-compatible
    `/v1/chat/completions` endpoint; set `OCABRA_API_KEY` when that server requires it.
 3. Set `OCABRA_MODEL` to a model that supports OpenAI-style function/tool calling.
-4. Link a member by sending `/link <app_username> <app_password>` in a private chat.
+4. To use a forum topic as an always-on assistant conversation, set
+   `TELEGRAM_CHAT_ID` and `TELEGRAM_THREAD_ID` to that supergroup and topic, then
+   disable the bot's group privacy mode with BotFather. Telegram does not deliver
+   ordinary, unmentioned group messages to privacy-enabled bots, so the application
+   cannot respond to messages it never receives. Privacy mode can remain enabled if
+   members will always mention the bot or reply to one of its messages.
+5. Link a member by sending `/link <app_username> <app_password>` in a private chat.
    Never send credentials in a group. ManaVote rejects group-chat link attempts and
    asks Telegram to delete every credential-bearing `/link` message after receipt.
-5. Ask a question such as `What is our current budget?`. The bot displays a temporary
+6. Ask a question such as `What is our current budget?`. The bot displays a temporary
    thinking message and replaces it with the completed response. In a group, mention
    the bot or reply to one of its messages; set `TELEGRAM_BOT_USERNAME` to the bot's
    username for exact mention matching when Telegram privacy mode is disabled.
-6. For an administrator mutation, inspect the proposed arguments and send `/confirm`
+7. For an administrator mutation, inspect the proposed arguments and send `/confirm`
    within the configured TTL, or `/cancel`. Use `/reset` to clear the conversation.
 
 If the bot answers that the assistant is not configured, verify both

@@ -647,10 +647,16 @@ responds when a member addresses it with an `@mention` or replies to one of its
 messages; other group conversation is ignored. Set `TELEGRAM_BOT_USERNAME` so
 mentions can be matched exactly when the bot's Telegram privacy mode is disabled.
 Assistant and command responses stay in the incoming forum topic when
-`message_thread_id` is present.
+`message_thread_id` is present. The forum topic selected by `TELEGRAM_CHAT_ID` and
+`TELEGRAM_THREAD_ID` is treated as a dedicated assistant conversation, so linked
+members can chat there without repeating the bot's `@mention` on every message.
+The bot's group privacy mode must be disabled through BotFather for Telegram to
+deliver those unmentioned messages; with privacy mode enabled, members must still
+mention the bot or reply to one of its messages.
 Mutating tool calls are never executed immediately: the administrator must send
 `/confirm` within `TELEGRAM_CONFIRM_TTL_SECONDS` (default: 300) to execute the
-pending action or `/cancel` to discard it. Conversation
+pending action or `/cancel` to discard it. Telegram's group-chat forms
+`/confirm@botname` and `/cancel@botname` are accepted as the same commands. Conversation
 history and pending confirmations are isolated by both chat and Telegram user, so
 members sharing a group chat do not share assistant state.
 Configured natural-language requests run outside the webhook request thread so
