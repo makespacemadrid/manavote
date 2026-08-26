@@ -37,6 +37,21 @@ class TestTelegramClient(unittest.TestCase):
         self.assertEqual(payload["message_thread_id"], 7)
 
     @patch("app.integrations.telegram_client.requests.post")
+    def test_send_message_anchors_forum_reply_to_incoming_message(self, mock_post):
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {"ok": True}
+        client = TelegramClient("token", "-100123", "7", reply_to_message_id=91)
+
+        self.assertTrue(client.send_message("hello topic"))
+
+        payload = mock_post.call_args.kwargs["json"]
+        self.assertEqual(payload["message_thread_id"], 7)
+        self.assertEqual(
+            payload["reply_parameters"],
+            {"message_id": 91, "allow_sending_without_reply": True},
+        )
+
+    @patch("app.integrations.telegram_client.requests.post")
     def test_delete_message_uses_chat_and_temporary_message_id(self, mock_post):
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = {"ok": True}

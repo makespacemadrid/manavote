@@ -926,6 +926,7 @@ def telegram_webhook(secret):
             TELEGRAM_BOT_TOKEN,
             str(chat_id),
             str(message_ctx.get("message_thread_id") or ""),
+            message_ctx.get("message_id"),
         )
         thinking_message_id = client.send_message_with_id("🤔 Thinking…")
 
@@ -961,6 +962,7 @@ def telegram_webhook(secret):
             TELEGRAM_BOT_TOKEN,
             str(chat_id),
             str(message_ctx.get("message_thread_id") or ""),
+            message_ctx.get("message_id"),
         ).send_message(result["text"])
 
     return {"ok": True}, 200

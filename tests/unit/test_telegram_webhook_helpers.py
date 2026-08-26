@@ -155,6 +155,27 @@ def test_extract_message_context_detects_group_reply_and_topic():
     assert ctx["message_thread_id"] == 7
 
 
+def test_extract_message_context_recovers_topic_from_replied_to_message():
+    ctx = extract_message_context(
+        {
+            "message": {
+                "message_id": 91,
+                "text": "What about the budget?",
+                "from": {"id": 12},
+                "chat": {"id": -100, "type": "supergroup"},
+                "reply_to_message": {
+                    "message_id": 7,
+                    "message_thread_id": 7,
+                    "from": {"id": 99, "is_bot": True},
+                },
+            }
+        }
+    )
+
+    assert ctx["message_thread_id"] == 7
+    assert ctx["reply_to_bot"] is True
+
+
 def test_configured_forum_topic_accepts_unmentioned_messages_only_in_exact_topic():
     context = {"chat_id": -100123, "message_thread_id": 42}
 
