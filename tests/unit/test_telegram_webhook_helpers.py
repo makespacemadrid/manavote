@@ -7,6 +7,7 @@ from app.integrations.telegram_webhook import (
     dispatch_message,
     extract_callback_context,
     extract_message_context,
+    is_natural_language_message,
     link_response_text,
     poll_vote_response_text,
     proposal_vote_response_text,
@@ -90,6 +91,67 @@ def test_extract_message_context_prefers_edited_message_when_message_missing():
     assert ctx["chat_id"] == 999
     assert ctx["chat_type"] == "private"
     assert ctx["message_id"] == 88
+
+
+def test_natural_language_group_message_requires_bot_to_be_addressed():
+    ordinary = {
+        "text": "hello team",
+        "chat_type": "supergroup",
+        "entities": [],
+        "reply_to_bot": False,
+    }
+    mentioned = {
+        **ordinary,
+        "text": "@ManaVoteBot what is our budget?",
+        "entities": [{"type": "mention", "offset": 0, "length": 12}],
+    }
+
+    assert is_natural_language_message(ordinary, "ManaVoteBot") is False
+    assert is_natural_language_message(mentioned, "ManaVoteBot") is True
+    assert is_natural_language_message(
+        {**ordinary, "reply_to_bot": True, "reply_to_bot_username": "ManaVoteBot"},
+        "ManaVoteBot",
+    ) is True
+
+
+def test_natural_language_group_address_uses_utf16_offsets_and_ignores_other_bots():
+    text = "👋 @ManaVoteBot budget?"
+    # Telegram counts the emoji as two UTF-16 code units.
+    mentioned = {
+        "text": text,
+        "chat_type": "group",
+        "entities": [{"type": "mention", "offset": 3, "length": 12}],
+        "reply_to_bot": False,
+    }
+    other_bot_reply = {
+        "text": "budget?",
+        "chat_type": "group",
+        "entities": [],
+        "reply_to_bot": True,
+        "reply_to_bot_username": "DifferentBot",
+    }
+
+    assert is_natural_language_message(mentioned, "ManaVoteBot") is True
+    assert is_natural_language_message(other_bot_reply, "ManaVoteBot") is False
+
+
+def test_extract_message_context_detects_group_reply_and_topic():
+    ctx = extract_message_context(
+        {
+            "message": {
+                "message_id": 90,
+                "message_thread_id": 7,
+                "text": "What about the budget?",
+                "from": {"id": 12},
+                "chat": {"id": -100, "type": "supergroup"},
+                "reply_to_message": {"from": {"id": 99, "is_bot": True}},
+            }
+        }
+    )
+
+    assert ctx["reply_to_bot"] is True
+    assert ctx["reply_to_bot_username"] == ""
+    assert ctx["message_thread_id"] == 7
 
 
 def test_callback_vote_response_text_handles_disabled_reason():

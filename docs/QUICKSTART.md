@@ -69,6 +69,7 @@ visible.
 | `MCP_SERVER_PORT` | `8765` | MCP server port |
 | `APP_DB_PATH` | `<repo>/app.db` | Optional SQLite path override (useful for test isolation) |
 | `TELEGRAM_BOT_TOKEN` | _empty_ | Telegram integration token |
+| `TELEGRAM_BOT_USERNAME` | _empty_ | Bot username used for exact group mention/reply matching |
 | `TELEGRAM_CHAT_ID` | _empty_ | Telegram target chat |
 | `TELEGRAM_THREAD_ID` | _empty_ | Optional Telegram topic/thread id for forum chats |
 | `TELEGRAM_ADMIN_ID` | _empty_ | Optional Telegram user/chat id for poll test messages from admin panel |
@@ -117,7 +118,9 @@ message, so account links, unlinks, and administrator-role changes apply immedia
    Never send credentials in a group. ManaVote rejects group-chat link attempts and
    asks Telegram to delete every credential-bearing `/link` message after receipt.
 5. Ask a question such as `What is our current budget?`. The bot displays a temporary
-   thinking message and replaces it with the completed response.
+   thinking message and replaces it with the completed response. In a group, mention
+   the bot or reply to one of its messages; set `TELEGRAM_BOT_USERNAME` to the bot's
+   username for exact mention matching when Telegram privacy mode is disabled.
 6. For an administrator mutation, inspect the proposed arguments and send `/confirm`
    within the configured TTL, or `/cancel`. Use `/reset` to clear the conversation.
 

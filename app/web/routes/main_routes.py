@@ -35,6 +35,7 @@ from app.integrations.telegram_webhook import (
     dispatch_message,
     extract_callback_context,
     extract_message_context,
+    is_natural_language_message,
     TelegramUpdateDeduplicator,
 )
 from app.repositories.settings_repo import SettingsRepository
@@ -111,6 +112,7 @@ os.makedirs(UPLOAD_FOLDER, exist_ok=True)
 
 
 TELEGRAM_BOT_TOKEN = os.environ.get("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_BOT_USERNAME = os.environ.get("TELEGRAM_BOT_USERNAME", "")
 TELEGRAM_CHAT_ID = os.environ.get("TELEGRAM_CHAT_ID", "")
 TELEGRAM_THREAD_ID = os.environ.get("TELEGRAM_THREAD_ID", "")
 TELEGRAM_ADMIN_ID = os.environ.get("TELEGRAM_ADMIN_ID", "")
@@ -897,6 +899,7 @@ def telegram_webhook(secret):
     # natural-language work is completed outside the request thread.
     if (
         classify_message_command(message_ctx["text"]) == "other"
+        and is_natural_language_message(message_ctx, TELEGRAM_BOT_USERNAME)
         and telegram_agent.is_configured()
         and TELEGRAM_BOT_TOKEN
         and chat_id
@@ -910,7 +913,11 @@ def telegram_webhook(secret):
             # available through their deterministic command paths.
             return {"ok": True}, 200
 
-        client = TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "")
+        client = TelegramClient(
+            TELEGRAM_BOT_TOKEN,
+            str(chat_id),
+            str(message_ctx.get("message_thread_id") or ""),
+        )
         thinking_message_id = client.send_message_with_id("🤔 Thinking…")
 
         def _answer_and_send(ctx):

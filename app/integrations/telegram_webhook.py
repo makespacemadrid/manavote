@@ -81,6 +81,7 @@ def extract_message_context(payload):
     text = (message.get("text") or "").strip()
     from_user = message.get("from") or {}
     chat = message.get("chat") or {}
+    reply_from = (message.get("reply_to_message") or {}).get("from") or {}
     return {
         "text": text,
         "telegram_username": (from_user.get("username") or "").strip(),
@@ -88,7 +89,47 @@ def extract_message_context(payload):
         "chat_id": chat.get("id"),
         "chat_type": chat.get("type") or "",
         "message_id": message.get("message_id"),
+        "message_thread_id": message.get("message_thread_id"),
+        "entities": message.get("entities") or [],
+        "reply_to_bot": bool(reply_from.get("is_bot")),
+        "reply_to_bot_username": (reply_from.get("username") or "").strip(),
     }
+
+
+def _telegram_entity_text(text: str, offset, length) -> str:
+    """Slice an entity using Telegram's UTF-16 code-unit offsets."""
+    try:
+        start = int(offset)
+        size = int(length)
+    except (TypeError, ValueError):
+        return ""
+    if start < 0 or size < 0:
+        return ""
+    encoded = text.encode("utf-16-le")
+    return encoded[start * 2 : (start + size) * 2].decode("utf-16-le", errors="ignore")
+
+
+def is_natural_language_message(message_ctx, bot_username: str = "") -> bool:
+    """Return whether natural chat should handle this private or addressed group message."""
+    if message_ctx.get("chat_type") in {None, "", "private"}:
+        return True
+    text = message_ctx.get("text") or ""
+    normalized_username = bot_username.lstrip("@").casefold()
+    expected_mention = f"@{normalized_username}" if normalized_username else ""
+    if message_ctx.get("reply_to_bot"):
+        reply_username = str(message_ctx.get("reply_to_bot_username") or "").lstrip("@").casefold()
+        if not normalized_username or reply_username == normalized_username:
+            return True
+
+    for entity in message_ctx.get("entities") or []:
+        if entity.get("type") not in {"mention", "bot_command"}:
+            continue
+        value = _telegram_entity_text(text, entity.get("offset"), entity.get("length"))
+        # With Telegram privacy mode, an otherwise unidentified mention delivered
+        # to the bot is addressed to it. A configured username permits an exact check.
+        if not expected_mention or expected_mention in value.casefold():
+            return True
+    return False
 
 
 def classify_message_command(text: str) -> str:
