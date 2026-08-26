@@ -73,6 +73,11 @@ visible.
 | `TELEGRAM_THREAD_ID` | _empty_ | Optional Telegram topic/thread id for forum chats |
 | `TELEGRAM_ADMIN_ID` | _empty_ | Optional Telegram user/chat id for poll test messages from admin panel |
 | `TELEGRAM_WEBHOOK_SECRET` | _empty_ | Secret path segment used by Telegram webhook endpoint for command/inline-button poll voting |
+| `OCABRA_CHAT_URL` | _empty_ | Optional OpenAI-compatible chat-completions URL enabling natural-language Telegram + MCP |
+| `OCABRA_API_KEY` | _empty_ | Optional bearer token for the Ocabra endpoint |
+| `OCABRA_MODEL` | `ocabra` | Model used by the natural-language Telegram assistant |
+| `OCABRA_TIMEOUT_SECONDS` | `60` | Timeout for each model request |
+| `TELEGRAM_CONFIRM_TTL_SECONDS` | `300` | Seconds before a pending mutating MCP action expires |
 | `OIDC_CLIENT_SECRET` | _empty_ | Enables Makespace SSO; confidential value supplied by the Keycloak operator |
 | `OIDC_ISSUER` | Makespace realm URL | Expected `iss` value and provider logout base URL |
 | `OIDC_DISCOVERY_URL` | Makespace discovery URL | Provider endpoints and JWKS metadata |
@@ -96,6 +101,29 @@ You do **not** need to run `/setwebhook` manually in BotFather.
 2. Click **Sync Telegram Webhook** (or save Base URL; the app auto-attempts sync).
 3. Ensure app is reachable via public HTTPS URL.
 4. Keep bot in target chat with required permissions.
+
+Natural-language assistant access does not require a separate Telegram allowlist.
+ManaVote reads linked `members.telegram_user_id` values from the database for each
+message, so account links, unlinks, and administrator-role changes apply immediately.
+
+### Enable natural-language Telegram management
+
+1. Configure `MCP_API_KEY`. `MCP_SERVER_ENABLED` is needed only for external MCP
+   clients; the in-process Telegram integration does not require the network server.
+2. Set `OCABRA_CHAT_URL` to the model server's OpenAI-compatible
+   `/v1/chat/completions` endpoint; set `OCABRA_API_KEY` when that server requires it.
+3. Set `OCABRA_MODEL` to a model that supports OpenAI-style function/tool calling.
+4. Link a member by sending `/link <app_username> <app_password>` in a private chat.
+   Never send credentials in a group. ManaVote rejects group-chat link attempts and
+   asks Telegram to delete every credential-bearing `/link` message after receipt.
+5. Ask a question such as `What is our current budget?`. The bot displays a temporary
+   thinking message and replaces it with the completed response.
+6. For an administrator mutation, inspect the proposed arguments and send `/confirm`
+   within the configured TTL, or `/cancel`. Use `/reset` to clear the conversation.
+
+If the bot answers that the assistant is not configured, verify both
+`OCABRA_CHAT_URL` and `MCP_API_KEY`. If it reports that it is busy, wait for queued
+model requests to finish and retry; webhook retries are deduplicated automatically.
 
 The app configures webhook URL as:
 `https://<base-url>/telegram/webhook/<TELEGRAM_WEBHOOK_SECRET>`

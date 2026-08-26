@@ -46,6 +46,11 @@ Primary modules and responsibilities:
 - `app/repositories/` — DB access helpers.
 - `app/db/` — schema, migrations, and DB connection helper.
 - `app/mcp_server.py` — MCP JSON-RPC server for admin tooling (list/read/create operations).
+- `app/integrations/telegram_agent.py` — OpenAI-compatible conversation loop, MCP tool adapter, per-user history, and confirmed mutation workflow.
+- `app/integrations/bounded_executor.py` — bounded background execution for model work.
+- `app/integrations/telegram_client.py` — Telegram API transport, temporary status messages, callbacks, and long-response chunking.
+- `app/integrations/telegram_webhook.py` — payload extraction, command dispatch, and bounded update-ID deduplication.
+- `app/services/telegram_access_service.py` — live Telegram-ID allowlist and administrator principal lookup.
 - `templates/` — server-rendered HTML and accessible pre-hydration markup (Jinja2).
 - `frontend/src/` — React application-shell components, hydration entry point, and source styles.
 - `static/react/` — Flask-served frontend assets; development fallbacks are replaced by the Vite production build.
@@ -254,7 +259,7 @@ Committed series behavior:
 - `POST /unpurchase/<proposal_id>`
 
 ### Telegram integration
-- `POST /telegram/webhook/<secret>` receives Telegram updates and processes `/vote` commands, `/link <app_username> <app_password>` account-linking commands, and inline-button `callback_query` votes.
+- `POST /telegram/webhook/<secret>` receives Telegram updates and processes `/vote`, `/pvote`, `/link <app_username> <app_password>`, `/help`, and `/reset`, inline-button callbacks, and optional natural-language messages.
 - Poll inline callbacks:
   - `showvote:<poll_id>` expands message keyboard to option buttons.
   - `pollvote:<poll_id>:<option_index>` records vote.
@@ -263,6 +268,21 @@ Committed series behavior:
 - If no linked member is found but Telegram provides numeric user id, vote is stored under a deterministic negative `member_id` placeholder (`-telegram_user_id`) so one Telegram user still maps to one vote.
 - Optional strict mode: when `telegram_require_linked_vote=true`, Telegram votes require a linked account match and unlinked users are instructed to run `/link <app_username> <app_password>`.
 - Telegram client calls are considered successful only when HTTP status is `200` and Telegram API responds with `"ok": true` (when JSON is returned).
+- Recent numeric Telegram `update_id` values are retained in a bounded, thread-safe cache; retries are acknowledged without repeating commands, votes, model calls, or MCP actions.
+
+#### Natural-language assistant flow
+
+1. Natural-language handling is enabled only when `OCABRA_CHAT_URL` and `MCP_API_KEY` are configured.
+2. The sender's numeric Telegram ID is resolved from `members.telegram_user_id` for every message. Unknown IDs are ignored before worker admission; link/unlink and admin changes therefore apply immediately.
+3. The bot posts `🤔 Thinking…`, then submits the model request to a four-worker queue with at most 32 pending requests. Saturated queues return a retry message rather than growing without bound.
+4. The OpenAI-compatible model receives MCP function schemas. Members receive proposal, budget, and voting-setting read tools; administrators receive the complete MCP tool set.
+5. Read tools execute in-process through the MCP JSON-RPC handler. Mutating tools create a per-chat/per-user pending action instead of executing immediately.
+6. A linked administrator must send `/confirm` before `TELEGRAM_CONFIRM_TTL_SECONDS` expires; `/cancel` discards it. `/reset` clears that user's history and pending action.
+7. The final answer is split into chunks of at most 3900 characters. The temporary thinking message is deleted after delivery or worker failure.
+
+Assistant history, pending confirmations, update deduplication, and the worker queue are
+process-local and intentionally bounded. Deployments with multiple application workers
+do not share conversational history; database authorization and MCP data remain shared.
 
 ### Admin web actions
 - `GET|POST /admin` (includes timezone selector, member management, budget controls, and poll actions)

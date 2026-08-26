@@ -1,5 +1,35 @@
 """Telegram webhook payload helpers."""
 
+import threading
+from collections import OrderedDict
+
+
+class TelegramUpdateDeduplicator:
+    """Bounded, thread-safe memory of recently accepted Telegram update IDs."""
+
+    def __init__(self, capacity: int = 2048):
+        if capacity < 1:
+            raise ValueError("capacity must be positive")
+        self._capacity = capacity
+        self._seen: OrderedDict[int, None] = OrderedDict()
+        self._lock = threading.Lock()
+
+    def accept(self, update_id) -> bool:
+        """Return false for a duplicate; payloads without IDs remain processable."""
+        if update_id is None:
+            return True
+        try:
+            normalized_id = int(update_id)
+        except (TypeError, ValueError):
+            return False
+        with self._lock:
+            if normalized_id in self._seen:
+                return False
+            self._seen[normalized_id] = None
+            if len(self._seen) > self._capacity:
+                self._seen.popitem(last=False)
+        return True
+
 
 def extract_callback_context(payload):
     callback_query = payload.get("callback_query") or {}
@@ -21,11 +51,14 @@ def extract_message_context(payload):
     message = payload.get("message") or payload.get("edited_message") or {}
     text = (message.get("text") or "").strip()
     from_user = message.get("from") or {}
+    chat = message.get("chat") or {}
     return {
         "text": text,
         "telegram_username": (from_user.get("username") or "").strip(),
         "telegram_user_id": from_user.get("id"),
-        "chat_id": message.get("chat", {}).get("id"),
+        "chat_id": chat.get("id"),
+        "chat_type": chat.get("type") or "",
+        "message_id": message.get("message_id"),
     }
 
 
@@ -41,6 +74,8 @@ def classify_message_command(text: str) -> str:
         return "poll_vote"
     if command in {"/start", "/help"}:
         return "help"
+    if command == "/reset":
+        return "reset"
     return "other"
 
 
@@ -140,6 +175,8 @@ def dispatch_message(
     process_link_command,
     process_proposal_vote_command,
     process_poll_vote_command,
+    process_natural_language=None,
+    process_reset=None,
 ):
     """Dispatch plain-message commands and return transport-agnostic action."""
     text = message_ctx["text"]
@@ -150,12 +187,23 @@ def dispatch_message(
             "text": (
                 "👋 ManaVote bot is running.\n\n"
                 "Link your account in a private chat with:\n"
-                "/link <app_username> <app_password>"
+                "/link <app_username> <app_password>\n\n"
+                "Once linked, you can ask questions in natural language when the assistant is configured.\n"
+                "Use /reset to clear your assistant conversation."
             ),
         }
+    if command_type == "reset":
+        if process_reset is not None:
+            process_reset(message_ctx)
+        return {"kind": "send_message", "text": "✅ Assistant conversation cleared."}
     if command_type == "link":
         if message_ctx["telegram_user_id"] is None:
             return {"kind": "noop"}
+        if message_ctx.get("chat_type") not in {None, "", "private"}:
+            return {
+                "kind": "send_message",
+                "text": "🔒 For your security, use /link only in a private chat with this bot.",
+            }
         success, reason = process_link_command(
             message_ctx["telegram_username"], message_ctx["telegram_user_id"], text
         )
@@ -172,4 +220,6 @@ def dispatch_message(
             message_ctx["telegram_username"], text, message_ctx["telegram_user_id"]
         )
         return {"kind": "send_message", "text": poll_vote_response_text(success, reason)}
+    if process_natural_language is not None and text:
+        return {"kind": "send_message", "text": process_natural_language(message_ctx)}
     return {"kind": "noop"}

@@ -1,6 +1,6 @@
 # IDEAS — Forward Roadmap
 
-Last updated: 2026-08-25
+Last updated: 2026-08-26
 
 This document captures **forward-looking** product and engineering initiatives only.
 Execution sequencing and status tracking belong in [`SPRINTS.md`](SPRINTS.md).
@@ -63,6 +63,94 @@ rechecking the previously audited Telegram-link parity paths.
 6. **Statistics privacy and authorization review (P2)**
    - User statistics expose member email addresses to API/MCP administrators.
    - Document the operator need for that field, consider an `include_email` opt-in defaulting to false, and add an authorization regression test before expanding the statistics surface.
+
+## Telegram natural-language + MCP audit (2026-08-26)
+
+Audit scope covered the complete assistant branch: webhook admission, database-backed
+identity, model/tool orchestration, MCP authorization, mutation confirmation, worker
+backpressure, Telegram transport, retry behavior, documentation, and focused tests.
+
+### Confirmed strengths
+- Telegram identity and administrator status are read from `members.telegram_user_id`
+  for every natural-language request, so link/unlink and role changes do not require a restart.
+- Ordinary members receive only proposal, budget, and voting-setting tools; sensitive
+  statistics, Telegram-link records, and all mutations remain administrator-only.
+- Mutations require a separate `/confirm`, are isolated by chat and user, expire after
+  a bounded TTL, and can be discarded with `/cancel` or `/reset`.
+- Model work has bounded active/pending capacity, long answers respect Telegram limits,
+  and users receive a temporary thinking status while work runs.
+- Telegram webhook retries are deduplicated before commands, votes, model calls, and
+  MCP actions; deduplication memory is bounded.
+- Focused tests cover the agent, access lookup, executor, webhook helpers, and Telegram
+  client. Setup, architecture, operations, and test commands are documented.
+- Luis Rivera and `ocabra_telegram` are credited in the README, API documentation, and
+  agent module.
+
+### Production blockers and follow-up priorities
+
+1. **Secret-bearing MCP tools and confirmation output (P0)**
+   - `create_member` accepts a password, and the current generic confirmation text can
+     echo every tool argument back into Telegram. Do not expose password-bearing tools
+     until the assistant has per-field secret classification and redaction.
+   - Prefer excluding `create_member` from Telegram entirely, or replace password input
+     with a one-time server-generated enrollment flow.
+   - Add regression tests proving secrets never enter prompts, history, logs, confirmation
+     messages, MCP error text, or Telegram responses.
+
+2. **Shared state for multi-worker/restart safety (P0)**
+   - Conversation history, pending confirmations, update deduplication, and queue state
+     are process-local. Multiple WSGI workers can route `/confirm` to a process that does
+     not own the pending action; restarts lose confirmations and retry memory.
+   - Either document/enforce a single application worker for the initial release or move
+     pending actions and idempotency keys to SQLite/Redis with expiry and atomic consume.
+   - Treat mutation idempotency as a database/MCP invariant, not only a webhook cache.
+
+3. **End-to-end natural-language webhook contract (P0)**
+   - Existing functional webhook tests exercise deterministic commands and callbacks,
+     while model/Telegram lifecycle pieces are primarily unit-tested.
+   - Add a Flask-level test covering linked and unlinked senders, thinking-message create
+     and delete, tool call, final chunk delivery, duplicate `update_id`, and queue-full UX.
+   - Add an administrator test spanning proposed mutation → `/confirm` → one MCP write,
+     including role removal between proposal and confirmation.
+
+4. **Public MCP application boundary (P1)**
+   - The assistant currently consumes the private `_tool_definitions()` helper and calls
+     the JSON-RPC request handler in-process with the server API key.
+   - Introduce a public MCP tool registry/application service that both transports and
+     the Telegram adapter call. Keep authentication at transport boundaries and actor
+     authorization in the application layer.
+   - Move per-tool Telegram policy next to tool metadata so new MCP tools are denied by
+     default until explicitly classified as member-read, admin-read, or confirmed-write.
+
+5. **Background-job observability and lifecycle (P1)**
+   - Attach `update_id`, chat ID, actor member ID, tool name, queue wait, model latency,
+     MCP latency, delivery result, and stable reason codes to structured logs.
+   - Observe completed futures so unexpected worker exceptions cannot remain silent.
+   - Add graceful executor shutdown and counters for active, queued, rejected, failed,
+     cancelled, and completed requests without logging prompts or secrets.
+
+6. **Fair-use limits and cancellation (P1)**
+   - The global bounded queue protects memory but one linked user can consume all slots.
+   - Add per-user concurrency/rate limits, maximum input/history token budgets, and a
+     clear cooldown response. Consider queue fairness across chats.
+   - Let `/cancel` cancel queued/running model work as well as pending mutations where
+     the HTTP client and executor can do so safely.
+
+7. **Confirmation integrity and auditability (P1)**
+   - Store an immutable/deep-copied action envelope with actor member ID, tool schema
+     version, redacted display arguments, expiry, and a digest of execution arguments.
+   - Revalidate linkage, administrator role, tool availability, and arguments at confirm
+     time, then atomically consume the action before executing it.
+   - Emit a reason-coded audit record for proposed, cancelled, expired, rejected, failed,
+     and completed mutations.
+
+8. **Conversation quality and operator controls (P2)**
+   - Add explicit token budgeting and model-context truncation rather than message-count
+     truncation alone; publish model/timeout/queue health in admin diagnostics.
+   - Evaluate Telegram `sendChatAction(typing)` or editing the temporary status message
+     for smoother UX, with localization for assistant-owned deterministic messages.
+   - Add opt-in, privacy-reviewed durable history only if a concrete member workflow
+     requires it; keep the default ephemeral and document retention clearly.
 
 ## WS-A — Architecture Refactor (P0)
 

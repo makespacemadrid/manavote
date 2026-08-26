@@ -8,7 +8,24 @@ from app.integrations.telegram_webhook import (
     link_response_text,
     poll_vote_response_text,
     proposal_vote_response_text,
+    TelegramUpdateDeduplicator,
 )
+
+
+def test_update_deduplicator_rejects_retries_and_evicts_old_ids():
+    deduplicator = TelegramUpdateDeduplicator(capacity=2)
+    assert deduplicator.accept(10) is True
+    assert deduplicator.accept("10") is False
+    assert deduplicator.accept(11) is True
+    assert deduplicator.accept(12) is True
+    assert deduplicator.accept(10) is True
+
+
+def test_update_deduplicator_allows_missing_ids_but_rejects_malformed_ids():
+    deduplicator = TelegramUpdateDeduplicator()
+    assert deduplicator.accept(None) is True
+    assert deduplicator.accept(None) is True
+    assert deduplicator.accept("invalid") is False
 
 
 def test_extract_callback_context_parses_callback_payload():
@@ -34,9 +51,10 @@ def test_extract_callback_context_parses_callback_payload():
 def test_extract_message_context_prefers_edited_message_when_message_missing():
     payload = {
         "edited_message": {
+            "message_id": 88,
             "text": " /pvote 3 yes ",
             "from": {"id": 12, "username": "bob"},
-            "chat": {"id": 999},
+            "chat": {"id": 999, "type": "private"},
         }
     }
     ctx = extract_message_context(payload)
@@ -44,6 +62,8 @@ def test_extract_message_context_prefers_edited_message_when_message_missing():
     assert ctx["telegram_username"] == "bob"
     assert ctx["telegram_user_id"] == 12
     assert ctx["chat_id"] == 999
+    assert ctx["chat_type"] == "private"
+    assert ctx["message_id"] == 88
 
 
 def test_callback_vote_response_text_handles_disabled_reason():
@@ -81,6 +101,7 @@ def test_classify_message_command_routes_supported_commands():
     assert classify_message_command("/pvote 1 yes") == "proposal_vote"
     assert classify_message_command("/vote 1 2") == "poll_vote"
     assert classify_message_command("hello") == "other"
+    assert classify_message_command("/reset") == "reset"
 
 
 def test_classify_message_command_accepts_group_mentions_but_not_prefixes():
@@ -100,6 +121,39 @@ def test_dispatch_message_answers_start_as_bot_health_check():
     assert result["kind"] == "send_message"
     assert "ManaVote bot is running" in result["text"]
     assert "/link <app_username> <app_password>" in result["text"]
+
+
+def test_dispatch_message_resets_natural_language_conversation():
+    reset_contexts = []
+    context = {"text": "/reset", "telegram_username": "alice", "telegram_user_id": 5, "chat_id": 1}
+    result = dispatch_message(
+        context,
+        process_link_command=lambda *_: (False, "unused"),
+        process_proposal_vote_command=lambda *_: (False, "unused"),
+        process_poll_vote_command=lambda *_: (False, "unused"),
+        process_reset=reset_contexts.append,
+    )
+    assert result == {"kind": "send_message", "text": "✅ Assistant conversation cleared."}
+    assert reset_contexts == [context]
+
+
+def test_dispatch_message_rejects_link_credentials_in_group_chat():
+    link_calls = []
+    result = dispatch_message(
+        {
+            "text": "/link alice secret",
+            "telegram_username": "alice",
+            "telegram_user_id": 5,
+            "chat_id": -100,
+            "chat_type": "supergroup",
+            "message_id": 10,
+        },
+        process_link_command=lambda *args: link_calls.append(args) or (True, "ok"),
+        process_proposal_vote_command=lambda *_: (False, "unused"),
+        process_poll_vote_command=lambda *_: (False, "unused"),
+    )
+    assert "private chat" in result["text"]
+    assert link_calls == []
 
 
 def test_callback_and_poll_vote_share_reason_mappings():

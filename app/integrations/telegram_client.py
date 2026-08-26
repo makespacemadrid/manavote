@@ -3,6 +3,8 @@ from requests import RequestException
 
 
 class TelegramClient:
+    MESSAGE_CHUNK_SIZE = 3900
+
     def __init__(self, bot_token: str, chat_id: str, thread_id: str = ""):
         self.bot_token = bot_token
         self.chat_id = chat_id
@@ -28,6 +30,66 @@ class TelegramClient:
             return self._telegram_ok(url, payload)
         except RequestException:
             return False
+
+    def send_message_with_id(self, message: str) -> int | None:
+        """Send a message and return its Telegram message ID when available."""
+        if not self.bot_token or not self.chat_id:
+            return None
+        url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
+        payload = {"chat_id": self.chat_id, "text": message}
+        thread_id = self._thread_id()
+        if thread_id is not None:
+            payload["message_thread_id"] = thread_id
+        try:
+            response = requests.post(url, json=payload, timeout=10)
+            if response.status_code != 200:
+                return None
+            body = response.json()
+            if not body.get("ok"):
+                return None
+            message_id = (body.get("result") or {}).get("message_id")
+            return int(message_id) if message_id is not None else None
+        except (RequestException, TypeError, ValueError):
+            return None
+
+    def delete_message(self, message_id: int | None) -> bool:
+        """Delete a previously sent message, if Telegram returned an ID for it."""
+        if not self.bot_token or not self.chat_id or message_id is None:
+            return False
+        url = f"https://api.telegram.org/bot{self.bot_token}/deleteMessage"
+        try:
+            return self._telegram_ok(
+                url,
+                {"chat_id": self.chat_id, "message_id": int(message_id)},
+            )
+        except (RequestException, TypeError, ValueError):
+            return False
+
+    @classmethod
+    def _message_chunks(cls, message: str) -> list[str]:
+        """Split text below Telegram's limit, preferring readable boundaries."""
+        remaining = str(message or "")
+        if not remaining:
+            return []
+        chunks = []
+        while len(remaining) > cls.MESSAGE_CHUNK_SIZE:
+            boundary = remaining.rfind("\n", 0, cls.MESSAGE_CHUNK_SIZE + 1)
+            if boundary < cls.MESSAGE_CHUNK_SIZE // 2:
+                boundary = remaining.rfind(" ", 0, cls.MESSAGE_CHUNK_SIZE + 1)
+            if boundary < cls.MESSAGE_CHUNK_SIZE // 2:
+                boundary = cls.MESSAGE_CHUNK_SIZE
+            chunks.append(remaining[:boundary].rstrip())
+            remaining = remaining[boundary:].lstrip()
+        if remaining:
+            chunks.append(remaining)
+        return chunks
+
+    def send_long_message(self, message: str) -> bool:
+        """Send every chunk of a potentially long assistant response."""
+        chunks = self._message_chunks(message)
+        if not chunks:
+            return False
+        return all(self.send_message(chunk) for chunk in chunks)
 
     def send_poll_message(self, message: str, poll_id: int, options: list[str]) -> bool:
         if not self.bot_token or not self.chat_id:

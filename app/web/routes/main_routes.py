@@ -27,11 +27,15 @@ from app.extensions import limiter, csrf
 from app.db.connection import get_db as repo_get_db, set_db_path
 from app.db.migrations import run_migrations
 from app.integrations.telegram_client import TelegramClient
+from app.integrations.bounded_executor import BoundedExecutor
+from app.integrations import telegram_agent
 from app.integrations.telegram_webhook import (
+    classify_message_command,
     dispatch_callback,
     dispatch_message,
     extract_callback_context,
     extract_message_context,
+    TelegramUpdateDeduplicator,
 )
 from app.repositories.settings_repo import SettingsRepository
 from app.repositories.vote_repo import VoteRepository
@@ -42,6 +46,7 @@ from app.web.routes.helpers.admin_audit_helpers import log_admin_backup_event, l
 from app.services.proposal_vote_service import can_record_proposal_vote_source, normalize_proposal_vote_mode
 from app.services.settings_service import get_enum_setting
 from app.services.telegram_link_service import process_link_command, unlink_member_telegram
+from app.services.telegram_access_service import get_telegram_principal
 from app.web.app_setup import app, BASE_DIR, is_production
 from app.web.decorators import login_required, admin_required
 from app.web.routes.helpers.main_helpers import (
@@ -56,6 +61,14 @@ import markdown
 import warnings
 import json
 import time
+
+
+_telegram_agent_executor = BoundedExecutor(
+    max_workers=4,
+    max_pending=32,
+    thread_name_prefix="telegram-agent",
+)
+_telegram_update_deduplicator = TelegramUpdateDeduplicator()
 
 
 @app.template_filter("username")
@@ -773,6 +786,10 @@ def telegram_webhook(secret):
         return {"ok": False}, 403
 
     payload = request.get_json(silent=True) or {}
+    if not _telegram_update_deduplicator.accept(payload.get("update_id")):
+        # Telegram retries webhook deliveries when acknowledgements are delayed.
+        # Acknowledge duplicates without repeating votes, model calls, or MCP work.
+        return {"ok": True}, 200
     callback_ctx = extract_callback_context(payload)
     if callback_ctx:
         def _load_open_poll_options(poll_id):
@@ -816,11 +833,80 @@ def telegram_webhook(secret):
     if not message_ctx["text"]:
         return {"ok": True}, 200
 
+    # /link contains an application password. Remove the command message as soon
+    # as possible (when Telegram permissions allow it), regardless of whether
+    # credentials are valid. Linking itself is restricted to private chats below.
+    if (
+        classify_message_command(message_ctx["text"]) == "link"
+        and TELEGRAM_BOT_TOKEN
+        and chat_id
+        and message_ctx.get("message_id") is not None
+    ):
+        TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "").delete_message(
+            message_ctx["message_id"]
+        )
+
+    def _natural_language_reply(ctx, principal=None):
+        if not telegram_agent.is_configured():
+            return "Natural-language assistance is not configured. Use /help for available commands."
+        principal = principal or get_telegram_principal(get_db, ctx["telegram_user_id"])
+        if principal is None:
+            return "❌ Link your account first with /link <app_username> <app_password>."
+        try:
+            return telegram_agent.answer(
+                int(ctx["chat_id"]),
+                ctx["text"],
+                telegram_user_id=principal.telegram_user_id,
+                is_admin=principal.is_admin,
+            )
+        except (requests.RequestException, RuntimeError, KeyError, IndexError, ValueError) as exc:
+            app.logger.warning("Telegram natural-language request failed: %s", exc)
+            return "❌ I couldn't contact the ManaVote assistant. Please try again later."
+
+    # Telegram expects webhooks to acknowledge updates quickly. Ocabra may take
+    # several seconds (and may perform multiple MCP rounds), so configured
+    # natural-language work is completed outside the request thread.
+    if (
+        classify_message_command(message_ctx["text"]) == "other"
+        and telegram_agent.is_configured()
+        and TELEGRAM_BOT_TOKEN
+        and chat_id
+    ):
+        # Refresh the allowlist for every update so link/unlink and admin-role
+        # changes take effect without a process restart.
+        principal = get_telegram_principal(get_db, message_ctx["telegram_user_id"])
+        if principal is None:
+            # Do not enqueue model work or reveal assistant behavior to senders
+            # outside the database-backed allowlist. /help and /link remain
+            # available through their deterministic command paths.
+            return {"ok": True}, 200
+
+        client = TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "")
+        thinking_message_id = client.send_message_with_id("🤔 Thinking…")
+
+        def _answer_and_send(ctx):
+            try:
+                reply = _natural_language_reply(ctx, principal=principal)
+                client.send_long_message(reply)
+            finally:
+                client.delete_message(thinking_message_id)
+
+        future = _telegram_agent_executor.submit(_answer_and_send, dict(message_ctx))
+        if future is None:
+            app.logger.warning("Telegram assistant queue is full; dropping natural-language update")
+            client.delete_message(thinking_message_id)
+            client.send_message("⏳ The assistant is busy right now. Please try again shortly.")
+        return {"ok": True}, 200
+
     result = dispatch_message(
         message_ctx,
         process_link_command=process_telegram_link_command,
         process_proposal_vote_command=process_telegram_proposal_vote_command,
         process_poll_vote_command=process_telegram_vote_command,
+        process_natural_language=_natural_language_reply,
+        process_reset=lambda ctx: telegram_agent.reset(
+            int(ctx["chat_id"]), ctx["telegram_user_id"]
+        ),
     )
     if TELEGRAM_BOT_TOKEN and chat_id and result["kind"] == "send_message":
         TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), "").send_message(result["text"])

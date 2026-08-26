@@ -114,6 +114,45 @@ Telegram link-service unit coverage:
 - `/link` success-path linkage persistence
 - duplicate `telegram_user_id` rejection (`already_linked`)
 
+## Natural-language Telegram + MCP checks
+
+Run the complete focused pack for the assistant branch:
+
+```bash
+pytest -q \
+  tests/unit/test_telegram_agent.py \
+  tests/unit/test_telegram_access_service.py \
+  tests/unit/test_bounded_executor.py \
+  tests/unit/test_telegram_webhook_helpers.py \
+  tests/test_telegram_client.py
+pytest -q tests/test_app_functionality.py -k telegram_webhook
+```
+
+Coverage is split by responsibility:
+
+- `tests/unit/test_telegram_agent.py`
+  - member/admin MCP tool visibility and sensitive read-tool restrictions
+  - OpenAI-compatible tool-call/result round trips
+  - explicit `/confirm` and `/cancel`, confirmation expiry, and MCP error formatting
+  - per-chat/per-user pending-action isolation and invalid tool arguments
+- `tests/unit/test_telegram_access_service.py`
+  - live allowlist construction from `members.telegram_user_id`
+  - linked administrator resolution, invalid IDs, and link changes without restart
+- `tests/unit/test_bounded_executor.py`
+  - active+pending capacity, full-queue rejection, and capacity release
+- `tests/unit/test_telegram_webhook_helpers.py`
+  - Telegram `update_id` retry deduplication and bounded eviction
+  - `/reset`, deterministic vote/link command dispatch, and callback parsing
+- `tests/test_telegram_client.py`
+  - Telegram `ok` response handling, long-message chunking, and fail-fast delivery
+  - temporary thinking-message ID capture, topic propagation, and deletion
+- `tests/test_app_functionality.py -k telegram_webhook`
+  - authenticated Flask webhook routes, proposal/poll commands, callbacks, linking,
+    edited messages, strict linked-vote policy, and malformed requests
+
+No live Ocabra or Telegram credentials are required for this pack. HTTP/model calls
+are mocked; use an explicitly configured test bot only for optional manual smoke tests.
+
 ## Poll auto-close + Telegram result message checks
 
 ```bash
