@@ -13,6 +13,7 @@ services:
     volumes:
       - app_data:/data
       - uploads_data:/app/static/uploads
+      - backups_data:/app/backups
     ports:
       - "45000:45000"
       - "8765:8765"
@@ -27,3 +28,4 @@ services:
 volumes:
   app_data:
   uploads_data:
+  backups_data:
