@@ -5,12 +5,13 @@ from collections import OrderedDict
 
 
 class TelegramUpdateDeduplicator:
-    """Bounded, thread-safe memory of recently accepted Telegram update IDs."""
+    """Bounded update-ID store, optionally shared through the application database."""
 
-    def __init__(self, capacity: int = 2048):
+    def __init__(self, capacity: int = 2048, connection_factory=None):
         if capacity < 1:
             raise ValueError("capacity must be positive")
         self._capacity = capacity
+        self._connection_factory = connection_factory
         self._seen: OrderedDict[int, None] = OrderedDict()
         self._lock = threading.Lock()
 
@@ -22,6 +23,8 @@ class TelegramUpdateDeduplicator:
             normalized_id = int(update_id)
         except (TypeError, ValueError):
             return False
+        if self._connection_factory is not None:
+            return self._accept_shared(normalized_id)
         with self._lock:
             if normalized_id in self._seen:
                 return False
@@ -29,6 +32,32 @@ class TelegramUpdateDeduplicator:
             if len(self._seen) > self._capacity:
                 self._seen.popitem(last=False)
         return True
+
+    def _accept_shared(self, update_id: int) -> bool:
+        """Atomically claim an update ID so retries cannot cross worker boundaries."""
+        conn = self._connection_factory()
+        try:
+            cursor = conn.execute(
+                "INSERT OR IGNORE INTO telegram_update_dedup (update_id) VALUES (?)",
+                (update_id,),
+            )
+            accepted = cursor.rowcount == 1
+            if accepted:
+                conn.execute(
+                    """
+                    DELETE FROM telegram_update_dedup
+                    WHERE update_id IN (
+                        SELECT update_id FROM telegram_update_dedup
+                        ORDER BY accepted_at DESC, update_id DESC
+                        LIMIT -1 OFFSET ?
+                    )
+                    """,
+                    (self._capacity,),
+                )
+            conn.commit()
+            return accepted
+        finally:
+            conn.close()
 
 
 def extract_callback_context(payload):

@@ -1,3 +1,5 @@
+import sqlite3
+
 from app.integrations.telegram_webhook import (
     callback_vote_response_text,
     classify_message_command,
@@ -26,6 +28,30 @@ def test_update_deduplicator_allows_missing_ids_but_rejects_malformed_ids():
     assert deduplicator.accept(None) is True
     assert deduplicator.accept(None) is True
     assert deduplicator.accept("invalid") is False
+
+
+def test_update_deduplicator_shares_claims_across_workers(tmp_path):
+    db_path = tmp_path / "updates.db"
+
+    def connect():
+        return sqlite3.connect(db_path)
+
+    conn = connect()
+    conn.execute(
+        "CREATE TABLE telegram_update_dedup ("
+        "update_id INTEGER PRIMARY KEY, accepted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP)"
+    )
+    conn.commit()
+    conn.close()
+
+    worker_a = TelegramUpdateDeduplicator(capacity=2, connection_factory=connect)
+    worker_b = TelegramUpdateDeduplicator(capacity=2, connection_factory=connect)
+
+    assert worker_a.accept(20) is True
+    assert worker_b.accept(20) is False
+    assert worker_b.accept(21) is True
+    assert worker_a.accept(22) is True
+    assert worker_b.accept(20) is True
 
 
 def test_extract_callback_context_parses_callback_payload():

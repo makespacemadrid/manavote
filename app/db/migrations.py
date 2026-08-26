@@ -14,6 +14,23 @@ def add_column_if_missing(cursor, table_name, ddl):
 
 def run_migrations(cursor):
     cursor.execute("""
+    CREATE TABLE IF NOT EXISTS telegram_pending_actions (
+        chat_id INTEGER NOT NULL,
+        telegram_user_id INTEGER NOT NULL,
+        tool_name TEXT NOT NULL,
+        arguments_json TEXT NOT NULL,
+        actor_member_id INTEGER,
+        created_at REAL NOT NULL,
+        PRIMARY KEY (chat_id, telegram_user_id)
+    )
+    """)
+    cursor.execute("""
+    CREATE TABLE IF NOT EXISTS telegram_update_dedup (
+        update_id INTEGER PRIMARY KEY,
+        accepted_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )
+    """)
+    cursor.execute("""
     CREATE TABLE IF NOT EXISTS group_purchases (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,

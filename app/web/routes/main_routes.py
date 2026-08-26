@@ -68,7 +68,10 @@ _telegram_agent_executor = BoundedExecutor(
     max_pending=32,
     thread_name_prefix="telegram-agent",
 )
-_telegram_update_deduplicator = TelegramUpdateDeduplicator()
+_telegram_update_deduplicator = TelegramUpdateDeduplicator(
+    connection_factory=lambda: get_db()
+)
+telegram_agent.configure_pending_action_store(lambda: get_db())
 
 
 @app.template_filter("username")
@@ -852,12 +855,38 @@ def telegram_webhook(secret):
         principal = principal or get_telegram_principal(get_db, ctx["telegram_user_id"])
         if principal is None:
             return "❌ Link your account first with /link <app_username> <app_password>."
+
+        def _notify_created_proposal(proposal_id, arguments):
+            conn = get_db()
+            try:
+                row = conn.execute(
+                    "SELECT username FROM members WHERE id = ?", (principal.member_id,)
+                ).fetchone()
+            finally:
+                conn.close()
+            creator = row["username"].split("@")[0] if row else "Unknown member"
+            title = str(arguments.get("title") or "Untitled proposal")
+            description = str(arguments.get("description") or "")
+            amount = arguments.get("amount")
+            proposal_url = str(arguments.get("url") or "")
+            message = (
+                f"*{title}*\n\n🆕 New proposal\nBy: {creator}\nAmount: €{amount}\n\n"
+                f"{description[:200]}{'...' if len(description) > 200 else ''}\n\n"
+                f"👉 {proposal_url or 'No link'}\n🔗 {get_base_url().rstrip('/')}/proposal/{proposal_id}"
+            )
+            client = TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_THREAD_ID)
+            if can_record_proposal_vote("telegram"):
+                return client.send_proposal_vote_message(message, proposal_id)
+            return client.send_message(message)
+
         try:
             return telegram_agent.answer(
                 int(ctx["chat_id"]),
                 ctx["text"],
                 telegram_user_id=principal.telegram_user_id,
+                actor_member_id=principal.member_id,
                 is_admin=principal.is_admin,
+                on_proposal_created=_notify_created_proposal,
             )
         except (requests.RequestException, RuntimeError, KeyError, IndexError, ValueError) as exc:
             app.logger.warning("Telegram natural-language request failed: %s", exc)

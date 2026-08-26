@@ -1,6 +1,16 @@
 import json
+import sqlite3
+
+import pytest
 
 from app.integrations import telegram_agent
+
+
+@pytest.fixture(autouse=True)
+def use_in_memory_pending_actions():
+    telegram_agent.configure_pending_action_store(None)
+    yield
+    telegram_agent.configure_pending_action_store(None)
 
 
 class FakeResponse:
@@ -20,6 +30,86 @@ def test_non_admin_tools_are_read_only():
     assert "create_member" not in names
     assert "list_member_telegram_links" not in names
     assert "list_user_statistics" not in names
+
+
+def test_admin_tools_exclude_password_bearing_member_creation():
+    tools = telegram_agent._openai_tools(is_admin=True)
+    names = {tool["function"]["name"] for tool in tools}
+
+    assert names == telegram_agent.TELEGRAM_TOOLS
+    assert "create_member" not in names
+    assert all("password" not in json.dumps(tool).lower() for tool in tools)
+
+
+def test_password_bearing_tool_is_denied_before_mcp_call(monkeypatch):
+    monkeypatch.setattr(
+        telegram_agent.mcp_server,
+        "handle_request",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("MCP should not be called")),
+    )
+
+    result = json.loads(
+        telegram_agent._call_mcp(
+            "create_member",
+            {"username": "member", "password": "do-not-leak"},
+            is_admin=True,
+        )
+    )
+
+    assert result == {"error": "This Telegram account may not use that tool."}
+    assert "do-not-leak" not in json.dumps(result)
+
+
+def test_confirmation_redacts_unexpected_nested_secret_arguments():
+    action = telegram_agent.PendingAction(
+        "create_poll",
+        {
+            "question": "Choose?",
+            "metadata": {"access_token": "hidden-token", "label": "safe"},
+            "options": [{"api_key": "hidden-key"}],
+        },
+    )
+
+    text = telegram_agent._confirmation_text(action)
+
+    assert "hidden-token" not in text
+    assert "hidden-key" not in text
+    assert text.count("[REDACTED]") == 2
+    assert '"label": "safe"' in text
+
+
+def test_pending_actions_survive_worker_instances_and_are_consumed_atomically(tmp_path):
+    db_path = tmp_path / "pending.db"
+
+    def connect():
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    conn = connect()
+    conn.execute(
+        """
+        CREATE TABLE telegram_pending_actions (
+            chat_id INTEGER NOT NULL, telegram_user_id INTEGER NOT NULL,
+            tool_name TEXT NOT NULL, arguments_json TEXT NOT NULL,
+            actor_member_id INTEGER, created_at REAL NOT NULL,
+            PRIMARY KEY (chat_id, telegram_user_id)
+        )
+        """
+    )
+    conn.commit()
+    conn.close()
+    telegram_agent.configure_pending_action_store(connect)
+    key = (100, 200)
+    action = telegram_agent.PendingAction(
+        "create_proposal", {"title": "Shared state", "amount": 10}, actor_member_id=3
+    )
+
+    telegram_agent._put_pending(key, action)
+
+    assert telegram_agent._get_pending(key) == action
+    assert telegram_agent._pop_pending(key) == action
+    assert telegram_agent._pop_pending(key) is None
 
 
 def test_agent_executes_mcp_tool_and_returns_model_answer(monkeypatch):
@@ -80,7 +170,7 @@ def test_mutating_tool_waits_for_explicit_confirmation(monkeypatch):
                     "type": "function",
                     "function": {
                         "name": "create_poll",
-                        "arguments": '{"question":"Choose?","options":["A","B"],"created_by":1}',
+                        "arguments": '{"question":"Choose?","options":["A","B"],"created_by":999,"password":"drop-me"}',
                     },
                 }
             ],
@@ -96,16 +186,94 @@ def test_mutating_tool_waits_for_explicit_confirmation(monkeypatch):
     )
     telegram_agent.reset(70, 7)
 
-    reply = telegram_agent.answer(70, "Create a poll", telegram_user_id=7, is_admin=True)
+    reply = telegram_agent.answer(
+        70, "Create a poll", telegram_user_id=7, actor_member_id=42, is_admin=True
+    )
     assert "/confirm" in reply
     assert calls == []
 
-    confirmed = telegram_agent.answer(70, "/confirm", telegram_user_id=7, is_admin=True)
+    confirmed = telegram_agent.answer(
+        70, "/confirm", telegram_user_id=7, actor_member_id=42, is_admin=True
+    )
     assert "completed" in confirmed
     assert "Poll id: 9" in confirmed
     assert calls == [
-        ("create_poll", {"question": "Choose?", "options": ["A", "B"], "created_by": 1})
+        ("create_poll", {"question": "Choose?", "options": ["A", "B"], "created_by": 42})
     ]
+
+
+def test_create_tool_schemas_bind_creator_to_linked_member():
+    tools = telegram_agent._openai_tools(is_admin=True, actor_member_id=42)
+    create_tools = {
+        tool["function"]["name"]: tool["function"]
+        for tool in tools
+        if tool["function"]["name"] in {"create_proposal", "create_poll"}
+    }
+
+    assert create_tools.keys() == {"create_proposal", "create_poll"}
+    for function in create_tools.values():
+        assert "created_by" not in function["parameters"]["properties"]
+        assert "created_by" not in function["parameters"]["required"]
+        assert "linked Telegram member" in function["description"]
+
+
+def test_confirmed_proposal_notifies_group(monkeypatch):
+    monkeypatch.setenv("OCABRA_CHAT_URL", "https://ocabra.example/v1/chat/completions")
+    key = telegram_agent._conversation_key(71, 7)
+    action = telegram_agent.PendingAction(
+        "create_proposal",
+        {"title": "New lathe", "amount": 500, "created_by": 42},
+        actor_member_id=42,
+    )
+    with telegram_agent._state_lock:
+        telegram_agent._pending_actions[key] = action
+    monkeypatch.setattr(
+        telegram_agent,
+        "_call_mcp",
+        lambda *_args, **_kwargs: '{"success":true,"proposal_id":77}',
+    )
+    notifications = []
+
+    reply = telegram_agent.answer(
+        71,
+        "/confirm",
+        telegram_user_id=7,
+        actor_member_id=42,
+        is_admin=True,
+        on_proposal_created=lambda proposal_id, arguments: notifications.append(
+            (proposal_id, arguments)
+        )
+        or True,
+    )
+
+    assert "completed" in reply
+    assert notifications == [(77, action.arguments)]
+
+
+def test_confirmed_proposal_reports_group_notification_failure(monkeypatch):
+    monkeypatch.setenv("OCABRA_CHAT_URL", "https://ocabra.example/v1/chat/completions")
+    key = telegram_agent._conversation_key(72, 7)
+    with telegram_agent._state_lock:
+        telegram_agent._pending_actions[key] = telegram_agent.PendingAction(
+            "create_proposal", {"title": "New lathe", "amount": 500}, actor_member_id=42
+        )
+    monkeypatch.setattr(
+        telegram_agent,
+        "_call_mcp",
+        lambda *_args, **_kwargs: '{"success":true,"proposal_id":78}',
+    )
+
+    reply = telegram_agent.answer(
+        72,
+        "/confirm",
+        telegram_user_id=7,
+        actor_member_id=42,
+        is_admin=True,
+        on_proposal_created=lambda *_args: False,
+    )
+
+    assert "proposal was saved" in reply
+    assert "notification could not be sent" in reply
 
 
 def test_pending_actions_are_isolated_between_group_chat_users(monkeypatch):
@@ -130,7 +298,7 @@ def test_pending_action_confirmation_expires(monkeypatch):
         telegram_agent._pending_actions[key] = telegram_agent.PendingAction(
             "create_poll", {}, created_at=100.0
         )
-    monkeypatch.setattr(telegram_agent.time, "monotonic", lambda: 161.0)
+    monkeypatch.setattr(telegram_agent.time, "time", lambda: 161.0)
     monkeypatch.setattr(
         telegram_agent,
         "_call_mcp",
