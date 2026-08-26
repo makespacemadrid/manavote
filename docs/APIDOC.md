@@ -585,11 +585,49 @@ pytest -q tests/test_mcp_server.py
 ## Telegram bot commands
 
 - `/link <app_username> <app_password>` — link Telegram identity to a member account.
+  It is accepted only in a private bot chat; the bot attempts to delete the credential-bearing command immediately after receipt.
 - `/vote <poll_id> <option_number>` or `/vote <option_number>` — vote in polls (subject to `poll_vote_mode`).
 - `/pvote <proposal_id> <yes|no>` — vote on proposals (subject to `proposal_vote_mode`).
 - If `telegram_require_linked_vote=true`, Telegram vote commands only work for linked accounts; unlinked users are told to run `/link <app_username> <app_password>`.
 - Proposal inline callback payload: `pvote:<proposal_id>:yes|no` (same policy path as `/pvote`).
-- Non-command Telegram messages are ignored by the webhook (no poll/proposal vote side effects).
+- Without the optional natural-language configuration, non-command Telegram messages receive a configuration hint and have no poll/proposal vote side effects.
+
+### Natural-language Telegram + MCP
+
+This integration is inspired by Luis Rivera's
+[`ocabra_telegram`](https://github.com/luisriverag/ocabra_telegram) project and adapts
+its OpenAI-compatible conversational pattern to ManaVote's webhook and MCP runtime.
+
+Set `OCABRA_CHAT_URL` to an OpenAI-compatible `/v1/chat/completions` endpoint and
+configure `MCP_API_KEY` to enable natural-language messages. The webhook supplies
+the ManaVote MCP tools to the model, executes requested tools locally, and returns
+the final answer to Telegram. Users must link their account first. Linked members
+receive read-only tools; mutating tools are exposed only to linked administrators.
+Member access is limited to proposals, budget, and voting settings. Member statistics
+and Telegram-link records are admin-only even though those MCP tools are read-only.
+The assistant allowlist is loaded automatically from non-null `members.telegram_user_id`
+values on every incoming natural-language message. Linking, unlinking, or changing
+an administrator role therefore takes effect without maintaining a separate
+environment-variable allowlist or restarting the application.
+Non-command messages from IDs outside that allowlist are acknowledged but ignored;
+they are not placed on the model worker queue. `/help` and `/link` remain available.
+Mutating tool calls are never executed immediately: the administrator must send
+`/confirm` within `TELEGRAM_CONFIRM_TTL_SECONDS` (default: 300) to execute the
+pending action or `/cancel` to discard it. Conversation
+history and pending confirmations are isolated by both chat and Telegram user, so
+members sharing a group chat do not share assistant state.
+Configured natural-language requests run outside the webhook request thread so
+Telegram receives an immediate acknowledgement while model and MCP rounds finish.
+For accepted assistant requests, the bot posts a temporary `🤔 Thinking…` message
+and deletes it after the final response has been delivered.
+The worker pool has a bounded queue; when saturated, the bot asks the member to
+retry shortly instead of accumulating an unbounded number of model requests.
+Recent Telegram `update_id` values are deduplicated before dispatch, preventing
+webhook retries from repeating model requests, votes, or confirmed MCP actions.
+Responses longer than Telegram's message limit are split into readable chunks.
+Commands such as `/link`, `/vote`, and `/pvote` continue to use their deterministic
+handlers rather than the model.
+Use `/reset` to clear only the requesting user's conversation and pending action.
 
 ## Voting settings API
 
