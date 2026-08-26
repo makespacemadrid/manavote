@@ -81,7 +81,15 @@ def extract_message_context(payload):
     text = (message.get("text") or "").strip()
     from_user = message.get("from") or {}
     chat = message.get("chat") or {}
-    reply_from = (message.get("reply_to_message") or {}).get("from") or {}
+    reply = message.get("reply_to_message") or {}
+    reply_from = reply.get("from") or {}
+    # Telegram normally includes the topic ID on the outer message.  Some
+    # updates for replies (notably replies to a topic's service/root message)
+    # only retain it on ``reply_to_message``.  Preserve that fallback so both
+    # assistant routing and outgoing replies stay in the forum topic.
+    message_thread_id = message.get("message_thread_id")
+    if message_thread_id is None:
+        message_thread_id = reply.get("message_thread_id")
     return {
         "text": text,
         "telegram_username": (from_user.get("username") or "").strip(),
@@ -89,7 +97,7 @@ def extract_message_context(payload):
         "chat_id": chat.get("id"),
         "chat_type": chat.get("type") or "",
         "message_id": message.get("message_id"),
-        "message_thread_id": message.get("message_thread_id"),
+        "message_thread_id": message_thread_id,
         "entities": message.get("entities") or [],
         "reply_to_bot": bool(reply_from.get("is_bot")),
         "reply_to_bot_username": (reply_from.get("username") or "").strip(),

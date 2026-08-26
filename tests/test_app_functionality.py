@@ -1706,7 +1706,9 @@ class TestPollTelegramActions(unittest.TestCase):
         clients = []
 
         def _fake_send_message(client, message):
-            clients.append((client.chat_id, client.thread_id, message))
+            clients.append(
+                (client.chat_id, client.thread_id, client.reply_to_message_id, message)
+            )
             return True
 
         old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
@@ -1720,6 +1722,7 @@ class TestPollTelegramActions(unittest.TestCase):
                     json={
                         "message": {
                             "text": "/help",
+                            "message_id": 91,
                             "from": {"username": "admin"},
                             "chat": {"id": -100123, "type": "supergroup"},
                             "message_thread_id": 42,
@@ -1732,8 +1735,8 @@ class TestPollTelegramActions(unittest.TestCase):
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(clients), 1)
-        self.assertEqual(clients[0][:2], ("-100123", "42"))
-        self.assertIn("ManaVote bot is running", clients[0][2])
+        self.assertEqual(clients[0][:3], ("-100123", "42", 91))
+        self.assertIn("ManaVote bot is running", clients[0][3])
 
     def test_telegram_webhook_supports_edited_message_payload(self):
         poll_id = self._latest_poll_id()

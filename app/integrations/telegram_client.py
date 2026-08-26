@@ -5,10 +5,17 @@ from requests import RequestException
 class TelegramClient:
     MESSAGE_CHUNK_SIZE = 3900
 
-    def __init__(self, bot_token: str, chat_id: str, thread_id: str = ""):
+    def __init__(
+        self,
+        bot_token: str,
+        chat_id: str,
+        thread_id: str = "",
+        reply_to_message_id: int | None = None,
+    ):
         self.bot_token = bot_token
         self.chat_id = chat_id
         self.thread_id = (thread_id or "").strip()
+        self.reply_to_message_id = reply_to_message_id
 
     def _thread_id(self) -> int | None:
         if not self.thread_id:
@@ -18,15 +25,30 @@ class TelegramClient:
         except ValueError:
             return None
 
+    def _message_payload(self, message: str) -> dict:
+        """Build a payload that Telegram can reliably anchor to a forum topic."""
+        payload = {"chat_id": self.chat_id, "text": message}
+        thread_id = self._thread_id()
+        if thread_id is not None:
+            payload["message_thread_id"] = thread_id
+        if self.reply_to_message_id is not None:
+            try:
+                reply_message_id = int(self.reply_to_message_id)
+            except (TypeError, ValueError):
+                pass
+            else:
+                payload["reply_parameters"] = {
+                    "message_id": reply_message_id,
+                    "allow_sending_without_reply": True,
+                }
+        return payload
+
     def send_message(self, message: str) -> bool:
         if not self.bot_token or not self.chat_id:
             return False
         url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
         try:
-            payload = {"chat_id": self.chat_id, "text": message}
-            thread_id = self._thread_id()
-            if thread_id is not None:
-                payload["message_thread_id"] = thread_id
+            payload = self._message_payload(message)
             return self._telegram_ok(url, payload)
         except RequestException:
             return False
@@ -36,10 +58,7 @@ class TelegramClient:
         if not self.bot_token or not self.chat_id:
             return None
         url = f"https://api.telegram.org/bot{self.bot_token}/sendMessage"
-        payload = {"chat_id": self.chat_id, "text": message}
-        thread_id = self._thread_id()
-        if thread_id is not None:
-            payload["message_thread_id"] = thread_id
+        payload = self._message_payload(message)
         try:
             response = requests.post(url, json=payload, timeout=10)
             if response.status_code != 200:
