@@ -158,6 +158,11 @@ backpressure, Telegram transport, retry behavior, documentation, and focused tes
      time, then atomically consume the action before executing it.
    - Emit a reason-coded audit record for proposed, cancelled, expired, rejected, failed,
      and completed mutations.
+   - Progress (2026-08-26): pending actions are claimed (popped) before validation and
+     execution, so two workers can no longer race the same mutation, and `/confirm`
+     already revalidates administrator role and actor-linkage drift. Tool-schema
+     versioning, an execution-argument digest, and reason-coded audit records for
+     proposed/cancelled/expired/rejected/failed/completed mutations remain open.
 
 8. **Conversation quality and operator controls (P2)**
    - Add explicit token budgeting and model-context truncation rather than message-count
@@ -166,6 +171,54 @@ backpressure, Telegram transport, retry behavior, documentation, and focused tes
      for smoother UX, with localization for assistant-owned deterministic messages.
    - Add opt-in, privacy-reviewed durable history only if a concrete member workflow
      requires it; keep the default ephemeral and document retention clearly.
+
+## Telegram forum-topic routing audit (2026-08-26)
+
+Audit scope covered the most recent commits hardening Telegram group address
+matching and forum-topic routing: `is_natural_language_message`,
+`is_configured_forum_topic`, thread-aware `TelegramClient` replies, and the
+`/confirm@botname` / `/cancel@botname` normalization added on top of the
+natural-language/MCP audit above.
+
+### Confirmed strengths
+- Reply-to-topic-root messages that only carry `message_thread_id` on
+  `reply_to_message` (rather than on the outer message) are now attributed to
+  their topic correctly, keeping both assistant routing and outgoing replies
+  anchored to the right thread.
+- Deterministic command replies (`/link`, `/pvote`, `/vote`, `/help`, `/reset`)
+  and natural-language replies both carry `message_thread_id` and
+  `reply_parameters` back to Telegram, so forum-topic conversations no longer
+  leak into the supergroup's General topic.
+- `/confirm@botname` and `/cancel@botname` (Telegram's mandatory group-chat
+  command syntax) are normalized before comparison, so confirmations are no
+  longer silently dropped when an admin confirms from a group or forum topic.
+- A configured assistant forum topic (`TELEGRAM_CHAT_ID` + `TELEGRAM_THREAD_ID`)
+  is treated as an implicit conversation without requiring an `@mention` on
+  every message, and the routing/reply behavior is exercised by focused unit
+  tests (`tests/unit/test_telegram_webhook_helpers.py`, `tests/test_telegram_client.py`).
+
+### Follow-up gaps to prioritize
+
+1. **Unconfigured bot-username group matching is overly permissive (P2)**
+   - `is_natural_language_message` only exact-matches an `@mention` or
+     `bot_command` entity against `TELEGRAM_BOT_USERNAME`; when that variable is
+     unset (still the `sample.env` default) it accepts any `mention`/`bot_command`
+     entity as a match. With Telegram privacy mode disabled, the webhook receives
+     every group message, so an unconfigured bot username makes the assistant
+     respond to messages that mention a different user or invoke a different
+     bot's command in the same chat.
+   - Docs already recommend setting `TELEGRAM_BOT_USERNAME`; add a startup check
+     that warns (or refuses to enable non-forum-topic group handling) when a
+     Telegram group integration is configured without it, so the permissive
+     default cannot ship unnoticed.
+
+2. **No operator visibility into forum-topic/mention routing decisions (P2)**
+   - Neither the addressed-message match nor the configured-forum-topic match
+     emits a structured log/event, so misrouted or unexpectedly silent group
+     messages are hard to diagnose in production.
+   - Once WS-D's structured logging lands, attach a reason code (`private`,
+     `mentioned`, `reply_to_bot`, `forum_topic`, `unaddressed`) to each webhook
+     decision.
 
 ## WS-A — Architecture Refactor (P0)
 
