@@ -22,6 +22,8 @@ from app import mcp_server
 
 READ_ONLY_TOOLS = {
     "list_proposals",
+    "list_polls",
+    "list_group_purchases",
     "current_budget",
     "get_voting_settings",
 }
@@ -303,6 +305,12 @@ def answer(
             "content": os.getenv(
                 "TELEGRAM_AGENT_SYSTEM_PROMPT",
                 "You are the ManaVote Telegram assistant. Use the supplied tools for ManaVote facts and actions. "
+                "For administrators, use list_user_statistics for per-user proposal budget totals and to rank "
+                "users by proposed budget, approved budget, or approved budget percentage. "
+                "Use list_polls for poll questions and list_user_statistics to compare who created polls or how "
+                "many votes their polls received. "
+                "Use list_group_purchases for group-purchase costs, quantities, participants, debts, and payments; "
+                "administrators can use list_user_statistics to rank group-purchase creators by activity or order value. "
                 "Never invent tool results. If a tool says confirmation_required, repeat its confirmation message "
                 "and do not claim the action succeeded. Reply concisely in the user's language using plain text "
                 "that reads well in Telegram.",

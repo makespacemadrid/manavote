@@ -8,7 +8,7 @@ from werkzeug.security import generate_password_hash
 from app.domain.enums import ProposalStatus
 from app.extensions import csrf, limiter
 from app.services.telegram_link_diagnostics import LINKED_CONDITION_SQL, link_state_case_sql
-from app.services.user_statistics import user_statistics_query
+from app.services.user_statistics import user_statistics_query, user_statistics_rows, user_statistics_total_query
 from app.web.routes import main_routes as legacy
 from app.web.routes.helpers.api_helpers import (
     normalize_poll_options,
@@ -305,10 +305,17 @@ def api_list_user_statistics():
     if pagination_error:
         return pagination_error
 
+    include_email_value = (request.args.get("include_email") or "false").strip().lower()
+    if include_email_value not in {"1", "true", "yes", "on", "0", "false", "no", "off"}:
+        return api_error("invalid_include_email", "include_email must be boolean", 400)
+    include_email = include_email_value in {"1", "true", "yes", "on"}
+
     query, params = user_statistics_query(limit, offset)
+    total_query, total_params = user_statistics_total_query()
     conn = legacy.get_db()
     try:
         rows = conn.execute(query, params).fetchall()
+        total = int(conn.execute(total_query, total_params).fetchone()["total"])
     finally:
         conn.close()
 
@@ -316,9 +323,10 @@ def api_list_user_statistics():
         {
             "success": True,
             "count": len(rows),
+            "total": total,
             "limit": limit,
             "offset": offset,
-            "users": [dict(row) for row in rows],
+            "users": user_statistics_rows(rows, include_email=include_email),
         }
     )
 

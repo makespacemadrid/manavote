@@ -17,12 +17,13 @@ from werkzeug.security import generate_password_hash
 
 from app.domain.enums import ProposalStatus
 from app.services.telegram_link_diagnostics import LINKED_CONDITION_SQL, link_state_case_sql
-from app.services.user_statistics import user_statistics_query
+from app.services.user_statistics import user_statistics_query, user_statistics_rows, user_statistics_total_query
 
 DB_PATH = os.getenv("APP_DB_PATH", os.path.join(os.path.dirname(os.path.dirname(__file__)), "app.db"))
 MCP_API_KEY = os.getenv("MCP_API_KEY", "")
 VALID_PROPOSAL_STATUSES = {status.value for status in ProposalStatus}
 VALID_VOTE_MODES = {"both", "web_only", "telegram_only"}
+VALID_GROUP_PURCHASE_STATUSES = {"open", "ordered", "received"}
 TOOL_ALIASES = {"crreate_proposal": "create_proposal"}
 
 
@@ -150,14 +151,75 @@ def _tool_definitions() -> list[dict[str, Any]]:
                         "enum": ["recent", "old"],
                         "description": "Active proposals newer than 30 days (recent) or at least 30 days old (old).",
                     },
+                    "username": {"type": "string", "minLength": 1, "description": "Exact creator username."},
+                    **_pagination_properties(200),
+                },
+            },
+        },
+        {
+            "name": "list_polls",
+            "description": (
+                "List polls with their creator, options, and vote totals. Filter by poll status or exact creator username."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "status": {"type": "string", "enum": ["open", "closed"]},
+                    "username": {"type": "string", "minLength": 1, "description": "Exact creator username."},
                     **_pagination_properties(200),
                 },
             },
         },
         {
             "name": "list_user_statistics",
-            "description": "List per-user proposal, poll, vote, and comment statistics.",
-            "inputSchema": {"type": "object", "properties": _pagination_properties(500)},
+            "description": (
+                "List per-user proposal, poll, vote, comment, and proposal-budget statistics. "
+                "Budget fields include the total proposed amount, approved amount, and approved percentage; "
+                "use username for one user or sort_by to rank users."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "username": {"type": "string", "minLength": 1},
+                    "include_email": {
+                        "type": "boolean",
+                        "description": "Include member email addresses. Defaults to false.",
+                    },
+                    "sort_by": {
+                        "type": "string",
+                        "enum": [
+                            "participation",
+                            "proposed_budget",
+                            "approved_budget",
+                            "approved_budget_percentage",
+                            "poll_count",
+                            "created_poll_vote_count",
+                            "average_votes_per_created_poll",
+                            "group_purchase_count",
+                            "created_group_purchase_order_value",
+                            "created_group_purchase_participant_count",
+                            "username",
+                        ],
+                    },
+                    "sort_direction": {"type": "string", "enum": ["asc", "desc"]},
+                    **_pagination_properties(500),
+                },
+            },
+        },
+        {
+            "name": "list_group_purchases",
+            "description": (
+                "List group purchases with creators, priced components, shared costs, participants, amounts owed, and payment state. "
+                "Filter by status or exact creator username."
+            ),
+            "inputSchema": {
+                "type": "object",
+                "properties": {
+                    "status": {"type": "string", "enum": sorted(VALID_GROUP_PURCHASE_STATUSES)},
+                    "username": {"type": "string", "minLength": 1, "description": "Exact creator username."},
+                    **_pagination_properties(200),
+                },
+            },
         },
         {
             "name": "current_budget",
@@ -287,6 +349,9 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
         if normalized_name == "list_proposals":
             status = str(arguments.get("status") or "").strip().lower()
             age = str(arguments.get("age") or "").strip().lower()
+            username = str(arguments.get("username") or "").strip()
+            if "username" in arguments and not username:
+                return _error(req_id, -32602, "Invalid params: username must not be empty")
             if status and status not in VALID_PROPOSAL_STATUSES:
                 return _error(req_id, -32602, "Invalid params: unknown status filter")
             if age not in {"", "recent", "old"}:
@@ -302,26 +367,112 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
                 return _error(req_id, -32602, "Invalid params: limit must be between 1 and 200")
             if offset < 0:
                 return _error(req_id, -32602, "Invalid params: offset must be >= 0")
-            query = "SELECT id,title,description,amount,status,created_at FROM proposals"
+            query = (
+                "SELECT p.id,p.title,p.description,p.amount,p.status,p.created_at,p.created_by,m.username "
+                "FROM proposals p JOIN members m ON m.id = p.created_by"
+            )
             conditions: list[str] = []
             query_params: list[Any] = []
             if status:
-                conditions.append("status = ?")
+                conditions.append("p.status = ?")
                 query_params.append(status)
             if age:
                 if not status:
-                    conditions.append("status = 'active'")
+                    conditions.append("p.status = 'active'")
                 comparator = ">" if age == "recent" else "<="
-                conditions.append(f"datetime(created_at) {comparator} datetime(?)")
+                conditions.append(f"datetime(p.created_at) {comparator} datetime(?)")
                 cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).replace(tzinfo=None).isoformat(sep=" ")
                 query_params.append(cutoff)
+            if username:
+                conditions.append("m.username = ? COLLATE NOCASE")
+                query_params.append(username)
             if conditions:
                 query += " WHERE " + " AND ".join(conditions)
-            query += " ORDER BY created_at DESC LIMIT ? OFFSET ?"
+            query += " ORDER BY p.created_at DESC LIMIT ? OFFSET ?"
             rows = _db_rows(query, tuple(query_params) + (limit, offset))
             return _tool_text(req_id, {"count": len(rows), "limit": limit, "offset": offset, "proposals": rows})
 
+        if normalized_name == "list_polls":
+            status = str(arguments.get("status") or "").strip().lower()
+            username = str(arguments.get("username") or "").strip()
+            if status not in {"", "open", "closed"}:
+                return _error(req_id, -32602, "Invalid params: poll status must be open or closed")
+            if "username" in arguments and not username:
+                return _error(req_id, -32602, "Invalid params: username must not be empty")
+            try:
+                limit = int(arguments["limit"]) if "limit" in arguments else 20
+                offset = int(arguments["offset"]) if "offset" in arguments else 0
+            except (TypeError, ValueError):
+                return _error(req_id, -32602, "Invalid params: limit/offset must be integers")
+            if limit < 1 or limit > 200:
+                return _error(req_id, -32602, "Invalid params: limit must be between 1 and 200")
+            if offset < 0:
+                return _error(req_id, -32602, "Invalid params: offset must be >= 0")
+            conditions: list[str] = []
+            query_params: list[Any] = []
+            if status:
+                conditions.append("p.status = ?")
+                query_params.append(status)
+            if username:
+                conditions.append("m.username = ? COLLATE NOCASE")
+                query_params.append(username)
+            query = """
+                SELECT p.id,p.question,p.options_json,p.status,p.created_at,p.closes_at,
+                       p.created_by,m.username,COUNT(pv.id) AS total_votes
+                FROM polls p
+                JOIN members m ON m.id = p.created_by
+                LEFT JOIN poll_votes pv ON pv.poll_id = p.id
+            """
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
+            query += " GROUP BY p.id ORDER BY p.created_at DESC LIMIT ? OFFSET ?"
+            rows = _db_rows(query, tuple(query_params) + (limit, offset))
+            vote_counts: dict[int, dict[int, int]] = {}
+            poll_ids = [int(row["id"]) for row in rows]
+            if poll_ids:
+                placeholders = ",".join("?" for _ in poll_ids)
+                count_rows = _db_rows(
+                    f"SELECT poll_id,option_index,COUNT(*) AS votes FROM poll_votes "
+                    f"WHERE poll_id IN ({placeholders}) GROUP BY poll_id,option_index",
+                    tuple(poll_ids),
+                )
+                for count_row in count_rows:
+                    vote_counts.setdefault(int(count_row["poll_id"]), {})[
+                        int(count_row["option_index"])
+                    ] = int(count_row["votes"])
+            polls = []
+            for row in rows:
+                poll = dict(row)
+                try:
+                    poll["options"] = json.loads(poll.pop("options_json") or "[]")
+                except (TypeError, json.JSONDecodeError):
+                    poll["options"] = []
+                counts = vote_counts.get(int(poll["id"]), {})
+                poll["results"] = [
+                    {"option_index": index, "option": option, "votes": counts.get(index, 0)}
+                    for index, option in enumerate(poll["options"])
+                ]
+                polls.append(poll)
+            return _tool_text(req_id, {"count": len(polls), "limit": limit, "offset": offset, "polls": polls})
+
         if normalized_name == "list_user_statistics":
+            username = str(arguments.get("username") or "").strip()
+            include_email = _as_bool_or_none(arguments.get("include_email", False))
+            if include_email is None:
+                return _error(req_id, -32602, "Invalid params: include_email must be boolean")
+            sort_by = str(arguments.get("sort_by") or "participation").strip().lower()
+            sort_direction = str(arguments.get("sort_direction") or "desc").strip().lower()
+            if "username" in arguments and not username:
+                return _error(req_id, -32602, "Invalid params: username must not be empty")
+            if sort_by not in {
+                "participation", "proposed_budget", "approved_budget",
+                "approved_budget_percentage", "poll_count", "created_poll_vote_count",
+                "average_votes_per_created_poll", "group_purchase_count",
+                "created_group_purchase_order_value", "created_group_purchase_participant_count", "username",
+            }:
+                return _error(req_id, -32602, "Invalid params: unknown sort_by value")
+            if sort_direction not in {"asc", "desc"}:
+                return _error(req_id, -32602, "Invalid params: sort_direction must be asc or desc")
             try:
                 limit = int(arguments["limit"]) if "limit" in arguments else 100
                 offset = int(arguments["offset"]) if "offset" in arguments else 0
@@ -332,11 +483,114 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
             if offset < 0:
                 return _error(req_id, -32602, "Invalid params: offset must be >= 0")
 
-            query, query_params = user_statistics_query(limit, offset)
+            query, query_params = user_statistics_query(
+                limit,
+                offset,
+                username=username or None,
+                sort_by=sort_by,
+                sort_direction=sort_direction,
+            )
             rows = _db_rows(query, query_params)
+            total_query, total_params = user_statistics_total_query(username or None)
+            total_rows = _db_rows(total_query, total_params)
+            total = int(total_rows[0]["total"]) if total_rows else 0
             return _tool_text(
                 req_id,
-                {"count": len(rows), "limit": limit, "offset": offset, "users": rows},
+                {
+                    "count": len(rows),
+                    "total": total,
+                    "limit": limit,
+                    "offset": offset,
+                    "users": user_statistics_rows(rows, include_email=include_email),
+                },
+            )
+
+        if normalized_name == "list_group_purchases":
+            status = str(arguments.get("status") or "").strip().lower()
+            username = str(arguments.get("username") or "").strip()
+            if "status" in arguments and not status:
+                return _error(req_id, -32602, "Invalid params: status must not be empty")
+            if status and status not in VALID_GROUP_PURCHASE_STATUSES:
+                return _error(req_id, -32602, "Invalid params: unknown group purchase status")
+            if "username" in arguments and not username:
+                return _error(req_id, -32602, "Invalid params: username must not be empty")
+            try:
+                limit = int(arguments["limit"]) if "limit" in arguments else 20
+                offset = int(arguments["offset"]) if "offset" in arguments else 0
+            except (TypeError, ValueError):
+                return _error(req_id, -32602, "Invalid params: limit/offset must be integers")
+            if limit < 1 or limit > 200:
+                return _error(req_id, -32602, "Invalid params: limit must be between 1 and 200")
+            if offset < 0:
+                return _error(req_id, -32602, "Invalid params: offset must be >= 0")
+            conditions: list[str] = []
+            query_params: list[Any] = []
+            if status:
+                conditions.append("gp.status = ?")
+                query_params.append(status)
+            if username:
+                conditions.append("m.username = ? COLLATE NOCASE")
+                query_params.append(username)
+            query = """
+                SELECT gp.id,gp.title,gp.description,gp.status,gp.created_at,gp.deadline,gp.url,
+                       gp.payment_method,gp.created_by,m.username
+                FROM group_purchases gp JOIN members m ON m.id = gp.created_by
+            """
+            if conditions:
+                query += " WHERE " + " AND ".join(conditions)
+            query += " ORDER BY gp.created_at DESC LIMIT ? OFFSET ?"
+            rows = _db_rows(query, tuple(query_params) + (limit, offset))
+            purchases = []
+            for row in rows:
+                purchase = dict(row)
+                purchase_id = int(purchase["id"])
+                components = _db_rows(
+                    """SELECT c.id,c.name,c.unit_price,COALESCE(SUM(q.quantity),0) AS total_quantity
+                       FROM group_purchase_components c
+                       LEFT JOIN group_purchase_quantities q ON q.component_id = c.id
+                       WHERE c.group_purchase_id = ? GROUP BY c.id ORDER BY c.position,c.id""",
+                    (purchase_id,),
+                )
+                shared_costs = _db_rows(
+                    "SELECT label,amount FROM group_purchase_shared_costs WHERE group_purchase_id = ? ORDER BY position,id",
+                    (purchase_id,),
+                )
+                participants = _db_rows(
+                    """SELECT m.id AS member_id,m.username,SUM(q.quantity*c.unit_price) AS selection_amount,
+                              CASE WHEN pp.member_id IS NULL THEN 0 ELSE 1 END AS paid
+                       FROM group_purchase_quantities q
+                       JOIN group_purchase_components c ON c.id = q.component_id
+                       JOIN members m ON m.id = q.member_id
+                       LEFT JOIN group_purchase_payments pp
+                         ON pp.group_purchase_id = c.group_purchase_id AND pp.member_id = m.id
+                       WHERE c.group_purchase_id = ? AND q.quantity > 0
+                       GROUP BY m.id,m.username,pp.member_id ORDER BY m.username COLLATE NOCASE""",
+                    (purchase_id,),
+                )
+                shared_total = sum(float(cost["amount"]) for cost in shared_costs)
+                selection_total = sum(float(person["selection_amount"] or 0) for person in participants)
+                allocated = 0.0
+                for index, person in enumerate(participants):
+                    selection = float(person["selection_amount"] or 0)
+                    if selection_total and index == len(participants) - 1:
+                        share = round(shared_total - allocated, 2)
+                    else:
+                        share = round(shared_total * selection / selection_total, 2) if selection_total else 0
+                        allocated += share
+                    person["shared_cost_share"] = share
+                    person["amount_owed"] = round(selection + share, 2)
+                purchase["components"] = components
+                purchase["shared_costs"] = shared_costs
+                purchase["shared_cost_total"] = round(shared_total, 2)
+                purchase["selection_total"] = round(selection_total, 2)
+                purchase["total_cost"] = round(selection_total + shared_total, 2)
+                purchase["participants"] = participants
+                purchase["participant_count"] = len(participants)
+                purchase["paid_participant_count"] = sum(int(person["paid"]) for person in participants)
+                purchases.append(purchase)
+            return _tool_text(
+                req_id,
+                {"count": len(purchases), "limit": limit, "offset": offset, "group_purchases": purchases},
             )
 
         if normalized_name == "current_budget":

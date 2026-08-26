@@ -30,6 +30,8 @@ def test_non_admin_tools_are_read_only():
     assert "create_member" not in names
     assert "list_member_telegram_links" not in names
     assert "list_user_statistics" not in names
+    assert "list_polls" in names
+    assert "list_group_purchases" in names
 
 
 def test_admin_tools_exclude_password_bearing_member_creation():
@@ -39,6 +41,13 @@ def test_admin_tools_exclude_password_bearing_member_creation():
     assert names == telegram_agent.TELEGRAM_TOOLS
     assert "create_member" not in names
     assert all("password" not in json.dumps(tool).lower() for tool in tools)
+
+    statistics = next(tool for tool in tools if tool["function"]["name"] == "list_user_statistics")
+    properties = statistics["function"]["parameters"]["properties"]
+    assert "username" in properties
+    assert "approved_budget_percentage" in properties["sort_by"]["enum"]
+    assert "average_votes_per_created_poll" in properties["sort_by"]["enum"]
+    assert "created_group_purchase_order_value" in properties["sort_by"]["enum"]
 
 
 def test_password_bearing_tool_is_denied_before_mcp_call(monkeypatch):

@@ -440,30 +440,40 @@ Although not part of the REST API surface, the `/budget` page renders a mixed Ch
 
 **Endpoint**: `GET /api/members/statistics`
 
-Returns one row per member with proposal votes, proposals created, approved proposals,
-comments, poll votes, and polls created. Results are ordered by participation and
-support `limit` (default `100`, maximum `500`) and `offset` (default `0`).
+Returns lifetime participation, proposal-budget, poll, and group-purchase statistics.
+Results support `limit` (default `100`, maximum `500`) and `offset` (default `0`).
+`count` is the number of users in the current page; `total` is the number of matching
+members before pagination. Email addresses are omitted unless the administrator passes
+`include_email=true`.
 
 ```bash
 curl "http://localhost:5000/api/members/statistics?limit=100&offset=0" \
   -H "X-Admin-Key: your_api_key"
 ```
 
-Each user contains `id`, `username`, `email`, `is_admin`, `proposal_vote_count`,
-`proposal_count`, `approved_proposal_count`, `comment_count`, `poll_vote_count`,
-and `poll_count`.
+The stable identity fields are `id`, `username`, and `is_admin`; `email` is present only
+when explicitly requested. Count and amount fields are non-null and use `0` when no
+matching activity exists. Amount fields are expressed in euros and percentage/average
+fields are rounded to two decimal places.
+
+| Area | Fields |
+|---|---|
+| Proposal participation | `proposal_vote_count`, `proposal_count`, `approved_proposal_count`, `comment_count` |
+| Proposal budgets | `proposed_budget`, `approved_proposal_budget`, `approved_budget_percentage` |
+| Polls | `poll_vote_count`, `poll_count`, `open_poll_count`, `closed_poll_count`, `created_poll_vote_count`, `average_votes_per_created_poll` |
+| Group purchases | `group_purchase_count`, `open_group_purchase_count`, `created_group_purchase_order_value`, `created_group_purchase_participant_count` |
 
 ```json
 {
   "success": true,
   "count": 1,
+  "total": 24,
   "limit": 100,
   "offset": 0,
   "users": [
     {
       "id": 7,
       "username": "member1",
-      "email": "member1@example.com",
       "is_admin": 0,
       "proposal_vote_count": 12,
       "proposal_count": 3,
@@ -476,8 +486,7 @@ and `poll_count`.
 }
 ```
 
-`count` is the number of users in the current page. Invalid pagination returns a
-standard API error with HTTP `400`.
+Invalid pagination or boolean values return a standard API error with HTTP `400`.
 
 ---
 
@@ -518,8 +527,9 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
   - `age=recent` returns active proposals newer than 30 days; `age=old` returns active proposals at least 30 days old. It may only be combined with `status=active`.
   - out-of-range pagination is rejected with `-32602`; values are not silently clamped.
 - `current_budget`
-- `list_user_statistics` (optional `limit` from 1..500 and `offset` >= 0)
+- `list_user_statistics` (optional `limit` from 1..500, `offset` >= 0, `username`, sorting fields, and `include_email`)
   - returns the same per-user participation fields as `GET /api/members/statistics`
+  - returns page `count` and matching `total`; email is opt-in and defaults to omitted
 - `list_member_telegram_links` (optional `include_unlinked`, `limit`, `offset`)
   - result rows include `linked` and `link_state` (`linked|missing_username|missing_user_id|unlinked`)
   - `limit` validation: must be between `1` and `500`
