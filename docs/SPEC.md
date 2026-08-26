@@ -26,13 +26,16 @@ At startup (`python app.py`):
 3. App factory delegates bootstrap orchestration to `app/startup.py::run_startup_steps(...)`.
 4. DB tables are created/verified and migrations run before optional startup jobs.
 5. Optional startup jobs (scheduler, auto-backup check) run based on environment runtime policy (`test` disables them).
-6. Flask starts on host `0.0.0.0`, port `5000`.
+6. The Telegram webhook is synced with Telegram on startup (`sync_telegram_webhook_on_startup`); its result feeds into the overall startup `degraded` status.
+7. Flask starts on host `0.0.0.0`, port `45000`.
 
 Container runtime (`docker compose up --build`):
 1. Compose builds the React assets in the Dockerfile Node stage, then assembles and starts the Flask `web` service.
 2. `.env` is loaded through `env_file`.
-3. `app.db` and `static/uploads` are bind-mounted for persistence.
-4. App is exposed on `http://localhost:5000`.
+3. `app.db` and `static/uploads` persist through named Docker volumes (`app_data:/data`,
+   `uploads_data:/app/static/uploads`), not host bind mounts; `APP_DB_PATH` is set to
+   `/data/app.db` inside the container.
+4. App is exposed on `http://localhost:45000`.
 
 ## 3.1) Codebase map
 
@@ -40,9 +43,12 @@ Primary modules and responsibilities:
 - `app/startup.py` — deterministic startup orchestration (`run_startup_steps`) and backup-check helper.
 - `app/startup_policy.py` — startup policy validation and env-specific runtime flags.
 - `app/web/app_setup.py` — Flask app construction/config, logging, and extension initialization.
-- `app/web/routes/main_routes.py` — web route orchestration and legacy-compatible endpoints.
+- `app/web/routes/main_routes.py` — web route orchestration and legacy-compatible endpoints; most business logic not yet extracted into `app/services/` still lives here.
 - `app/web/routes/api_routes.py` — admin-key REST API endpoints.
-- `app/services/` — business logic helpers (auth/budget/proposal/admin/vote/backup/settings).
+- `app/web/routes/admin_routes.py`, `auth_routes.py`, `group_purchase_routes.py`, `poll_routes.py`, `proposal_routes.py` — blueprint modules split out of `main_routes.py`; `auth_routes.py` also implements the Keycloak/OIDC SSO login flow.
+- `app/web/routes/helpers/` — shared request/response helpers used across blueprints.
+- `app/domain/` — `entities.py`, `enums.py` (e.g. `ProposalStatus`, live-wired into API/MCP validation), `exceptions.py`, `rules.py`.
+- `app/services/` — business logic helpers (auth/budget/proposal/backup/settings/Telegram); `admin_service.py`, `vote_service.py`, and `app/domain/rules.py` are currently placeholder stubs, with the corresponding logic still in `main_routes.py`.
 - `app/repositories/` — DB access helpers.
 - `app/db/` — schema, migrations, and DB connection helper.
 - `app/mcp_server.py` — MCP JSON-RPC server for admin tooling (list/read/create operations).
@@ -61,11 +67,14 @@ Primary modules and responsibilities:
 
 ### `members`
 - `id`, `username` (unique), `password_hash`, `is_admin`, `telegram_username` (nullable), `telegram_user_id` (nullable), `created_at`
+- `oidc_sub` (nullable, unique), `email` (nullable), `display_name` (nullable) — populated by Keycloak/OIDC SSO login (see §5)
 
 ### `proposals`
 - `id`, `title`, `description`, `amount`, `url`, `image_filename`, `created_by`, `created_at`, `status`, `processed_at`, `over_budget_at`, `purchased_at`, `basic_supplies`
-- `status ∈ {active, approved, over_budget, purchased}`
-- `purchased_at` timestamp set when proposal is marked as purchased
+- `status ∈ {active, approved, over_budget, rejected}` (`ProposalStatus` in `app/domain/enums.py`).
+  `rejected` is a valid filter value but no code path currently assigns it to a proposal.
+- "Purchased" is not a `status` value: `purchased_at` is a separate timestamp set on an
+  `approved` proposal when it is marked purchased, and cleared when unmarked
 
 ### `votes`
 - `id`, `proposal_id`, `member_id`, `vote`, `created_at`
@@ -75,7 +84,7 @@ Primary modules and responsibilities:
 - `id`, `proposal_id`, `member_id`, `content`, `created_at`
 
 ### `activity_log`
-- `id`, `amount`, `description`, `created_by`, `created_at`
+- `id`, `amount`, `description`, `created_by`, `created_at`, `proposal_id` (nullable, links a budget-log entry back to the proposal that generated it)
 
 ### `settings`
 - `key`, `value`
@@ -108,9 +117,17 @@ Default seeded settings:
 
 - Session-based auth.
 - Session lifetime: 30 days (`PERMANENT_SESSION_LIFETIME`).
-- Login is rate-limited (`5 per minute`).
+- Login is rate-limited (`5 per minute`). `/login` accepts either the account's
+  `username` or its `email` (case-insensitive), matching by username first.
 - Password hashes use Werkzeug helpers; legacy SHA-256 hashes are migrated on login.
 - Initial admin account is bootstrapped from `ADMIN_BOOTSTRAP_PASSWORD` when no admin exists; in production, missing value is a startup error, while non-production falls back to an insecure default with warning.
+
+### Keycloak / OIDC SSO
+
+- Enabled whenever `OIDC_CLIENT_SECRET` is set; implemented in `app/web/routes/auth_routes.py` via Authlib's OAuth Authorization Code flow (`GET /auth/login/keycloak` → `GET /auth/callback/keycloak`), rate-limited (`10 per minute`).
+- Sign-in requires the Keycloak group named by `OIDC_REQUIRED_GROUP` (default `members-active`) in the ID token's `groups` claim; missing it aborts with `403`. The `admins` group is synchronized into `is_admin` on every login, including removal.
+- Member provisioning (`_upsert_oidc_member`) resolves an existing member by `oidc_sub` first; if none exists and the claims include an `email`, it looks up any existing member with `oidc_sub IS NULL` and a matching email (case-insensitive) and **silently attaches** the SSO identity to that account (updating `oidc_sub`, `email`, `display_name`, `is_admin`, and Telegram fields via `COALESCE`). Only when neither match exists is a new member created, with a numeric suffix applied on a username collision.
+- Logout redirects through Keycloak's `end_session` endpoint only for sessions established via SSO (`session["oidc_login"]`); password-login sessions log out locally. Access/refresh tokens are discarded after the callback — the app makes no further Keycloak API calls.
 
 ## 6) Business rules
 
@@ -163,11 +180,11 @@ If a proposal marked basic supplies has amount > €20, basic flag is auto-remov
 
 Chart datasets:
 - **Budget Balance**: white line
-- **Pending Budget**: purple line
-- **Cash In**: white bar
-- **Cash Out**: gray bar
-- **Proposals (Being Voted)**: pink bar (`#ff69b4`)
-- **Proposals (Approved)**: dark blue bar (`#1a4a7a`)
+- **Pending Budget**: purple line (`#9932CC`)
+- **Budget In**: white bar
+- **Budget Out**: gray bar
+- **Proposals (Being Voted)**: light blue bar (`#87cefa`)
+- **Proposals (Approved)**: purple bar (`#9932CC`)
 
 Committed series behavior:
 - `pending` accumulates from proposals when they go over_budget (tracked by `over_budget_at`).
@@ -184,13 +201,15 @@ Committed series behavior:
 
 ### Admin panel
 - **Members tab**: Add/remove members, toggle admin role, change passwords, and view linked Telegram username/ID when available (including partial links where only one value exists).
-- **Budget tab**: Trigger monthly top-up (€50, description: "Subvención mensual MakeSpace para juguetes nuevos"), add custom budget entries.
+- **Budget tab**: Trigger monthly top-up (€50, description: "Monthly top-up"), add custom budget entries.
 - **Settings tab**: Registration toggle, timezone selector (UTC, Europe/London, Europe/Paris, Europe/Madrid, America/New_York, America/Chicago, America/Los_Angeles, Asia/Tokyo, Asia/Shanghai, Australia/Sydney).
 - **Timezone tab**: Configure display timezone for all datetime fields.
 - **Backup tab**: Manual backup, list existing backups.
 - **Telegram tab**: Configure base URL for proposal links.
 - **Polls tab**:
-  - create polls,
+  - create polls (question 5..200 characters, 2..12 options each ≤120 characters,
+    enforced identically by the web form, `POST /api/polls`, and the `create_poll`
+    MCP tool),
   - close/reopen polls,
   - delete polls,
   - set poll voting mode (`both`, `web_only`, `telegram_only`),
@@ -229,7 +248,9 @@ Committed series behavior:
 - `GET /`
 - `GET|POST /login`
   - Route is registered on the auth blueprint (`auth.login`) and also exposed via a legacy `login` endpoint alias for backward compatibility.
+  - Accepts either `username` or `email` (case-insensitive).
 - `GET|POST /register` (if enabled)
+- `GET /auth/login/keycloak`, `GET /auth/callback/keycloak` (Keycloak/OIDC SSO; see §5)
 
 ### Authenticated member
 - `GET /proposals`
@@ -253,8 +274,8 @@ Committed series behavior:
 - `POST /proposal/<proposal_id>/delete`
 - `POST /vote/<proposal_id>`
 - `GET|POST /withdraw-vote/<proposal_id>`
-- `POST /comment/<comment_id>/edit`
-- `POST /comment/<comment_id>/delete`
+- `POST /comment/<comment_id>/edit` (admin-only; unlike proposal edit/delete, there is no owner exception)
+- `POST /comment/<comment_id>/delete` (admin-only; unlike proposal edit/delete, there is no owner exception)
 - `POST /purchase/<proposal_id>`
 - `POST /unpurchase/<proposal_id>`
 
@@ -273,12 +294,19 @@ Committed series behavior:
 #### Natural-language assistant flow
 
 1. Natural-language handling is enabled only when `OCABRA_CHAT_URL` and `MCP_API_KEY` are configured.
-2. The sender's numeric Telegram ID is resolved from `members.telegram_user_id` for every message. Unknown IDs are ignored before worker admission; link/unlink and admin changes therefore apply immediately.
-3. The bot posts `🤔 Thinking…`, then submits the model request to a four-worker queue with at most 32 pending requests. Saturated queues return a retry message rather than growing without bound.
-4. The OpenAI-compatible model receives MCP function schemas. Members receive proposal, budget, and voting-setting read tools; administrators receive the complete MCP tool set.
-5. Read tools execute in-process through the MCP JSON-RPC handler. Mutating tools create a per-chat/per-user pending action instead of executing immediately.
-6. A linked administrator must send `/confirm` before `TELEGRAM_CONFIRM_TTL_SECONDS` expires; `/cancel` discards it. `/reset` clears that user's history and pending action.
-7. The final answer is split into chunks of at most 3900 characters. The temporary thinking message is deleted after delivery or worker failure.
+2. In private chats, every non-command message qualifies. In groups, a message only
+   qualifies when it addresses the bot: an `@mention`/`bot_command` entity matching
+   `TELEGRAM_BOT_USERNAME`, a reply to one of the bot's own messages, or being posted in
+   the admin-configured forum topic (`TELEGRAM_CHAT_ID` + `TELEGRAM_THREAD_ID`), which is
+   treated as an always-on assistant conversation. Leaving `TELEGRAM_BOT_USERNAME` unset
+   while group privacy mode is disabled makes this matching overly permissive (see
+   `IDEAS.md`).
+3. The sender's numeric Telegram ID is resolved from `members.telegram_user_id` for every message. Unknown IDs are ignored before worker admission; link/unlink and admin changes therefore apply immediately.
+4. The bot posts `🤔 Thinking…`, then submits the model request to a four-worker queue with at most 32 pending requests. Saturated queues return a retry message rather than growing without bound.
+5. The OpenAI-compatible model receives MCP function schemas. Members receive read-only proposal, poll, group-purchase, budget, and voting-setting tools; administrators receive the complete MCP tool set.
+6. Read tools execute in-process through the MCP JSON-RPC handler. Mutating tools create a per-chat/per-user pending action instead of executing immediately.
+7. A linked administrator must send `/confirm` before `TELEGRAM_CONFIRM_TTL_SECONDS` expires; `/cancel` discards it. `/reset` clears that user's history and pending action.
+8. The final answer is split into chunks of at most 3900 characters. The temporary thinking message is deleted after delivery or worker failure.
 
 Assistant history, pending confirmations, update deduplication, and the worker queue are
 process-local and intentionally bounded. Deployments with multiple application workers
@@ -315,7 +343,7 @@ do not share conversational history; database authorization and MCP data remain 
 
 ## 9) Security notes
 
-- Secure cookie flags are configurable (`FLASK_SECURE_COOKIES`, default enabled).
+- Secure cookie flags are configurable (`FLASK_SECURE_COOKIES`, default `false`, `true` when `FLASK_ENV=production`).
 - CSRF is enforced via Flask-WTF `CSRFProtect` for browser form routes.
 - API endpoints are explicitly CSRF-exempt and protected by `X-Admin-Key`.
 - Rate limits enabled for login/API registration.
@@ -334,7 +362,7 @@ do not share conversational history; database authorization and MCP data remain 
 ## 11) Backup
 
 - Manual: Admin page includes "Backup Database" button.
-- Auto: APScheduler runs `backup_db()` every 24 hours (if APScheduler is installed).
+- Auto: APScheduler runs `backup_db()` and `backup_uploads()` (for `static/uploads/`) every 24 hours (if APScheduler is installed).
 - Prunes: Backups older than `keep_days` (default 7) are removed.
 - Filename format: `{db_name}_{timestamp}.db` (e.g., `app_20260426_120000.db`).
 

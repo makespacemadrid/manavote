@@ -13,3 +13,5 @@ backups/*
 !backups/.gitkeep
 
 node_modules/
+
+.claude/

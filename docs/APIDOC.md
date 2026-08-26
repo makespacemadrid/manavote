@@ -9,13 +9,20 @@ All endpoints require:
 - `ADMIN_API_KEY` must be configured in environment.
 - `Content-Type: application/json` for all request bodies.
 
-If API key is missing in server config: `503 {"error": "API not configured"}`.
-If header key is wrong/missing: `401 {"error": "Unauthorized"}`.
+If API key is missing in server config: `503 {"error": {"code": "not_configured", "message": "API not configured"}}`.
+If header key is wrong/missing: `401 {"error": {"code": "unauthorized", "message": "Unauthorized"}}`.
+
+Every error response uses this same nested envelope — `error.code` (a stable
+machine-readable string) and `error.message` (human-readable) — never a bare
+top-level `error` string.
 
 ## Behavior notes
 - API routes are authenticated by `X-Admin-Key` and are CSRF-exempt by design.
 - If `Content-Type` is not JSON, endpoints return `415`.
 - If JSON is missing/invalid, endpoints return `400`.
+- All `/api/*` routes share a default rate limit of 200 requests/day and 100/hour per
+  client; `POST /api/register` additionally limits to 10/minute. Exceeding a limit
+  returns `429`.
 
 ---
 
@@ -59,7 +66,7 @@ If header key is wrong/missing: `401 {"error": "Unauthorized"}`.
 
 ### Example
 ```bash
-curl -X POST http://localhost:5000/api/register \
+curl -X POST http://localhost:45000/api/register \
   -H "X-Admin-Key: your_api_key" \
   -H "Content-Type: application/json" \
   -d '{"username":"member1","password":"secret123","is_admin":false}'
@@ -115,7 +122,7 @@ curl -X POST http://localhost:5000/api/register \
 
 ### Example
 ```bash
-curl -X POST http://localhost:5000/api/proposals \
+curl -X POST http://localhost:45000/api/proposals \
   -H "X-Admin-Key: your_api_key" \
   -H "Content-Type: application/json" \
   -d '{
@@ -161,7 +168,7 @@ curl -X POST http://localhost:5000/api/proposals \
 
 ### Example
 ```bash
-curl http://localhost:5000/api/proposals/12 \
+curl http://localhost:45000/api/proposals/12 \
   -H "X-Admin-Key: your_api_key"
 ```
 
@@ -209,7 +216,7 @@ curl http://localhost:5000/api/proposals/12 \
 
 ### Example
 ```bash
-curl -X PATCH http://localhost:5000/api/proposals/12 \
+curl -X PATCH http://localhost:45000/api/proposals/12 \
   -H "X-Admin-Key: your_api_key" \
   -H "Content-Type: application/json" \
   -d '{"title":"Updated Title","amount":100}'
@@ -234,6 +241,8 @@ curl -X PATCH http://localhost:5000/api/proposals/12 \
 {
   "success": true,
   "count": 2,
+  "limit": 100,
+  "offset": 0,
   "proposals": [
     {
       "id": 12,
@@ -283,7 +292,7 @@ votes; the response names are retained for API compatibility.
 
 ### Example
 ```bash
-curl http://localhost:5000/api/polls \
+curl http://localhost:45000/api/polls \
   -H "X-Admin-Key: your_api_key"
 ```
 
@@ -335,7 +344,7 @@ curl http://localhost:5000/api/polls \
 
 ### Example
 ```bash
-curl -X POST http://localhost:5000/api/polls \
+curl -X POST http://localhost:45000/api/polls \
   -H "X-Admin-Key: your_api_key" \
   -H "Content-Type: application/json" \
   -d '{"question":"Where should we meet?","options":["Room A","Room B"],"created_by":1}'
@@ -354,9 +363,9 @@ curl -X POST http://localhost:5000/api/polls \
 - `offset` (optional): default `0`
 
 `link_state` values:
-- `linked` — both `telegram_username` and `telegram_user_id` are present
-- `missing_username` — `telegram_user_id` exists but username is empty/missing
-- `missing_user_id` — username exists but `telegram_user_id` is missing
+- `linked` — `telegram_user_id` is present. A public Telegram username is optional in
+  Telegram, so its absence does not change this state.
+- `missing_user_id` — `telegram_username` is set but `telegram_user_id` is missing
 - `unlinked` — neither Telegram identity field is set
 
 When `include_unlinked=false` (default), only fully linked members are returned and `link_state` is always `linked`.
@@ -367,6 +376,8 @@ When `include_unlinked=false` (default), only fully linked members are returned 
 {
   "success": true,
   "count": 1,
+  "limit": 100,
+  "offset": 0,
   "members": [
     {
       "id": 1,
@@ -382,7 +393,7 @@ When `include_unlinked=false` (default), only fully linked members are returned 
 
 ### Example
 ```bash
-curl "http://localhost:5000/api/members/telegram?include_unlinked=true"   -H "X-Admin-Key: your_api_key"
+curl "http://localhost:45000/api/members/telegram?include_unlinked=true"   -H "X-Admin-Key: your_api_key"
 ```
 
 ---
@@ -447,7 +458,7 @@ members before pagination. Email addresses are omitted unless the administrator 
 `include_email=true`.
 
 ```bash
-curl "http://localhost:5000/api/members/statistics?limit=100&offset=0" \
+curl "http://localhost:45000/api/members/statistics?limit=100&offset=0" \
   -H "X-Admin-Key: your_api_key"
 ```
 
@@ -514,7 +525,7 @@ python -m app.mcp_server
 Set environment variables:
 - `MCP_SERVER_ENABLED=true`
 - `MCP_SERVER_TRANSPORT` (optional, default `http`; set `tcp` for legacy transport)
-- `MCP_SERVER_HOST` (optional, default `127.0.0.1`)
+- `MCP_SERVER_HOST` (optional, default `0.0.0.0` — binds all interfaces; set `127.0.0.1` to restrict to localhost)
 - `MCP_SERVER_PORT` (optional, default `8765`)
 
 Then start app normally (`python app.py`).
@@ -523,15 +534,22 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
 
 ### Implemented MCP tools
 - `list_proposals`
-  - optional args: `status` (`active|approved|over_budget|rejected`), `age` (`recent|old`), `limit` (1..200), `offset` (>=0)
+  - optional args: `status` (`active|approved|over_budget|rejected`), `age` (`recent|old`), `username` (exact, case-insensitive creator match), `limit` (1..200), `offset` (>=0)
   - `age=recent` returns active proposals newer than 30 days; `age=old` returns active proposals at least 30 days old. It may only be combined with `status=active`.
   - out-of-range pagination is rejected with `-32602`; values are not silently clamped.
+- `list_polls`
+  - optional args: `status` (`open|closed`), `username` (creator match), `limit`, `offset`
+  - returns each poll's options and per-option vote results
+- `list_group_purchases`
+  - optional args: `status`, `username`, `limit`, `offset`
+  - returns components, shared costs, and per-participant amounts owed/paid
 - `current_budget`
 - `list_user_statistics` (optional `limit` from 1..500, `offset` >= 0, `username`, sorting fields, and `include_email`)
   - returns the same per-user participation fields as `GET /api/members/statistics`
   - returns page `count` and matching `total`; email is opt-in and defaults to omitted
 - `list_member_telegram_links` (optional `include_unlinked`, `limit`, `offset`)
-  - result rows include `linked` and `link_state` (`linked|missing_username|missing_user_id|unlinked`)
+  - result rows include `linked` and `link_state` (`linked|missing_user_id|unlinked`) — see
+    the `link_state` definition under `GET /api/members/telegram` above
   - `limit` validation: must be between `1` and `500`
   - invalid boolean values for `include_unlinked` are rejected with `-32602`
 - `get_voting_settings`
@@ -544,11 +562,22 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
   - required args: `title`, `amount` (>0), `created_by` (existing member id)
   - optional args: `description`, `url`, `basic_supplies`
 - `create_poll`
-  - required args: `question`, `options` (2..12 items), `created_by` (existing member id)
+  - required args: `question` (5..200 characters), `options` (2..12 items), `created_by` (existing member id)
+
+Natural-language Telegram members (non-administrators) receive the read-only tools:
+`list_proposals`, `list_polls`, `list_group_purchases`, `current_budget`, and
+`get_voting_settings`. Administrators additionally receive the write/statistics tools
+above (except `create_member`, which is excluded from Telegram entirely).
+
+`create_proposal`'s misspelled historical alias `crreate_proposal` is still accepted and
+routed to `create_proposal`; a successful call through the alias includes a `warning`
+field in its response.
 
 ### MCP error code conventions
 - `-32602`: invalid params / validation failures (bad types, missing fields, range/length constraints). JSON-RPC `params` and tool `arguments` must be objects when provided.
 - `-32010`: conflict class errors (currently used for duplicate member username)
+- `-32011`: conflict class errors from a database integrity error (for example `create_proposal`)
+- `-32012`: unavailable class errors from a database operational error
 - `-32004`: not found class errors (for example missing `created_by` member)
 - `-32001`: authentication failures (`MCP_API_KEY` missing/invalid)
 
@@ -634,8 +663,9 @@ configure `MCP_API_KEY` to enable natural-language messages. The webhook supplie
 the ManaVote MCP tools to the model, executes requested tools locally, and returns
 the final answer to Telegram. Users must link their account first. Linked members
 receive read-only tools; mutating tools are exposed only to linked administrators.
-Member access is limited to proposals, budget, and voting settings. Member statistics
-and Telegram-link records are admin-only even though those MCP tools are read-only.
+Member access is limited to proposals, polls, group purchases, budget, and voting
+settings (the read-only tool set). Member statistics and Telegram-link records are
+admin-only even though those MCP tools are read-only.
 The assistant allowlist is loaded automatically from non-null `members.telegram_user_id`
 values on every incoming natural-language message. Linking, unlinking, or changing
 an administrator role therefore takes effect without maintaining a separate
@@ -644,8 +674,10 @@ Non-command messages from IDs outside that allowlist are acknowledged but ignore
 they are not placed on the model worker queue. `/help` and `/link` remain available.
 In private chats every non-command message is eligible. In groups, the assistant
 responds when a member addresses it with an `@mention` or replies to one of its
-messages; other group conversation is ignored. Set `TELEGRAM_BOT_USERNAME` so
-mentions can be matched exactly when the bot's Telegram privacy mode is disabled.
+messages; other group conversation is ignored. `TELEGRAM_BOT_USERNAME` must be set
+whenever the bot's Telegram privacy mode is disabled outside the configured forum
+topic: without it, any `@mention` or `/command` entity in the group is treated as
+addressed to this bot, including ones aimed at a different user or bot.
 Assistant and command responses stay in the incoming forum topic when
 `message_thread_id` is present. The forum topic selected by `TELEGRAM_CHAT_ID` and
 `TELEGRAM_THREAD_ID` is treated as a dedicated assistant conversation, so linked
