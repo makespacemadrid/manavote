@@ -313,20 +313,26 @@ A full audit of `docs/*.md` against the current codebase (see the four commits f
 docs previously described incorrectly and that deserves an explicit decision rather than
 a silent doc fix:
 
-1. **OIDC/SSO login silently attaches to an existing password account by email match (P1)**
+1. **OIDC/SSO login silently attaches to an existing password account by email match (P1)** — ✅ resolved (2026-08-27), confirmed intentional.
    - `_upsert_oidc_member` (`app/web/routes/auth_routes.py`) looks up a member with
      `oidc_sub IS NULL` and a matching `email` (case-insensitive) whenever no member is
      yet linked to the incoming `sub`, and attaches the SSO identity to that account —
      including syncing `is_admin` from the token's `groups` claim. `docs/QUICKSTART.md`
      previously claimed the opposite ("Manavote never silently attaches an SSO identity
      to an existing password account"); the docs now describe the real behavior.
-   - This is likely intentional (letting an existing password-account member adopt SSO
-     without creating a duplicate account), but it means a member's local `email` field
-     — which is not itself verified — controls which account a future Keycloak login
-     takes over, including a potential admin-role grant. Confirm this is the intended
-     trust model, and consider requiring the email match to also come from a currently
-     `oidc_sub IS NULL` account created through a trusted path (not self-service email
-     edits) before relying on it for admin accounts.
+   - **Decision**: SSO is the single source of truth for identity and authority; password
+     login exists only for legacy members. Most legacy members deliberately set their own
+     `email` field specifically so their SSO login attaches to their existing account and
+     preserves their vote/proposal history, rather than creating a duplicate — this is a
+     desired self-service workflow, not an oversight.
+   - This also resolves the admin-role concern the original note raised: `is_admin` is
+     computed fresh from the token's `groups` claim (`is_admin = int("admins" in groups)`)
+     on *every* login and unconditionally overwrites the local value (it is not merged
+     with whatever the pre-existing account had). So an email match only determines which
+     member row/history a given SSO identity attaches to — it never grants privilege by
+     itself; the IdP's group claim is the sole source of admin status on every login, in
+     keeping with "SSO is the single source of truth." No code change needed; the existing
+     behavior already matches the intended trust model.
 
 ## WS-A — Architecture Refactor (P0)
 

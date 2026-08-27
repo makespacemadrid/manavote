@@ -381,14 +381,17 @@ document parity, it makes future drift structurally harder to introduce.
   in `api_routes.py` with no ad hoc alternative shape found. No new work needed; marking
   closed rather than carrying it forward as if open.
 
-### Needs a human decision before it can be scoped as sprint work
+### Resolved before this sprint started
 - **OIDC/SSO silent-attach-by-email trust model** (`docs/IDEAS.md`, "Docs audit findings
-  requiring a product decision"): an SSO login can attach to an existing password
-  account — including granting admin via the token's `groups` claim — based on an
-  unverified local `email` field matching. This is very likely intentional (lets an
-  existing member adopt SSO without a duplicate account), but it's a trust-model
-  question, not a bug to silently fix or silently leave. Flagging for the same kind of
-  explicit call as Sprint 4's queue decision, rather than assuming an answer.
+  requiring a product decision") — ✅ answered (2026-08-27): SSO is the single source of
+  truth for identity and authority; password login is a legacy path only. Most legacy
+  members deliberately set their own `email` so their SSO login attaches to their
+  existing account and preserves history — the current behavior is exactly the intended
+  design, not a gap to close. This is also structurally safe on the admin-role question
+  the original audit note raised: `is_admin` is recomputed from the token's `groups`
+  claim on every login and unconditionally overwrites the local value, so an email match
+  only decides which account/history a login attaches to — it never grants privilege by
+  itself. No code change needed; full reasoning in `IDEAS.md`.
 
 ### Exit criteria
 - MCP's proposal/poll/member/voting-setting logic routes through the same
@@ -398,7 +401,7 @@ document parity, it makes future drift structurally harder to introduce.
   exception and reason code behind it.
 - Telegram background-job logs carry enough structured fields to diagnose a stuck or
   failed request without reading source code.
-- The OIDC trust-model question has an explicit answer (keep as-is, or tighten) rather
-  than remaining an open audit note.
+- ✅ The OIDC trust-model question has an explicit answer — resolved before this sprint
+  started; see "Resolved before this sprint started" above.
 
 **Status:** ⚪ Scoped, not started.
