@@ -4,9 +4,11 @@
 > made implicitly held up fine until something *second* arrived (a second surface, a
 > second auth method, a second commit touching the same feature) and broke it, live,
 > in front of users. See "The pattern behind these findings" for the mechanism and a
-> 30-second theme map of all 22 findings, or jump straight to "How the build prompts
-> should have been ordered" for a literal, bottom-up, 14-layer prompt sequence that
-> would regenerate this app's current functionality from nothing.
+> 30-second theme map of all 22 findings; "How the build prompts should have been
+> ordered" for a literal, bottom-up, 14-layer sequence that would regenerate *this
+> app's* current functionality; or "Generalized learnings, for projects that aren't
+> this one" for the tech-agnostic version and a single starter prompt for *any* new
+> project.
 
 This project is 348 commits old as of this writing (`git log --oneline origin/main | wc -l`,
 after unshallowing this session's clone to see the real, complete history back to the
@@ -800,6 +802,143 @@ path" (finding 16).
 > list — ending in one structured `startup_summary` log line with an overall
 > `ready`/`degraded` status. Catch specific exception types at each step
 > (`sqlite3.Error`, `OSError`, `ValueError`), never a bare `except Exception`."
+
+## Generalized learnings, for projects that aren't this one
+
+The 14 layers above are deliberately literal to ManaVote — real tables, real
+thresholds, real tool names — because a prompt sequence that only works in the
+abstract doesn't actually get followed. But the findings behind them generalize past
+Flask, SQLite, and this domain. Stripped of ManaVote specifics, here's what this
+project's history actually argues for anywhere:
+
+1. **Decide your durability model before the first thing that needs it.** Any state
+   representing "an operation isn't finished yet" — a pending confirmation, a queued
+   job, an idempotency key — belongs in durable storage with an expiry from its first
+   line of code, even in a single-process prototype. The question "what happens to
+   this if the process restarts right now" is cheap to ask at design time and
+   expensive to answer honestly after the fact. *(Generalizes finding 2.)*
+2. **Decide your surface model before the second feature.** If anything other than
+   the primary client (a bot, a public API, a second frontend) is even plausible,
+   put a thin service layer between entry points and business logic now — logic
+   that takes its dependencies as explicit parameters, not globals — so the second
+   surface calls the same function instead of re-deriving it. *(Generalizes findings
+   5, 6.)*
+3. **Security and infrastructure hygiene is a zero-feature-value, high-leverage first
+   commit, not a per-feature concern.** Request-forgery protection, a vetted
+   credential-hashing library, secure-by-default transport with an explicit
+   local-development escape hatch, non-debug-by-default, and input validation cost a
+   few lines before the first user-facing route and a dedicated audit pass after
+   dozens of them exist. *(Generalizes finding 3.)*
+4. **Specify every formula in one sentence with one worked example before it's code**
+   — anything involving money, a percentage, a threshold, or a ranked/scored value —
+   and write the test that checks that example before the formula appears anywhere
+   else (a UI, a report, a second code path). A number's meaning that only exists as
+   the code that computes it has no independent way to be checked. *(Generalizes
+   findings 11, 19.)*
+5. **A convention isn't a convention until something other than memory checks it.**
+   State it in a style guide, then give it a lint rule, a snapshot test, or at
+   minimum an explicit instruction for what a reviewer (human or agent) checks a diff
+   against — a rule that only exists as prose gets violated by the first person (or
+   agent) who hasn't memorized it. *(Generalizes findings 7, 21.)*
+6. **Every "second" thing is where an unwritten assumption gets found.** A second
+   auth method, a second surface, a second contributor, a second commit touching the
+   same feature, a second container recreation — each one tests every assumption the
+   first version made without saying so. Before adding any of these, list what the
+   existing implementation assumes that isn't written down, and check the new thing
+   against each assumption explicitly — especially anything touching identity,
+   money, or a destructive action. *(Generalizes findings 13, 16, 17, 20.)*
+7. **Ship vertical slices, not layers, and prove the happy path before merging.**
+   Acceptance criteria (with edge cases) before code; tests against those criteria
+   before or alongside the implementation; one real end-to-end pass of the actual new
+   page/endpoint's happy path before calling it done — a passing unit-test suite is
+   not the same claim as "a user can actually do this." *(Generalizes finding 12.)*
+8. **A protocol-compliance surface needs a real external client before "done."**
+   Implementing to a written spec (an API contract, a bot platform's rules, a plugin
+   interface) is necessary but not sufficient — test against one real reference
+   client or consumer before calling the surface finished, because request-shape and
+   naming mismatches only show up against real traffic. *(Generalizes finding 14.)*
+9. **Scope any migration to the smallest unit that proves the pattern, and prove the
+   build story for that unit before widening.** One component, one table, one
+   endpoint — with its contract written down as a tested invariant, not a comment —
+   beats a big-bang rewrite that needs an immediate follow-up fix. *(Generalizes
+   finding 8.)*
+10. **Verify infrastructure claims against the real mechanism, not code review.**
+    If something must survive a restart, a redeploy, or a rebuild, prove it by
+    actually doing that once, rather than reasoning about whether the configuration
+    should work. *(Generalizes finding 16.)*
+11. **When a decision is ambiguous, hard to reverse, or touches security, money, or
+    identity, the right move is to stop and ask — not to silently pick a reasonable
+    default.** Nearly every finding in this document is a decision that seemed
+    reasonable when made and only became a problem once something else depended on
+    it without knowing it was ever a choice. An agent (human or AI) that surfaces
+    those moments instead of resolving them silently is the actual fix, upstream of
+    every phase-specific prompt above it.
+12. **Keep every commit to one concern.** It costs nothing in the moment and it's the
+    difference between a retrospective like this one being possible at all and a
+    project whose own history can't answer "when did this start, and why."
+    *(Generalizes finding 10.)*
+
+### The one prompt to give at the start of any project
+
+This is the prompt version of the list above — generic on purpose, meant to be pasted
+once at the start of a new project (with a coding agent or without one) and revisited
+explicitly whenever a new external integration, auth method, or client is added, not
+just used once and forgotten.
+
+> **Prompt:** "Before writing any feature code for this project:
+>
+> 1. Start a living spec file naming every core entity and the exact identifier each
+>    of its states will use in code, not a display label to be chosen later. If a
+>    user-facing label will ever differ from that identifier, write both down
+>    together now.
+> 2. For every calculation involving money, a percentage, a threshold, or a
+>    ranked/scored value that the system will ever compute: write its definition as
+>    one sentence with one worked numeric example, and plan a test that checks that
+>    example before the formula is implemented anywhere else.
+> 3. Tell me explicitly: will this run as more than one process (multiple workers, a
+>    restart, a redeploy)? Will anything besides the primary client ever need to do
+>    what this does (a bot, an API, another frontend)? If either is plausible: put a
+>    thin service layer between entry points and business logic now (dependencies
+>    passed explicitly, not read from globals), and store anything representing 'this
+>    isn't finished yet' (a pending action, a job, an idempotency key) in durable
+>    storage with an expiry, not in memory, even though we only run one process today.
+> 4. As one dedicated commit before any user-facing feature: add request-forgery
+>    protection, a vetted credential-hashing library, secure-by-default
+>    transport/cookies with an explicit escape hatch for local development,
+>    non-debug-by-default, and input/upload validation. Treat this as infrastructure,
+>    not a feature — don't revisit it per-feature later.
+> 5. Start a conventions doc. For every convention in it (a shared UI/component
+>    system, a commit-message rule, a testing expectation), also state how it's
+>    checked — a lint rule, a snapshot test, or at minimum an instruction for what a
+>    reviewer checks a diff against. A convention that only exists as a sentence
+>    isn't enforceable.
+> 6. Build every feature as one vertical slice: acceptance criteria including edge
+>    cases, then tests against those criteria, then implementation using
+>    already-established shared components, then one real end-to-end pass of the
+>    actual new page/endpoint's happy path before calling it done. Keep every commit
+>    to one concern — if what I ask for bundles more than one, say so and propose
+>    splitting it rather than doing both silently.
+> 7. Before adding a second surface, provider, or consumer of any existing logic (a
+>    second API shape, a second auth method, a second client): extract the shared
+>    logic into one function/service both will call, with a test asserting they
+>    agree; and list every assumption the existing implementation makes that isn't
+>    written down, checking the new one against each explicitly — especially
+>    anything touching identity, money, or a destructive action.
+> 8. Test any protocol-compliance surface (an API contract, a bot integration, a
+>    plugin interface) against one real external client or reference implementation
+>    before calling it done — not just against your own reading of its spec.
+> 9. Scope any framework, infrastructure, or schema migration to the smallest unit
+>    that proves the pattern. Write its contract down as a tested invariant, and
+>    verify the build/deploy story for that one unit before proposing to widen it.
+> 10. If something needs to survive a restart, a redeploy, or a rebuild, prove it by
+>     actually doing that once before calling it shipped — not by reasoning about
+>     whether the configuration should work.
+> 11. When a decision is ambiguous, hard to reverse, or touches security, money, or
+>     identity: stop and ask me to make and document the decision explicitly, rather
+>     than picking a reasonable-looking default silently.
+>
+> Revisit this list explicitly before starting any new external integration, auth
+> method, or client — not just once at project start."
 
 ## How to use this file
 
