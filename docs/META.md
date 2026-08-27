@@ -1,6 +1,13 @@
 # META — Retrospective: What ~300 Commits Ago Needed to Know
 
-This project is 346 commits old as of this writing (`git log --oneline origin/main | wc -l`,
+> **TL;DR:** Almost every regression documented below follows one shape — a decision
+> made implicitly held up fine until something *second* arrived (a second surface, a
+> second auth method, a second commit touching the same feature) and broke it, live,
+> in front of users. See "The pattern behind these findings" for the mechanism and a
+> 30-second theme map of all 19 findings, or jump straight to "How the build prompts
+> should have been ordered" for seven paste-ready prompts that would have prevented it.
+
+This project is 348 commits old as of this writing (`git log --oneline origin/main | wc -l`,
 after unshallowing this session's clone to see the real, complete history back to the
 first commit). "300 commits ago" lands around commit **#47** — chronologically, right
 after the first withdraw-vote feature and before the first CSRF token, the first
@@ -11,7 +18,7 @@ things that only became visible from further out — how a second identity provi
 second chat surface, and a second frontend framework each interacted with decisions made
 long before they existed. Real, dated evidence throughout, not general advice.
 
-Nearly all of this history — 315 of 346 commits — was authored by one person
+Nearly all of this history — 317 of 348 commits — was authored by one person
 (`web@luisriverag.com`) driving a coding agent through one small, single-purpose PR at a
 time (branch names like `codex/fix-...`, `codex/add-...`); 29 more are this session's own
 work. That matters for the second half of this document: this genuinely is what it looks
@@ -41,6 +48,14 @@ gap between *when the decision was made* and *when it was written down*, and the
 thing" reliably arrived somewhere inside that gap. The prompt sequence at the end of
 this document exists to close that gap before it opens, not to make better decisions —
 most of the original decisions were fine for the world they were made in.
+
+Adding up just the findings below with an explicit, named commit count (1, 3, 4, 7, 8,
+11, 12, 13, 14, 15, 16 — the eight findings without one, like "REST and MCP drifted" or
+"tests arrived late," represent real cost too, just not one expressible as a commit
+tally) comes to **at least 39 commits** spent specifically on rework whose root cause
+predates it, out of 348 total — call it one commit in nine. That's a lower bound, not an
+estimate of total waste: it only counts commits this document cites by hash, not every
+smaller ripple those root causes caused elsewhere.
 
 A quick map of what's below, grouped by theme rather than commit order:
 
@@ -93,7 +108,7 @@ you've written it down.
 CSRF protection, real password hashing, non-debug mode, secure cookies, and upload
 MIME validation all landed together in a dedicated security pass —
 `a97fedf`/`be38c2f`/`8f8bc31`/`43bc4a9` — roughly **a third of the way** through the
-project's life (commit #109 of 346), not from the start. Two of these were
+project's life (commit #109 of 348), not from the start. Two of these were
 particularly expensive to retrofit rather than start with:
 
 - **Password hashing started as raw SHA256** and required `8f8bc31` to add an
@@ -153,7 +168,10 @@ routes being thin callers of a service the other two surfaces would eventually s
 (see item 5). If a bot or an API integration is even a plausible future requirement,
 sketching the service boundary the *first* surface will call — not just the shape of
 its own routes — avoids designing that first surface as something that later has to be
-unwound.
+unwound. (This specific gap — MCP called in-process with the server's own credentials
+rather than through a real application boundary — was finally closed in `bf24b6c`,
+"Complete Sprint 8 MCP application boundary," landing the day after this document was
+first written and roughly 200 commits after the surface it fixes was introduced.)
 
 ## 7. A behavior spec without a process/convention doc will still fork and drift
 
@@ -333,8 +351,20 @@ paying off are worth naming so they don't get lost in a list of regrets:
   (`app/db/migrations.py`, `app/db/schema.sql`), routes (620 lines), templates,
   translations, docs (`docs/SPEC.md`), and 256 lines of tests, all in the same PR — and,
   unlike polls or MCP, didn't need an immediate crash-fix cascade after merging. By the
-  time this feature was built (commit #274 of 346), the project had visibly internalized
+  time this feature was built (commit #274 of 348), the project had visibly internalized
   several of the lessons above.
+- **Finding 7's thesis got a live re-run while this document was being written.**
+  `IDEAS.md`'s "Member feedback / bug reports / suggestions" entry specified a
+  `feedback_service.py` shape and flagged one open design question by name: mutating
+  MCP tools were all admin-only so far, so a member-writable `create_feedback` tool
+  would need a new tool-access category, suggested as `MEMBER_WRITABLE_TOOLS`, and it
+  was unclear whether it should require the existing `/confirm` flow. Commit `bf24b6c`
+  ("Complete Sprint 8 MCP application boundary"), from a *different* agent on a
+  different branch, implemented exactly that — the same category name, exposed
+  alongside but separate from the existing admin-only `MUTATING_TOOLS`, with feedback
+  submission correctly left out of the confirmation flow. A spec doesn't have to be
+  perfect to work; it has to exist somewhere the next PR (or the next agent) will
+  actually read it, which is the entire argument for Phase 0 below.
 
 ## How the build prompts should have been ordered
 
