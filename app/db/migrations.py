@@ -31,6 +31,15 @@ def run_migrations(cursor):
     )
     """)
     cursor.execute("""
+    CREATE TABLE IF NOT EXISTS telegram_conversation_history (
+        chat_id INTEGER NOT NULL,
+        telegram_user_id INTEGER NOT NULL,
+        messages_json TEXT NOT NULL,
+        updated_at REAL NOT NULL,
+        PRIMARY KEY (chat_id, telegram_user_id)
+    )
+    """)
+    cursor.execute("""
     CREATE TABLE IF NOT EXISTS group_purchases (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,
@@ -108,6 +117,8 @@ def run_migrations(cursor):
     add_column_if_missing(cursor, "polls", "status TEXT DEFAULT 'open'")
     add_column_if_missing(cursor, "members", "telegram_username TEXT")
     add_column_if_missing(cursor, "members", "telegram_user_id INTEGER")
+    add_column_if_missing(cursor, "members", "last_linked_at TEXT")
+    add_column_if_missing(cursor, "members", "last_unlinked_at TEXT")
     add_column_if_missing(cursor, "members", "oidc_sub TEXT")
     add_column_if_missing(cursor, "members", "email TEXT")
     add_column_if_missing(cursor, "members", "display_name TEXT")

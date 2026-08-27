@@ -8,7 +8,7 @@ def _init_db(db_path):
     conn = sqlite3.connect(db_path)
     conn.row_factory = sqlite3.Row
     conn.execute(
-        "CREATE TABLE members (id INTEGER PRIMARY KEY, username TEXT, password_hash TEXT, telegram_username TEXT, telegram_user_id INTEGER)"
+        "CREATE TABLE members (id INTEGER PRIMARY KEY, username TEXT, password_hash TEXT, telegram_username TEXT, telegram_user_id INTEGER, last_linked_at TEXT, last_unlinked_at TEXT)"
     )
     conn.execute(
         "INSERT INTO members (id, username, password_hash, telegram_username, telegram_user_id) VALUES (1, 'admin', 'hash', 'tg_user', 123)"
@@ -28,10 +28,13 @@ def test_unlink_member_telegram_clears_fields():
 
         unlink_member_telegram(get_db, 1)
         conn = get_db()
-        row = conn.execute("SELECT telegram_username, telegram_user_id FROM members WHERE id = 1").fetchone()
+        row = conn.execute(
+            "SELECT telegram_username, telegram_user_id, last_unlinked_at FROM members WHERE id = 1"
+        ).fetchone()
         conn.close()
         assert row["telegram_username"] is None
         assert row["telegram_user_id"] is None
+        assert row["last_unlinked_at"] is not None
 
 
 def test_process_link_command_rejects_invalid_format():
@@ -76,10 +79,13 @@ def test_process_link_command_links_member_on_valid_credentials():
         assert member_id == 1
 
         conn = get_db()
-        row = conn.execute("SELECT telegram_username, telegram_user_id FROM members WHERE id = 1").fetchone()
+        row = conn.execute(
+            "SELECT telegram_username, telegram_user_id, last_linked_at FROM members WHERE id = 1"
+        ).fetchone()
         conn.close()
         assert row["telegram_username"] == "new_tg"
         assert row["telegram_user_id"] == 9001
+        assert row["last_linked_at"] is not None
 
 
 def test_process_link_command_does_not_require_public_telegram_username():

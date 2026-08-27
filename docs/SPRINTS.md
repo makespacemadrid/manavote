@@ -91,32 +91,146 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
   `TELEGRAM_THREAD_ID` topic behaves as an always-on assistant conversation, with replies
   correctly threaded back via `message_thread_id`/`reply_parameters`.
 - ✅ Normalized Telegram's group-only `/confirm@botname` and `/cancel@botname` syntax.
+- ✅ Extended backup lifecycle audit events beyond admin-triggered backups: the daily
+  APScheduler jobs and the startup auto-backup check now emit the same structured
+  `*_backup_created`/`*_backup_failed` events (`scheduled_backup_*`, `startup_backup_*`)
+  with `pruned_count`/`error` metadata, so routine automatic backups are no longer
+  silent. Regression coverage added in `tests/test_backup_service.py` and
+  `tests/test_app_startup.py`.
+- ✅ Added `members.last_linked_at`/`last_unlinked_at`, set on every link (`/link`
+  command or an OIDC login carrying a Telegram identity) and unlink (admin or member
+  self-service), and exposed on `GET /api/members/telegram` and
+  `list_member_telegram_links` for operator diagnostics.
+- ✅ Fixed a pre-existing test-isolation bug in `tests/test_oidc_auth.py`: four tests
+  using the `isolated_db_path` fixture never pointed `main_routes.DB_PATH` at it, so they
+  silently ran against the shared session database instead of an isolated one — the
+  extra write volume from the change above made this consistently fail as lock
+  contention rather than occasionally. Fixed by mirroring the one test that already did
+  this correctly.
+- ✅ Moved Telegram conversation history to the same SQLite-backed, shared-across-workers
+  pattern already used for pending confirmations (`telegram_conversation_history`,
+  `configure_history_store`), bounded to the last 12 turns per chat/user.
+- ✅ Added REST/MCP parity tests for `create_proposal` and `create_poll`, and fixed two
+  real drifts they caught: REST's `basic_supplies` field silently coerced any truthy
+  value (including the JSON string `"false"`) instead of validating it like MCP already
+  did, and MCP's `create_proposal` uniquely classified a non-positive `created_by` as an
+  invalid-params error instead of not-found, unlike REST and MCP's own `create_poll`.
+- ✅ Added the end-to-end natural-language webhook contract test
+  (`tests/test_telegram_natural_language_webhook.py`) that drives the real webhook route:
+  unlinked senders are silently ignored, linked senders get a thinking message that's
+  deleted after a real tool-call round trip and final reply delivery, a full queue
+  returns the busy notice and still cleans up the thinking message, a duplicate
+  `update_id` isn't reprocessed, and an admin's propose → `/confirm` flow creates
+  exactly one proposal — while a role removed between the two leaves zero.
 
-Remaining Telegram-assistant hardening (multi-worker/restart-safe conversation history and
-queue state, an end-to-end webhook contract test, public MCP application boundary,
-background-job observability, fair-use limits, and confirmation audit records) is tracked
-as forward-looking backlog in [`IDEAS.md`](IDEAS.md) rather than duplicated here.
+Remaining Telegram-assistant hardening (a process-local model-request queue that needs an
+architectural decision rather than a like-for-like SQLite swap, an end-to-end webhook
+contract test, public MCP application boundary, background-job observability, fair-use
+limits, and confirmation audit records) is tracked as forward-looking backlog in
+[`IDEAS.md`](IDEAS.md) rather than duplicated here.
 
 ### Remaining work (execution checklist)
-1. **Route decomposition closure**
-   - Move any remaining substantial handler logic out of `main_routes.py`.
-   - Keep shim layer intentionally thin and measurable.
+1. **Route decomposition closure** — close to done (2026-08-27): `main_routes.py` cut from
+   2368 to 873 lines (-63.1%).
+   - Moved the entire `/admin` handler (627 lines: every member/budget/settings/poll/
+     backup admin action, plus the dashboard's data-gathering tail) from `main_routes.admin()`
+     into `admin_routes.py`'s blueprint view — it previously just delegated to
+     `legacy.admin()`. Same route, same decorators (`@limiter.exempt @login_required
+     @admin_required`), same behavior; only its home module changed.
+   - Moved all 11 proposal-lifecycle handlers (`new_proposal`, `proposal_detail`,
+     `edit_comment`, `delete_comment`, `delete_proposal`, `edit_proposal`, `quick_vote`,
+     `withdraw_vote`, `undo_approve`, `mark_purchased`, `unmark_purchased`) from
+     `main_routes.py` into `proposal_routes.py` the same way.
+   - Moved `proposals()` (the main listing page, ~155 lines) into `proposal_routes.py` as
+     a real blueprint route (`proposals.proposals`); `main_routes.py` now carries only a
+     3-line compatibility alias at the bare `proposals` endpoint, matching the existing
+     `/about`/`/budget` pattern — needed because dozens of call sites still do
+     `url_for("proposals")`/`redirect(url_for("proposals"))` unqualified. Dropped a
+     pre-existing dead `from flask import make_response` local import and the now-unused
+     `date`/`timedelta`/`timezone` top-level imports while moving it.
+   - Shared helpers each handler still needs (`get_db`, `get_current_budget`,
+     `process_proposal`, `TelegramClient`, etc.) are re-read from `main_routes` as local
+     variables *inside* each view on every request (`get_db = legacy.get_db`, ...) rather
+     than imported once at module load — this preserves every existing test's ability to
+     `patch("app.web.routes.main_routes.X", ...)` and keeps module-level state like
+     `DB_PATH` live. One test (`test_admin_unlink_telegram_action_emits_audit_event`) had
+     to be repointed at the function's new home (`admin_routes.log_telegram_link_event`)
+     since that's a genuine, correct change in where the call now lives.
+   - Moved `telegram_webhook` (~180 lines) into a new `telegram_routes.py` blueprint,
+     registered in `app/web/routes/__init__.py`. No `url_for("telegram_webhook")` call
+     sites exist anywhere (the webhook URL is always built as a plain string,
+     `f"{base_url}/telegram/webhook/{secret}"`, for Telegram's own `setWebhook` call),
+     so this one needed no compatibility alias at all — the route was simply deleted
+     from `main_routes.py`. Module-level singletons the webhook depends on
+     (`_telegram_agent_executor`, `_telegram_update_deduplicator`,
+     `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`/etc., `TelegramClient`) stayed defined in
+     `main_routes.py` and are re-read fresh from `legacy.X` inside the view, same as
+     every other move — this is what keeps the ~120 existing test references to
+     `main_routes.TELEGRAM_*`/`main_routes.TelegramClient`/etc. working unchanged.
+   - `main_routes.py`: 2368 → 873 lines (-63.1%) since this work started. Cleaned up
+     seven now-dead imports (`hmac`, `requests`, `limiter`, `csrf`,
+     `get_telegram_principal`, and the six `telegram_webhook`-only helpers from
+     `app.integrations.telegram_webhook`) left behind by the move.
+   - Full suite re-run after each move (three times for this one, given ~120 test
+     references into the moved code); no behavior regressions, only the one expected
+     test-location fix noted above.
+   - Noticed but not changed: `app/web/routes/__init__.py` already has a generic
+     `legacy_endpoint_aliases` dict that re-registers a blueprint view under its old
+     bare endpoint name for `url_for()` compatibility (used for the 11 proposal
+     handlers, `admin`, `polls_page`, etc.). The `proposals()` move in the previous
+     commit predates noticing this and instead kept a manual `@app.route("/proposals")`
+     wrapper in `main_routes.py` — functionally equivalent, but adding `"proposals":
+     "proposals.proposals"` to that dict instead would be the more consistent cleanup;
+     left as a small follow-up rather than reworking an already-tested commit.
+   - Remaining: the ~30 shared helpers underneath all of this (`get_db`, threshold/
+     vote-mode calculations, Telegram command processors, `record_proposal_vote`, etc.)
+     are a separate, larger undertaking — moving *those* into
+     `app/services/`/`app/repositories/` is WS-A A2's service/repository boundary work,
+     not route decomposition itself. With `admin()`, the proposal handlers,
+     `proposals()`, and `telegram_webhook` all relocated, route decomposition itself is
+     close to done; what's left in `main_routes.py` is almost entirely that shared
+     helper layer plus small compatibility shims.
 
-2. **Admin reliability observability**
-   - Expand backup-audit coverage from download events to lifecycle events (`created`, `pruned`, `failed`) with reason codes.
-   - Add Telegram link lifecycle metadata exposure and operational diagnostics.
+1b. **Service/repository boundary (WS-A A2)** — started (2026-08-27): extracted the
+   poll/proposal vote-mode policy logic (`get_poll_vote_mode`,
+   `is_web_poll_voting_enabled`, `is_telegram_poll_voting_enabled`,
+   `require_linked_telegram_for_votes`, `get_proposal_vote_mode`,
+   `is_web_proposal_voting_enabled`, `can_record_proposal_vote`,
+   `is_registration_enabled`) into `app/services/voting_mode_service.py`. Each function
+   takes `get_setting_value` as an explicit parameter rather than reaching for a module
+   global, making the policy directly unit-testable without a DB or Flask context — see
+   the 6 new tests in `tests/unit/test_services.py`. `main_routes.py` keeps one-line
+   wrappers at the original names so every blueprint's existing `legacy.X` access and the
+   ~15 tests that patch `main_routes.X` for these names keep working unchanged. Full suite:
+   492 passed (486 + 6 new), same 4 pre-existing/environmental failures, zero regressions.
+   Full A2 scope (`get_db`/settings reads, Telegram command processors,
+   `record_proposal_vote`, poll-close/results helpers, Telegram messaging/webhook-sync
+   helpers — see `IDEAS.md` A2 for the complete remaining list) is unchanged and still
+   open; this is the first of several planned slices.
+
+2. **Admin reliability observability** — ✅ closed for this sprint's scope.
+   - Backup-audit coverage now spans download, admin-triggered, scheduled, and
+     startup-check lifecycle events (`created`/`failed` with `pruned_count`/reason
+     codes) — see Delivered above.
+   - Telegram link lifecycle metadata (`last_linked_at`/`last_unlinked_at`) is now
+     exposed via REST/MCP — see Delivered above. Reason-coded audit events for
+     policy-blocked votes remain open (`IDEAS.md` item 5).
 
 3. **REST/MCP contract parity pass**
    - Add additional parity tests for shared business-rule boundaries.
    - Verify consistent machine-readable error semantics across interfaces.
+   - ✅ `create_proposal`/`create_poll` covered — see Delivered above. Remaining:
+     pagination/type errors across list endpoints (`IDEAS.md` item 4).
 
 4. **Docs synchronization pass**
    - Keep `APIDOC.md`, `SPEC.md`, `TESTING.md`, and sprint notes aligned for any contract or workflow change.
 
 5. **Telegram-assistant reliability closure**
-   - Move conversation history and queue state off process-local storage (see `IDEAS.md`
-     P0 item on shared state for multi-worker/restart safety).
-   - Add the end-to-end natural-language webhook contract test called for in `IDEAS.md`.
+   - Conversation history is now shared across workers (see Delivered above). Remaining:
+     decide an approach for the process-local model-request queue (`IDEAS.md` P0 item on
+     shared state for multi-worker/restart safety).
+   - ✅ The end-to-end natural-language webhook contract test called for in `IDEAS.md` is
+     done — see Delivered above.
 
 ### Exit Criteria
 - `main_routes.py` is reduced to compatibility routing with minimal orchestration logic.

@@ -378,7 +378,7 @@ class TestAdminFunctionality(unittest.TestCase):
         conn.commit()
         conn.close()
 
-        with patch("app.web.routes.main_routes.log_telegram_link_event") as mock_log:
+        with patch("app.web.routes.admin_routes.log_telegram_link_event") as mock_log:
             response = self.client.post(
                 "/admin",
                 data={"action": "unlink_telegram", "member_id": 1, "csrf_token": ""},

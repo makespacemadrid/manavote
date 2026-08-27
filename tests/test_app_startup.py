@@ -1,9 +1,11 @@
+import os
 import sqlite3
+import tempfile
 import unittest
 from unittest.mock import patch
 
 import app
-from app.startup import run_startup_steps
+from app.startup import check_auto_backup, run_startup_steps
 
 
 class TestAppStartup(unittest.TestCase):
@@ -14,7 +16,7 @@ class TestAppStartup(unittest.TestCase):
 
     def test_run_startup_steps_executes_in_order(self):
         events = []
-        with patch("app.startup.ensure_db_ready", side_effect=lambda: events.append("db")),              patch("app.startup.check_auto_backup", side_effect=lambda *_: events.append("backup")),              patch("app.startup.start_scheduler", side_effect=lambda *_: events.append("scheduler")):
+        with patch("app.startup.ensure_db_ready", side_effect=lambda: events.append("db")),              patch("app.startup.check_auto_backup", side_effect=lambda *a, **kw: events.append("backup")),              patch("app.startup.start_scheduler", side_effect=lambda *_: events.append("scheduler")):
             run_startup_steps(app.flask_app, "test.db", "uploads")
         self.assertEqual(events, ["db", "scheduler", "backup"])
 
@@ -65,6 +67,11 @@ class TestAppStartup(unittest.TestCase):
 
         sync_mock.assert_called_once_with()
 
+    def test_run_startup_steps_passes_app_logger_to_auto_backup_check(self):
+        with patch("app.startup.ensure_db_ready"),              patch("app.startup.start_scheduler"),              patch("app.startup.check_auto_backup") as backup_mock:
+            run_startup_steps(app.flask_app, "test.db", "uploads", app_env="development")
+        backup_mock.assert_called_once_with("test.db", "uploads", logger=app.flask_app.logger)
+
     def test_startup_reports_telegram_webhook_configuration_problem(self):
         with patch("app.startup.ensure_db_ready"), \
              patch("app.startup.sync_telegram_webhook_on_startup", return_value="missing_base_url"), \
@@ -74,6 +81,57 @@ class TestAppStartup(unittest.TestCase):
         message = info_mock.call_args[0][1]
         self.assertIn('"status": "degraded"', message)
         self.assertIn('telegram_webhook_missing_base_url', message)
+
+
+class TestCheckAutoBackupAuditEvents(unittest.TestCase):
+    def test_emits_startup_backup_created_for_db_and_uploads(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = os.path.join(tmp, "app.db")
+            with patch("app.services.backup_service.backup_db", return_value=("app_20990101_000000.db", 1)),                  patch("app.services.backup_service.backup_uploads", return_value=("uploads_20990101_000000.zip", 0)),                  patch("app.web.routes.helpers.admin_audit_helpers.log_admin_backup_event") as log_mock:
+                check_auto_backup(db_path, "uploads_dir", logger="fake-logger")
+
+            self.assertEqual(log_mock.call_count, 2)
+            db_call, uploads_call = log_mock.call_args_list
+            self.assertEqual(db_call.args[0], "fake-logger")
+            self.assertEqual(db_call.kwargs["event"], "startup_backup_created")
+            self.assertIsNone(db_call.kwargs["actor_id"])
+            self.assertEqual(db_call.kwargs["backup_type"], "db")
+            self.assertEqual(db_call.kwargs["pruned_count"], 1)
+            self.assertEqual(uploads_call.kwargs["event"], "startup_backup_created")
+            self.assertEqual(uploads_call.kwargs["backup_type"], "images")
+            self.assertTrue(os.path.exists(os.path.join(tmp, ".last_backup")))
+
+    def test_emits_startup_backup_failed_when_db_backup_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = os.path.join(tmp, "app.db")
+            with patch("app.services.backup_service.backup_db", side_effect=OSError("disk full")),                  patch("app.web.routes.helpers.admin_audit_helpers.log_admin_backup_event") as log_mock,                  patch("app.startup.logging.warning"):
+                check_auto_backup(db_path, "uploads_dir", logger="fake-logger")
+
+            log_mock.assert_called_once()
+            self.assertEqual(log_mock.call_args.kwargs["event"], "startup_backup_failed")
+            self.assertEqual(log_mock.call_args.kwargs["backup_type"], "db")
+            self.assertEqual(log_mock.call_args.kwargs["error"], "disk full")
+            self.assertFalse(os.path.exists(os.path.join(tmp, ".last_backup")))
+
+    def test_emits_startup_backup_failed_with_images_type_when_uploads_backup_raises(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = os.path.join(tmp, "app.db")
+            with patch("app.services.backup_service.backup_db", return_value=("app_20990101_000000.db", 0)),                  patch("app.services.backup_service.backup_uploads", side_effect=OSError("zip failed")),                  patch("app.web.routes.helpers.admin_audit_helpers.log_admin_backup_event") as log_mock,                  patch("app.startup.logging.warning"):
+                check_auto_backup(db_path, "uploads_dir", logger="fake-logger")
+
+            failure_call = log_mock.call_args_list[-1]
+            self.assertEqual(failure_call.kwargs["event"], "startup_backup_failed")
+            self.assertEqual(failure_call.kwargs["backup_type"], "images")
+            self.assertFalse(os.path.exists(os.path.join(tmp, ".last_backup")))
+
+    def test_uses_module_logger_when_none_provided(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            db_path = os.path.join(tmp, "app.db")
+            with patch("app.services.backup_service.backup_db", return_value=("app_20990101_000000.db", 0)),                  patch("app.services.backup_service.backup_uploads", return_value=("uploads_20990101_000000.zip", 0)),                  patch("app.web.routes.helpers.admin_audit_helpers.log_admin_backup_event") as log_mock:
+                check_auto_backup(db_path, "uploads_dir")
+
+            called_logger = log_mock.call_args_list[0].args[0]
+            self.assertEqual(called_logger.name, "app.startup")
 
 
 if __name__ == "__main__":

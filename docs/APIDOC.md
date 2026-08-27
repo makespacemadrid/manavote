@@ -97,8 +97,10 @@ curl -X POST http://localhost:45000/api/register \
 ### Validation
 - `title` required
 - `amount` required, numeric, and must be `> 0`
-- `created_by` required and must exist in `members`
-- `description`, `url`, `basic_supplies` optional
+- `created_by` required and must exist in `members`; a non-positive or otherwise
+  unmatched value is rejected as `creator_member_not_found`, not a params-shape error
+- `description`, `url`, `basic_supplies` optional; `basic_supplies` must parse as a
+  boolean (`true`/`false`, `1`/`0`, or the equivalent string forms) when provided
 
 ### Success response
 **201 Created**
@@ -112,7 +114,7 @@ curl -X POST http://localhost:45000/api/register \
 
 ### Error responses
 - `415` content type is not `application/json`
-- `400` `title_amount_required`, `amount_must_be_positive`, or `created_by_required`
+- `400` `title_amount_required`, `amount_must_be_positive`, `created_by_required`, or `invalid_basic_supplies`
 - `404` `creator_member_not_found`
 - `500` `proposal_create_failed`
 
@@ -370,6 +372,11 @@ curl -X POST http://localhost:45000/api/polls \
 
 When `include_unlinked=false` (default), only fully linked members are returned and `link_state` is always `linked`.
 
+Every row also includes `last_linked_at` and `last_unlinked_at` (nullable timestamps) for
+operator diagnostics — the last time `telegram_user_id` was established/changed (via
+`/link` or an OIDC login carrying a Telegram identity) and the last time it was cleared
+(admin or member self-service unlink), respectively.
+
 ### Success response
 **200 OK**
 ```json
@@ -384,6 +391,8 @@ When `include_unlinked=false` (default), only fully linked members are returned 
       "username": "alice",
       "telegram_username": "alice_tg",
       "telegram_user_id": 123456,
+      "last_linked_at": "2026-08-27T10:15:00",
+      "last_unlinked_at": null,
       "linked": 1,
       "link_state": "linked"
     }
@@ -548,8 +557,9 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
   - returns the same per-user participation fields as `GET /api/members/statistics`
   - returns page `count` and matching `total`; email is opt-in and defaults to omitted
 - `list_member_telegram_links` (optional `include_unlinked`, `limit`, `offset`)
-  - result rows include `linked` and `link_state` (`linked|missing_user_id|unlinked`) — see
-    the `link_state` definition under `GET /api/members/telegram` above
+  - result rows include `linked`, `link_state` (`linked|missing_user_id|unlinked`), and
+    `last_linked_at`/`last_unlinked_at` — see the definitions under
+    `GET /api/members/telegram` above
   - `limit` validation: must be between `1` and `500`
   - invalid boolean values for `include_unlinked` are rejected with `-32602`
 - `get_voting_settings`
@@ -559,8 +569,12 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
   - required args: `username`, `password`
   - optional args: `is_admin` (`true`/`false`)
 - `create_proposal`
-  - required args: `title`, `amount` (>0), `created_by` (existing member id)
-  - optional args: `description`, `url`, `basic_supplies`
+  - required args: `title`, `amount` (>0), `created_by` (existing member id) — a
+    non-positive or otherwise unmatched `created_by` is rejected with `-32004` (not
+    found), matching REST and `create_poll`, not `-32602`
+  - optional args: `description`, `url`, `basic_supplies` (must parse as boolean;
+    an unrecognized value is rejected with `-32602`, matching REST's
+    `invalid_basic_supplies`)
 - `create_poll`
   - required args: `question` (5..200 characters), `options` (2..12 items), `created_by` (existing member id)
 

@@ -57,10 +57,26 @@ rechecking the previously audited Telegram-link parity paths.
      - proposal create/update validation edges,
      - poll creation bounds,
      - pagination/type errors across list endpoints.
+   - Progress (2026-08-27): added REST/MCP parity tests for `create_proposal` (missing
+     fields, non-positive amount, unknown/non-positive `created_by`, invalid
+     `basic_supplies`, success shape) and `create_poll` (question/option bounds, success
+     shape). This surfaced and fixed two real drifts rather than just documenting them:
+     REST silently coerced any truthy `basic_supplies` value (including the JSON string
+     `"false"`, which is truthy in Python) instead of validating it like MCP already did;
+     and MCP's `create_proposal` uniquely treated a non-positive `created_by` as an
+     invalid-params error while REST and MCP's own `create_poll` both treat it as
+     not-found. Proposal *update* has no MCP equivalent tool, so its validation edges
+     still only have REST-side coverage. Pagination/type errors across list endpoints
+     remain open.
 
 5. **Observability completion for Telegram lifecycle (P2)**
    - Add reason-coded audit events for link/unlink operations and blocked votes by policy mode.
    - Expose `last_linked_at`/`last_unlinked_at` metadata for admin diagnostics.
+   - Progress (2026-08-27): `members.last_linked_at`/`last_unlinked_at` are now set on
+     every link (`/link` command or an OIDC login whose claims carry a Telegram identity)
+     and unlink (admin or member self-service), and exposed on both
+     `GET /api/members/telegram` and the `list_member_telegram_links` MCP tool. Blocked
+     votes by policy mode still need reason-coded audit events.
 
 6. **Statistics privacy and authorization review (P2)**
    - User statistics expose member email addresses to API/MCP administrators.
@@ -117,16 +133,29 @@ backpressure, Telegram transport, retry behavior, documentation, and focused tes
    - Treat mutation idempotency as a database/MCP invariant, not only a webhook cache.
    - Progress (2026-08-26): webhook update IDs and pending confirmations now use SQLite,
      are shared by all application workers, and survive restarts. Confirmations are
-     atomically consumed before execution. Conversation history and queue state remain
-     process-local and still require the shared-state work above.
+     atomically consumed before execution.
+   - Progress (2026-08-27): conversation history now uses the same SQLite-backed pattern
+     (`telegram_conversation_history`, `configure_history_store`), bounded to the last
+     `MAX_HISTORY_MESSAGES` (12) turns per chat/user and shared across workers. Bounded
+     model-request queue state (the in-process worker pool limiting concurrent model
+     calls) is fundamentally process-local by design and still needs an architectural
+     decision — e.g. a single dedicated assistant worker, or a database/Redis-backed
+     lease — rather than a like-for-like SQLite swap.
 
-3. **End-to-end natural-language webhook contract (P0)**
+3. **End-to-end natural-language webhook contract (P0)** — ✅ delivered (2026-08-27)
    - Existing functional webhook tests exercise deterministic commands and callbacks,
      while model/Telegram lifecycle pieces are primarily unit-tested.
    - Add a Flask-level test covering linked and unlinked senders, thinking-message create
      and delete, tool call, final chunk delivery, duplicate `update_id`, and queue-full UX.
    - Add an administrator test spanning proposed mutation → `/confirm` → one MCP write,
      including role removal between proposal and confirmation.
+   - `tests/test_telegram_natural_language_webhook.py` now drives the real
+     `POST /telegram/webhook/<secret>` route end-to-end (mocking only the outbound
+     Telegram HTTP client and the OpenAI-compatible model response) covering every item
+     above. Building it surfaced a real test-infrastructure gotcha worth remembering: the
+     update-ID deduplicator persists to the shared session SQLite file by design, so
+     fixed literal `update_id`/`telegram_user_id` values collide across separate test
+     runs against that file — the test generates fresh ones every run.
 
 4. **Public MCP application boundary (P1)**
    - The assistant currently consumes the private `_tool_definitions()` helper and calls
@@ -248,11 +277,43 @@ a silent doc fix:
 - Split route responsibilities into focused modules (`auth`, `proposal`, `poll`, `admin`, `api`).
 - Move shared orchestration helpers into route-helper or service layers.
 - Register route modules consistently through app setup.
+- Progress (2026-08-27): the `/admin` handler (627 lines), all 11 proposal-lifecycle
+  handlers, `proposals()` (the main listing page, ~155 lines), and `telegram_webhook`
+  (~180 lines, into a new `telegram_routes.py` blueprint) all moved out of
+  `main_routes.py` into their real blueprint homes, cutting `main_routes.py` from 2368
+  to 873 lines (-63.1%). Route decomposition itself is now close to done; what remains
+  in `main_routes.py` is almost entirely the shared helper layer (`get_db`,
+  threshold/vote-mode calculations, Telegram command processors, `record_proposal_vote`,
+  ~30 functions) plus small compatibility shims — moving the helpers into
+  `app/services/`/`app/repositories/` is A2's service/repository boundary work, not A1's
+  route decomposition.
 
 ### A2. Complete service/repository boundary
 - Route handlers call service entry points only.
 - Repositories own query composition and persistence concerns.
 - Critical domain operations gain direct service-level test coverage.
+- Progress (2026-08-27): extracted the poll/proposal vote-mode policy logic (7 functions —
+  `get_poll_vote_mode`, `is_web_poll_voting_enabled`, `is_telegram_poll_voting_enabled`,
+  `require_linked_telegram_for_votes`, `get_proposal_vote_mode`,
+  `is_web_proposal_voting_enabled`, `can_record_proposal_vote`) plus
+  `is_registration_enabled` into a new `app/services/voting_mode_service.py`. Each function
+  now takes `get_setting_value` as an explicit parameter instead of reaching for a module
+  global, so the policy is directly unit-testable without a DB or Flask context (6 new
+  tests in `tests/unit/test_services.py`, no mocking needed). `main_routes.py` keeps
+  one-line wrapper functions at the original names — every other blueprint module still
+  reaches these via `legacy.X` (per A1's alias pattern) and the ~15 existing tests that
+  `unittest.mock.patch("app.web.routes.main_routes.X", ...)` these names keep working
+  unchanged, since patching a module attribute doesn't care what it currently points to.
+  Verified with the full suite: 492 passed (486 + 6 new), same 4 pre-existing/environmental
+  failures, zero regressions. Remaining in `main_routes.py`'s shared helper layer: `get_db`
+  and its settings/budget read wrappers (already thin repository wrappers — see
+  `SettingsRepository`), the Telegram command processors (`process_telegram_vote_command`,
+  `process_telegram_proposal_vote_command`, `process_telegram_vote_callback`,
+  `process_telegram_link_command`), `record_proposal_vote`/`log_proposal_vote_event`, the
+  poll-close/results helpers (`close_expired_polls`, `build_poll_results_message`), and the
+  Telegram messaging/webhook-sync helpers (`send_telegram_message`, `sync_telegram_webhook*`)
+  — all still call through module globals so future slices should follow the same
+  parameter-injection pattern rather than importing `main_routes` internals directly.
 
 ---
 
@@ -338,6 +399,8 @@ Proposed startup lifecycle:
 
 ### Telegram identity lifecycle
 - Add explicit metadata (`last_linked_at`, linked `telegram_user_id`) visible to admins.
+  Delivered (2026-08-27) at the API/MCP diagnostics layer (`GET /api/members/telegram`,
+  `list_member_telegram_links`); still not surfaced in the admin panel UI itself.
 - Add optional self-service unlink for members with explicit confirmation UX.
 
 ### UX quality gates

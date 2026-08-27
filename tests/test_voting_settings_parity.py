@@ -323,3 +323,256 @@ def test_member_telegram_link_listing_invalid_limit_rejected_by_rest_and_mcp():
     assert rest.status_code == 400
     assert rest.get_json()["error"]["code"] == "limit_out_of_range"
     assert mcp["error"]["code"] == -32602
+
+
+def test_create_proposal_missing_fields_rejected_by_rest_and_mcp():
+    budget_app.app.config["TESTING"] = True
+    client = budget_app.app.test_client()
+    from app.web.routes import main_routes
+
+    old_key = _with_admin_api_key()
+    try:
+        rest = client.post(
+            "/api/proposals",
+            headers={"X-Admin-Key": "test-key"},
+            json={"title": "Missing amount"},
+        )
+    finally:
+        main_routes.ADMIN_API_KEY = old_key
+
+    mcp = mcp_server.handle_request(_mcp_req("create_proposal", {"title": "Missing amount"}, req_id=7))
+
+    assert rest.status_code == 400
+    assert mcp["error"]["code"] == -32602
+
+
+def test_create_proposal_non_positive_amount_rejected_by_rest_and_mcp():
+    budget_app.app.config["TESTING"] = True
+    client = budget_app.app.test_client()
+    from app.web.routes import main_routes
+
+    old_key = _with_admin_api_key()
+    try:
+        rest = client.post(
+            "/api/proposals",
+            headers={"X-Admin-Key": "test-key"},
+            json={"title": "Free item", "amount": 0, "created_by": 1},
+        )
+    finally:
+        main_routes.ADMIN_API_KEY = old_key
+
+    mcp = mcp_server.handle_request(
+        _mcp_req("create_proposal", {"title": "Free item", "amount": 0, "created_by": 1}, req_id=8)
+    )
+
+    assert rest.status_code == 400
+    assert rest.get_json()["error"]["code"] == "amount_must_be_positive"
+    assert mcp["error"]["code"] == -32602
+
+
+def test_create_proposal_unknown_creator_rejected_by_rest_and_mcp():
+    budget_app.app.config["TESTING"] = True
+    client = budget_app.app.test_client()
+    from app.web.routes import main_routes
+
+    old_key = _with_admin_api_key()
+    try:
+        rest = client.post(
+            "/api/proposals",
+            headers={"X-Admin-Key": "test-key"},
+            json={"title": "Orphan proposal", "amount": 10, "created_by": 999999},
+        )
+    finally:
+        main_routes.ADMIN_API_KEY = old_key
+
+    mcp = mcp_server.handle_request(
+        _mcp_req(
+            "create_proposal",
+            {"title": "Orphan proposal", "amount": 10, "created_by": 999999},
+            req_id=9,
+        )
+    )
+
+    assert rest.status_code == 404
+    assert rest.get_json()["error"]["code"] == "creator_member_not_found"
+    assert mcp["error"]["code"] == -32004
+
+
+def test_create_proposal_non_positive_creator_id_is_not_found_not_invalid_params():
+    """A non-positive but well-typed created_by should be classified the same way as an
+    unknown member (not found), consistent with create_poll and the REST endpoint -
+    not treated as a params-shape error."""
+    budget_app.app.config["TESTING"] = True
+    client = budget_app.app.test_client()
+    from app.web.routes import main_routes
+
+    old_key = _with_admin_api_key()
+    try:
+        rest = client.post(
+            "/api/proposals",
+            headers={"X-Admin-Key": "test-key"},
+            json={"title": "Negative creator", "amount": 10, "created_by": -5},
+        )
+    finally:
+        main_routes.ADMIN_API_KEY = old_key
+
+    mcp = mcp_server.handle_request(
+        _mcp_req("create_proposal", {"title": "Negative creator", "amount": 10, "created_by": -5}, req_id=10)
+    )
+
+    assert rest.status_code == 404
+    assert rest.get_json()["error"]["code"] == "creator_member_not_found"
+    assert mcp["error"]["code"] == -32004
+
+
+def test_create_proposal_invalid_basic_supplies_rejected_by_rest_and_mcp():
+    budget_app.app.config["TESTING"] = True
+    client = budget_app.app.test_client()
+    from app.web.routes import main_routes
+
+    old_key = _with_admin_api_key()
+    try:
+        rest = client.post(
+            "/api/proposals",
+            headers={"X-Admin-Key": "test-key"},
+            json={"title": "Odd flag", "amount": 10, "created_by": 1, "basic_supplies": "maybe"},
+        )
+    finally:
+        main_routes.ADMIN_API_KEY = old_key
+
+    mcp = mcp_server.handle_request(
+        _mcp_req(
+            "create_proposal",
+            {"title": "Odd flag", "amount": 10, "created_by": 1, "basic_supplies": "maybe"},
+            req_id=11,
+        )
+    )
+
+    assert rest.status_code == 400
+    assert rest.get_json()["error"]["code"] == "invalid_basic_supplies"
+    assert mcp["error"]["code"] == -32602
+
+
+def test_create_proposal_success_shape_matches_between_rest_and_mcp():
+    budget_app.app.config["TESTING"] = True
+    client = budget_app.app.test_client()
+    from app.web.routes import main_routes
+
+    old_key = _with_admin_api_key()
+    try:
+        rest = client.post(
+            "/api/proposals",
+            headers={"X-Admin-Key": "test-key"},
+            json={"title": "REST-created widget", "amount": 12.5, "created_by": 1},
+        )
+    finally:
+        main_routes.ADMIN_API_KEY = old_key
+
+    mcp = mcp_server.handle_request(
+        _mcp_req(
+            "create_proposal",
+            {"title": "MCP-created widget", "amount": 12.5, "created_by": 1},
+            req_id=12,
+        )
+    )
+
+    assert rest.status_code == 201
+    rest_payload = rest.get_json()
+    assert rest_payload["success"] is True
+    assert isinstance(rest_payload["proposal_id"], int)
+
+    mcp_payload = json.loads(mcp["result"]["content"][0]["text"])
+    assert mcp_payload["success"] is True
+    assert isinstance(mcp_payload["proposal_id"], int)
+
+
+def test_create_poll_question_bounds_rejected_by_rest_and_mcp():
+    budget_app.app.config["TESTING"] = True
+    client = budget_app.app.test_client()
+    from app.web.routes import main_routes
+
+    old_key = _with_admin_api_key()
+    try:
+        rest = client.post(
+            "/api/polls",
+            headers={"X-Admin-Key": "test-key"},
+            json={"question": "no", "options": ["A", "B"], "created_by": 1},
+        )
+    finally:
+        main_routes.ADMIN_API_KEY = old_key
+
+    mcp = mcp_server.handle_request(
+        _mcp_req("create_poll", {"question": "no", "options": ["A", "B"], "created_by": 1}, req_id=13)
+    )
+
+    assert rest.status_code == 400
+    assert rest.get_json()["error"]["code"] == "invalid_poll_question"
+    assert mcp["error"]["code"] == -32602
+
+
+def test_create_poll_option_bounds_rejected_by_rest_and_mcp():
+    budget_app.app.config["TESTING"] = True
+    client = budget_app.app.test_client()
+    from app.web.routes import main_routes
+
+    too_few = {"question": "Valid question?", "options": ["A"], "created_by": 1}
+    too_many = {
+        "question": "Valid question?",
+        "options": [str(i) for i in range(13)],
+        "created_by": 1,
+    }
+    too_long_option = {
+        "question": "Valid question?",
+        "options": ["A" * 121, "B"],
+        "created_by": 1,
+    }
+
+    old_key = _with_admin_api_key()
+    try:
+        for payload in (too_few, too_many, too_long_option):
+            rest = client.post(
+                "/api/polls",
+                headers={"X-Admin-Key": "test-key"},
+                json=payload,
+            )
+            assert rest.status_code == 400
+            assert rest.get_json()["error"]["code"] == "invalid_poll_options"
+    finally:
+        main_routes.ADMIN_API_KEY = old_key
+
+    for index, payload in enumerate((too_few, too_many, too_long_option)):
+        mcp = mcp_server.handle_request(_mcp_req("create_poll", payload, req_id=14 + index))
+        assert mcp["error"]["code"] == -32602
+
+
+def test_create_poll_success_shape_matches_between_rest_and_mcp():
+    budget_app.app.config["TESTING"] = True
+    client = budget_app.app.test_client()
+    from app.web.routes import main_routes
+
+    old_key = _with_admin_api_key()
+    try:
+        rest = client.post(
+            "/api/polls",
+            headers={"X-Admin-Key": "test-key"},
+            json={"question": "REST poll: pick one?", "options": ["A", "B"], "created_by": 1},
+        )
+    finally:
+        main_routes.ADMIN_API_KEY = old_key
+
+    mcp = mcp_server.handle_request(
+        _mcp_req(
+            "create_poll",
+            {"question": "MCP poll: pick one?", "options": ["A", "B"], "created_by": 1},
+            req_id=17,
+        )
+    )
+
+    assert rest.status_code == 201
+    rest_payload = rest.get_json()
+    assert rest_payload["success"] is True
+    assert isinstance(rest_payload["poll_id"], int)
+
+    mcp_payload = json.loads(mcp["result"]["content"][0]["text"])
+    assert mcp_payload["success"] is True
+    assert isinstance(mcp_payload["poll_id"], int)

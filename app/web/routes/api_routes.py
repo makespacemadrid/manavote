@@ -93,7 +93,7 @@ def api_create_proposal():
     description = data.get("description", "")
     amount = data.get("amount")
     url = data.get("url", "")
-    basic_supplies = 1 if data.get("basic_supplies", False) else 0
+    basic_supplies_flag = _parse_optional_bool(data.get("basic_supplies", False))
     created_by = data.get("created_by")
 
     if not title or amount is None:
@@ -103,6 +103,9 @@ def api_create_proposal():
         return api_error("amount_must_be_positive", "amount must be positive", 400)
     if not created_by:
         return api_error("created_by_required", "created_by is required", 400)
+    if basic_supplies_flag is None:
+        return api_error("invalid_basic_supplies", "basic_supplies must be boolean", 400)
+    basic_supplies = 1 if basic_supplies_flag else 0
 
     conn = legacy.get_db()
     c = conn.cursor()
@@ -268,7 +271,7 @@ def api_list_member_telegram_links():
     if include_unlinked:
         c.execute(
             f"""
-            SELECT id, username, telegram_username, telegram_user_id,
+            SELECT id, username, telegram_username, telegram_user_id, last_linked_at, last_unlinked_at,
                    CASE WHEN {LINKED_CONDITION_SQL} THEN 1 ELSE 0 END AS linked,
                    {link_state_case_sql()} AS link_state
             FROM members
@@ -280,7 +283,8 @@ def api_list_member_telegram_links():
     else:
         c.execute(
             f"""
-            SELECT id, username, telegram_username, telegram_user_id, 1 AS linked, 'linked' AS link_state
+            SELECT id, username, telegram_username, telegram_user_id, last_linked_at, last_unlinked_at,
+                   1 AS linked, 'linked' AS link_state
             FROM members
             WHERE {LINKED_CONDITION_SQL}
             ORDER BY id ASC

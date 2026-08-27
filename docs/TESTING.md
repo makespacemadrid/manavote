@@ -77,6 +77,21 @@ Covers admin backup/operator reliability regressions:
   - image backup create/failure
 - server-side admin tab propagation in POST-rendered admin responses
 
+Automatic (non-admin-triggered) backups emit the same kind of structured events under
+distinct event names, covered separately:
+
+```bash
+pytest -q tests/test_backup_service.py tests/test_app_startup.py
+```
+
+- `tests/test_backup_service.py::TestScheduledBackupJob` — the daily APScheduler jobs
+  emit `scheduled_backup_created`/`scheduled_backup_failed` (with `pruned_count`/`error`)
+  for both the DB and uploads backups, and `start_scheduler` wires both jobs correctly.
+- `tests/test_app_startup.py::TestCheckAutoBackupAuditEvents` — the startup auto-backup
+  check emits `startup_backup_created`/`startup_backup_failed`, attributes a failure to
+  the right `backup_type` (`db` vs `images`), and only writes the `.last_backup` marker
+  on full success.
+
 ## MCP-focused checks
 
 ```bash
@@ -106,6 +121,11 @@ Covers contract-alignment scenarios for `PATCH /api/settings/voting` and MCP `up
 - out-of-range pagination rejection parity (`limit` upper bound enforcement)
 - `list_user_statistics` parity: success shape, invalid `limit`, and the `include_email`
   opt-in (and its invalid-value rejection) between REST and MCP
+- `create_proposal` parity: missing fields, non-positive amount, unknown/non-positive
+  `created_by` (classified as not-found on both interfaces, not invalid-params),
+  invalid `basic_supplies`, and success shape
+- `create_poll` parity: question/option bounds (short question, too few/many options,
+  an over-long option) and success shape
 
 ## Telegram webhook vote-response checks
 
@@ -143,6 +163,7 @@ pytest -q \
   tests/unit/test_telegram_webhook_helpers.py \
   tests/test_telegram_client.py
 pytest -q tests/test_app_functionality.py -k telegram_webhook
+pytest -q tests/test_telegram_natural_language_webhook.py
 ```
 
 Coverage is split by responsibility:
@@ -152,6 +173,8 @@ Coverage is split by responsibility:
   - OpenAI-compatible tool-call/result round trips
   - explicit `/confirm` and `/cancel`, confirmation expiry, and MCP error formatting
   - per-chat/per-user pending-action isolation and invalid tool arguments
+  - pending actions and conversation history both survive a fresh connection (simulating
+    a different worker) and conversation history stays bounded to the most recent turns
 - `tests/unit/test_telegram_access_service.py`
   - live allowlist construction from `members.telegram_user_id`
   - linked administrator resolution, invalid IDs, and link changes without restart
@@ -166,6 +189,16 @@ Coverage is split by responsibility:
 - `tests/test_app_functionality.py -k telegram_webhook`
   - authenticated Flask webhook routes, proposal/poll commands, callbacks, linking,
     edited messages, strict linked-vote policy, and malformed requests
+- `tests/test_telegram_natural_language_webhook.py`
+  - end-to-end: drives the real `POST /telegram/webhook/<secret>` route (not just
+    `telegram_agent.answer()` directly) with only the outbound Telegram client and the
+    OpenAI-compatible model response mocked
+  - unlinked senders are ignored without enqueueing work; linked senders get a thinking
+    message that is deleted after a real tool-call round trip and final reply delivery
+  - a full assistant queue returns the busy notice and still cleans up the thinking
+    message; a duplicate `update_id` is acknowledged without repeating the work
+  - an administrator's propose → `/confirm` flow executes exactly one MCP write, and the
+    same flow with the admin role removed between the two steps executes zero
 
 No live Ocabra or Telegram credentials are required for this pack. HTTP/model calls
 are mocked; use an explicitly configured test bot only for optional manual smoke tests.
@@ -191,6 +224,18 @@ Covers structured audit-log emission on:
 - admin-triggered Telegram unlink
 - member self-service Telegram unlink
 - Telegram `/link` command success path
+
+`last_linked_at`/`last_unlinked_at` metadata coverage:
+
+```bash
+pytest -q tests/unit/test_telegram_link_service.py tests/test_oidc_auth.py -k "last_linked or link"
+```
+
+- `tests/unit/test_telegram_link_service.py` — `/link` sets `last_linked_at`; unlink sets
+  `last_unlinked_at`.
+- `tests/test_oidc_auth.py::test_oidc_member_last_linked_at_only_bumps_when_telegram_id_changes`
+  — an OIDC login only bumps `last_linked_at` when the claims' Telegram identity is newly
+  set or actually changes, not on every login with the same value.
 
 ## OpenID Connect regression tests
 

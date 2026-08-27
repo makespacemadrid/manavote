@@ -1,9 +1,12 @@
+from datetime import datetime
+
+
 def unlink_member_telegram(get_db, member_id: int) -> None:
     conn = get_db()
     try:
         conn.execute(
-            "UPDATE members SET telegram_username = NULL, telegram_user_id = NULL WHERE id = ?",
-            (int(member_id),),
+            "UPDATE members SET telegram_username = NULL, telegram_user_id = NULL, last_unlinked_at = ? WHERE id = ?",
+            (datetime.now().isoformat(), int(member_id)),
         )
         conn.commit()
     finally:
@@ -44,8 +47,8 @@ def process_link_command(
             return False, "already_linked", None
 
         c.execute(
-            "UPDATE members SET telegram_username = ?, telegram_user_id = ? WHERE id = ?",
-            (normalized_telegram_username, int(telegram_user_id), member["id"]),
+            "UPDATE members SET telegram_username = ?, telegram_user_id = ?, last_linked_at = ? WHERE id = ?",
+            (normalized_telegram_username, int(telegram_user_id), datetime.now().isoformat(), member["id"]),
         )
         conn.commit()
         return True, "ok", int(member["id"])

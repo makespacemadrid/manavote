@@ -162,7 +162,8 @@ def test_oidc_logout_clears_session_and_uses_configured_redirect(monkeypatch):
         assert not session
 
 
-def test_oidc_member_is_provisioned_and_admin_group_is_mapped(isolated_db_path):
+def test_oidc_member_is_provisioned_and_admin_group_is_mapped(monkeypatch, isolated_db_path):
+    monkeypatch.setattr(main_routes, "DB_PATH", str(isolated_db_path))
     claims = {
         "sub": "stable-keycloak-id",
         "preferred_username": "alice",
@@ -179,20 +180,24 @@ def test_oidc_member_is_provisioned_and_admin_group_is_mapped(isolated_db_path):
     assert member["is_admin"] == 1
     conn = auth_routes.legacy.get_db()
     stored = conn.execute(
-        "SELECT oidc_sub, email, display_name, telegram_username, telegram_user_id FROM members WHERE id = ?",
+        "SELECT oidc_sub, email, display_name, telegram_username, telegram_user_id, last_linked_at FROM members WHERE id = ?",
         (member["id"],),
     ).fetchone()
     conn.close()
-    assert dict(stored) == {
+    stored = dict(stored)
+    last_linked_at = stored.pop("last_linked_at")
+    assert stored == {
         "oidc_sub": "stable-keycloak-id",
         "email": "alice@example.org",
         "display_name": "Alice Member",
         "telegram_username": "alice_mks",
         "telegram_user_id": 123456789,
     }
+    assert last_linked_at is not None
 
 
-def test_oidc_member_update_is_idempotent_and_syncs_admin_role(isolated_db_path):
+def test_oidc_member_update_is_idempotent_and_syncs_admin_role(monkeypatch, isolated_db_path):
+    monkeypatch.setattr(main_routes, "DB_PATH", str(isolated_db_path))
     initial = {
         "sub": "existing-subject",
         "preferred_username": "alice",
@@ -223,7 +228,41 @@ def test_oidc_member_update_is_idempotent_and_syncs_admin_role(isolated_db_path)
     assert dict(rows[0]) == {"email": "new@example.org", "display_name": "Updated Name"}
 
 
-def test_oidc_member_does_not_take_existing_local_username(isolated_db_path):
+def test_oidc_member_last_linked_at_only_bumps_when_telegram_id_changes(monkeypatch, isolated_db_path):
+    monkeypatch.setattr(main_routes, "DB_PATH", str(isolated_db_path))
+    initial = {
+        "sub": "existing-subject",
+        "preferred_username": "alice",
+        "groups": [],
+    }
+    first = auth_routes._upsert_oidc_member(initial)
+    conn = auth_routes.legacy.get_db()
+    baseline = conn.execute(
+        "SELECT last_linked_at FROM members WHERE id = ?", (first["id"],)
+    ).fetchone()["last_linked_at"]
+    conn.close()
+    assert baseline is None
+
+    linked = auth_routes._upsert_oidc_member({**initial, "telegram_id": 555})
+    conn = auth_routes.legacy.get_db()
+    after_link = conn.execute(
+        "SELECT last_linked_at, telegram_user_id FROM members WHERE id = ?", (linked["id"],)
+    ).fetchone()
+    conn.close()
+    assert after_link["telegram_user_id"] == 555
+    assert after_link["last_linked_at"] is not None
+
+    auth_routes._upsert_oidc_member({**initial, "telegram_id": 555})
+    conn = auth_routes.legacy.get_db()
+    unchanged = conn.execute(
+        "SELECT last_linked_at FROM members WHERE id = ?", (linked["id"],)
+    ).fetchone()["last_linked_at"]
+    conn.close()
+    assert unchanged == after_link["last_linked_at"]
+
+
+def test_oidc_member_does_not_take_existing_local_username(monkeypatch, isolated_db_path):
+    monkeypatch.setattr(main_routes, "DB_PATH", str(isolated_db_path))
     conn = auth_routes.legacy.get_db()
     conn.execute(
         "INSERT INTO members (username, password_hash, is_admin) VALUES (?, ?, 0)",
