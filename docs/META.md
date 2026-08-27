@@ -36,38 +36,41 @@ out.
 ## The pattern behind these findings
 
 Read individually, the findings below look like unrelated bugs across unrelated
-features. Read together, all but two of them (1 and 19) share one mechanism: a decision
+features. Read together, all but two of them (1 and 22) share one mechanism: a decision
 was made implicitly, worked fine in the world that existed when it was made, and broke
 the moment a **second thing** arrived that the original decision never accounted for —
 a second surface calling the same logic (findings 5, 6, 14), a second identity provider
-or auth method (13, 17), a second commit touching the same feature (1, 11, 18), a second
-container recreation (16), or simply a second contributor or agent with no written
-convention to read (7, 9, 10). Almost none of the individual fixes were hard once
-found — most are a few lines. The cost was never in the decision itself; it was in the
-gap between *when the decision was made* and *when it was written down*, and the "second
-thing" reliably arrived somewhere inside that gap. The prompt sequence at the end of
-this document exists to close that gap before it opens, not to make better decisions —
-most of the original decisions were fine for the world they were made in.
+or auth method (13, 17), a second commit or second episode touching the same feature
+(1, 11, 18, 19, 21), a second container recreation (16), a second (or tenth) template
+depending on a read path nobody proved yet (20), or simply a second contributor or agent
+with no written convention to read (7, 9, 10). Almost none of the individual fixes were
+hard once found — most are a few lines. The cost was never in the decision itself; it
+was in the gap between *when the decision was made* and *when it was written down*, and
+the "second thing" reliably arrived somewhere inside that gap. The prompt sequence at
+the end of this document exists to close that gap before it opens, not to make better
+decisions — most of the original decisions were fine for the world they were made in.
 
 Adding up just the findings below with an explicit, named commit count (1, 3, 4, 7, 8,
-11, 12, 13, 14, 15, 16 — the eight findings without one, like "REST and MCP drifted" or
-"tests arrived late," represent real cost too, just not one expressible as a commit
-tally) comes to **at least 39 commits** spent specifically on rework whose root cause
-predates it, out of 348 total — call it one commit in nine. That's a lower bound, not an
-estimate of total waste: it only counts commits this document cites by hash, not every
-smaller ripple those root causes caused elsewhere.
+11, 12, 13, 14, 15, 16, 19, 20, 21 — the eight findings without one, like "REST and MCP
+drifted" or "tests arrived late," represent real cost too, just not one expressible as
+a commit tally) comes to **at least 48 commits** spent specifically on rework whose root
+cause predates it, out of 348 total — call it one commit in seven. That's a lower bound,
+not an estimate of total waste: it only counts commits this document cites by hash, not
+every smaller ripple those root causes caused elsewhere, and finding 19's four commits
+are deliberately counted separately from finding 11's eleven so nothing is counted
+twice.
 
 A quick map of what's below, grouped by theme rather than commit order:
 
 | Theme | Findings |
 | --- | --- |
-| Architecture & where state lives | 2, 5, 6 |
+| Architecture & where state lives | 2, 5, 6, 20 |
 | Security & baseline hygiene | 3, 4 |
-| Process & documentation | 7, 9, 10 |
-| Money and domain-meaning | 11, 18 |
+| Process & documentation | 7, 9, 10, 21 |
+| Money and domain-meaning | 11, 18, 19 |
 | External integrations (bots, APIs, auth, infra) | 13, 14, 15, 16, 17 |
 | UI/UX consistency & scope | 1, 8 |
-| What actually worked | 19 |
+| What actually worked | 22 |
 
 ## 1. Give every button/form a shared component before the second one exists
 
@@ -337,7 +340,58 @@ at the same time as the label — even though it touches more files — costs a
 find-and-replace once; leaving the split in place costs every future reader a small
 "wait, which one do they mean" tax, forever.
 
-## 19. Positive patterns this project's own history validates
+## 19. Numeric/unit bugs in money and thresholds recurred across a month, not just one bad day
+
+Finding 11 covers one day's thrash on the budget chart. Pulling every commit whose
+message starts with "Fix" and touches a number a member sees shows that same *class*
+of bug recurring in at least three more episodes that finding 11 doesn't cover: an
+early one, five weeks before the budget chart existed at all (`beeaf49`, "Fix vote
+threshold validation for over-budget proposals," 2026-03-31); an immediate follow-up
+two days after finding 11's thrash supposedly settled it (`d95eb8a`, "Fix committed
+chart pending calculation timing," 2026-04-20); and, twelve days after that, a
+different unit-confusion bug in the same threshold system finding 11 doesn't touch —
+vote requirements displayed as absolute counts when they were meant to be percentages
+(`dba0747` and `0d94642`, 2026-04-30). Four separate episodes, five weeks, two
+different features (vote thresholds and the budget chart), one shared root cause: no
+number the app shows a member had a written definition to check the code against.
+**Every number this app has ever displayed to a member needed at least one correctness
+fix after shipping.** A one-line worked example per formula or threshold, asserted in
+a test, is cheaper than any single one of these five fixes and would have caught all of
+them together.
+
+## 20. Cross-cutting per-request state needs one prototype before the tenth template reads it
+
+Adding a language switcher took one feature commit (`4a368d8`) and then four
+consecutive "Fix language switching" commits before it worked reliably: session access
+from inside a template filter (`59cad0b`), the selector markup itself (`3bbbffd`), the
+context-processor-vs-Jinja-filter split for reading the current language (`8c30960`),
+and Jinja's own template cache silently serving a page in the wrong language after a
+switch (`cedf2ee`) — plus, the same day the feature launched, a Docker build that
+didn't copy the new `translations.py` module at all (`b04b157`). Each fix addressed a
+different layer of "how does a per-request preference reach every template," found
+only after dozens of templates already called the translation filter. This isn't
+i18n-specific: **any cross-cutting per-request state (language, theme, feature flag,
+tenant) needs its full read path — session or cookie, through a context processor or
+global, into the template, verified against the actual template-caching behavior in
+use — proven against one template before a second template starts depending on it.**
+Unwinding a wrong read path once ten templates use it means touching all ten, not just
+the mechanism.
+
+## 21. A convention stated only in a commit message isn't a convention yet
+
+`ddd8e2c` ("Use Title Case for filter buttons, lowercase for status tags") documented a
+real UI rule — and needed a same-morning follow-up, `e504603` ("Fix filter Title Case
+vs status lowercase correctly"), because the first attempt didn't actually apply it
+everywhere. A rule that exists only as commit-message prose (or a comment three files
+from where it's enforced) has no way to be checked except a human noticing a violation
+by eye — which is exactly what failed the first time here. This is the same shape as
+finding 18's `over_budget`/"Pending Budget" split and finding 7's missing `STYLE.md`,
+but the fix is more specific and worth naming on its own: a convention like this
+belongs in a snapshot test, a lint rule, or at minimum one line in `STYLE.md` that a
+reviewer — human or agent — is expected to check a PR against, not just a well-intentioned
+sentence in a commit that already merged.
+
+## 22. Positive patterns this project's own history validates
 
 Not everything here is a cautionary tale — two things this history shows genuinely
 paying off are worth naming so they don't get lost in a list of regrets:
@@ -380,9 +434,9 @@ thing arrives that would otherwise violate it silently.
 
 | Phase | Fires when | Findings prevented |
 | --- | --- | --- |
-| 0. Domain spec | Before any code | 7, 11, 18 |
+| 0. Domain spec | Before any code | 7, 11, 18, 19, 20 |
 | 1. Runtime & surface commitments | Before the 2nd feature | 2, 5, 6 |
-| 2. Security & conventions baseline | Before the 1st form ships | 3, 4, 10 |
+| 2. Security & conventions baseline | Before the 1st form ships | 3, 4, 10, 21 |
 | 3. Vertical slice per feature | Every feature, in order | 1, 9, 12 |
 | 4. New external surface | Every new API/bot/protocol | 5, 14, 15 |
 | 5. New identity/auth method | Every new login path | 13, 17 |
@@ -393,10 +447,14 @@ thing arrives that would otherwise violate it silently.
 Name every entity and its states using the exact identifier the code will use, not a
 display label to be picked later; write the one-sentence definition of every
 money/threshold calculation the app will ever show, in words checkable by hand against
-one worked example; start `docs/SPEC.md` and `docs/STYLE.md` as real files in the first
-commit. A spec that's mostly wrong on day one is still one file to correct — this
-project's actual first spec forked into a second, competing file (finding 7) precisely
-because there was no convention saying where it belonged.
+one worked example, and require a test asserting that example for each one (finding 19
+found five separate numeric/unit bugs across a month precisely because no formula had
+one); name the read path for any cross-cutting per-request state — language, theme, a
+feature flag — before a second template depends on it (finding 20); start
+`docs/SPEC.md` and `docs/STYLE.md` as real files in the first commit. A spec that's
+mostly wrong on day one is still one file to correct — this project's actual first spec
+forked into a second, competing file (finding 7) precisely because there was no
+convention saying where it belonged.
 
 > **Example prompt:** "Before writing any code for [app], help me draft `docs/SPEC.md`
 > and `docs/STYLE.md`. In `SPEC.md`: list every entity (e.g. a proposal, a vote, a
@@ -404,13 +462,16 @@ because there was no convention saying where it belonged.
 > internally — if a user-facing label will ever differ from that identifier, write both
 > down together, in this file, right now. Then write, as one sentence each, every
 > calculation involving money, a percentage, or a threshold the app will ever display,
-> in terms someone could verify by hand against one concrete example. In `STYLE.md`:
-> set the shared UI-component policy (one button/badge/modal component reused
-> everywhere, no one-off inline styles), the commit convention (one concern per
-> commit, present tense, no bundled unrelated changes), and the testing expectation
-> (a test lands with the feature, not after the next refactor needs one). Keep both
-> files short and expect to rewrite them — a two-paragraph spec I correct twenty times
-> beats no spec."
+> in terms someone could verify by hand against one concrete example, and plan one test
+> per formula that checks that example. If the app will have any per-request state that
+> more than one page reads (a language preference, a theme, a feature flag), name its
+> full read path — where it's stored, how a template gets at it, how it interacts with
+> any template caching — before the second template depends on it. In `STYLE.md`: set
+> the shared UI-component policy (one button/badge/modal component reused everywhere,
+> no one-off inline styles), the commit convention (one concern per commit, present
+> tense, no bundled unrelated changes), and the testing expectation (a test lands with
+> the feature, not after the next refactor needs one). Keep both files short and expect
+> to rewrite them — a two-paragraph spec I correct twenty times beats no spec."
 
 ### Phase 1 — Runtime and surface commitments, before the second feature
 
@@ -440,7 +501,11 @@ password-hashing library, secure-cookie policy *with* an explicit local-HTTP-dev
 hatch (finding 3's later fix, `61c4926`, exists because this wasn't decided up front),
 non-debug-by-default, upload validation, and the URL/blueprint namespace decided even
 provisionally. None of this is feature work, which is exactly why it's cheap now and
-became a dedicated "AUDIT fixes" pass later.
+became a dedicated "AUDIT fixes" pass later. Fold in a mechanical check for each
+`STYLE.md` convention as it's written — a lint rule, a snapshot test, or at minimum a
+line the agent is told to grep the diff against before calling a PR done — since a
+convention stated only in a commit message isn't enforceable by anything but luck
+(finding 21).
 
 > **Example prompt:** "Before the first HTML form ships: add CSRF protection to every
 > POST route, hash passwords with a real library (never a bare hash function or a
@@ -448,7 +513,10 @@ became a dedicated "AUDIT fixes" pass later.
 > explicit environment variable to disable secure cookies for local HTTP development
 > so that turning security on doesn't break local testing — validate any uploaded file's
 > actual type (not just its extension), and pick the URL/blueprint namespace now even
-> though there's only one route today. Do this as one dedicated commit before any
+> though there's only one route today. For each convention in `STYLE.md`, add a way to
+> check it mechanically — a lint rule or a snapshot test — rather than relying on
+> anyone remembering it; if that's not practical, add one line telling reviewers
+> (human or agent) exactly what to check for in a diff. Do this as one dedicated commit before any
 > feature work, not fixed in per-feature as issues come up."
 
 ### Phase 3 — One full vertical slice per feature: spec → tests → code → docs
