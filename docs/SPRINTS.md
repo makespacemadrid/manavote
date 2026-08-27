@@ -338,7 +338,8 @@ boundary (P1)" item, and finishing it is the highest-leverage thing left: it doe
 document parity, it makes future drift structurally harder to introduce.
 
 ### Goals
-1. **MCP extraction boundary** — move `app/mcp_server.py`'s embedded proposal-listing,
+1. **MCP extraction boundary** — ✅ closed (2026-08-27), see the three slices below.
+   Move `app/mcp_server.py`'s embedded proposal-listing,
    poll-listing/creation, voting-setting, and member-creation logic into
    `app/services/`/`app/repositories/` modules shared with the equivalent REST routes,
    one use case at a time (same incremental, test-verified-after-each-slice approach used
@@ -363,10 +364,27 @@ document parity, it makes future drift structurally harder to introduce.
      different, equally-valid implementation strategy per transport.
    - 11 new direct unit tests (`tests/unit/test_pagination_service.py`,
      `tests/unit/test_voting_settings_service.py`). `app/mcp_server.py`: 872 → 850 lines.
-     Full suite: 543 passed, zero regressions. Remaining: `create_proposal`/`create_poll`
-     validation (results already match per Sprint 4's drift fixes, but the code itself
-     isn't shared yet); `create_member`/`list_group_purchases` have no REST equivalent to
-     converge with, so they stay MCP-only for this goal. Full details in `IDEAS.md`.
+     Full suite: 543 passed, zero regressions.
+   - Slice 3 (2026-08-27): `create_proposal`'s actual persistence (the INSERT plus the
+     "auto-clear `basic_supplies` over €20" business rule) was duplicated in full between
+     REST and MCP — moved to `ProposalRepository.create()` (existing
+     `app/repositories/proposal_repo.py`). `create_poll`'s INSERT moved to a new
+     `PollRepository.create()` (new `app/repositories/poll_repo.py`). Found MCP's
+     `create_poll` had its own hand-rolled option validation instead of using the
+     already-shared `normalize_poll_options` — a real drift risk of the same shape as
+     the `basic_supplies` bug. Since `mcp_server.py` must stay Flask-free, moved
+     `normalize_poll_options`/`parse_positive_amount` out of the Flask-importing
+     `api_helpers.py` into a new `app/services/creation_validation_service.py`;
+     `api_helpers.py` re-exports them so existing callers are unaffected. Fixed two
+     tests that had monkeypatched the old persistence mechanism
+     (`mcp_server._db_execute`) to instead monkeypatch `PollRepository.create` — the
+     refactor moved the mockable seam, not what the tests verify. 12 new direct unit
+     tests. `app/mcp_server.py`: 850 → 845 lines. Full suite: 555 passed, zero
+     regressions.
+   - Remaining: `create_member`/`list_group_purchases` have no REST equivalent to
+     converge with, so they stay MCP-only for this goal. `list_proposals`/`list_polls`
+     response-shape convergence remains an explicit non-goal unless a product decision
+     says otherwise (see slice 1). Full details in `IDEAS.md`.
 2. **Route exception granularity** — replace the 19 broad `except Exception` blocks
    across 8 files (`mcp_server.py`, `backup_service.py`, `main_helpers.py`,
    `api_routes.py`, `poll_routes.py`, `admin_routes.py`, `telegram_routes.py`,

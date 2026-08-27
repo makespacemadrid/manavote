@@ -16,7 +16,10 @@ from typing import Any
 from werkzeug.security import generate_password_hash
 
 from app.domain.enums import ProposalStatus
+from app.repositories.poll_repo import PollRepository
+from app.repositories.proposal_repo import ProposalRepository
 from app.services import pagination_service, voting_settings_service
+from app.services.creation_validation_service import normalize_poll_options
 from app.services.telegram_link_diagnostics import LINKED_CONDITION_SQL, link_state_case_sql
 from app.services.user_statistics import user_statistics_query, user_statistics_rows, user_statistics_total_query
 from app.services.voting_settings_service import VALID_VOTE_MODES
@@ -60,20 +63,9 @@ def _create_proposal_record(
 ) -> int:
     conn = sqlite3.connect(DB_PATH)
     try:
-        cur = conn.cursor()
-        cur.execute(
-            "INSERT INTO proposals (title, description, amount, url, created_by, basic_supplies) VALUES (?, ?, ?, ?, ?, ?)",
-            (title, description, amount_val, url, created_by_val, basic_supplies),
+        return int(
+            ProposalRepository(conn).create(title, description, amount_val, url, created_by_val, basic_supplies) or 0
         )
-        proposal_id = int(cur.lastrowid or 0)
-        if basic_supplies and amount_val > 20.0:
-            cur.execute("UPDATE proposals SET basic_supplies = 0 WHERE id = ?", (proposal_id,))
-            cur.execute(
-                "INSERT INTO comments (proposal_id, member_id, content) VALUES (?, ?, ?)",
-                (proposal_id, created_by_val, "Auto-removed basic supplies flag: amount over €20"),
-            )
-        conn.commit()
-        return proposal_id
     finally:
         conn.close()
 
@@ -709,13 +701,15 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
             created_by = arguments.get("created_by")
             if not question or not isinstance(options, list) or created_by is None:
                 return _error(req_id, -32602, "Invalid params: question, options, and created_by are required")
-            cleaned = [str(opt).strip() for opt in options if str(opt).strip()]
-            if len(cleaned) < 2 or len(cleaned) > 12:
-                return _error(req_id, -32602, "Invalid params: options must contain 2..12 non-empty values")
             if len(question) < 5 or len(question) > 200:
                 return _error(req_id, -32602, "Invalid params: question must be 5..200 characters")
-            if any(len(opt) > 120 for opt in cleaned):
-                return _error(req_id, -32602, "Invalid params: each option must be <= 120 characters")
+            cleaned = normalize_poll_options(options)
+            if cleaned is None:
+                return _error(
+                    req_id,
+                    -32602,
+                    "Invalid params: options must contain 2..12 non-empty values of at most 120 characters each",
+                )
             try:
                 created_by_val = int(created_by)
             except (TypeError, ValueError):
@@ -723,10 +717,11 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
             member = _db_rows("SELECT id FROM members WHERE id = ? LIMIT 1", (created_by_val,))
             if not member:
                 return _error(req_id, -32004, "Not found: creator member not found")
-            poll_id = _db_execute(
-                "INSERT INTO polls (question, options_json, created_by, status) VALUES (?, ?, ?, 'open')",
-                (question, json.dumps(cleaned), created_by_val),
-            )
+            conn = sqlite3.connect(DB_PATH)
+            try:
+                poll_id = PollRepository(conn).create(question, cleaned, created_by_val)
+            finally:
+                conn.close()
             return _tool_text(req_id, {"success": True, "poll_id": poll_id})
 
         return _error(req_id, -32601, f"Unknown tool: {tool_name}")

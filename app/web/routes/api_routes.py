@@ -7,6 +7,8 @@ from werkzeug.security import generate_password_hash
 
 from app.domain.enums import ProposalStatus
 from app.extensions import csrf, limiter
+from app.repositories.poll_repo import PollRepository
+from app.repositories.proposal_repo import ProposalRepository
 from app.services import voting_settings_service
 from app.services.telegram_link_diagnostics import LINKED_CONDITION_SQL, link_state_case_sql
 from app.services.user_statistics import user_statistics_query, user_statistics_rows, user_statistics_total_query
@@ -117,19 +119,7 @@ def api_create_proposal():
         return api_error("creator_member_not_found", "Creator member not found", 404)
 
     try:
-        c.execute(
-            "INSERT INTO proposals (title, description, amount, url, created_by, basic_supplies) VALUES (?, ?, ?, ?, ?, ?)",
-            (title, description, amount, url, created_by, basic_supplies),
-        )
-        conn.commit()
-        proposal_id = c.lastrowid
-        if basic_supplies and amount > 20.0:
-            c.execute("UPDATE proposals SET basic_supplies = 0 WHERE id = ?", (proposal_id,))
-            c.execute(
-                "INSERT INTO comments (proposal_id, member_id, content) VALUES (?, ?, ?)",
-                (proposal_id, created_by, "Auto-removed basic supplies flag: amount over €20"),
-            )
-            conn.commit()
+        proposal_id = ProposalRepository(conn).create(title, description, amount, url, created_by, basic_supplies)
         conn.close()
         return jsonify({"success": True, "message": "Proposal created", "proposal_id": proposal_id}), 201
     except sqlite3.Error:
@@ -469,12 +459,7 @@ def api_create_poll():
         conn.close()
         return api_error("creator_member_not_found", "Creator member not found", 404)
     try:
-        c.execute(
-            "INSERT INTO polls (question, options_json, created_by, status) VALUES (?, ?, ?, 'open')",
-            (question, json.dumps(options), created_by),
-        )
-        conn.commit()
-        poll_id = c.lastrowid
+        poll_id = PollRepository(conn).create(question, options, created_by)
     except sqlite3.Error:
         return api_error("poll_create_failed", "Failed to create poll", 500)
     finally:

@@ -80,10 +80,37 @@ rechecking the previously audited Telegram-link parity paths.
      11 new direct unit tests across `tests/unit/test_pagination_service.py` and
      `tests/unit/test_voting_settings_service.py` (5 + 6). `app/mcp_server.py`: 872 → 850
      lines. Full suite: 543 passed, zero regressions.
-   - Remaining for this item: `create_proposal`/`create_poll` validation (both already
-     produce matching results per the Sprint 4 drift fixes, but the validation code
-     itself is still duplicated, not shared); `create_member` and `list_group_purchases`
-     have no REST equivalent to converge with, so they stay MCP-only for this item.
+   - Progress (2026-08-27, Sprint 5 slice 3): `create_proposal`'s actual persistence —
+     the INSERT plus the "auto-clear `basic_supplies` and log a comment when amount
+     exceeds €20" business rule — was duplicated in full between REST's
+     `api_create_proposal` and MCP's `_create_proposal_record`. That's a real risk (a
+     future change to the €20 threshold, or the comment text, only landing in one
+     place) so it moved to `ProposalRepository.create()` in the pre-existing
+     `app/repositories/proposal_repo.py`, matching WS-A A2's "repositories own
+     persistence" pattern. `create_poll`'s INSERT was a single duplicated line — added
+     `app/repositories/poll_repo.py` (new, `PollRepository.create()`) for the same
+     reason. Also found that MCP's `create_poll` had its own hand-rolled options
+     validation (strip/filter/count-bounds/length-bounds) instead of using
+     `normalize_poll_options`, which REST's `api_create_proposal` already called via
+     `api_helpers.py` — a real, if low-severity, drift risk (the two option-validation
+     implementations could silently diverge, same shape as the `basic_supplies` bug).
+     Since `mcp_server.py` must stay Flask-free (it runs as a standalone process) and
+     `normalize_poll_options`/`parse_positive_amount` lived in the Flask-importing
+     `api_helpers.py`, moved their implementations to a new, framework-independent
+     `app/services/creation_validation_service.py`; `api_helpers.py` now imports and
+     re-exports them so every existing caller (`api_routes.py`,
+     `tests/test_api_helpers.py`) keeps working unchanged. Fixing two tests that had
+     monkeypatched `mcp_server._db_execute`/raw SQL (the old create_poll's actual
+     persistence mechanism) to instead monkeypatch `PollRepository.create` — the
+     refactor changed *where* the mockable seam is, not what the tests verify. 12 new
+     direct unit tests across `tests/unit/test_proposal_repository_contract.py` (4),
+     `tests/unit/test_poll_repository_contract.py` (1), and
+     `tests/unit/test_creation_validation_service.py` (7). `app/mcp_server.py`: 850 → 845
+     lines. Full suite: 555 passed (543 + 12 new), zero regressions.
+   - Remaining for this item: `create_member` and `list_group_purchases` have no REST
+     equivalent to converge with, so they stay MCP-only. `list_proposals`/`list_polls`
+     response-shape convergence remains an explicit non-goal (see slice 1) unless a
+     product decision says otherwise.
 
 3. **Statistics scale and semantics (P1)**
    - The user-statistics query uses correlated count subqueries and has no total-row metadata for pagination.

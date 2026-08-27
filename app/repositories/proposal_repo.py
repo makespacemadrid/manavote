@@ -2,6 +2,23 @@ class ProposalRepository:
     def __init__(self, conn):
         self.conn = conn
 
+    def create(self, title, description, amount, url, created_by, basic_supplies):
+        """Insert a proposal; auto-clears basic_supplies when amount exceeds the €20 threshold."""
+        cur = self.conn.cursor()
+        cur.execute(
+            "INSERT INTO proposals (title, description, amount, url, created_by, basic_supplies) VALUES (?, ?, ?, ?, ?, ?)",
+            (title, description, amount, url, created_by, basic_supplies),
+        )
+        proposal_id = cur.lastrowid
+        if basic_supplies and amount > 20.0:
+            cur.execute("UPDATE proposals SET basic_supplies = 0 WHERE id = ?", (proposal_id,))
+            cur.execute(
+                "INSERT INTO comments (proposal_id, member_id, content) VALUES (?, ?, ?)",
+                (proposal_id, created_by, "Auto-removed basic supplies flag: amount over €20"),
+            )
+        self.conn.commit()
+        return proposal_id
+
     def get_by_id(self, proposal_id):
         cur = self.conn.cursor()
         cur.execute("SELECT * FROM proposals WHERE id = ?", (proposal_id,))

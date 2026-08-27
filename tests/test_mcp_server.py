@@ -570,7 +570,7 @@ def test_tools_call_unknown_typo_tool_name_is_rejected():
 
 def test_tools_call_create_poll(monkeypatch):
     monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"id": 1}])
-    monkeypatch.setattr(mcp_server, "_db_execute", lambda *_args, **_kwargs: 13)
+    monkeypatch.setattr(mcp_server.PollRepository, "create", lambda self, *_args, **_kwargs: 13)
     response = mcp_server.handle_request(
         _req(
             "tools/call",
@@ -588,7 +588,7 @@ def test_tools_call_create_poll(monkeypatch):
 
 def test_tools_call_accepts_tool_name_alias_for_name(monkeypatch):
     monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"id": 1}])
-    monkeypatch.setattr(mcp_server, "_db_execute", lambda *_args, **_kwargs: 21)
+    monkeypatch.setattr(mcp_server.PollRepository, "create", lambda self, *_args, **_kwargs: 21)
     response = mcp_server.handle_request(
         _req(
             "tools/call",
