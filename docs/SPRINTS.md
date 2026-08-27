@@ -18,10 +18,13 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
 Sprints 4, 5, and 6 are complete. Sprint 5 delivered the MCP extraction boundary, typed
 exception/reason-code handling, structured Telegram background-job observability, and
 Telegram group-routing configuration diagnostics. Sprint 6 brought the assistant's
-`/confirm` mutation flow up to the same reason-coded-audit standard, closed the
-blocked-vote-by-policy and forum-topic/mention-routing observability gaps, and left the
-public MCP application boundary (`IDEAS.md` item 4, P1) as the leading candidate for
-Sprint 7 — see that sprint's "Explicitly deferred" section for why it wasn't pulled in.
+`/confirm` mutation flow up to the same reason-coded-audit standard and closed the
+blocked-vote-by-policy and forum-topic/mention-routing observability gaps. Sprint 7
+shifts focus to UX/UI — a dedicated audit (`docs/IDEAS.md`, "UX/UI audit
+(2026-08-27)") found consistent gaps in button placement/visual hierarchy and a budget
+graph that's never had a dedicated pass; Sprint 7's three goals are scoped directly
+from that audit. The public MCP application boundary (`IDEAS.md` item 4, P1),
+previously the leading Sprint 7 candidate, now leads Sprint 8 instead.
 
 ---
 
@@ -619,5 +622,108 @@ round out the sprint since they're cheap to close now that the structured-loggin
   executed against a changed contract.
 - Blocked votes and Telegram group-routing decisions are diagnosable from structured
   logs alone, matching the standard already set for backups, links, and assistant jobs.
+
+**Status:** ✅ Complete 2026-08-27 — all three goals closed.
+
+---
+
+## Sprint 7 (Scoped 2026-08-27) — UX/UI: Button Layout, Placement & Budget Graph
+
+### Why this scope
+Sprints 3-6 focused entirely on backend hygiene: MCP/REST convergence, exception
+handling, and structured audit logging. None of that touched what members actually
+look at. A dedicated UX/UI audit (`docs/IDEAS.md`, "UX/UI audit (2026-08-27)") read every
+page template against the app's own design system and found the same story
+repeatedly: a real shared system exists (`.card`/`.btn`/`.vote-btn`/`.status`) but is
+routinely bypassed by one-off inline styles, so buttons drift in color, placement, and
+visual weight across pages that do conceptually the same thing (e.g. proposal voting
+vs. poll voting), and the budget graph — the app's single most important piece of
+data visualization — has never had a dedicated pass. Sprint 7 scopes three goals
+directly from that audit's P1/P2 findings, prioritizing the ones explicitly called out
+(button layout/placement, the budget graph) plus the safety-relevant confirmation-UX
+gaps that surfaced in the same read.
+
+### Goals
+1. **Consistent, safe confirmation UX for destructive actions.** Closes audit items 3,
+   4, 5, 6, 21, 22.
+   - Extract `admin.html`'s `dangerActionModal` into a small shared JS/template
+     component usable from any page, not just admin — same visual treatment
+     everywhere instead of admin getting a styled modal and every other page getting an
+     unbranded native `confirm()`.
+   - Replace the native `confirm()` calls in `proposal_detail.html` and `proposals.html`
+     (delete proposal, delete comment, mark purchased, undo approval) with the shared
+     modal.
+   - Fix the inconsistency where "undo approval" is confirmed on the detail page but not
+     from the proposals list's quick action — both should behave the same way.
+   - Convert the bare-GET `undo_approve`/`withdraw_vote` links to POST forms, consistent
+     with every other state-changing action in the app.
+   - Give the shared modal real dialog semantics: `role="dialog"`, `aria-modal="true"`,
+     a focus trap, and Escape-to-close.
+   - Make the settings dropdown (`.settings-dropdown:hover`) usable by click/tap, not
+     hover-only, without breaking the existing desktop hover behavior.
+   - Remove `maximum-scale=1.0, user-scalable=no` from the viewport meta tag
+     (`base.html`) — pinch-to-zoom shouldn't be disabled app-wide without a layout
+     reason that requires it.
+2. **Button placement and visual-hierarchy cleanup on Proposals and Polls.** Closes
+   audit items 1, 2, 7, 8, 9, 10, 11, 12, 13.
+   - Replace the Proposals list's 12 inline-styled filter-chip links with a single
+     data-driven `.filter-chip`/`.filter-chip.active` component, fixing the "All" chip's
+     missing active state as part of the same change.
+   - Move "Delete" out of the top nav row and "Undo Approval" out of the status-badge
+     paragraph on the proposal detail page into one clearly separated actions area, so
+     destructive/admin actions are never adjacent to plain navigation.
+   - Standardize "in favor" on one color (matching the existing `.vote-approve` cyan)
+     everywhere a vote count is shown, instead of cyan in one place and green in another.
+   - Reorder the Polls page's three cards so "Vote via web" leads, and give its button
+     the same `.vote-btn` visual weight as proposal voting, so the two voting flows read
+     as the same product.
+   - Add a `title=""` attribute to truncated proposal titles so the full text is
+     recoverable without opening the detail page.
+3. **Budget graph and visualization improvements.** Closes audit items 14, 15, 16, 17,
+   18, 19, 20 — the sprint's namesake ask.
+   - Self-host Chart.js (vendor it under `static/`) instead of loading it from a public
+     CDN at render time.
+   - Add a date-range control (e.g. last 30/90/365 days / all) to the budget chart so it
+     stays legible as history grows, rather than always rendering the full history.
+   - Add a restated "current balance" headline at the top of the budget page itself,
+     so it doesn't require reading the end of the line chart.
+   - Reconcile the two currently-disconnected filter UIs: either wire the calendar
+     legend buttons to also toggle the matching chart dataset, or make clear visually
+     that they're two separate controls.
+   - Give each poll option's result bar a distinct color instead of the same gradient
+     for every option.
+   - Add thousands separators to currency formatting app-wide.
+
+### Explicitly deferred (with reasoning, not just left off)
+- **Public MCP application boundary (`IDEAS.md` item 4, P1)** — real architectural value,
+  previously flagged as the leading Sprint 7 candidate, but the user redirected Sprint 7
+  to UX/UI. Now the leading candidate for Sprint 8.
+- **`admin.html` information-architecture restructuring (audit item 26)** — splitting a
+  ~780-line, 14-section page into tabs/anchors is a bigger, higher-risk rewrite than
+  anything else scoped here and doesn't block the goals above. Good candidate for its
+  own sprint once the shared confirm-modal/component work in Goal 1 gives it something
+  to build on.
+- **Proposals list search/sort (audit item 27)** — real gap, but additive rather than a
+  fix to something actively wrong, and secondary to the filter-chip cleanup in Goal 2.
+  Natural follow-up once Goal 2's `.filter-chip` component exists.
+- **Design-token system / full component library (Design Track item C)** — the
+  foundational, app-wide version of what Goal 2 does narrowly for filter chips and vote
+  buttons. Revisit once a couple of concrete passes (this sprint) show which patterns
+  actually repeat enough to warrant tokens.
+- **Personas, journey mapping, admin/settings IA relabeling (Design Track items A, B)** —
+  product-definition exercises, not code changes; useful before a larger IA rewrite
+  (see `admin.html` deferral above) but not blocking this sprint's concrete fixes.
+- **Two hardcoded English admin headers (audit item 25)** — trivial one-line `|lang`
+  fixes; will be picked up opportunistically while touching `admin.html` for Goal 1's
+  modal work rather than tracked as a standalone goal.
+
+### Exit criteria
+- Every destructive/state-changing action in the member-facing UI (not just admin) uses
+  the same styled, accessible confirmation modal and the same POST-based mechanics.
+- Proposal and poll voting use visually consistent buttons and colors; the Proposals
+  filter row has no dead/ambiguous active-state gaps.
+- The budget chart doesn't depend on a public CDN at render time, offers a date-range
+  control, and the page restates the current balance without requiring the chart to be
+  read.
 
 **Status:** ⚪ Scoped, not started.

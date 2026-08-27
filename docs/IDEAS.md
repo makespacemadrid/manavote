@@ -670,7 +670,121 @@ Proposed startup lifecycle:
 
 ---
 
+## UX/UI audit (2026-08-27)
+
+Audit scope: every page template (`templates/*.html`), `static/react/style.css`, and
+`static/react/app.js`/`_top_nav.html`, read against actual rendered markup rather than
+aspirational categories — this gives concrete, file/line-grounded backing to the
+"UX / UI Design Track (Forward)" categories below. Prompted by a request to scope
+Sprint 7 around UX/UI, with explicit focus on button layout/placement and the budget
+graph.
+
+### Confirmed strengths (worth building on, not replacing)
+- A real shared design system already exists in `style.css` (`.card`, `.btn`,
+  `.vote-btn`, `.status`, `.flash`) and is used correctly in the common case.
+- The mobile nav (`_top_nav.html`) already has a proper hamburger toggle with
+  `aria-expanded`/`aria-controls`/`aria-current` — a solid baseline other components
+  don't yet match.
+- `admin.html` already has a themed, on-brand confirm modal (`dangerActionModal`) and a
+  change-password modal — nicer than a native `confirm()`, just not reused anywhere else.
+- `polls.html` already groups related information into three labeled cards (results,
+  voter list, web-vote form) — a good pattern, just mis-ordered (see below).
+- `budget.html` already has table sort, pagination, and category filters on the
+  transaction list — a good pattern the Proposals list doesn't share.
+
+### Global design system & consistency (P1)
+1. **Inline styles duplicate the shared classes instead of using them.** Proposals.html's
+   9 status/size filter-chip links (lines 32-44) each hand-roll their own
+   border/background/color inline instead of a `.filter-chip`/`.filter-chip.active`
+   class — a future palette or spacing change means hunting every template instead of
+   editing one CSS rule.
+2. **"In favor" is two different colors depending on the page.** `.vote-approve` /
+   `.vote-btn.approve` use cyan (`#00d9ff`) in `style.css`, but `proposals.html`'s inline
+   vote-count spans use green (`#00ff88`) for the identical concept (lines 92, 130, 139).
+3. **Two incompatible confirmation patterns coexist.** `admin.html`'s styled
+   `dangerActionModal` vs. the native unstyled browser `confirm()` used everywhere else
+   (proposal delete, comment delete, mark-purchased, undo-approval) — an unbranded
+   browser dialog breaks the app's look outside the admin page.
+4. **The same action is confirmed inconsistently.** "Undo approval" has a `confirm()`
+   dialog on `proposal_detail.html` (lines 39-42) but the identical action from the list
+   page's quick action (`proposals.html` line 119) is a bare link with no confirmation.
+5. **State-changing actions implemented as plain GET links** (`undo_approve`,
+   `withdraw_vote`) rather than POST forms/buttons — besides the CSRF/idempotency smell,
+   they read as ordinary navigation rather than "this changes state," and can't carry a
+   confirm-before-submit affordance the way a form can.
+6. **The settings dropdown is hover-only** (`.settings-dropdown:hover .settings-menu`,
+   `style.css` lines 65-66) — unusable on touch devices, which is most of this app's
+   traffic given the mobile-first viewport meta.
+
+### Button placement & interaction hierarchy (P1)
+7. **Destructive "Delete" sits inline in the top nav row** (`proposal_detail.html` lines
+   10-20), visually indistinguishable in position from ordinary navigation links
+   ("Proposals", "Polls") except by color.
+8. **"Undo Approval" is buried inside a paragraph of status badges** (`proposal_detail.html`
+   lines 38-43) rather than living in a clear actions area.
+9. **The Polls page's actual voting card is placed last.** "Vote via web" is the third of
+   three cards (`polls.html` lines 45-105), after "Votes so far" and "Who voted what" —
+   the primary action of a voting page is its least prominent element.
+10. **Poll voting looks like a different, weaker product than proposal voting.** Poll vote
+    buttons are a plain small `.btn` (padding 6px 12px); proposal vote buttons are the
+    bold, 2px-bordered, flex-filled `.vote-btn`. Two core "cast a vote" flows in the same
+    app read as visually unrelated.
+11. **The "All" proposals filter never shows an active state**, unlike every other filter
+    chip (`proposals.html` line 32) — a user on the default view has no confirmation any
+    filter is "selected."
+12. **12 filter chips compete for attention with no grouping** (status filters and
+    size-category filters look identical, `proposals.html` lines 32-44), with no way to
+    combine filters or search instead.
+13. **Truncated proposal titles have no fallback.** CSS ellipsis (`proposals.html` line 67)
+    hides the full title with no `title=""` attribute to recover it without opening the
+    detail page.
+
+### Budget graph & data visualization (P2 — explicit sprint focus)
+14. **Chart.js loads from a public CDN at render time** (`budget.html` line 132) rather
+    than being self-hosted — an external dependency for the app's core visualization,
+    with no fallback if the CDN is unreachable.
+15. **One canvas carries 6 datasets** (2 stacked lines + 4 stacked/grouped bars) with no
+    built-in way to reduce density beyond Chart.js's own legend-click toggle, which isn't
+    discoverable without already knowing Chart.js.
+16. **No date-range control** — the chart always renders full history; this will get
+    harder to read as budget history grows, with no way to focus on "last 3 months."
+17. **Two disconnected filter UIs look related but aren't.** The custom "calendar legend"
+    buttons (lines 42-58) filter only the table below; Chart.js's own legend toggles only
+    the chart above. A user is likely to expect one to affect the other.
+18. **No restated "current balance" on the budget page itself** — `proposals.html` shows
+    one (the "Available" card) but `/budget` requires reading the end of the line chart.
+19. **Currency has no thousands separator anywhere** (`€1234.56` style), harder to scan
+    for larger figures as the treasury grows.
+20. **Every poll option's result bar uses the same gradient** (`polls.html` line 57) — with
+    3+ options, bars are distinguishable only by length and the numeric label, not color.
+
+### Accessibility (P1/P2)
+21. **Pinch-to-zoom is disabled app-wide**
+    (`<meta name="viewport" ... maximum-scale=1.0, user-scalable=no">`, `base.html` line
+    5) — a real accessibility regression for low-vision users, not required by the layout.
+22. **The admin modals have no dialog semantics** — no `role="dialog"`, no
+    `aria-modal="true"`, no focus trap, no Escape-to-close.
+23. **A few indicators rely on color alone** (e.g. the calendar legend's plain colored
+    `<span>` swatches, `budget.html` lines 44-58) without an accompanying icon or label.
+24. **A responsive rule targets elements by their literal inline `style` string**
+    (`div[style*="gap: 20px"][style*="margin-bottom: 15px"]`, `style.css` line 80) — any
+    future edit to that inline style silently breaks the responsive behavior with no
+    visible signal.
+25. **Two admin section headers bypass i18n** (`Full Proposal History`,
+    `Backup Uploaded Images` in `admin.html`) — hardcoded English, don't translate.
+
+### Information architecture (P2/P3)
+26. **`admin.html` is one ~780-line page covering 14+ unrelated sections** (registration,
+    members, two statistics blocks, thresholds, budget, two history blocks, polls, group
+    purchases, settings, timezone, two backup blocks, Telegram config, password) with no
+    tab/anchor navigation or section collapsing — pure linear scroll.
+27. **The Proposals list has no client-side search or sort**, unlike Budget History
+    further down the same page, despite being the higher-traffic list.
+
 ## UX / UI Design Track (Forward)
+
+See "UX/UI audit (2026-08-27)" above for concrete, file/line-grounded findings backing
+the categories below — Sprint 7 scopes its goals directly from that audit.
 
 ### A) UX foundations
 - Define personas (casual member, power member, admin/operator).
