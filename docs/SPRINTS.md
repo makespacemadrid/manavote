@@ -15,12 +15,15 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
 
 ## Current implementation focus (Q3 2026)
 
-1. Complete remaining route decomposition and reduce `main_routes.py` to a minimal compatibility layer.
-2. Harden API/MCP contract parity for validation and error-shape consistency.
-3. Improve admin/operator reliability paths (backups, Telegram identity lifecycle, policy observability).
-4. Make the Telegram natural-language assistant safe under multiple application workers and
-   cover its webhook lifecycle end-to-end (see `IDEAS.md` P0 items).
-5. Keep docs synchronized so `README.md` stays concise and `docs/*` remain canonical.
+Sprint 4 (route decomposition, service/repository boundary for `main_routes.py`, REST/MCP
+contract parity, Telegram multi-worker safety) is complete — see Sprint 4 below. Current
+focus is Sprint 5:
+
+1. Extend the service/repository boundary work to `app/mcp_server.py`, converging REST
+   and MCP onto shared logic (this is what caught real drift bugs in Sprint 4).
+2. Replace broad `except Exception` handling with typed exceptions and reason codes.
+3. Structured observability for the Telegram assistant's background jobs.
+4. Keep docs synchronized so `README.md` stays concise and `docs/*` remain canonical.
 
 ---
 
@@ -312,24 +315,90 @@ limits, and confirmation audit records) is tracked as forward-looking backlog in
   model-request queue's process-local scope is a documented, deliberate design decision
   (see item 5), not an open gap.
 
-**Status:** 🟡 In Progress — only item 1b's small remaining A2 cleanup is open
-(`get_db`/settings-budget read wrappers, already appropriately thin;
-`process_telegram_link_command`, deliberately left thin) plus the ongoing docs-sync item,
-which by nature never fully "completes." Every other checklist item and exit criterion is
-closed; this sprint is functionally done.
+**Status:** ✅ Completed (2026-08-27). Item 1b's "remaining" `get_db`/settings-budget read
+wrappers and `process_telegram_link_command` are intentional final states (already
+appropriately thin / deliberately left, not unfinished work — see the reasoning in each
+progress note), and docs-sync is an ongoing practice rather than a gate. Every checklist
+item and exit criterion above is closed.
 
 ---
 
-## Sprint 5 (Planned) — Contract Matrix + Service Boundary Completion
+## Sprint 5 (Scoped 2026-08-27) — MCP/REST Convergence + Exception Hygiene
 
-### Planned scope
-1. Finalize service/repository boundaries for remaining admin/proposal write operations.
-2. Expand API contract matrix tests (success + rejection paths) for core REST endpoints.
-3. Remove transitional endpoint aliases once all callers/templates are blueprint-native.
+### Why this scope
+Sprint 4's A2 work (moving `main_routes.py`'s embedded logic into
+`app/services/`/`app/repositories/`) wasn't just cleanup — applying it directly caught two
+real REST/MCP behavior drifts (`basic_supplies` coercion, `created_by` error-code
+mismatch) and one real feature gap (polls pagination missing from REST). All three
+existed *because* REST and MCP independently reimplemented the same query/validation
+logic instead of sharing it. `app/mcp_server.py` (872 lines, 17 direct SQL call sites for
+proposal listing, poll listing/creation, voting-setting reads/writes, and member
+creation) is the last large block of that pattern — this is IDEAS.md's "MCP extraction
+boundary (P1)" item, and finishing it is the highest-leverage thing left: it doesn't just
+document parity, it makes future drift structurally harder to introduce.
 
-### Planned exit criteria
-- Write paths route through service entry points with clear repository ownership.
-- Contract tests enforce stable API behaviors for core endpoints.
-- Alias cleanup completes without endpoint regressions.
+### Goals
+1. **MCP extraction boundary** — move `app/mcp_server.py`'s embedded proposal-listing,
+   poll-listing/creation, voting-setting, and member-creation logic into
+   `app/services/`/`app/repositories/` modules shared with the equivalent REST routes,
+   one use case at a time (same incremental, test-verified-after-each-slice approach used
+   for A2). Closes IDEAS.md's "MCP extraction boundary (P1)" and is the natural
+   system-wide conclusion of WS-A A2, which only covered `main_routes.py`.
+2. **Route exception granularity** — replace the 19 broad `except Exception` blocks
+   across 8 files (`mcp_server.py`, `backup_service.py`, `main_helpers.py`,
+   `api_routes.py`, `poll_routes.py`, `admin_routes.py`, `telegram_routes.py`,
+   `auth_routes.py`) with typed exceptions and stable reason codes, so failures are
+   diagnosable instead of collapsing into one generic message. Closes IDEAS.md's "Route
+   exception granularity (P0)".
+3. **Background-job observability** — attach `update_id`, chat ID, actor member ID, tool
+   name, queue-wait time, model latency, and a stable reason code to structured logs for
+   the Telegram assistant's background jobs; add graceful executor shutdown. Advances
+   IDEAS.md's "Background-job observability and lifecycle (P1)" (the "observe completed
+   futures so exceptions aren't silent" half of that item already shipped in Sprint 4).
+4. **Telegram group-routing hardening (small, cheap)** — add a startup warning when a
+   Telegram group integration is configured without `TELEGRAM_BOT_USERNAME` set, since
+   `is_natural_language_message` currently treats that as "match any mention," which is
+   silently over-permissive in a multi-bot group. Closes the P2 gap flagged in the
+   forum-topic routing audit.
 
-**Status:** ⚪ Planned.
+### Explicitly deferred (with reasoning, not just left off)
+- **WS-C C4, query/index optimization** — needs `EXPLAIN QUERY PLAN` results against
+  production-like row counts to make an evidence-based call; this app's actual data
+  volume doesn't yet justify guessing at indexes. Revisit when real usage data exists.
+- **WS-C C3, proposal lifecycle state machine** — a real structural change (centralizing
+  legal status transitions), better scoped as its own sprint once Goal 1 above gives
+  proposal status logic one canonical home to centralize *into*, rather than layering a
+  state machine on top of logic still split across REST/MCP/routes.
+- **Fair-use limits/cancellation, conversation quality controls** (IDEAS.md Telegram-audit
+  items 6 and 8) — same reasoning as Sprint 4's model-request-queue decision: this app's
+  current scale doesn't show signs of needing per-user rate limits or token budgeting
+  yet, and adding them speculatively risks solving a problem that doesn't exist while
+  adding real complexity (cooldown UX, fairness policy). Revisit if usage patterns change.
+- **Full UX/Design track** — needs product/design ownership and human review of visual
+  changes before an autonomous coding pass should touch it; not a fit for this sprint.
+- **WS-C C1, standard error envelope** — already effectively delivered: `api_error()`
+  (`{"error": {"code", "message"}}`) is used consistently across all 27 REST error sites
+  in `api_routes.py` with no ad hoc alternative shape found. No new work needed; marking
+  closed rather than carrying it forward as if open.
+
+### Needs a human decision before it can be scoped as sprint work
+- **OIDC/SSO silent-attach-by-email trust model** (`docs/IDEAS.md`, "Docs audit findings
+  requiring a product decision"): an SSO login can attach to an existing password
+  account — including granting admin via the token's `groups` claim — based on an
+  unverified local `email` field matching. This is very likely intentional (lets an
+  existing member adopt SSO without a duplicate account), but it's a trust-model
+  question, not a bug to silently fix or silently leave. Flagging for the same kind of
+  explicit call as Sprint 4's queue decision, rather than assuming an answer.
+
+### Exit criteria
+- MCP's proposal/poll/member/voting-setting logic routes through the same
+  services/repositories REST uses, with no remaining large blocks of inline SQL in
+  `app/mcp_server.py` for those use cases.
+- No bare `except Exception` remains in a route/service handler without a typed
+  exception and reason code behind it.
+- Telegram background-job logs carry enough structured fields to diagnose a stuck or
+  failed request without reading source code.
+- The OIDC trust-model question has an explicit answer (keep as-is, or tighten) rather
+  than remaining an open audit note.
+
+**Status:** ⚪ Scoped, not started.
