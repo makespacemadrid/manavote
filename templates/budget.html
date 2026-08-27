@@ -4,7 +4,17 @@
 {% include "_top_nav.html" %}
 
 <div class="card">
-    <h3>📊 {{ 'Budget Over Time'|lang }}</h3>
+    <p style="color: #888; margin-bottom: 4px;">{{ 'Current Balance'|lang }}</p>
+    <h1 style="margin-bottom: 20px;">€{{ current_balance|currency }}</h1>
+    <div style="display: flex; justify-content: space-between; gap: 12px; align-items: center; flex-wrap: wrap;">
+        <h3>📊 {{ 'Budget Over Time'|lang }}</h3>
+        <div class="chart-range" role="group" aria-label="{{ 'Chart date range'|lang }}">
+            <button type="button" class="chart-range-btn" data-days="30">{{ '30 days'|lang }}</button>
+            <button type="button" class="chart-range-btn active" data-days="90">{{ '90 days'|lang }}</button>
+            <button type="button" class="chart-range-btn" data-days="365">{{ '365 days'|lang }}</button>
+            <button type="button" class="chart-range-btn" data-days="all">{{ 'All time'|lang }}</button>
+        </div>
+    </div>
     <canvas id="budgetChart" style="max-height: 300px;"></canvas>
 </div>
 
@@ -36,8 +46,12 @@
             color: #00d9ff;
             box-shadow: 0 0 0 1px #00d9ff22 inset;
         }
+        .chart-range { display: flex; gap: 6px; flex-wrap: wrap; }
+        .chart-range-btn { padding: 5px 9px; border: 1px solid #555; border-radius: 999px; background: transparent; color: #aaa; cursor: pointer; }
+        .chart-range-btn:hover, .chart-range-btn.active { border-color: #00d9ff; color: #00d9ff; background: #00d9ff18; }
     </style>
 
+    <h3 style="font-size: 0.95em; color: #aaa; margin-bottom: 10px;">{{ 'Activity table filters'|lang }}</h3>
     <div id="calendarLegendFilters" style="margin-bottom: 25px; display: flex; gap: 10px; flex-wrap: wrap; font-size: 0.9em;">
         <button type="button" class="calendar-legend-btn active" data-filter="all">{{ 'All'|lang }}</button>
         <button type="button" class="calendar-legend-btn active" data-filter="proposal">
@@ -106,9 +120,9 @@
                     </td>
                     <td class="{% if item.item_type == 'proposal' and item.status == 'approved' %}amount-approved{% elif item.item_type == 'proposal' and item.status == 'active' %}amount-active{% else %}{{ 'amount-positive' if item.amount > 0 else 'amount-negative' }}{% endif %}">
                         {% if item.item_type == 'proposal' and item.status in ['approved', 'active'] %}
-                        €{{ "%.2f"|format(item.amount|abs) }}
+                        €{{ item.amount|abs|currency }}
                         {% else %}
-                        {{ "+" if item.amount > 0 else "" }}€{{ "%.2f"|format(item.amount) }}
+                        {{ "+" if item.amount > 0 else "" }}€{{ item.amount|currency }}
                         {% endif %}
                     </td>
                 </tr>
@@ -129,7 +143,7 @@
     </div>
 </div>
 
-<script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+<script src="{{ url_for('static', filename='vendor/chart.js/chart.umd.js') }}"></script>
 <script>
 const dailyData = {{ daily_budget|tojson }};
 const labels = dailyData.map(d => d.day);
@@ -146,7 +160,7 @@ const pendingData = dailyData.map(d => d.pending || 0);
 const committedData = cashBalanceData.map((b, i) => b - pendingData[i]);
 
 const ctx = document.getElementById('budgetChart').getContext('2d');
-new Chart(ctx, {
+const budgetChart = new Chart(ctx, {
     type: 'line',
     data: {
         labels: labels,
@@ -231,13 +245,32 @@ new Chart(ctx, {
                 stacked: true,
                 ticks: { 
                     color: '#888',
-                    callback: function(value) { return '€' + value; }
+                    callback: function(value) { return '€' + Number(value).toLocaleString(); }
                 },
                 grid: { color: '#0f3460' }
             }
         }
     }
 });
+
+const chartRangeButtons = Array.from(document.querySelectorAll('.chart-range-btn'));
+function applyChartRange(days) {
+    let startIndex = 0;
+    if (days !== 'all' && dailyData.length) {
+        const latest = new Date(`${dailyData[dailyData.length - 1].day}T00:00:00`);
+        const cutoff = new Date(latest);
+        cutoff.setDate(cutoff.getDate() - Number(days) + 1);
+        startIndex = dailyData.findIndex(d => new Date(`${d.day}T00:00:00`) >= cutoff);
+        if (startIndex < 0) startIndex = dailyData.length;
+    }
+    budgetChart.data.labels = labels.slice(startIndex);
+    [cashBalanceData, committedData, cashInData, cashOutData, unapprovedData, approvedData]
+        .forEach((values, index) => { budgetChart.data.datasets[index].data = values.slice(startIndex); });
+    budgetChart.update();
+    chartRangeButtons.forEach(button => button.classList.toggle('active', button.dataset.days === String(days)));
+}
+chartRangeButtons.forEach(button => button.addEventListener('click', () => applyChartRange(button.dataset.days)));
+applyChartRange('90');
 </script>
 <script>
 (() => {

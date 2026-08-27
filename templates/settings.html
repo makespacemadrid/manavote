@@ -86,6 +86,21 @@
             </div>
         </div>
         <div class="user-settings-item">
+            <h4>{{ 'Feedback'|lang }}</h4>
+            <p>{{ 'Report a bug or suggest an improvement.'|lang }}</p>
+            <form method="POST" class="email-settings-form">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <input type="hidden" name="action" value="submit_feedback">
+                <select name="category" required aria-label="{{ 'Feedback category'|lang }}">
+                    <option value="bug">{{ 'Bug report'|lang }}</option>
+                    <option value="suggestion">{{ 'Suggestion'|lang }}</option>
+                    <option value="other">{{ 'Other'|lang }}</option>
+                </select>
+                <textarea name="message" maxlength="4000" required placeholder="{{ 'Describe your feedback'|lang }}"></textarea>
+                <button type="submit" class="btn btn-secondary">{{ 'Send feedback'|lang }}</button>
+            </form>
+        </div>
+        <div class="user-settings-item">
             <h4>{{ 'Logout'|lang }}</h4>
             <p>{{ 'Sign out from your current session.'|lang }}</p>
             <a class="btn" href="{{ url_for('auth.logout') }}">{{ 'Logout'|lang }}</a>

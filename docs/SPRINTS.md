@@ -757,4 +757,51 @@ can store feedback the same way it already handles proposal/poll creation.
   and MCP stay convergent on the same `feedback_service` rather than duplicating
   validation.
 
-**Status:** ⚪ Scoped, not started.
+### Progress
+- ✅ Goal 2's proposal/poll hierarchy slice is complete: proposal filters now use one
+  data-driven filter-chip component with an active state (including “All”), truncated
+  titles expose their full value, in-favor counts use the shared cyan vote color, and
+  poll voting now leads the card row with the same visual weight as proposal voting.
+- ✅ Goal 3's poll-results color item is complete: options cycle through five distinct,
+  accessible result colors rather than sharing a single gradient.
+- ✅ Goal 3 is now complete: Chart.js 4.5.1 is self-hosted with its MIT license, the
+  chart defaults to a readable 90-day window with 30/365/all-time controls, and the
+  page leads with the current balance. Chart-range and activity-table controls now have
+  separate headings, while a shared `currency` template filter adds thousands separators
+  consistently across every member-facing monetary amount.
+- ✅ Goal 1 is complete: the admin confirmation dialog is now a shared, translated
+  component included by the base layout and used by every member-facing destructive
+  action. It has dialog semantics, focus return/trapping, outside-click and Escape
+  dismissal; proposal delete/undo actions live in a separate actions area; undo and
+  vote withdrawal are POST-only; settings menus open on focus as well as hover; and
+  app-wide pinch-to-zoom is no longer disabled.
+- ✅ Goal 4 is complete: members can submit categorized feedback from Settings or the
+  REST API, the Telegram assistant exposes a member-scoped `create_feedback` tool
+  without an unnecessary confirmation round-trip, and admins can list/filter/update
+  feedback through REST or triage it from a dedicated Admin tab. All transports share
+  `feedback_service` validation, persistence, reason codes, and structured audit logs.
+
+**Status:** ✅ Complete (2026-08-27).
+
+---
+
+## Sprint 8 (Started 2026-08-27) — Public MCP Application Boundary
+
+### Goal
+Replace the Telegram assistant's dependence on MCP server internals with a public tool
+registry/application boundary, keeping transport authentication outside application
+logic and denying new Telegram tools until their actor policy is explicit.
+
+### Progress
+- ✅ First slice: promoted MCP tool discovery to the public `tool_definitions()` API and
+  introduced `mcp_tool_registry` as the single source of Telegram actor policy. Member
+  reads, admin reads, member writes, and confirmed admin writes are classified beside
+  the registry; unclassified tools are denied by default. The registry also owns removal
+  of server-attributed member/creator fields before schemas are shown to the model.
+- ✅ Second slice: added the transport-neutral `mcp_application.execute_tool()` boundary.
+  JSON-RPC authenticates first and enters as the system actor; Telegram enters with an
+  explicit member/admin actor and no longer constructs an authenticated JSON-RPC request
+  or reads the MCP API key. The application layer denies unclassified tools, enforces
+  admin policies, and overwrites member/creator attribution before dispatch.
+
+**Status:** ✅ Complete (2026-08-27).

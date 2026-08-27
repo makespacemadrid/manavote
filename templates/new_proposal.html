@@ -7,7 +7,7 @@
     <h2>{{ 'New Proposal'|lang }}</h2>
     
     <p style="color: #888; margin-bottom: 20px;">
-        {{ 'Budget'|lang }}: <strong>€{{ "%.2f"|format(current_budget) }}</strong>
+        {{ 'Budget'|lang }}: <strong>€{{ current_budget|currency }}</strong>
     </p>
     
     <form method="POST" enctype="multipart/form-data">
