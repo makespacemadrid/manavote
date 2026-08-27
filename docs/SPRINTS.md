@@ -130,9 +130,34 @@ limits, and confirmation audit records) is tracked as forward-looking backlog in
 [`IDEAS.md`](IDEAS.md) rather than duplicated here.
 
 ### Remaining work (execution checklist)
-1. **Route decomposition closure**
-   - Move any remaining substantial handler logic out of `main_routes.py`.
-   - Keep shim layer intentionally thin and measurable.
+1. **Route decomposition closure** — in progress (2026-08-27): `main_routes.py` cut from
+   2368 to 1218 lines (-48.5%).
+   - Moved the entire `/admin` handler (627 lines: every member/budget/settings/poll/
+     backup admin action, plus the dashboard's data-gathering tail) from `main_routes.admin()`
+     into `admin_routes.py`'s blueprint view — it previously just delegated to
+     `legacy.admin()`. Same route, same decorators (`@limiter.exempt @login_required
+     @admin_required`), same behavior; only its home module changed.
+   - Moved all 11 proposal-lifecycle handlers (`new_proposal`, `proposal_detail`,
+     `edit_comment`, `delete_comment`, `delete_proposal`, `edit_proposal`, `quick_vote`,
+     `withdraw_vote`, `undo_approve`, `mark_purchased`, `unmark_purchased`) from
+     `main_routes.py` into `proposal_routes.py` the same way.
+   - Shared helpers each handler still needs (`get_db`, `get_current_budget`,
+     `process_proposal`, `TelegramClient`, etc.) are re-read from `main_routes` as local
+     variables *inside* each view on every request (`get_db = legacy.get_db`, ...) rather
+     than imported once at module load — this preserves every existing test's ability to
+     `patch("app.web.routes.main_routes.X", ...)` and keeps module-level state like
+     `DB_PATH` live. One test (`test_admin_unlink_telegram_action_emits_audit_event`) had
+     to be repointed at the function's new home (`admin_routes.log_telegram_link_event`)
+     since that's a genuine, correct change in where the call now lives.
+   - Full suite re-run after each move; no behavior regressions, only the one expected
+     test-location fix above.
+   - Remaining: `telegram_webhook` (~180 lines) and `proposals()` (~155 lines) are still
+     directly implemented in `main_routes.py` rather than behind a thin blueprint alias
+     like `/about`/`/budget`/`/settings` already are. The ~30 shared helpers underneath
+     all of this (`get_db`, threshold/vote-mode calculations, Telegram command
+     processors, `record_proposal_vote`, etc.) are a separate, larger undertaking —
+     moving *those* into `app/services/`/`app/repositories/` is WS-A A2's
+     service/repository boundary work, not route decomposition itself.
 
 2. **Admin reliability observability** — ✅ closed for this sprint's scope.
    - Backup-audit coverage now spans download, admin-triggered, scheduled, and
