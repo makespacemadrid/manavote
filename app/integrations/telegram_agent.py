@@ -6,7 +6,6 @@ https://github.com/luisriverag/ocabra_telegram
 
 from __future__ import annotations
 
-import copy
 import hashlib
 import json
 import logging
@@ -20,23 +19,23 @@ from typing import Any, Callable
 import requests
 
 from app import mcp_server
+from app.services import mcp_application, mcp_tool_registry
 
 _logger = logging.getLogger(__name__)
 
 
-READ_ONLY_TOOLS = {
-    "list_proposals",
-    "list_polls",
-    "list_group_purchases",
-    "current_budget",
-    "get_voting_settings",
-}
-ADMIN_READ_ONLY_TOOLS = {"list_member_telegram_links", "list_user_statistics"}
-MUTATING_TOOLS = {"create_proposal", "create_poll", "update_voting_settings"}
+def _tools_with_policy(policy):
+    return {name for name, assigned in mcp_tool_registry.TELEGRAM_POLICIES.items() if assigned == policy}
+
+
+READ_ONLY_TOOLS = _tools_with_policy(mcp_tool_registry.TelegramPolicy.MEMBER_READ)
+ADMIN_READ_ONLY_TOOLS = _tools_with_policy(mcp_tool_registry.TelegramPolicy.ADMIN_READ)
+MUTATING_TOOLS = _tools_with_policy(mcp_tool_registry.TelegramPolicy.CONFIRMED_ADMIN_WRITE)
+MEMBER_WRITABLE_TOOLS = _tools_with_policy(mcp_tool_registry.TelegramPolicy.MEMBER_WRITE)
 # Tools are deliberately classified here instead of granting administrators every
 # MCP tool. In particular, create_member accepts a password and must never be
 # exposed to a model-backed Telegram conversation.
-TELEGRAM_TOOLS = READ_ONLY_TOOLS | ADMIN_READ_ONLY_TOOLS | MUTATING_TOOLS
+TELEGRAM_TOOLS = READ_ONLY_TOOLS | ADMIN_READ_ONLY_TOOLS | MUTATING_TOOLS | MEMBER_WRITABLE_TOOLS
 MAX_TOOL_ROUNDS = 4
 MAX_HISTORY_MESSAGES = 12
 ConversationKey = tuple[int, int]
@@ -234,7 +233,7 @@ def _schema_fingerprint(tool_name: str) -> str | None:
     exists. Lets /confirm detect the registry changing underneath a pending action
     (e.g. a process restart picking up a different tool version)."""
     definition = next(
-        (item for item in mcp_server._tool_definitions() if item["name"] == tool_name), None
+        (item for item in mcp_server.tool_definitions() if item["name"] == tool_name), None
     )
     return _stable_digest(definition["inputSchema"]) if definition is not None else None
 
@@ -286,17 +285,9 @@ def _headers() -> dict[str, str]:
 
 
 def _openai_tools(*, is_admin: bool, actor_member_id: int | None = None) -> list[dict[str, Any]]:
-    definitions = copy.deepcopy(mcp_server._tool_definitions())
-    allowed = TELEGRAM_TOOLS if is_admin else READ_ONLY_TOOLS
-    definitions = [item for item in definitions if item["name"] in allowed]
-    if actor_member_id is not None:
-        for item in definitions:
-            if item["name"] not in {"create_proposal", "create_poll"}:
-                continue
-            schema = item["inputSchema"]
-            schema["properties"].pop("created_by", None)
-            schema["required"] = [field for field in schema.get("required", []) if field != "created_by"]
-            item["description"] += " The creator is the linked Telegram member."
+    definitions = mcp_tool_registry.telegram_tool_definitions(
+        mcp_server.tool_definitions(), is_admin=is_admin, actor_member_id=actor_member_id
+    )
     return [
         {
             "type": "function",
@@ -314,18 +305,14 @@ def _call_mcp(tool_name: str, arguments: dict[str, Any], *, is_admin: bool) -> s
     allowed = {item["function"]["name"] for item in _openai_tools(is_admin=is_admin)}
     if tool_name not in allowed:
         return json.dumps({"error": "This Telegram account may not use that tool."})
-    response = mcp_server.handle_request(
-        {
-            "jsonrpc": "2.0",
-            "id": "telegram-agent",
-            "method": "tools/call",
-            "params": {
-                "name": tool_name,
-                "arguments": arguments,
-                "api_key": mcp_server.MCP_API_KEY,
-            },
-        }
-    )
+    actor = mcp_application.Actor("admin" if is_admin else "member", arguments.get("member_id") or arguments.get("created_by"))
+    try:
+        response = mcp_application.execute_tool(
+            mcp_server.execute_tool_command, tool_name, arguments,
+            actor=actor, req_id="telegram-agent",
+        )
+    except mcp_application.ToolAccessDenied as exc:
+        return json.dumps({"error": str(exc)})
     if not response:
         return json.dumps({"error": "MCP returned no response."})
     if "error" in response:
@@ -337,7 +324,7 @@ def _call_mcp(tool_name: str, arguments: dict[str, Any], *, is_admin: bool) -> s
 def _known_tool_arguments(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
     """Drop model-invented fields before they enter confirmation state or MCP."""
     definition = next(
-        (item for item in mcp_server._tool_definitions() if item["name"] == tool_name), None
+        (item for item in mcp_server.tool_definitions() if item["name"] == tool_name), None
     )
     if definition is None:
         return {}
@@ -591,6 +578,13 @@ def answer(
                 arguments = {}
             if not isinstance(arguments, dict):
                 result = json.dumps({"error": "Tool arguments must be a JSON object."})
+            elif function.get("name") in MEMBER_WRITABLE_TOOLS:
+                arguments = _known_tool_arguments(function["name"], arguments)
+                if actor_member_id is None:
+                    result = json.dumps({"error": "A linked member is required."})
+                else:
+                    arguments["member_id"] = actor_member_id
+                    result = _call_mcp(function["name"], arguments, is_admin=is_admin)
             elif function.get("name") in MUTATING_TOOLS:
                 arguments = _known_tool_arguments(function["name"], arguments)
                 if function["name"] in {"create_proposal", "create_poll"}:

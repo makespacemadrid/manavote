@@ -11,7 +11,7 @@
 <div class="card" style="margin-bottom: 15px; padding: 25px;">
     <h2>💰 {{ 'Available'|lang }}</h2>
     <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: center; margin-top: 8px;">
-        <span><strong>€{{ "%.2f"|format(current_budget) }}</strong></span>
+        <span><strong>€{{ current_budget|currency }}</strong></span>
         <span style="color: #888;">· {{ member_count }} {{ 'members'|lang }}</span>
     </div>
     <div style="margin-top: 8px; color: #888; font-size: 0.9em;">
@@ -28,21 +28,19 @@
             <a href="{{ url_for('proposals.new_proposal') }}" class="btn">+ {{ 'New Proposal'|lang }}</a>
         </div>
         
-        <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
-            <a href="{{ url_for('proposals', filter='all') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: transparent; color: #fff; border: 1px solid #fff;">{{ 'All'|lang }} (€{{ "%.0f"|format(all_sum) }})</a>
-            <a href="{{ url_for('proposals', filter='active') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00d9ff22' if filter == 'active' else 'transparent' }}; color: #00d9ff; border: 1px solid #00d9ff;">{{ 'Active'|lang }} (€{{ "%.0f"|format(active_proposals_sum) }})</a>
-            <a href="{{ url_for('proposals', filter='recent') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00b8d422' if filter == 'recent' else 'transparent' }}; color: #00b8d4; border: 1px solid #00b8d4;">{{ 'Recent'|lang }} (€{{ "%.0f"|format(recent_proposals_sum) }})</a>
-            <a href="{{ url_for('proposals', filter='old') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#0088b322' if filter == 'old' else 'transparent' }}; color: #0088b3; border: 1px solid #0088b3;">{{ 'Old'|lang }} (€{{ "%.0f"|format(old_proposals_sum) }})</a>
-            <a href="{{ url_for('proposals', filter='over_budget') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#9932CC22' if filter == 'over_budget' else 'transparent' }}; color: #9932CC; border: 1px solid #9932CC;">{{ 'Pending Budget'|lang }} (€{{ "%.0f"|format(committed) }})</a>
-            <a href="{{ url_for('proposals', filter='approved') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00ff8822' if filter == 'approved' else 'transparent' }}; color: #00ff88; border: 1px solid #00ff88;">{{ 'Approved'|lang }} (€{{ "%.0f"|format(approved_sum) }})</a>
-            <a href="{{ url_for('proposals', filter='not_purchased') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00cc6622' if filter == 'not_purchased' else 'transparent' }}; color: #00cc66; border: 1px solid #00cc66;">{{ 'Pending Purchase'|lang }} (€{{ "%.0f"|format(pending_purchase_sum) }})</a>
-            <a href="{{ url_for('proposals', filter='purchased') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#4a422' if filter == 'purchased' else 'transparent' }}; color: #4a4; border: 1px solid #4a4;">{{ 'Purchased'|lang }} (€{{ "%.0f"|format(purchased_sum) }})</a>
-        </div>
-        <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
-            <a href="{{ url_for('proposals', filter='basic') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#CD7F3222' if filter == 'basic' else 'transparent' }}; color: #CD7F32; border: 1px solid #CD7F32;">{{ 'Basic'|lang }} (€{{ "%.0f"|format(basic_sum) }})</a>
-            <a href="{{ url_for('proposals', filter='standard') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#C0C0C022' if filter == 'standard' else 'transparent' }}; color: #C0C0C0; border: 1px solid #C0C0C0;">{{ 'Standard'|lang }} (€{{ "%.0f"|format(standard_sum) }})</a>
-            <a href="{{ url_for('proposals', filter='expensive') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#FFD70022' if filter == 'expensive' else 'transparent' }}; color: #FFD700; border: 1px solid #FFD700;">{{ 'Expensive'|lang }} (€{{ "%.0f"|format(expensive_sum) }})</a>
-        </div>
+        {% set filter_chips = [
+            ('all', 'All', all_sum, '#ffffff'), ('active', 'Active', active_proposals_sum, '#00d9ff'),
+            ('recent', 'Recent', recent_proposals_sum, '#00b8d4'), ('old', 'Old', old_proposals_sum, '#6abbd4'),
+            ('over_budget', 'Pending Budget', committed, '#c77dff'), ('approved', 'Approved', approved_sum, '#00d9ff'),
+            ('not_purchased', 'Pending Purchase', pending_purchase_sum, '#39d98a'), ('purchased', 'Purchased', purchased_sum, '#73c773'),
+            ('basic', 'Basic', basic_sum, '#cd7f32'), ('standard', 'Standard', standard_sum, '#c0c0c0'),
+            ('expensive', 'Expensive', expensive_sum, '#ffd700')
+        ] %}
+        <nav class="filter-row" aria-label="{{ 'Proposal filters'|lang }}">
+            {% for filter_value, label, amount, color in filter_chips %}
+            <a href="{{ url_for('proposals', filter=filter_value) }}" class="filter-chip{{ ' active' if filter == filter_value else '' }}" style="--filter-color: {{ color }};"{% if filter == filter_value %} aria-current="page"{% endif %}>{{ label|lang }} (€{{ amount|currency }})</a>
+            {% endfor %}
+        </nav>
 
         {% if total_count is defined and total_count != proposals|length %}
         <p style="color: #888; margin-bottom: 10px; font-size: 0.9em;">{{ proposals|length }} of {{ total_count }} proposals</p>
@@ -64,7 +62,7 @@
                             {% if p.old_age_threshold %}<span class="status" style="background: #e9456022; color: #e94560;">{{ 'old'|lang }}</span>{% endif %}
                         </div>
                         <div style="flex: 1; min-width: 0; overflow: hidden;">
-                            <a href="{{ url_for('proposals.proposal_detail', proposal_id=p.id) }}" style="color: #eee; text-decoration: none; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ p.title }}</a>
+                            <a href="{{ url_for('proposals.proposal_detail', proposal_id=p.id) }}" title="{{ p.title }}" style="color: #eee; text-decoration: none; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ p.title }}</a>
                         </div>
                     </div>
                     <div style="flex-shrink: 0; margin: 10px 0; width: 80px; height: 80px;">
@@ -89,7 +87,7 @@
                         {% elif p.status == 'over_budget' %}<span class="status status-over-budget" style="margin-right: 10px;">{{ 'pending_budget'|lang }}</span>
                         {% elif p.status == 'rejected' %}<span class="status status-rejected" style="margin-right: 10px;">{{ 'rejected'|lang }}</span>
                         {% elif p.status == 'active' %}<span class="status status-active" style="margin-right: 10px;">{{ 'active'|lang }}</span>{% endif %}
-                        <span style="color: #00ff88;">✓ {{ p.approve_count }} {{ 'in favor'|lang }}</span>
+                        <span class="vote-approve">✓ {{ p.approve_count }} {{ 'in favor'|lang }}</span>
                         <span class="vote-reject">✗ {{ p.reject_count }} {{ 'against'|lang }}</span>
                         <span style="color: {{ '#00d9ff' if p.net_votes >= p.min_backers else '#888' }};">({{ p.net_votes }} {{ 'net'|lang }})</span>
                         <span style="color: #888;">({{ p.net_votes }} {{ 'votes out of'|lang }} {{ p.min_backers|int }} {{ 'required'|lang }})</span>
@@ -110,19 +108,22 @@
                             </form>
                             {% endif %}
                         {% else %}
-                            <form method="POST" action="{{ url_for('proposals.mark_purchased', proposal_id=p.id) }}" style="display: inline;" onsubmit="return confirm('{{ 'Mark as purchased?'|lang }}');">
+                            <form method="POST" action="{{ url_for('proposals.mark_purchased', proposal_id=p.id) }}" style="display: inline;" onsubmit="return confirmDangerAction(this, '{{ 'Mark as purchased?'|lang }}');">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                                 <button type="submit" style="background: #00d9ff22; border: 1px solid #00d9ff; color: #00d9ff; font-size: 0.8em; cursor: pointer; padding: 4px 10px; border-radius: 4px;">✓ {{ 'confirm purchase'|lang }}</button>
                             </form>
                         {% endif %}
                         {% if session.is_admin %}
-                        <a href="{{ url_for('proposals.undo_approve', proposal_id=p.id) }}" style="color: #e94560; font-size: 0.75em;">{{ 'undo'|lang }}</a>
+                        <form method="POST" action="{{ url_for('proposals.undo_approve', proposal_id=p.id) }}" onsubmit="return confirmDangerAction(this, '{{ 'Undo approval confirm'|lang }}');">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                            <button type="submit" class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75em;">{{ 'undo'|lang }}</button>
+                        </form>
                         {% endif %}
                     </div>
                     {% endif %}
                 </div>
                 <div style="text-align: right;">
-                    <div class="proposal-amount" style="color: #888;">€{{ "%.2f"|format(p.amount) }}</div>
+                    <div class="proposal-amount" style="color: #888;">€{{ p.amount|currency }}</div>
                     {% if is_web_proposal_vote_enabled and p.status == 'active' and p.user_vote %}
                     <div style="margin-top: 8px; display: flex; gap: 5px; justify-content: flex-end;">
                         <form method="POST" action="{{ url_for('proposals.quick_vote', proposal_id=p.id) }}">
@@ -167,10 +168,10 @@
                 <td>{{ log.created_at|localtime("%Y-%m-%d %H:%M") }}</td>
                 <td>{{ log.description }}</td>
                 <td class="{{ 'amount-positive' if log.amount > 0 else 'amount-negative' }}">
-                    {{ "+" if log.amount > 0 else "" }}€{{ "%.2f"|format(log.amount) }}
+                    {{ "+" if log.amount > 0 else "" }}€{{ log.amount|currency }}
                 </td>
                 <td class="{{ 'amount-positive' if log.balance > 0 else 'amount-negative' }}">
-                    €{{ "%.2f"|format(log.balance) }}
+                    €{{ log.balance|currency }}
                 </td>
             </tr>
             {% endfor %}

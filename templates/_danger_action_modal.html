@@ -1,0 +1,74 @@
+<div id="dangerActionModal" class="danger-modal" hidden role="dialog" aria-modal="true" aria-labelledby="dangerActionTitle" aria-describedby="dangerActionMessage">
+    <div class="danger-modal-panel" tabindex="-1">
+        <h3 id="dangerActionTitle">{{ 'Confirm action'|lang }}</h3>
+        <p id="dangerActionMessage"></p>
+        <p class="danger-modal-hint">{{ 'Please confirm to continue.'|lang }}</p>
+        <div class="button-row">
+            <button type="button" class="btn btn-secondary" data-danger-cancel>{{ 'Cancel'|lang }}</button>
+            <button type="button" class="btn" data-danger-confirm>{{ 'Confirm'|lang }}</button>
+        </div>
+    </div>
+</div>
+
+<script>
+(() => {
+    const modal = document.getElementById('dangerActionModal');
+    const panel = modal.querySelector('.danger-modal-panel');
+    const message = document.getElementById('dangerActionMessage');
+    const cancelButton = modal.querySelector('[data-danger-cancel]');
+    const confirmButton = modal.querySelector('[data-danger-confirm]');
+    let pendingForm = null;
+    let returnFocus = null;
+
+    function focusableElements() {
+        return Array.from(modal.querySelectorAll('button:not([disabled]), [href], input:not([disabled]), [tabindex]:not([tabindex="-1"])'));
+    }
+
+    window.hideDangerAction = function hideDangerAction() {
+        modal.hidden = true;
+        pendingForm = null;
+        if (returnFocus) returnFocus.focus();
+        returnFocus = null;
+    };
+
+    window.confirmDangerAction = function confirmDangerAction(form, prompt) {
+        pendingForm = form;
+        returnFocus = document.activeElement;
+        message.textContent = prompt;
+        modal.hidden = false;
+        panel.focus();
+        return false;
+    };
+
+    cancelButton.addEventListener('click', window.hideDangerAction);
+    window.submitDangerAction = function submitDangerAction() {
+        const form = pendingForm;
+        window.hideDangerAction();
+        if (form) form.submit();
+    };
+
+    confirmButton.addEventListener('click', window.submitDangerAction);
+    modal.addEventListener('click', event => {
+        if (event.target === modal) window.hideDangerAction();
+    });
+    modal.addEventListener('keydown', event => {
+        if (event.key === 'Escape') {
+            event.preventDefault();
+            window.hideDangerAction();
+            return;
+        }
+        if (event.key !== 'Tab') return;
+        const elements = focusableElements();
+        if (!elements.length) return;
+        const first = elements[0];
+        const last = elements[elements.length - 1];
+        if (event.shiftKey && document.activeElement === first) {
+            event.preventDefault();
+            last.focus();
+        } else if (!event.shiftKey && document.activeElement === last) {
+            event.preventDefault();
+            first.focus();
+        }
+    });
+})();
+</script>

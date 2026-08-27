@@ -90,6 +90,32 @@ def test_tools_list_advertises_domain_proposal_statuses():
     }
 
 
+def test_create_feedback_tool_persists_member_attribution(tmp_path, monkeypatch):
+    db_path = tmp_path / "feedback-mcp.db"
+    conn = sqlite3.connect(db_path)
+    conn.executescript("""
+        CREATE TABLE members (id INTEGER PRIMARY KEY, username TEXT);
+        INSERT INTO members VALUES (7, 'linked-member');
+        CREATE TABLE feedback (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, member_id INTEGER NOT NULL,
+            source TEXT NOT NULL, category TEXT NOT NULL, message TEXT NOT NULL,
+            status TEXT NOT NULL DEFAULT 'new', created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            resolved_at TEXT, resolved_by INTEGER
+        );
+    """)
+    conn.close()
+    monkeypatch.setattr(mcp_server, "DB_PATH", str(db_path))
+
+    response = mcp_server.handle_request(_req("tools/call", params={
+        "name": "create_feedback",
+        "arguments": {"member_id": 7, "category": "suggestion", "message": "Add dark mode"},
+    }))
+    payload = json.loads(response["result"]["content"][0]["text"])
+    assert payload["success"] is True
+    with sqlite3.connect(db_path) as check:
+        assert check.execute("SELECT member_id, source FROM feedback").fetchone() == (7, "telegram")
+
+
 def test_tools_call_list_proposals_filters_old_active_proposals(monkeypatch):
     captured = {}
 

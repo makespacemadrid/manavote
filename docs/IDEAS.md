@@ -300,8 +300,12 @@ backpressure, Telegram transport, retry behavior, documentation, and focused tes
      runs against that file — the test generates fresh ones every run.
 
 4. **Public MCP application boundary (P1)**
-   - The assistant currently consumes the private `_tool_definitions()` helper and calls
-     the JSON-RPC request handler in-process with the server API key.
+   - First slice completed in Sprint 8: the assistant now consumes the public
+     `tool_definitions()` API through `mcp_tool_registry`; Telegram policy is centralized
+     there and unclassified tools are denied by default.
+   - ✅ Completed in Sprint 8: JSON-RPC and Telegram now enter the shared
+     `mcp_application.execute_tool()` boundary with explicit system/member/admin actors;
+     the assistant no longer calls `handle_request()` or reads the MCP API key.
    - Introduce a public MCP tool registry/application service that both transports and
      the Telegram adapter call. Keep authentication at transport boundaries and actor
      authorization in the application layer.

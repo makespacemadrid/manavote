@@ -2,6 +2,17 @@
 
 This project exposes a small admin-focused REST API.
 
+## Member feedback
+
+Feedback is the exception to the admin-key authentication described below: it uses the
+logged-in web session. `POST /api/feedback` accepts
+`{"category":"bug|suggestion|other","message":"..."}` from any member. Administrators
+can use `GET /api/feedback?status=&category=&limit=&offset=` and
+`PATCH /api/feedback/<id>` with `{"status":"new|reviewed|resolved"}` to triage it.
+Validation failures use the standard error envelope; stable codes include
+`invalid_category`, `message_required`, `message_too_long`, `invalid_status`, and
+`feedback_not_found`.
+
 ## Authentication
 
 All endpoints require:

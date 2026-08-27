@@ -7,7 +7,7 @@ from flask import Blueprint, flash, redirect, render_template, request, send_fil
 from werkzeug.security import generate_password_hash
 
 from app.extensions import limiter
-from app.services import backup_service
+from app.services import backup_service, feedback_service
 from app.services.telegram_link_service import unlink_member_telegram
 from app.web.routes.helpers.admin_audit_helpers import log_admin_backup_event, log_telegram_link_event
 
@@ -20,7 +20,7 @@ admin_bp = Blueprint("admin", __name__)
 
 def _admin_redirect_with_tab():
     tab = request.values.get("tab", "members")
-    allowed_tabs = {"members", "budget", "polls", "group_purchases", "settings"}
+    allowed_tabs = {"members", "budget", "polls", "group_purchases", "feedback", "settings"}
     safe_tab = tab if tab in allowed_tabs else "members"
     return redirect(url_for("admin.admin", tab=safe_tab))
 
@@ -427,6 +427,15 @@ def admin():
                     sent = send_telegram_message("\n".join(lines), poll["id"], options)
                     flash("Poll sent to Telegram!" if sent else "Failed to send poll to Telegram", "success" if sent else "error")
 
+        elif action == "update_feedback_status":
+            try:
+                feedback_service.update_feedback_status(
+                    conn, feedback_id=request.form.get("feedback_id", type=int),
+                    status=request.form.get("status", ""), resolved_by=session["member_id"], logger=app.logger,
+                )
+                flash("Feedback status updated.", "success")
+            except feedback_service.FeedbackValidationError as exc:
+                flash(str(exc), "error")
         elif action == "backup_db":
             try:
                 backup_name, pruned_count = backup_service.backup_db(DB_PATH, keep_days=7)
@@ -659,12 +668,14 @@ def admin():
     """)
     group_purchases = [dict(row) for row in c.fetchall()]
 
+    feedback_items = feedback_service.list_feedback(conn, limit=100)
+
     c.execute("SELECT value FROM settings WHERE key = 'timezone'")
     tz_row = c.fetchone()
     current_timezone = tz_row["value"] if tz_row else "Europe/Madrid"
 
     requested_tab = request.values.get("tab", "all")
-    allowed_tabs = {"all", "members", "budget", "polls", "group_purchases", "settings"}
+    allowed_tabs = {"all", "members", "budget", "polls", "group_purchases", "feedback", "settings"}
     active_admin_tab = requested_tab if requested_tab in allowed_tabs else "all"
 
     conn.close()
@@ -686,6 +697,7 @@ def admin():
         image_backups=image_backups,
         polls=polls,
         group_purchases=group_purchases,
+        feedback_items=feedback_items,
         active_admin_tab=active_admin_tab,
     )
 

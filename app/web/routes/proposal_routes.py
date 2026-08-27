@@ -143,6 +143,7 @@ def budget():
         "budget.html",
         calendar_items=calendar_items,
         daily_budget=daily_budget,
+        current_balance=daily_budget[-1]["cash_balance"] if daily_budget else 0,
         session_lang=session.get("lang", "en"),
         page=page,
         total_pages=total_pages,
@@ -780,7 +781,7 @@ def quick_vote(proposal_id):
     return redirect(url_for("proposals"))
 
 
-@proposal_bp.route("/withdraw-vote/<int:proposal_id>", methods=["GET", "POST"], endpoint="withdraw_vote")
+@proposal_bp.route("/withdraw-vote/<int:proposal_id>", methods=["POST"], endpoint="withdraw_vote")
 @login_required
 def withdraw_vote(proposal_id):
     get_db = legacy.get_db
@@ -814,7 +815,7 @@ def withdraw_vote(proposal_id):
     return redirect(url_for("proposals"))
 
 
-@proposal_bp.route("/undo/<int:proposal_id>", endpoint="undo_approve")
+@proposal_bp.route("/undo/<int:proposal_id>", methods=["POST"], endpoint="undo_approve")
 @login_required
 @admin_required
 def undo_approve(proposal_id):
