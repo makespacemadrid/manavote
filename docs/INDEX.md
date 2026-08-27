@@ -16,6 +16,7 @@ Use this page as the entry point for project documentation.
 - **Implementation standards & guardrails**: [`STYLE.md`](STYLE.md)
 - **Backlog / ideas**: [`IDEAS.md`](IDEAS.md)
 - **Sprint tracking**: [`SPRINTS.md`](SPRINTS.md)
+- **Retrospective — lessons from this project's own history**: [`META.md`](META.md)
 
 ## Which doc should I update?
 

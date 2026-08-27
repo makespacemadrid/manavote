@@ -164,10 +164,13 @@ flowchart LR
     external -.-> mcp
 ```
 
-The in-process call from `telegram_agent.py` to `mcp_server.handle_request()` skips
-any real application-layer boundary (auth, rate limiting, request shaping) that an
-external caller over HTTP would go through — flagged as `IDEAS.md` item 4 (P1),
-currently slated to lead Sprint 8.
+The in-process call from `telegram_agent.py` to `mcp_server.handle_request()` used to
+skip any real application-layer authorization boundary — flagged as `IDEAS.md` item 4
+(P1). Sprint 8 closed it (`bf24b6c`): `app/services/mcp_application.py`'s
+`execute_tool()` now checks an `Actor`'s role against each tool's policy
+(`app/services/mcp_tool_registry.py`) and binds identity fields (e.g. a member can only
+attribute a mutation to their own `member_id`) before invoking the executor, for both
+the in-process Telegram path and external callers alike.
 
 ## Startup sequence
 
