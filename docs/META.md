@@ -434,9 +434,13 @@ literal, ordered, bottom-up prompt sequence that would generate *this specific a
 current functionality*, using the app's actual entities, columns, thresholds, routes,
 and tool names as they exist in the codebase today — checked against `docs/SPEC.md`,
 `app/db/schema.sql`, `app/db/migrations.py`, and `app/mcp_server.py` at time of writing,
-not remembered or approximated. Each layer only depends on the layers before it (true
-bottom-up: nothing here calls forward to a layer that hasn't been prompted yet), names
-the findings above it would have prevented, and gives one literal, pasteable prompt.
+not remembered or approximated. Each layer depends only on layers already built, with
+one deliberate, explicitly-marked exception (Layer 7 stubs a Telegram announcement it
+can't finish until Layer 9 exists, rather than pretending the dependency isn't there) —
+a stub with a named forward dependency is honest bottom-up engineering; a silent one
+is exactly the kind of unwritten assumption this whole document is about. Each layer
+names the findings above it would have prevented and gives one literal, pasteable
+prompt.
 
 | Layer | Builds | Depends on | Findings prevented |
 | --- | --- | --- | --- |
@@ -872,7 +876,7 @@ project's history actually argues for anywhere:
     reasonable when made and only became a problem once something else depended on
     it without knowing it was ever a choice. An agent (human or AI) that surfaces
     those moments instead of resolving them silently is the actual fix, upstream of
-    every phase-specific prompt above it.
+    every layer- and finding-specific lesson in this document.
 12. **Keep every commit to one concern.** It costs nothing in the moment and it's the
     difference between a retrospective like this one being possible at all and a
     project whose own history can't answer "when did this start, and why."
@@ -949,7 +953,7 @@ narrower: the next time this project (or its next major surface) is tempted to s
 of these for speed, this is the receipt for what skipping it cost last time. The layer
 sequence above is the same evidence turned forward instead of backward, made literal:
 it's not a generic template but this specific app's actual entities, thresholds, tables,
-and tool names, ordered so each layer only ever depends on one already built. If the
+and tool names, ordered so each layer depends only on layers already built. If the
 app were deleted today, following the fourteen layers in order — adapting only what a
 real rebuild would legitimately change — is a defensible way to reconstruct its current
 behavior without reproducing the roughly 48 commits of rework this document tallies.
