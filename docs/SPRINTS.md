@@ -156,20 +156,40 @@ limits, and confirmation audit records) is tracked as forward-looking backlog in
      `DB_PATH` live. One test (`test_admin_unlink_telegram_action_emits_audit_event`) had
      to be repointed at the function's new home (`admin_routes.log_telegram_link_event`)
      since that's a genuine, correct change in where the call now lives.
-   - Full suite re-run after each move; no behavior regressions, only the one expected
-     test-location fix above.
-   - Remaining: `telegram_webhook` (~180 lines) is still directly implemented in
-     `main_routes.py`. Unlike the moves above, it has no existing blueprint to land in —
-     closing it out means standing up a new `telegram_routes.py` blueprint and
-     re-registering it in `app/web/routes/__init__.py`, plus checking that supporting
-     module-level state the webhook test suite patches directly
-     (`_telegram_update_deduplicator`, `_telegram_agent_executor`, `TELEGRAM_BOT_TOKEN`,
-     `TelegramClient`) still resolves correctly from wherever the route ends up. Treating
-     that as its own follow-up rather than folding it into this pass. The ~30 shared
-     helpers underneath all of this (`get_db`, threshold/vote-mode calculations, Telegram
-     command processors, `record_proposal_vote`, etc.) are a separate, larger
-     undertaking — moving *those* into `app/services/`/`app/repositories/` is WS-A A2's
-     service/repository boundary work, not route decomposition itself.
+   - Moved `telegram_webhook` (~180 lines) into a new `telegram_routes.py` blueprint,
+     registered in `app/web/routes/__init__.py`. No `url_for("telegram_webhook")` call
+     sites exist anywhere (the webhook URL is always built as a plain string,
+     `f"{base_url}/telegram/webhook/{secret}"`, for Telegram's own `setWebhook` call),
+     so this one needed no compatibility alias at all — the route was simply deleted
+     from `main_routes.py`. Module-level singletons the webhook depends on
+     (`_telegram_agent_executor`, `_telegram_update_deduplicator`,
+     `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`/etc., `TelegramClient`) stayed defined in
+     `main_routes.py` and are re-read fresh from `legacy.X` inside the view, same as
+     every other move — this is what keeps the ~120 existing test references to
+     `main_routes.TELEGRAM_*`/`main_routes.TelegramClient`/etc. working unchanged.
+   - `main_routes.py`: 2368 → 873 lines (-63.1%) since this work started. Cleaned up
+     seven now-dead imports (`hmac`, `requests`, `limiter`, `csrf`,
+     `get_telegram_principal`, and the six `telegram_webhook`-only helpers from
+     `app.integrations.telegram_webhook`) left behind by the move.
+   - Full suite re-run after each move (three times for this one, given ~120 test
+     references into the moved code); no behavior regressions, only the one expected
+     test-location fix noted above.
+   - Noticed but not changed: `app/web/routes/__init__.py` already has a generic
+     `legacy_endpoint_aliases` dict that re-registers a blueprint view under its old
+     bare endpoint name for `url_for()` compatibility (used for the 11 proposal
+     handlers, `admin`, `polls_page`, etc.). The `proposals()` move in the previous
+     commit predates noticing this and instead kept a manual `@app.route("/proposals")`
+     wrapper in `main_routes.py` — functionally equivalent, but adding `"proposals":
+     "proposals.proposals"` to that dict instead would be the more consistent cleanup;
+     left as a small follow-up rather than reworking an already-tested commit.
+   - Remaining: the ~30 shared helpers underneath all of this (`get_db`, threshold/
+     vote-mode calculations, Telegram command processors, `record_proposal_vote`, etc.)
+     are a separate, larger undertaking — moving *those* into
+     `app/services/`/`app/repositories/` is WS-A A2's service/repository boundary work,
+     not route decomposition itself. With `admin()`, the proposal handlers,
+     `proposals()`, and `telegram_webhook` all relocated, route decomposition itself is
+     close to done; what's left in `main_routes.py` is almost entirely that shared
+     helper layer plus small compatibility shims.
 
 2. **Admin reliability observability** — ✅ closed for this sprint's scope.
    - Backup-audit coverage now spans download, admin-triggered, scheduled, and
