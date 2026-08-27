@@ -1,6 +1,6 @@
 # SPRINTS — Implementation Planning and Progress Tracking
 
-Last updated: 2026-08-26
+Last updated: 2026-08-27
 
 This document tracks implementation sequencing, active sprint scope, and completion status.
 Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
@@ -17,9 +17,14 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
 
 Sprints 4 and 5 are complete. Sprint 5 delivered the MCP extraction boundary, typed
 exception/reason-code handling, structured Telegram background-job observability, and
-Telegram group-routing configuration diagnostics. No new implementation sprint is
-currently scoped; forward-looking candidates and their prioritization rationale remain
-canonical in [`IDEAS.md`](IDEAS.md).
+Telegram group-routing configuration diagnostics. Current focus is Sprint 6:
+
+1. Bring the Telegram assistant's mutation-confirmation flow up to the same
+   reason-coded-audit standard Sprint 5 already applied to backups, links, votes,
+   startup, MCP transport errors, and OIDC failures.
+2. Close the two remaining small, concrete Telegram-lifecycle observability gaps
+   (blocked-vote audit events; forum-topic/mention routing reason codes).
+3. Keep docs synchronized so `README.md` stays concise and `docs/*` remain canonical.
 
 ---
 
@@ -475,3 +480,80 @@ document parity, it makes future drift structurally harder to introduce.
 MCP-specific latency/counters remain an explicitly documented operational enhancement,
 not missing request-level diagnostics; the larger public MCP application boundary stays
 in `IDEAS.md` for future sprint scoping.
+
+---
+
+## Sprint 6 (Scoped 2026-08-27) — Confirmation Integrity + Remaining Telegram Observability
+
+### Why this scope
+Sprint 5 brought reason-coded, structured audit logging to almost every operational
+boundary in the app: backups (admin/scheduled/startup), Telegram link/unlink, startup
+health, MCP transport errors, OIDC failures, and the assistant's background jobs. The one
+place that standard hasn't reached yet is the highest-stakes path the assistant has: the
+`/confirm` mutation flow. Verified directly against `app/integrations/telegram_agent.py`
+(2026-08-27) — `PendingAction` carries `tool_name`, `arguments`, `actor_member_id`, and
+`created_at` only: no tool-schema version, no digest of the arguments that will actually
+execute, and no audit event is emitted anywhere in the propose/confirm/cancel/expire path.
+That's a real gap given `/confirm` is the only way this app lets an LLM-driven request
+reach a write operation. Two smaller, already-scoped-in-`IDEAS.md` observability items
+round out the sprint since they're cheap to close now that the structured-logging pattern
+(reason codes, correlation IDs) is well established everywhere else.
+
+### Goals
+1. **Confirmation integrity and auditability** — closes `IDEAS.md`'s item 7 (P1).
+   - Add a schema version to the tool definitions `PendingAction` captures at propose
+     time, and revalidate it at confirm time (a tool's argument shape can change between
+     proposal and confirmation if the process restarts or the registry changes).
+   - Compute and store a digest of the arguments that will execute, and re-verify it at
+     confirm time so what's confirmed is provably what was proposed.
+   - Emit one reason-coded audit record per mutation lifecycle event: `proposed`,
+     `confirmed`, `cancelled`, `expired`, `rejected` (revalidation failure at confirm
+     time), and `failed`/`completed` (the underlying MCP call's outcome) — mirroring the
+     `telegram_assistant_job`/backup-audit event shape already used elsewhere, with
+     `actor_member_id`, `tool_name`, and the new digest for correlation.
+2. **Blocked-vote-by-policy audit events** — closes the remainder of `IDEAS.md`'s item 5
+   (Observability completion for Telegram lifecycle, P2). A vote rejected by
+   `proposal_vote_mode`/`poll_vote_mode`/`telegram_require_linked_vote` currently has no
+   audit trail distinct from a normal rejection; add a reason-coded event so an admin can
+   tell "policy blocked this" from "the vote was otherwise invalid" without reading logs
+   line-by-line.
+3. **Forum-topic/mention routing observability** — closes `IDEAS.md`'s forum-topic audit
+   item 2 (P2). Attach a reason code (`private`, `mentioned`, `reply_to_bot`,
+   `forum_topic`, `unaddressed`) to each webhook routing decision in
+   `telegram_routes.py`, using the same `_log_assistant_job`-style structured logging
+   Sprint 5 already built, so a misrouted or unexpectedly silent group message is
+   diagnosable without reading source code.
+
+### Explicitly deferred (with reasoning, not just left off)
+- **Public MCP application boundary (`IDEAS.md` item 4, P1)** — real architectural value
+  (the assistant currently calls the JSON-RPC handler in-process with the server's own
+  API key rather than through a proper application-layer boundary), but it's a bigger,
+  higher-risk refactor than anything else in this sprint and doesn't block anything else
+  scoped here. Good candidate to lead Sprint 7 once Sprint 6's confirmation-integrity
+  work is stable.
+- **Proposal lifecycle state machine (WS-C C3)** — still cross-cutting (proposal status
+  transitions live across `admin_routes.py`, `proposal_routes.py`, and
+  `ProposalService`, none of which Sprint 5's MCP-convergence work touched), so the
+  "give it one canonical home first" precondition from Sprint 5's scoping still isn't
+  met. Revisit once/if those write paths get their own consolidation pass.
+- **Fair-use limits and cancellation (`IDEAS.md` item 6, P1)** — same scale-appropriate
+  reasoning as Sprint 4's model-request-queue decision: no evidence this app's actual
+  usage needs per-user rate limits or token budgeting yet. Revisit if usage patterns
+  change.
+- **Statistics scale/query optimization (WS-C C4)** — still needs `EXPLAIN QUERY PLAN`
+  results against production-like row counts to make an evidence-based call; this app's
+  data volume doesn't justify guessing at indexes yet.
+- **WS-D credential hardening / backup validation (P2)** — no evidence of current pain
+  (no incident, no rotation need reported); lower urgency than the P1 confirmation-audit
+  gap above.
+
+### Exit criteria
+- Every `/confirm`-reachable mutation emits a reason-coded audit record covering its full
+  lifecycle (proposed through confirmed/cancelled/expired/rejected/failed/completed).
+- A confirmed mutation's arguments are provably the same ones that were proposed (digest
+  match), and a stale/incompatible tool schema is rejected at confirm time rather than
+  executed against a changed contract.
+- Blocked votes and Telegram group-routing decisions are diagnosable from structured
+  logs alone, matching the standard already set for backups, links, and assistant jobs.
+
+**Status:** ⚪ Scoped, not started.

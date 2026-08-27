@@ -1,6 +1,6 @@
 # IDEAS — Forward Roadmap
 
-Last updated: 2026-08-26
+Last updated: 2026-08-27
 
 This document captures **forward-looking** product and engineering initiatives only.
 Execution sequencing and status tracking belong in [`SPRINTS.md`](SPRINTS.md).
@@ -43,7 +43,7 @@ rechecking the previously audited Telegram-link parity paths.
      catch explicit exception families and emit stable reason codes. MCP clients receive
      a generic internal error while detailed exception data remains server-side.
 
-2. **MCP extraction boundary (P1)**
+2. **Fixed: MCP extraction boundary (P1)** — ✅ closed 2026-08-27 (see the three slices below).
    - User statistics and Telegram link classification now have shared boundaries, but proposal listing, voting-setting writes, and create operations remain embedded in `app/mcp_server.py`.
    - Extract one use case at a time behind service/repository interfaces shared with REST; avoid a broad rewrite.
    - Progress (2026-08-27, Sprint 5 slice 1): before touching any single tool, compared
