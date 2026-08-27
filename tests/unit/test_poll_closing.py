@@ -1,7 +1,7 @@
 import sqlite3
 from datetime import datetime, timedelta
 
-from app.web.routes import main_routes
+from app.services import poll_service
 
 
 def _make_conn():
@@ -24,7 +24,7 @@ def test_close_expired_polls_only_closes_expired_open_polls():
     c.execute("INSERT INTO polls (question, options_json, status, closes_at) VALUES ('closed', '[\"a\",\"b\"]', 'closed', ?)", (past,))
     conn.commit()
 
-    closed_ids = main_routes.close_expired_polls(conn)
+    closed_ids = poll_service.close_expired_polls(conn)
 
     assert len(closed_ids) == 1
     c.execute("SELECT status FROM polls WHERE question = 'old'")
@@ -47,7 +47,7 @@ def test_build_poll_results_message_contains_graph_and_totals():
     )
     conn.commit()
 
-    message = main_routes.build_poll_results_message(conn, poll_id)
+    message = poll_service.build_poll_results_message(conn, poll_id)
 
     assert "A new lamp" in message
     assert "Total votes: *3*" in message
@@ -65,7 +65,7 @@ def test_build_poll_results_message_handles_invalid_options_payload():
     poll_id = c.lastrowid
     conn.commit()
 
-    message = main_routes.build_poll_results_message(conn, poll_id)
+    message = poll_service.build_poll_results_message(conn, poll_id)
 
     assert "Broken payload" in message
     assert "No valid poll options were found." in message

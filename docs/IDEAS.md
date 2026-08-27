@@ -305,15 +305,26 @@ a silent doc fix:
   `unittest.mock.patch("app.web.routes.main_routes.X", ...)` these names keep working
   unchanged, since patching a module attribute doesn't care what it currently points to.
   Verified with the full suite: 492 passed (486 + 6 new), same 4 pre-existing/environmental
-  failures, zero regressions. Remaining in `main_routes.py`'s shared helper layer: `get_db`
-  and its settings/budget read wrappers (already thin repository wrappers — see
-  `SettingsRepository`), the Telegram command processors (`process_telegram_vote_command`,
+  failures, zero regressions.
+- Progress (2026-08-27, second slice): extracted the poll-close/results helpers
+  (`close_expired_polls`, `build_poll_results_message`) into a new
+  `app/services/poll_service.py`. These were already shaped like service functions (pure
+  given a `conn`, no module-global reads), so the move is a straight relocation with no
+  signature change. `main_routes.py` keeps one-line wrappers at the original names for the
+  same `legacy.X`/patch-compatibility reasons as the first slice. Retargeted
+  `tests/unit/test_poll_closing.py`'s three tests to call `poll_service.X` directly instead
+  of `main_routes.X`, since they already built an isolated in-memory DB and never depended
+  on Flask/app internals — a better fit for the new module boundary and no loss of
+  coverage. Full suite: 492 passed, same 4 pre-existing failures, zero regressions.
+  Remaining in `main_routes.py`'s shared helper layer: `get_db` and its settings/budget
+  read wrappers (already thin repository wrappers — see `SettingsRepository`), the
+  Telegram command processors (`process_telegram_vote_command`,
   `process_telegram_proposal_vote_command`, `process_telegram_vote_callback`,
-  `process_telegram_link_command`), `record_proposal_vote`/`log_proposal_vote_event`, the
-  poll-close/results helpers (`close_expired_polls`, `build_poll_results_message`), and the
-  Telegram messaging/webhook-sync helpers (`send_telegram_message`, `sync_telegram_webhook*`)
-  — all still call through module globals so future slices should follow the same
-  parameter-injection pattern rather than importing `main_routes` internals directly.
+  `process_telegram_link_command`), `record_proposal_vote`/`log_proposal_vote_event`, and
+  the Telegram messaging/webhook-sync helpers (`send_telegram_message`,
+  `sync_telegram_webhook*`) — all still call through module globals so future slices
+  should follow the same parameter-injection pattern rather than importing `main_routes`
+  internals directly.
 
 ---
 

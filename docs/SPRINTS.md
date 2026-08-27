@@ -203,10 +203,18 @@ limits, and confirmation audit records) is tracked as forward-looking backlog in
    wrappers at the original names so every blueprint's existing `legacy.X` access and the
    ~15 tests that patch `main_routes.X` for these names keep working unchanged. Full suite:
    492 passed (486 + 6 new), same 4 pre-existing/environmental failures, zero regressions.
-   Full A2 scope (`get_db`/settings reads, Telegram command processors,
-   `record_proposal_vote`, poll-close/results helpers, Telegram messaging/webhook-sync
-   helpers — see `IDEAS.md` A2 for the complete remaining list) is unchanged and still
-   open; this is the first of several planned slices.
+   Second slice (2026-08-27): extracted `close_expired_polls` and
+   `build_poll_results_message` into `app/services/poll_service.py` — a straight
+   relocation, since both already took `conn` as their only DB dependency with no module
+   globals. `main_routes.py` keeps one-line wrappers at the original names as before.
+   `tests/unit/test_poll_closing.py`'s three tests now call `poll_service.X` directly
+   instead of `main_routes.X`, since they already built an isolated in-memory DB rather
+   than depending on Flask/app internals — direct service-level coverage per A2's stated
+   goal, no loss of behavior checked. Full suite: 492 passed, same 4 pre-existing/
+   environmental failures, zero regressions.
+   Remaining A2 scope (`get_db`/settings reads, Telegram command processors,
+   `record_proposal_vote`, Telegram messaging/webhook-sync helpers — see `IDEAS.md` A2
+   for the complete remaining list) is unchanged and still open; more slices planned.
 
 2. **Admin reliability observability** — ✅ closed for this sprint's scope.
    - Backup-audit coverage now spans download, admin-triggered, scheduled, and
