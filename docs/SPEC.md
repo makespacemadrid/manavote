@@ -311,9 +311,12 @@ Committed series behavior:
 7. A linked administrator must send `/confirm` before `TELEGRAM_CONFIRM_TTL_SECONDS` expires; `/cancel` discards it. `/reset` clears that user's history and pending action.
 8. The final answer is split into chunks of at most 3900 characters. The temporary thinking message is deleted after delivery or worker failure.
 
-Assistant history, pending confirmations, update deduplication, and the worker queue are
-process-local and intentionally bounded. Deployments with multiple application workers
-do not share conversational history; database authorization and MCP data remain shared.
+Conversation history, pending confirmations, and update deduplication are stored in
+SQLite (`telegram_conversation_history`, `telegram_pending_actions`,
+`telegram_update_dedup`) and shared across application workers, surviving restarts.
+History is bounded to the most recent 12 turns per chat/user. The bounded model-request
+worker queue itself remains process-local — it limits concurrent model calls within one
+process and is not yet shared across workers.
 
 ### Admin web actions
 - `GET|POST /admin` (includes timezone selector, member management, budget controls, and poll actions)

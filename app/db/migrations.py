@@ -31,6 +31,15 @@ def run_migrations(cursor):
     )
     """)
     cursor.execute("""
+    CREATE TABLE IF NOT EXISTS telegram_conversation_history (
+        chat_id INTEGER NOT NULL,
+        telegram_user_id INTEGER NOT NULL,
+        messages_json TEXT NOT NULL,
+        updated_at REAL NOT NULL,
+        PRIMARY KEY (chat_id, telegram_user_id)
+    )
+    """)
+    cursor.execute("""
     CREATE TABLE IF NOT EXISTS group_purchases (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
         title TEXT NOT NULL,

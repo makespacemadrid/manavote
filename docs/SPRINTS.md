@@ -107,11 +107,15 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
   extra write volume from the change above made this consistently fail as lock
   contention rather than occasionally. Fixed by mirroring the one test that already did
   this correctly.
+- ✅ Moved Telegram conversation history to the same SQLite-backed, shared-across-workers
+  pattern already used for pending confirmations (`telegram_conversation_history`,
+  `configure_history_store`), bounded to the last 12 turns per chat/user.
 
-Remaining Telegram-assistant hardening (multi-worker/restart-safe conversation history and
-queue state, an end-to-end webhook contract test, public MCP application boundary,
-background-job observability, fair-use limits, and confirmation audit records) is tracked
-as forward-looking backlog in [`IDEAS.md`](IDEAS.md) rather than duplicated here.
+Remaining Telegram-assistant hardening (a process-local model-request queue that needs an
+architectural decision rather than a like-for-like SQLite swap, an end-to-end webhook
+contract test, public MCP application boundary, background-job observability, fair-use
+limits, and confirmation audit records) is tracked as forward-looking backlog in
+[`IDEAS.md`](IDEAS.md) rather than duplicated here.
 
 ### Remaining work (execution checklist)
 1. **Route decomposition closure**
@@ -134,8 +138,9 @@ as forward-looking backlog in [`IDEAS.md`](IDEAS.md) rather than duplicated here
    - Keep `APIDOC.md`, `SPEC.md`, `TESTING.md`, and sprint notes aligned for any contract or workflow change.
 
 5. **Telegram-assistant reliability closure**
-   - Move conversation history and queue state off process-local storage (see `IDEAS.md`
-     P0 item on shared state for multi-worker/restart safety).
+   - Conversation history is now shared across workers (see Delivered above). Remaining:
+     decide an approach for the process-local model-request queue (`IDEAS.md` P0 item on
+     shared state for multi-worker/restart safety).
    - Add the end-to-end natural-language webhook contract test called for in `IDEAS.md`.
 
 ### Exit Criteria

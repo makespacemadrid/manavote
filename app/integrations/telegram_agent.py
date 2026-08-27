@@ -34,11 +34,83 @@ MUTATING_TOOLS = {"create_proposal", "create_poll", "update_voting_settings"}
 # exposed to a model-backed Telegram conversation.
 TELEGRAM_TOOLS = READ_ONLY_TOOLS | ADMIN_READ_ONLY_TOOLS | MUTATING_TOOLS
 MAX_TOOL_ROUNDS = 4
+MAX_HISTORY_MESSAGES = 12
 ConversationKey = tuple[int, int]
-_history: dict[ConversationKey, deque[dict[str, Any]]] = defaultdict(lambda: deque(maxlen=12))
+_history: dict[ConversationKey, deque[dict[str, Any]]] = defaultdict(lambda: deque(maxlen=MAX_HISTORY_MESSAGES))
+_history_connection_factory: Callable[[], Any] | None = None
 _pending_actions: dict[ConversationKey, "PendingAction"] = {}
 _pending_connection_factory: Callable[[], Any] | None = None
 _state_lock = threading.RLock()
+
+
+def configure_history_store(connection_factory: Callable[[], Any] | None) -> None:
+    """Use a shared database for conversation history, or memory when factory is ``None``."""
+    global _history_connection_factory
+    _history_connection_factory = connection_factory
+
+
+def _get_history(key: ConversationKey) -> list[dict[str, Any]]:
+    if _history_connection_factory is None:
+        with _state_lock:
+            return list(_history[key])
+    conn = _history_connection_factory()
+    try:
+        row = conn.execute(
+            "SELECT messages_json FROM telegram_conversation_history "
+            "WHERE chat_id = ? AND telegram_user_id = ?",
+            key,
+        ).fetchone()
+        return json.loads(row["messages_json"]) if row else []
+    finally:
+        conn.close()
+
+
+def _append_history(key: ConversationKey, messages: list[dict[str, Any]]) -> None:
+    """Append messages, keeping only the most recent ``MAX_HISTORY_MESSAGES``."""
+    if _history_connection_factory is None:
+        with _state_lock:
+            _history[key].extend(messages)
+        return
+    conn = _history_connection_factory()
+    try:
+        conn.execute("BEGIN IMMEDIATE")
+        row = conn.execute(
+            "SELECT messages_json FROM telegram_conversation_history "
+            "WHERE chat_id = ? AND telegram_user_id = ?",
+            key,
+        ).fetchone()
+        existing = json.loads(row["messages_json"]) if row else []
+        updated = (existing + list(messages))[-MAX_HISTORY_MESSAGES:]
+        conn.execute(
+            """
+            INSERT INTO telegram_conversation_history
+                (chat_id, telegram_user_id, messages_json, updated_at)
+            VALUES (?, ?, ?, ?)
+            ON CONFLICT(chat_id, telegram_user_id) DO UPDATE SET
+                messages_json = excluded.messages_json,
+                updated_at = excluded.updated_at
+            """,
+            (*key, json.dumps(updated), time.time()),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _clear_history(key: ConversationKey) -> None:
+    if _history_connection_factory is None:
+        with _state_lock:
+            _history.pop(key, None)
+        return
+    conn = _history_connection_factory()
+    try:
+        conn.execute(
+            "DELETE FROM telegram_conversation_history WHERE chat_id = ? AND telegram_user_id = ?",
+            key,
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 @dataclass(frozen=True)
@@ -305,8 +377,7 @@ def answer(
                     reply += "\n⚠️ The proposal was saved, but its group notification could not be sent."
         return reply
 
-    with _state_lock:
-        history_snapshot = list(_history[key])
+    history_snapshot = _get_history(key)
     messages: list[dict[str, Any]] = [
         {
             "role": "system",
@@ -348,10 +419,9 @@ def answer(
         tool_calls = assistant.get("tool_calls") or []
         if not tool_calls:
             reply = (assistant.get("content") or "I couldn't produce a response.").strip()
-            with _state_lock:
-                _history[key].extend(
-                    ({"role": "user", "content": text}, {"role": "assistant", "content": reply})
-                )
+            _append_history(
+                key, [{"role": "user", "content": text}, {"role": "assistant", "content": reply}]
+            )
             return reply
 
         messages.append(assistant)
@@ -390,6 +460,5 @@ def answer(
 
 def reset(chat_id: int, telegram_user_id: int | None = None) -> None:
     key = _conversation_key(chat_id, telegram_user_id)
-    with _state_lock:
-        _history.pop(key, None)
+    _clear_history(key)
     _pop_pending(key)

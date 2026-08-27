@@ -9,8 +9,10 @@ from app.integrations import telegram_agent
 @pytest.fixture(autouse=True)
 def use_in_memory_pending_actions():
     telegram_agent.configure_pending_action_store(None)
+    telegram_agent.configure_history_store(None)
     yield
     telegram_agent.configure_pending_action_store(None)
+    telegram_agent.configure_history_store(None)
 
 
 class FakeResponse:
@@ -119,6 +121,52 @@ def test_pending_actions_survive_worker_instances_and_are_consumed_atomically(tm
     assert telegram_agent._get_pending(key) == action
     assert telegram_agent._pop_pending(key) == action
     assert telegram_agent._pop_pending(key) is None
+
+
+def test_conversation_history_survives_worker_instances_and_stays_bounded(tmp_path):
+    db_path = tmp_path / "history.db"
+
+    def connect():
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    conn = connect()
+    conn.execute(
+        """
+        CREATE TABLE telegram_conversation_history (
+            chat_id INTEGER NOT NULL, telegram_user_id INTEGER NOT NULL,
+            messages_json TEXT NOT NULL, updated_at REAL NOT NULL,
+            PRIMARY KEY (chat_id, telegram_user_id)
+        )
+        """
+    )
+    conn.commit()
+    conn.close()
+    telegram_agent.configure_history_store(connect)
+    key = (100, 200)
+
+    assert telegram_agent._get_history(key) == []
+
+    telegram_agent._append_history(
+        key, [{"role": "user", "content": "hi"}, {"role": "assistant", "content": "hello"}]
+    )
+    # A second "worker" (a fresh connection) must see what the first one wrote.
+    assert telegram_agent._get_history(key) == [
+        {"role": "user", "content": "hi"},
+        {"role": "assistant", "content": "hello"},
+    ]
+
+    for i in range(telegram_agent.MAX_HISTORY_MESSAGES):
+        telegram_agent._append_history(key, [{"role": "user", "content": f"msg-{i}"}])
+
+    history = telegram_agent._get_history(key)
+    assert len(history) == telegram_agent.MAX_HISTORY_MESSAGES
+    assert history[-1] == {"role": "user", "content": f"msg-{telegram_agent.MAX_HISTORY_MESSAGES - 1}"}
+    assert {"role": "user", "content": "hi"} not in history
+
+    telegram_agent._clear_history(key)
+    assert telegram_agent._get_history(key) == []
 
 
 def test_agent_executes_mcp_tool_and_returns_model_answer(monkeypatch):

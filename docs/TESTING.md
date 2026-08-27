@@ -167,6 +167,8 @@ Coverage is split by responsibility:
   - OpenAI-compatible tool-call/result round trips
   - explicit `/confirm` and `/cancel`, confirmation expiry, and MCP error formatting
   - per-chat/per-user pending-action isolation and invalid tool arguments
+  - pending actions and conversation history both survive a fresh connection (simulating
+    a different worker) and conversation history stays bounded to the most recent turns
 - `tests/unit/test_telegram_access_service.py`
   - live allowlist construction from `members.telegram_user_id`
   - linked administrator resolution, invalid IDs, and link changes without restart

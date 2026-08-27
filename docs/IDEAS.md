@@ -122,8 +122,14 @@ backpressure, Telegram transport, retry behavior, documentation, and focused tes
    - Treat mutation idempotency as a database/MCP invariant, not only a webhook cache.
    - Progress (2026-08-26): webhook update IDs and pending confirmations now use SQLite,
      are shared by all application workers, and survive restarts. Confirmations are
-     atomically consumed before execution. Conversation history and queue state remain
-     process-local and still require the shared-state work above.
+     atomically consumed before execution.
+   - Progress (2026-08-27): conversation history now uses the same SQLite-backed pattern
+     (`telegram_conversation_history`, `configure_history_store`), bounded to the last
+     `MAX_HISTORY_MESSAGES` (12) turns per chat/user and shared across workers. Bounded
+     model-request queue state (the in-process worker pool limiting concurrent model
+     calls) is fundamentally process-local by design and still needs an architectural
+     decision — e.g. a single dedicated assistant worker, or a database/Redis-backed
+     lease — rather than a like-for-like SQLite swap.
 
 3. **End-to-end natural-language webhook contract (P0)**
    - Existing functional webhook tests exercise deterministic commands and callbacks,

@@ -74,6 +74,7 @@ _telegram_update_deduplicator = TelegramUpdateDeduplicator(
     connection_factory=lambda: get_db()
 )
 telegram_agent.configure_pending_action_store(lambda: get_db())
+telegram_agent.configure_history_store(lambda: get_db())
 
 
 @app.template_filter("username")
