@@ -110,6 +110,11 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
 - ✅ Moved Telegram conversation history to the same SQLite-backed, shared-across-workers
   pattern already used for pending confirmations (`telegram_conversation_history`,
   `configure_history_store`), bounded to the last 12 turns per chat/user.
+- ✅ Added REST/MCP parity tests for `create_proposal` and `create_poll`, and fixed two
+  real drifts they caught: REST's `basic_supplies` field silently coerced any truthy
+  value (including the JSON string `"false"`) instead of validating it like MCP already
+  did, and MCP's `create_proposal` uniquely classified a non-positive `created_by` as an
+  invalid-params error instead of not-found, unlike REST and MCP's own `create_poll`.
 
 Remaining Telegram-assistant hardening (a process-local model-request queue that needs an
 architectural decision rather than a like-for-like SQLite swap, an end-to-end webhook
@@ -133,6 +138,8 @@ limits, and confirmation audit records) is tracked as forward-looking backlog in
 3. **REST/MCP contract parity pass**
    - Add additional parity tests for shared business-rule boundaries.
    - Verify consistent machine-readable error semantics across interfaces.
+   - ✅ `create_proposal`/`create_poll` covered — see Delivered above. Remaining:
+     pagination/type errors across list endpoints (`IDEAS.md` item 4).
 
 4. **Docs synchronization pass**
    - Keep `APIDOC.md`, `SPEC.md`, `TESTING.md`, and sprint notes aligned for any contract or workflow change.

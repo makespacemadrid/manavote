@@ -97,8 +97,10 @@ curl -X POST http://localhost:45000/api/register \
 ### Validation
 - `title` required
 - `amount` required, numeric, and must be `> 0`
-- `created_by` required and must exist in `members`
-- `description`, `url`, `basic_supplies` optional
+- `created_by` required and must exist in `members`; a non-positive or otherwise
+  unmatched value is rejected as `creator_member_not_found`, not a params-shape error
+- `description`, `url`, `basic_supplies` optional; `basic_supplies` must parse as a
+  boolean (`true`/`false`, `1`/`0`, or the equivalent string forms) when provided
 
 ### Success response
 **201 Created**
@@ -112,7 +114,7 @@ curl -X POST http://localhost:45000/api/register \
 
 ### Error responses
 - `415` content type is not `application/json`
-- `400` `title_amount_required`, `amount_must_be_positive`, or `created_by_required`
+- `400` `title_amount_required`, `amount_must_be_positive`, `created_by_required`, or `invalid_basic_supplies`
 - `404` `creator_member_not_found`
 - `500` `proposal_create_failed`
 
@@ -567,8 +569,12 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
   - required args: `username`, `password`
   - optional args: `is_admin` (`true`/`false`)
 - `create_proposal`
-  - required args: `title`, `amount` (>0), `created_by` (existing member id)
-  - optional args: `description`, `url`, `basic_supplies`
+  - required args: `title`, `amount` (>0), `created_by` (existing member id) — a
+    non-positive or otherwise unmatched `created_by` is rejected with `-32004` (not
+    found), matching REST and `create_poll`, not `-32602`
+  - optional args: `description`, `url`, `basic_supplies` (must parse as boolean;
+    an unrecognized value is rejected with `-32602`, matching REST's
+    `invalid_basic_supplies`)
 - `create_poll`
   - required args: `question` (5..200 characters), `options` (2..12 items), `created_by` (existing member id)
 

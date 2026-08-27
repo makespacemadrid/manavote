@@ -709,8 +709,8 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
                 created_by_val = int(created_by)
             except (TypeError, ValueError):
                 return _error(req_id, -32602, "Invalid params: amount/created_by types are invalid")
-            if amount_val <= 0 or created_by_val <= 0:
-                return _error(req_id, -32602, "Invalid params: amount and created_by must be positive")
+            if amount_val <= 0:
+                return _error(req_id, -32602, "Invalid params: amount must be positive")
             member = _db_rows("SELECT id FROM members WHERE id = ? LIMIT 1", (created_by_val,))
             if not member:
                 return _error(req_id, -32004, "Not found: creator member not found")

@@ -121,6 +121,11 @@ Covers contract-alignment scenarios for `PATCH /api/settings/voting` and MCP `up
 - out-of-range pagination rejection parity (`limit` upper bound enforcement)
 - `list_user_statistics` parity: success shape, invalid `limit`, and the `include_email`
   opt-in (and its invalid-value rejection) between REST and MCP
+- `create_proposal` parity: missing fields, non-positive amount, unknown/non-positive
+  `created_by` (classified as not-found on both interfaces, not invalid-params),
+  invalid `basic_supplies`, and success shape
+- `create_poll` parity: question/option bounds (short question, too few/many options,
+  an over-long option) and success shape
 
 ## Telegram webhook vote-response checks
 

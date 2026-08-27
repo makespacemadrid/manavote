@@ -57,6 +57,17 @@ rechecking the previously audited Telegram-link parity paths.
      - proposal create/update validation edges,
      - poll creation bounds,
      - pagination/type errors across list endpoints.
+   - Progress (2026-08-27): added REST/MCP parity tests for `create_proposal` (missing
+     fields, non-positive amount, unknown/non-positive `created_by`, invalid
+     `basic_supplies`, success shape) and `create_poll` (question/option bounds, success
+     shape). This surfaced and fixed two real drifts rather than just documenting them:
+     REST silently coerced any truthy `basic_supplies` value (including the JSON string
+     `"false"`, which is truthy in Python) instead of validating it like MCP already did;
+     and MCP's `create_proposal` uniquely treated a non-positive `created_by` as an
+     invalid-params error while REST and MCP's own `create_poll` both treat it as
+     not-found. Proposal *update* has no MCP equivalent tool, so its validation edges
+     still only have REST-side coverage. Pagination/type errors across list endpoints
+     remain open.
 
 5. **Observability completion for Telegram lifecycle (P2)**
    - Add reason-coded audit events for link/unlink operations and blocked votes by policy mode.

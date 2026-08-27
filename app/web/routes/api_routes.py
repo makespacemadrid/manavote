@@ -93,7 +93,7 @@ def api_create_proposal():
     description = data.get("description", "")
     amount = data.get("amount")
     url = data.get("url", "")
-    basic_supplies = 1 if data.get("basic_supplies", False) else 0
+    basic_supplies_flag = _parse_optional_bool(data.get("basic_supplies", False))
     created_by = data.get("created_by")
 
     if not title or amount is None:
@@ -103,6 +103,9 @@ def api_create_proposal():
         return api_error("amount_must_be_positive", "amount must be positive", 400)
     if not created_by:
         return api_error("created_by_required", "created_by is required", 400)
+    if basic_supplies_flag is None:
+        return api_error("invalid_basic_supplies", "basic_supplies must be boolean", 400)
+    basic_supplies = 1 if basic_supplies_flag else 0
 
     conn = legacy.get_db()
     c = conn.cursor()
