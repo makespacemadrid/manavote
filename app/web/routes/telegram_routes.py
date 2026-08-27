@@ -189,11 +189,43 @@ def telegram_webhook(secret):
         thinking_message_id = client.send_message_with_id("🤔 Thinking…")
 
         def _answer_and_send(ctx):
+            # This runs on a background thread via the bounded executor, outside the
+            # request/response cycle -- nothing else observes an exception raised here
+            # (concurrent.futures silently drops it unless something calls
+            # future.result()/.exception()), so every exception must be caught and
+            # logged here, or a failure becomes a silent, permanent non-reply with the
+            # "Thinking..." message either stuck or vanished and no operator signal.
+            # _natural_language_reply already turns its own expected failure modes into
+            # a user-facing message; this is the last-resort net for everything else
+            # (a bug in the tool-calling loop, an exception from on_proposal_created,
+            # the outbound Telegram call itself failing).
             try:
-                reply = _natural_language_reply(ctx, principal=principal)
-                client.send_long_message(reply)
+                try:
+                    reply = _natural_language_reply(ctx, principal=principal)
+                except Exception:
+                    app.logger.exception(
+                        "Unhandled error generating Telegram assistant reply (chat_id=%s member_id=%s)",
+                        ctx.get("chat_id"),
+                        principal.member_id,
+                    )
+                    reply = "❌ Something went wrong answering that. Please try again."
+                try:
+                    client.send_long_message(reply)
+                except Exception:
+                    app.logger.exception(
+                        "Unhandled error delivering Telegram assistant reply (chat_id=%s member_id=%s)",
+                        ctx.get("chat_id"),
+                        principal.member_id,
+                    )
             finally:
-                client.delete_message(thinking_message_id)
+                try:
+                    client.delete_message(thinking_message_id)
+                except Exception:
+                    app.logger.exception(
+                        "Failed to delete Telegram assistant thinking message (chat_id=%s member_id=%s)",
+                        ctx.get("chat_id"),
+                        principal.member_id,
+                    )
 
         future = _telegram_agent_executor.submit(_answer_and_send, dict(message_ctx))
         if future is None:

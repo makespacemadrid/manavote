@@ -1,6 +1,7 @@
 import os
 import pathlib
 import subprocess
+import sys
 import tempfile
 import unittest
 
@@ -17,7 +18,7 @@ class TestProductionConfig(unittest.TestCase):
 
         result = subprocess.run(
             [
-                "python",
+                sys.executable,
                 "-c",
                 "from app.web.app_setup import app; print(app.config['SESSION_COOKIE_SECURE'])",
             ],
@@ -36,7 +37,7 @@ class TestProductionConfig(unittest.TestCase):
         env.pop("SECRET_KEY", None)
 
         result = subprocess.run(
-            ["python", "-c", "import app.web.app_setup"],
+            [sys.executable, "-c", "import app.web.app_setup"],
             cwd=REPO_ROOT,
             env=env,
             capture_output=True,
@@ -58,7 +59,7 @@ class TestProductionConfig(unittest.TestCase):
 
         try:
             result = subprocess.run(
-                ["python", "-c", "from app.web.routes import main_routes; main_routes.init_db()"],
+                [sys.executable, "-c", "from app.web.routes import main_routes; main_routes.init_db()"],
                 cwd=REPO_ROOT,
                 env=env,
                 capture_output=True,
@@ -78,7 +79,7 @@ class TestProductionConfig(unittest.TestCase):
         env["FLASK_SECURE_COOKIES"] = "false"
 
         result = subprocess.run(
-            ["python", "-c", "import app.web.app_setup"],
+            [sys.executable, "-c", "import app.web.app_setup"],
             cwd=REPO_ROOT,
             env=env,
             capture_output=True,

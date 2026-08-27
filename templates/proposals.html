@@ -29,7 +29,7 @@
         </div>
         
         <div style="margin-bottom: 15px; display: flex; gap: 10px; flex-wrap: wrap;">
-            <a href="{{ url_for('proposals') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: transparent; color: #fff; border: 1px solid #fff;">{{ 'All'|lang }} (€{{ "%.0f"|format(all_sum) }})</a>
+            <a href="{{ url_for('proposals', filter='all') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: transparent; color: #fff; border: 1px solid #fff;">{{ 'All'|lang }} (€{{ "%.0f"|format(all_sum) }})</a>
             <a href="{{ url_for('proposals', filter='active') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00d9ff22' if filter == 'active' else 'transparent' }}; color: #00d9ff; border: 1px solid #00d9ff;">{{ 'Active'|lang }} (€{{ "%.0f"|format(active_proposals_sum) }})</a>
             <a href="{{ url_for('proposals', filter='recent') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#00b8d422' if filter == 'recent' else 'transparent' }}; color: #00b8d4; border: 1px solid #00b8d4;">{{ 'Recent'|lang }} (€{{ "%.0f"|format(recent_proposals_sum) }})</a>
             <a href="{{ url_for('proposals', filter='old') }}" class="btn" style="padding: 5px 10px; font-size: 0.8em; background: {{ '#0088b322' if filter == 'old' else 'transparent' }}; color: #0088b3; border: 1px solid #0088b3;">{{ 'Old'|lang }} (€{{ "%.0f"|format(old_proposals_sum) }})</a>
@@ -85,8 +85,9 @@
                     </div>
                     <div class="vote-counts">
                         {% if p.purchased_at %}<span class="status" style="background: #4a4; color: #fff; margin-right: 10px;">{{ 'purchased'|lang }}</span>
-                        {% elif p.status == 'approved' %}<span class="status" style="background: #ffd70022; color: #ffd700; margin-right: 10px;">{{ 'Pending Purchase'|lang }}</span>
-                        {% elif p.status == 'over_budget' %}<span class="status" style="background: #ffa50022; color: #ffa500; margin-right: 10px;">{{ 'pending_budget'|lang }}</span>
+                        {% elif p.status == 'approved' %}<span class="status status-approved" style="background: #ffd70022; color: #ffd700; margin-right: 10px;">{{ 'Pending Purchase'|lang }}</span>
+                        {% elif p.status == 'over_budget' %}<span class="status status-over-budget" style="margin-right: 10px;">{{ 'pending_budget'|lang }}</span>
+                        {% elif p.status == 'rejected' %}<span class="status status-rejected" style="margin-right: 10px;">{{ 'rejected'|lang }}</span>
                         {% elif p.status == 'active' %}<span class="status status-active" style="margin-right: 10px;">{{ 'active'|lang }}</span>{% endif %}
                         <span style="color: #00ff88;">✓ {{ p.approve_count }} {{ 'in favor'|lang }}</span>
                         <span class="vote-reject">✗ {{ p.reject_count }} {{ 'against'|lang }}</span>

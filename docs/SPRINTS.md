@@ -15,12 +15,15 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
 
 ## Current implementation focus (Q3 2026)
 
-1. Complete remaining route decomposition and reduce `main_routes.py` to a minimal compatibility layer.
-2. Harden API/MCP contract parity for validation and error-shape consistency.
-3. Improve admin/operator reliability paths (backups, Telegram identity lifecycle, policy observability).
-4. Make the Telegram natural-language assistant safe under multiple application workers and
-   cover its webhook lifecycle end-to-end (see `IDEAS.md` P0 items).
-5. Keep docs synchronized so `README.md` stays concise and `docs/*` remain canonical.
+Sprint 4 (route decomposition, service/repository boundary for `main_routes.py`, REST/MCP
+contract parity, Telegram multi-worker safety) is complete — see Sprint 4 below. Current
+focus is Sprint 5:
+
+1. Extend the service/repository boundary work to `app/mcp_server.py`, converging REST
+   and MCP onto shared logic (this is what caught real drift bugs in Sprint 4).
+2. Replace broad `except Exception` handling with typed exceptions and reason codes.
+3. Structured observability for the Telegram assistant's background jobs.
+4. Keep docs synchronized so `README.md` stays concise and `docs/*` remain canonical.
 
 ---
 
@@ -203,10 +206,60 @@ limits, and confirmation audit records) is tracked as forward-looking backlog in
    wrappers at the original names so every blueprint's existing `legacy.X` access and the
    ~15 tests that patch `main_routes.X` for these names keep working unchanged. Full suite:
    492 passed (486 + 6 new), same 4 pre-existing/environmental failures, zero regressions.
-   Full A2 scope (`get_db`/settings reads, Telegram command processors,
-   `record_proposal_vote`, poll-close/results helpers, Telegram messaging/webhook-sync
-   helpers — see `IDEAS.md` A2 for the complete remaining list) is unchanged and still
-   open; this is the first of several planned slices.
+   Second slice (2026-08-27): extracted `close_expired_polls` and
+   `build_poll_results_message` into `app/services/poll_service.py` — a straight
+   relocation, since both already took `conn` as their only DB dependency with no module
+   globals. `main_routes.py` keeps one-line wrappers at the original names as before.
+   `tests/unit/test_poll_closing.py`'s three tests now call `poll_service.X` directly
+   instead of `main_routes.X`, since they already built an isolated in-memory DB rather
+   than depending on Flask/app internals — direct service-level coverage per A2's stated
+   goal, no loss of behavior checked. Full suite: 492 passed, same 4 pre-existing/
+   environmental failures, zero regressions.
+   Third slice (2026-08-27): extracted `process_telegram_vote_command`,
+   `process_telegram_vote_callback`, and `process_telegram_proposal_vote_command`
+   (~150 lines of `/vote`/`/pvote` parsing, member lookup, and vote-recording logic) into
+   `app/services/telegram_command_service.py`, taking `get_db`, `get_setting_value`,
+   `send_telegram_message`, and/or `record_proposal_vote` as explicit parameters. 12 new
+   tests in `tests/unit/test_telegram_command_service.py` exercise it directly against a
+   throwaway sqlite file — no Flask, no monkeypatching. `main_routes.py` keeps one-line
+   wrappers as before. Left `process_telegram_link_command` where it is — it's already a
+   thin adapter over the existing `process_link_command` service plus one audit-log call,
+   so moving it would trade one call site for four injected parameters with no logic
+   gained. Full suite: 504 passed (492 + 12 new), same 4 pre-existing/environmental
+   failures, zero regressions.
+   Remaining A2 scope (`get_db`/settings reads, `record_proposal_vote`/
+   `log_proposal_vote_event`, `process_telegram_link_command`, Telegram messaging/
+   webhook-sync helpers — see `IDEAS.md` A2 for the complete remaining list) is unchanged
+   and still open; more slices planned.
+   Fourth and fifth slices (2026-08-27): extracted `record_proposal_vote`/
+   `log_proposal_vote_event` into `app/services/proposal_vote_recording_service.py`
+   (taking `get_db`, `get_setting_value`, `process_proposal`, and `logger` as explicit
+   parameters), and `send_telegram_message`/`send_telegram_admin_test_message`/
+   `sync_telegram_webhook`/`sync_telegram_webhook_on_startup` into
+   `app/services/telegram_messaging_service.py` (taking the `TelegramClient` class itself
+   as a parameter rather than importing it — tests replace `main_routes.TelegramClient`
+   wholesale with a fake, so the service must re-resolve it from the caller on every call,
+   same reasoning as every prior injection). 17 new direct unit tests across both modules.
+   Also removed `migrate_password_if_needed` from `main_routes.py`: confirmed via grep
+   it was dead code, fully superseded by `app.services.auth_service.verify_and_migrate_password`
+   (already used by the real login path in `auth_routes.py`) and called by nothing, so this
+   was deletion, not extraction. `main_routes.py`: 627 → 545 lines since this checklist
+   item's last update. Full suite: 524 passed, zero regressions.
+   Remaining A2 scope is now just `get_db`/settings-budget read wrappers (already
+   appropriately thin) and `process_telegram_link_command` (deliberately left, see third
+   slice above) — everything else originally scoped for A2 is done.
+
+1c. **Fixed the "4 pre-existing/environmental failures" every note above cited without
+   root-causing (2026-08-27)** — full details in `IDEAS.md`'s "Fixed: the 4 tests
+   repeatedly labeled..." entry under A2. Short version: two real template bugs in
+   `templates/proposals.html` (missing CSS classes on the `approved`/`over_budget` status
+   badges, no badge at all for `rejected`, and an "All" filter button that silently
+   behaved like "Active"), fixed alongside a test that depended on ambient shared-DB
+   state instead of seeding its own fixtures; plus all four `test_production_config.py`
+   subprocess calls using bare `"python"` instead of `sys.executable`, which broke under
+   this sandbox's mismatched system `cryptography`/`cffi` install. Full suite is now
+   **511 passed, 0 failed**, no `-k` exclusion needed — `pytest -q tests/` is the correct
+   command going forward.
 
 2. **Admin reliability observability** — ✅ closed for this sprint's scope.
    - Backup-audit coverage now spans download, admin-triggered, scheduled, and
@@ -216,44 +269,180 @@ limits, and confirmation audit records) is tracked as forward-looking backlog in
      exposed via REST/MCP — see Delivered above. Reason-coded audit events for
      policy-blocked votes remain open (`IDEAS.md` item 5).
 
-3. **REST/MCP contract parity pass**
+3. **REST/MCP contract parity pass** — ✅ closed for this sprint's scope.
    - Add additional parity tests for shared business-rule boundaries.
    - Verify consistent machine-readable error semantics across interfaces.
-   - ✅ `create_proposal`/`create_poll` covered — see Delivered above. Remaining:
-     pagination/type errors across list endpoints (`IDEAS.md` item 4).
+   - ✅ `create_proposal`/`create_poll` covered — see Delivered above.
+   - ✅ Pagination/type errors across list endpoints (2026-08-27): added REST/MCP parity
+     tests for `list_proposals` (this was a coverage gap only — REST already validated
+     correctly). Found and fixed a real drift for `list_polls`: MCP already supported
+     `limit`/`offset`, but REST's `GET /api/polls` had none at all (hardcoded `LIMIT 100`).
+     Added matching pagination support and validation to `GET /api/polls`, documented in
+     `APIDOC.md`, with parity tests for both the success and rejection paths. Full details
+     in `IDEAS.md` item 4.
 
 4. **Docs synchronization pass**
    - Keep `APIDOC.md`, `SPEC.md`, `TESTING.md`, and sprint notes aligned for any contract or workflow change.
 
-5. **Telegram-assistant reliability closure**
-   - Conversation history is now shared across workers (see Delivered above). Remaining:
-     decide an approach for the process-local model-request queue (`IDEAS.md` P0 item on
-     shared state for multi-worker/restart safety).
+5. **Telegram-assistant reliability closure** — ✅ closed (2026-08-27).
+   - Conversation history is now shared across workers (see Delivered above).
    - ✅ The end-to-end natural-language webhook contract test called for in `IDEAS.md` is
      done — see Delivered above.
+   - ✅ Decided the process-local model-request queue architecture question (asked of and
+     decided by the user, full reasoning in `IDEAS.md`'s "Shared state for multi-worker/
+     restart safety" entry): the bounded worker pool stays process-local by design, since
+     the only state where cross-worker visibility is a correctness requirement
+     (confirmations, dedup, conversation history) is already durable, and the residual
+     risk — an in-flight reply lost if the process crashes mid-job — costs one missed
+     chat reply, not a lost vote or mutation. Building a persistent job queue to close
+     that narrow gap was judged disproportionate to what this app's scale needs. What
+     *was* fixed: `_answer_and_send` had no catch-all, so `concurrent.futures` silently
+     dropped any exception outside a narrow expected-error tuple — including a failure in
+     the outbound Telegram delivery call itself. Added logging + a graceful user-facing
+     fallback at every stage, with a regression test forcing an unhandled exception type
+     and asserting it's caught, logged, and answered rather than silently lost.
 
 ### Exit Criteria
-- `main_routes.py` is reduced to compatibility routing with minimal orchestration logic.
-- Admin reliability operations are observable through logs/events without ad-hoc DB inspection.
-- REST and MCP validation/error contracts are consistent for high-value endpoints/tools.
-- Docs remain synchronized with implementation behavior.
-- The Telegram assistant is safe to run behind multiple application workers without losing
-  pending confirmations or conversation state.
+- ✅ `main_routes.py` is reduced to compatibility routing with minimal orchestration logic
+  (2368 → 545 lines, -77%; remaining content is DB bootstrap, thin repository/service
+  wrappers kept for `legacy.X` compatibility, and Flask route-registration shims).
+- ✅ Admin reliability operations are observable through logs/events without ad-hoc DB inspection.
+- ✅ REST and MCP validation/error contracts are consistent for high-value endpoints/tools.
+- 🟡 Docs remain synchronized with implementation behavior (ongoing, not a one-time gate).
+- ✅ The Telegram assistant is safe to run behind multiple application workers without losing
+  pending confirmations or conversation state — pending confirmations, update
+  deduplication, and conversation history are all SQLite-backed and shared; the
+  model-request queue's process-local scope is a documented, deliberate design decision
+  (see item 5), not an open gap.
 
-**Status:** 🟡 In Progress.
+**Status:** ✅ Completed (2026-08-27). Item 1b's "remaining" `get_db`/settings-budget read
+wrappers and `process_telegram_link_command` are intentional final states (already
+appropriately thin / deliberately left, not unfinished work — see the reasoning in each
+progress note), and docs-sync is an ongoing practice rather than a gate. Every checklist
+item and exit criterion above is closed.
 
 ---
 
-## Sprint 5 (Planned) — Contract Matrix + Service Boundary Completion
+## Sprint 5 (Scoped 2026-08-27) — MCP/REST Convergence + Exception Hygiene
 
-### Planned scope
-1. Finalize service/repository boundaries for remaining admin/proposal write operations.
-2. Expand API contract matrix tests (success + rejection paths) for core REST endpoints.
-3. Remove transitional endpoint aliases once all callers/templates are blueprint-native.
+### Why this scope
+Sprint 4's A2 work (moving `main_routes.py`'s embedded logic into
+`app/services/`/`app/repositories/`) wasn't just cleanup — applying it directly caught two
+real REST/MCP behavior drifts (`basic_supplies` coercion, `created_by` error-code
+mismatch) and one real feature gap (polls pagination missing from REST). All three
+existed *because* REST and MCP independently reimplemented the same query/validation
+logic instead of sharing it. `app/mcp_server.py` (872 lines, 17 direct SQL call sites for
+proposal listing, poll listing/creation, voting-setting reads/writes, and member
+creation) is the last large block of that pattern — this is IDEAS.md's "MCP extraction
+boundary (P1)" item, and finishing it is the highest-leverage thing left: it doesn't just
+document parity, it makes future drift structurally harder to introduce.
 
-### Planned exit criteria
-- Write paths route through service entry points with clear repository ownership.
-- Contract tests enforce stable API behaviors for core endpoints.
-- Alias cleanup completes without endpoint regressions.
+### Goals
+1. **MCP extraction boundary** — ✅ closed (2026-08-27), see the three slices below.
+   Move `app/mcp_server.py`'s embedded proposal-listing,
+   poll-listing/creation, voting-setting, and member-creation logic into
+   `app/services/`/`app/repositories/` modules shared with the equivalent REST routes,
+   one use case at a time (same incremental, test-verified-after-each-slice approach used
+   for A2). Closes IDEAS.md's "MCP extraction boundary (P1)" and is the natural
+   system-wide conclusion of WS-A A2, which only covered `main_routes.py`.
+   - Slice 1 (2026-08-27): compared each MCP list tool against its REST counterpart
+     first, before extracting anything. `list_proposals`/`list_polls` have genuinely
+     different response shapes on purpose (votes vs. creator username), so forcing one
+     shared query would be a product decision, not a safe refactor — left those alone.
+     What *is* identical everywhere is limit/offset validation: extracted into
+     `app/services/pagination_service.py` (`parse_limit_offset`, transport-agnostic), now
+     used by REST's `parse_pagination_params` and all 5 of MCP's previously-duplicated
+     pagination blocks (`list_proposals`, `list_polls`, `list_user_statistics`,
+     `list_group_purchases`, `list_member_telegram_links`).
+   - Slice 2 (2026-08-27): voting settings' write path (REST `PUT /api/settings/voting`
+     and MCP `update_voting_settings`) ran identical SQL — extracted into
+     `app/services/voting_settings_service.py` (`apply_voting_settings`). Also
+     deduplicated the vote-mode validation set, previously defined three separate times.
+     Deliberately left the *read* path alone (MCP batches all three settings in one
+     query with no Flask app context to share; REST reads through `main_routes`'s
+     Flask-coupled single-key getters) — no shared behavior to converge there, only a
+     different, equally-valid implementation strategy per transport.
+   - 11 new direct unit tests (`tests/unit/test_pagination_service.py`,
+     `tests/unit/test_voting_settings_service.py`). `app/mcp_server.py`: 872 → 850 lines.
+     Full suite: 543 passed, zero regressions.
+   - Slice 3 (2026-08-27): `create_proposal`'s actual persistence (the INSERT plus the
+     "auto-clear `basic_supplies` over €20" business rule) was duplicated in full between
+     REST and MCP — moved to `ProposalRepository.create()` (existing
+     `app/repositories/proposal_repo.py`). `create_poll`'s INSERT moved to a new
+     `PollRepository.create()` (new `app/repositories/poll_repo.py`). Found MCP's
+     `create_poll` had its own hand-rolled option validation instead of using the
+     already-shared `normalize_poll_options` — a real drift risk of the same shape as
+     the `basic_supplies` bug. Since `mcp_server.py` must stay Flask-free, moved
+     `normalize_poll_options`/`parse_positive_amount` out of the Flask-importing
+     `api_helpers.py` into a new `app/services/creation_validation_service.py`;
+     `api_helpers.py` re-exports them so existing callers are unaffected. Fixed two
+     tests that had monkeypatched the old persistence mechanism
+     (`mcp_server._db_execute`) to instead monkeypatch `PollRepository.create` — the
+     refactor moved the mockable seam, not what the tests verify. 12 new direct unit
+     tests. `app/mcp_server.py`: 850 → 845 lines. Full suite: 555 passed, zero
+     regressions.
+   - Remaining: `create_member`/`list_group_purchases` have no REST equivalent to
+     converge with, so they stay MCP-only for this goal. `list_proposals`/`list_polls`
+     response-shape convergence remains an explicit non-goal unless a product decision
+     says otherwise (see slice 1). Full details in `IDEAS.md`.
+2. **Route exception granularity** — replace the 19 broad `except Exception` blocks
+   across 8 files (`mcp_server.py`, `backup_service.py`, `main_helpers.py`,
+   `api_routes.py`, `poll_routes.py`, `admin_routes.py`, `telegram_routes.py`,
+   `auth_routes.py`) with typed exceptions and stable reason codes, so failures are
+   diagnosable instead of collapsing into one generic message. Closes IDEAS.md's "Route
+   exception granularity (P0)".
+3. **Background-job observability** — attach `update_id`, chat ID, actor member ID, tool
+   name, queue-wait time, model latency, and a stable reason code to structured logs for
+   the Telegram assistant's background jobs; add graceful executor shutdown. Advances
+   IDEAS.md's "Background-job observability and lifecycle (P1)" (the "observe completed
+   futures so exceptions aren't silent" half of that item already shipped in Sprint 4).
+4. **Telegram group-routing hardening (small, cheap)** — add a startup warning when a
+   Telegram group integration is configured without `TELEGRAM_BOT_USERNAME` set, since
+   `is_natural_language_message` currently treats that as "match any mention," which is
+   silently over-permissive in a multi-bot group. Closes the P2 gap flagged in the
+   forum-topic routing audit.
 
-**Status:** ⚪ Planned.
+### Explicitly deferred (with reasoning, not just left off)
+- **WS-C C4, query/index optimization** — needs `EXPLAIN QUERY PLAN` results against
+  production-like row counts to make an evidence-based call; this app's actual data
+  volume doesn't yet justify guessing at indexes. Revisit when real usage data exists.
+- **WS-C C3, proposal lifecycle state machine** — a real structural change (centralizing
+  legal status transitions), better scoped as its own sprint once Goal 1 above gives
+  proposal status logic one canonical home to centralize *into*, rather than layering a
+  state machine on top of logic still split across REST/MCP/routes.
+- **Fair-use limits/cancellation, conversation quality controls** (IDEAS.md Telegram-audit
+  items 6 and 8) — same reasoning as Sprint 4's model-request-queue decision: this app's
+  current scale doesn't show signs of needing per-user rate limits or token budgeting
+  yet, and adding them speculatively risks solving a problem that doesn't exist while
+  adding real complexity (cooldown UX, fairness policy). Revisit if usage patterns change.
+- **Full UX/Design track** — needs product/design ownership and human review of visual
+  changes before an autonomous coding pass should touch it; not a fit for this sprint.
+- **WS-C C1, standard error envelope** — already effectively delivered: `api_error()`
+  (`{"error": {"code", "message"}}`) is used consistently across all 27 REST error sites
+  in `api_routes.py` with no ad hoc alternative shape found. No new work needed; marking
+  closed rather than carrying it forward as if open.
+
+### Resolved before this sprint started
+- **OIDC/SSO silent-attach-by-email trust model** (`docs/IDEAS.md`, "Docs audit findings
+  requiring a product decision") — ✅ answered (2026-08-27): SSO is the single source of
+  truth for identity and authority; password login is a legacy path only. Most legacy
+  members deliberately set their own `email` so their SSO login attaches to their
+  existing account and preserves history — the current behavior is exactly the intended
+  design, not a gap to close. This is also structurally safe on the admin-role question
+  the original audit note raised: `is_admin` is recomputed from the token's `groups`
+  claim on every login and unconditionally overwrites the local value, so an email match
+  only decides which account/history a login attaches to — it never grants privilege by
+  itself. No code change needed; full reasoning in `IDEAS.md`.
+
+### Exit criteria
+- MCP's proposal/poll/member/voting-setting logic routes through the same
+  services/repositories REST uses, with no remaining large blocks of inline SQL in
+  `app/mcp_server.py` for those use cases.
+- No bare `except Exception` remains in a route/service handler without a typed
+  exception and reason code behind it.
+- Telegram background-job logs carry enough structured fields to diagnose a stuck or
+  failed request without reading source code.
+- ✅ The OIDC trust-model question has an explicit answer — resolved before this sprint
+  started; see "Resolved before this sprint started" above.
+
+**Status:** ⚪ Scoped, not started.

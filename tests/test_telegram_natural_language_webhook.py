@@ -234,6 +234,37 @@ class TestTelegramNaturalLanguageWebhook(unittest.TestCase):
         self.assertIn("⏳ The assistant is busy right now. Please try again shortly.", client.sent_messages)
         self.assertEqual(client.long_messages, [])
 
+    def test_unexpected_reply_error_is_logged_and_user_gets_a_graceful_message(self):
+        # A submitted job runs on a background thread via the bounded executor; nothing
+        # else ever observes an exception raised there (concurrent.futures silently drops
+        # it unless something calls future.result()/.exception()). Simulate a failure mode
+        # _natural_language_reply's own except clause doesn't cover (a bare TypeError,
+        # unlike the requests.RequestException/RuntimeError/KeyError/IndexError/ValueError
+        # it explicitly catches) to prove the outer safety net in _answer_and_send logs it
+        # and still delivers a reply and cleans up the thinking message, instead of the
+        # update silently vanishing with no reply and no operator signal.
+        telegram_user_id = _unique_id()
+        self._link_member(1, telegram_user_id)
+        main_routes._telegram_agent_executor = SyncExecutor()
+
+        def _raise(*_args, **_kwargs):
+            raise TypeError("boom")
+
+        with patch.object(telegram_agent.requests, "post", _raise):
+            with self.assertLogs(main_routes.app.logger, level="ERROR") as logs:
+                response = self._post_message(
+                    "What's our budget?", telegram_user_id=telegram_user_id, update_id=_unique_id()
+                )
+
+        self.assertEqual(response.status_code, 200)
+        client = RecordingTelegramClient.instances[0]
+        self.assertEqual(client.deleted_message_ids, [RecordingTelegramClient.next_thinking_message_id])
+        self.assertEqual(len(client.long_messages), 1)
+        self.assertIn("Something went wrong", client.long_messages[0])
+        self.assertTrue(
+            any("Unhandled error generating Telegram assistant reply" in message for message in logs.output)
+        )
+
     def test_duplicate_update_id_is_acknowledged_without_repeating_work(self):
         telegram_user_id = _unique_id()
         update_id = _unique_id()

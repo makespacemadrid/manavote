@@ -325,6 +325,149 @@ def test_member_telegram_link_listing_invalid_limit_rejected_by_rest_and_mcp():
     assert mcp["error"]["code"] == -32602
 
 
+def test_proposal_listing_invalid_limit_rejected_by_rest_and_mcp():
+    budget_app.app.config["TESTING"] = True
+    client = budget_app.app.test_client()
+
+    from app.web.routes import main_routes
+
+    old_key = _with_admin_api_key()
+    try:
+        rest = client.get(
+            "/api/proposals?limit=999",
+            headers={"X-Admin-Key": "test-key"},
+        )
+    finally:
+        main_routes.ADMIN_API_KEY = old_key
+
+    mcp = mcp_server.handle_request(_mcp_req("list_proposals", {"limit": 999}, req_id=11))
+
+    assert rest.status_code == 400
+    assert rest.get_json()["error"]["code"] == "limit_out_of_range"
+    assert mcp["error"]["code"] == -32602
+
+
+def test_proposal_listing_non_integer_limit_rejected_by_rest_and_mcp():
+    budget_app.app.config["TESTING"] = True
+    client = budget_app.app.test_client()
+
+    from app.web.routes import main_routes
+
+    old_key = _with_admin_api_key()
+    try:
+        rest = client.get(
+            "/api/proposals?limit=not-a-number",
+            headers={"X-Admin-Key": "test-key"},
+        )
+    finally:
+        main_routes.ADMIN_API_KEY = old_key
+
+    mcp = mcp_server.handle_request(_mcp_req("list_proposals", {"limit": "not-a-number"}, req_id=12))
+
+    assert rest.status_code == 400
+    assert rest.get_json()["error"]["code"] == "invalid_limit"
+    assert mcp["error"]["code"] == -32602
+
+
+def test_proposal_listing_negative_offset_rejected_by_rest_and_mcp():
+    budget_app.app.config["TESTING"] = True
+    client = budget_app.app.test_client()
+
+    from app.web.routes import main_routes
+
+    old_key = _with_admin_api_key()
+    try:
+        rest = client.get(
+            "/api/proposals?offset=-1",
+            headers={"X-Admin-Key": "test-key"},
+        )
+    finally:
+        main_routes.ADMIN_API_KEY = old_key
+
+    mcp = mcp_server.handle_request(_mcp_req("list_proposals", {"offset": -1}, req_id=13))
+
+    assert rest.status_code == 400
+    assert rest.get_json()["error"]["code"] == "offset_out_of_range"
+    assert mcp["error"]["code"] == -32602
+
+
+def test_poll_listing_supports_pagination_and_matches_mcp_shape():
+    budget_app.app.config["TESTING"] = True
+    client = budget_app.app.test_client()
+
+    from app.web.routes import main_routes
+
+    old_key = _with_admin_api_key()
+    try:
+        rest = client.post(
+            "/api/polls",
+            headers={"X-Admin-Key": "test-key"},
+            json={"question": "Pagination poll?", "options": ["Yes", "No"], "created_by": 1},
+        )
+        assert rest.status_code == 201
+
+        rest = client.get(
+            "/api/polls?limit=5&offset=0",
+            headers={"X-Admin-Key": "test-key"},
+        )
+    finally:
+        main_routes.ADMIN_API_KEY = old_key
+
+    mcp = mcp_server.handle_request(_mcp_req("list_polls", {"limit": 5, "offset": 0}, req_id=14))
+
+    assert rest.status_code == 200
+    rest_payload = rest.get_json()
+    mcp_payload = json.loads(mcp["result"]["content"][0]["text"])
+    assert rest_payload["limit"] == mcp_payload["limit"] == 5
+    assert rest_payload["offset"] == mcp_payload["offset"] == 0
+    assert rest_payload["count"] == len(rest_payload["polls"])
+    assert any(p["question"] == "Pagination poll?" for p in rest_payload["polls"])
+
+
+def test_poll_listing_invalid_limit_rejected_by_rest_and_mcp():
+    budget_app.app.config["TESTING"] = True
+    client = budget_app.app.test_client()
+
+    from app.web.routes import main_routes
+
+    old_key = _with_admin_api_key()
+    try:
+        rest = client.get(
+            "/api/polls?limit=999",
+            headers={"X-Admin-Key": "test-key"},
+        )
+    finally:
+        main_routes.ADMIN_API_KEY = old_key
+
+    mcp = mcp_server.handle_request(_mcp_req("list_polls", {"limit": 999}, req_id=15))
+
+    assert rest.status_code == 400
+    assert rest.get_json()["error"]["code"] == "limit_out_of_range"
+    assert mcp["error"]["code"] == -32602
+
+
+def test_poll_listing_non_integer_offset_rejected_by_rest_and_mcp():
+    budget_app.app.config["TESTING"] = True
+    client = budget_app.app.test_client()
+
+    from app.web.routes import main_routes
+
+    old_key = _with_admin_api_key()
+    try:
+        rest = client.get(
+            "/api/polls?offset=not-a-number",
+            headers={"X-Admin-Key": "test-key"},
+        )
+    finally:
+        main_routes.ADMIN_API_KEY = old_key
+
+    mcp = mcp_server.handle_request(_mcp_req("list_polls", {"offset": "not-a-number"}, req_id=16))
+
+    assert rest.status_code == 400
+    assert rest.get_json()["error"]["code"] == "invalid_offset"
+    assert mcp["error"]["code"] == -32602
+
+
 def test_create_proposal_missing_fields_rejected_by_rest_and_mcp():
     budget_app.app.config["TESTING"] = True
     client = budget_app.app.test_client()

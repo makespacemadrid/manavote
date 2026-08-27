@@ -7,8 +7,12 @@ from werkzeug.security import generate_password_hash
 
 from app.domain.enums import ProposalStatus
 from app.extensions import csrf, limiter
+from app.repositories.poll_repo import PollRepository
+from app.repositories.proposal_repo import ProposalRepository
+from app.services import voting_settings_service
 from app.services.telegram_link_diagnostics import LINKED_CONDITION_SQL, link_state_case_sql
 from app.services.user_statistics import user_statistics_query, user_statistics_rows, user_statistics_total_query
+from app.services.voting_settings_service import VALID_VOTE_MODES
 from app.web.routes import main_routes as legacy
 from app.web.routes.helpers.api_helpers import (
     normalize_poll_options,
@@ -115,19 +119,7 @@ def api_create_proposal():
         return api_error("creator_member_not_found", "Creator member not found", 404)
 
     try:
-        c.execute(
-            "INSERT INTO proposals (title, description, amount, url, created_by, basic_supplies) VALUES (?, ?, ?, ?, ?, ?)",
-            (title, description, amount, url, created_by, basic_supplies),
-        )
-        conn.commit()
-        proposal_id = c.lastrowid
-        if basic_supplies and amount > 20.0:
-            c.execute("UPDATE proposals SET basic_supplies = 0 WHERE id = ?", (proposal_id,))
-            c.execute(
-                "INSERT INTO comments (proposal_id, member_id, content) VALUES (?, ?, ?)",
-                (proposal_id, created_by, "Auto-removed basic supplies flag: amount over €20"),
-            )
-            conn.commit()
+        proposal_id = ProposalRepository(conn).create(title, description, amount, url, created_by, basic_supplies)
         conn.close()
         return jsonify({"success": True, "message": "Proposal created", "proposal_id": proposal_id}), 201
     except sqlite3.Error:
@@ -369,9 +361,9 @@ def api_update_voting_settings():
 
     if poll_vote_mode is None and proposal_vote_mode is None and linked_vote_policy is None:
         return api_error("no_changes_provided", "at least one voting setting must be provided", 400)
-    if poll_vote_mode is not None and poll_vote_mode not in {"both", "web_only", "telegram_only"}:
+    if poll_vote_mode is not None and poll_vote_mode not in VALID_VOTE_MODES:
         return api_error("invalid_poll_vote_mode", "poll_vote_mode must be one of: both, web_only, telegram_only", 400)
-    if proposal_vote_mode is not None and proposal_vote_mode not in {"both", "web_only", "telegram_only"}:
+    if proposal_vote_mode is not None and proposal_vote_mode not in VALID_VOTE_MODES:
         return api_error("invalid_proposal_vote_mode", "proposal_vote_mode must be one of: both, web_only, telegram_only", 400)
 
     linked_vote_policy_bool = _parse_optional_bool(linked_vote_policy)
@@ -379,18 +371,13 @@ def api_update_voting_settings():
         return api_error("invalid_telegram_require_linked_vote", "telegram_require_linked_vote must be a boolean", 400)
 
     conn = legacy.get_db()
-    c = conn.cursor()
     try:
-        if poll_vote_mode is not None:
-            c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('poll_vote_mode', ?)", (poll_vote_mode,))
-        if proposal_vote_mode is not None:
-            c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('proposal_vote_mode', ?)", (proposal_vote_mode,))
-        if linked_vote_policy_bool is not None:
-            c.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES ('telegram_require_linked_vote', ?)",
-                ("true" if linked_vote_policy_bool else "false",),
-            )
-        conn.commit()
+        voting_settings_service.apply_voting_settings(
+            conn,
+            poll_vote_mode=poll_vote_mode,
+            proposal_vote_mode=proposal_vote_mode,
+            telegram_require_linked_vote=linked_vote_policy_bool,
+        )
     finally:
         conn.close()
 
@@ -412,6 +399,9 @@ def api_list_polls():
     auth_error = require_api_key(legacy.ADMIN_API_KEY)
     if auth_error:
         return auth_error
+    limit, offset, pagination_error = parse_pagination_params(default_limit=100, max_limit=200)
+    if pagination_error:
+        return pagination_error
 
     conn = legacy.get_db()
     c = conn.cursor()
@@ -421,8 +411,9 @@ def api_list_polls():
                (SELECT COUNT(*) FROM poll_votes pv WHERE pv.poll_id = p.id) AS total_votes
         FROM polls p
         ORDER BY p.created_at DESC
-        LIMIT 100
-        """
+        LIMIT ? OFFSET ?
+        """,
+        (limit, offset),
     )
     rows = c.fetchall()
     conn.close()
@@ -434,7 +425,7 @@ def api_list_polls():
         except (TypeError, json.JSONDecodeError):
             poll["options"] = []
         polls.append(poll)
-    return jsonify({"success": True, "polls": polls})
+    return jsonify({"success": True, "count": len(polls), "limit": limit, "offset": offset, "polls": polls})
 
 
 @api_bp.route("/api/polls", methods=["POST"], endpoint="api_create_poll")
@@ -468,12 +459,7 @@ def api_create_poll():
         conn.close()
         return api_error("creator_member_not_found", "Creator member not found", 404)
     try:
-        c.execute(
-            "INSERT INTO polls (question, options_json, created_by, status) VALUES (?, ?, ?, 'open')",
-            (question, json.dumps(options), created_by),
-        )
-        conn.commit()
-        poll_id = c.lastrowid
+        poll_id = PollRepository(conn).create(question, options, created_by)
     except sqlite3.Error:
         return api_error("poll_create_failed", "Failed to create poll", 500)
     finally:

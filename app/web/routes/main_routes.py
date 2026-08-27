@@ -1,8 +1,6 @@
 import os
 import sqlite3
-import hashlib
 import logging
-from datetime import datetime
 from zoneinfo import ZoneInfo
 try:
     from dotenv import load_dotenv
@@ -28,12 +26,17 @@ from app.integrations.bounded_executor import BoundedExecutor
 from app.integrations import telegram_agent
 from app.integrations.telegram_webhook import TelegramUpdateDeduplicator
 from app.repositories.settings_repo import SettingsRepository
-from app.repositories.vote_repo import VoteRepository
 from app.services.auth_service import verify_and_migrate_password
 from app.services.budget_service import calculate_min_backers
 from app.services.proposal_service import ProposalService
 from app.web.routes.helpers.admin_audit_helpers import log_admin_backup_event, log_telegram_link_event
-from app.services import voting_mode_service
+from app.services import (
+    poll_service,
+    proposal_vote_recording_service,
+    telegram_command_service,
+    telegram_messaging_service,
+    voting_mode_service,
+)
 from app.services.telegram_link_service import process_link_command
 from app.web.app_setup import app, BASE_DIR, is_production
 from app.web.decorators import login_required, admin_required
@@ -43,11 +46,9 @@ from app.web.routes.helpers.main_helpers import (
     truncate_username as helper_truncate_username,
 )
 from werkzeug.utils import secure_filename
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import generate_password_hash
 import markdown
 import warnings
-import json
-import time
 
 
 _telegram_agent_executor = BoundedExecutor(
@@ -249,88 +250,11 @@ def ensure_db_ready():
 
 
 def close_expired_polls(conn):
-    now_iso = datetime.now().isoformat()
-    c = conn.cursor()
-    c.execute(
-        """
-        SELECT id
-        FROM polls
-        WHERE status = 'open'
-          AND closes_at IS NOT NULL
-          AND closes_at != ''
-          AND closes_at <= ?
-        """,
-        (now_iso,),
-    )
-    expired_poll_ids = [row["id"] for row in c.fetchall()]
-    if not expired_poll_ids:
-        return []
-    c.execute(
-        """
-        UPDATE polls
-        SET status = 'closed'
-        WHERE status = 'open'
-          AND closes_at IS NOT NULL
-          AND closes_at != ''
-          AND closes_at <= ?
-        """,
-        (now_iso,),
-    )
-    if c.rowcount:
-        conn.commit()
-    return expired_poll_ids
+    return poll_service.close_expired_polls(conn)
 
 
 def build_poll_results_message(conn, poll_id):
-    c = conn.cursor()
-    c.execute("SELECT id, question, closes_at FROM polls WHERE id = ?", (poll_id,))
-    poll = c.fetchone()
-    if not poll:
-        return None
-    try:
-        closes_display = (
-            datetime.fromisoformat(poll["closes_at"]).strftime("%Y-%m-%d %H:%M")
-            if poll["closes_at"]
-            else "n/a"
-        )
-    except (TypeError, ValueError):
-        closes_display = poll["closes_at"] or "n/a"
-
-    c.execute(
-        """
-        SELECT pv.option_index, COUNT(*) AS vote_count
-        FROM poll_votes pv
-        WHERE pv.poll_id = ?
-        GROUP BY pv.option_index
-        ORDER BY pv.option_index ASC
-        """,
-        (poll_id,),
-    )
-    counts = {row["option_index"]: row["vote_count"] for row in c.fetchall()}
-    c.execute("SELECT options_json FROM polls WHERE id = ?", (poll_id,))
-    options_row = c.fetchone()
-    try:
-        options = json.loads((options_row["options_json"] if options_row else "[]") or "[]")
-    except (TypeError, json.JSONDecodeError):
-        options = []
-
-    total_votes = sum(counts.values())
-    lines = [f"📊 *Poll closed: #{poll['id']}*", f"*{poll['question']}*", f"⏰ Closed: {closes_display}", ""]
-    if not options:
-        lines.append("No valid poll options were found.")
-        return "\n".join(lines)
-
-    max_count = max([counts.get(idx, 0) for idx in range(len(options))] + [1])
-    for idx, option in enumerate(options):
-        count = counts.get(idx, 0)
-        pct = (count / total_votes * 100.0) if total_votes else 0.0
-        bar_len = int(round((count / max_count) * 12)) if max_count else 0
-        bar = "█" * bar_len + "░" * (12 - bar_len)
-        lines.append(f"{idx + 1}. {option}")
-        lines.append(f"`{bar}` {count} vote(s) ({pct:.1f}%)")
-    lines.append("")
-    lines.append(f"Total votes: *{total_votes}*")
-    return "\n".join(lines)
+    return poll_service.build_poll_results_message(conn, poll_id)
 
 
 def get_db():
@@ -439,94 +363,39 @@ def can_record_proposal_vote(source: str) -> bool:
 def log_proposal_vote_event(
     event, source, proposal_id, member_id, vote=None, reason_code=None, latency_ms=None
 ):
-    app.logger.info(
-        "event=%s source=%s mode=%s proposal_id=%s member_id=%s vote=%s reason_code=%s latency_ms=%s",
-        event,
-        source,
-        get_proposal_vote_mode(),
-        proposal_id,
-        member_id,
-        vote,
-        reason_code,
-        latency_ms,
+    proposal_vote_recording_service.log_proposal_vote_event(
+        app.logger, get_setting_value, event, source, proposal_id, member_id, vote, reason_code, latency_ms
     )
 
 
 def record_proposal_vote(proposal_id, member_id, vote, source="web"):
-    started_at = time.perf_counter()
-    if not can_record_proposal_vote(source):
-        log_proposal_vote_event(
-            event="proposal_vote_rejected",
-            source=source,
-            proposal_id=proposal_id,
-            member_id=member_id,
-            reason_code="channel_disabled",
-            latency_ms=round((time.perf_counter() - started_at) * 1000, 3),
-        )
-        return False
-    conn = get_db()
-    try:
-        votes = VoteRepository(conn)
-        votes.upsert_proposal_vote(proposal_id, member_id, vote)
+    return proposal_vote_recording_service.record_proposal_vote(
+        get_db, get_setting_value, process_proposal, app.logger, proposal_id, member_id, vote, source
+    )
 
-        c = conn.cursor()
-        c.execute("SELECT status FROM proposals WHERE id = ?", (proposal_id,))
-        status = c.fetchone()
-        if status and status["status"] == "active":
-            process_proposal(proposal_id)
-        log_proposal_vote_event(
-            event="proposal_vote_accepted",
-            source=source,
-            proposal_id=proposal_id,
-            member_id=member_id,
-            vote=vote,
-            reason_code="ok",
-            latency_ms=round((time.perf_counter() - started_at) * 1000, 3),
-        )
-        return True
-    finally:
-        conn.close()
+
 def send_telegram_message(message, poll_id=None, options=None):
-    client = TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_THREAD_ID)
-    if poll_id is not None and options is not None:
-        return client.send_poll_message(message, poll_id, options)
-    return client.send_message(message)
+    return telegram_messaging_service.send_telegram_message(
+        TelegramClient, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_THREAD_ID, message, poll_id, options
+    )
 
 
 def send_telegram_admin_test_message(message, poll_id=None, options=None):
-    client = TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_ADMIN_ID, "")
-    if poll_id is not None and options is not None:
-        return client.send_poll_message(message, poll_id, options)
-    return client.send_message(message)
+    return telegram_messaging_service.send_telegram_admin_test_message(
+        TelegramClient, TELEGRAM_BOT_TOKEN, TELEGRAM_ADMIN_ID, message, poll_id, options
+    )
 
 
 def sync_telegram_webhook(base_url: str) -> bool:
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_WEBHOOK_SECRET or not base_url:
-        return False
-    webhook_url = f"{base_url.rstrip('/')}/telegram/webhook/{TELEGRAM_WEBHOOK_SECRET}"
-    client = TelegramClient(TELEGRAM_BOT_TOKEN, "", "")
-    return client.set_webhook(webhook_url)
+    return telegram_messaging_service.sync_telegram_webhook(
+        TelegramClient, TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, base_url
+    )
 
 
 def sync_telegram_webhook_on_startup() -> str:
-    """Synchronize a configured bot webhook after the database is ready.
-
-    Returning a small status value lets startup distinguish an intentionally
-    unconfigured integration from a Telegram API failure.
-    """
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_WEBHOOK_SECRET:
-        return "skipped"
-    base_url = get_base_url().rstrip("/")
-    if not base_url:
-        app.logger.warning(
-            "Telegram bot is configured but its Base URL is empty; webhook was not synchronized"
-        )
-        return "missing_base_url"
-    if sync_telegram_webhook(base_url):
-        app.logger.info("Telegram webhook synchronized")
-        return "synced"
-    app.logger.warning("Telegram webhook synchronization failed")
-    return "failed"
+    return telegram_messaging_service.sync_telegram_webhook_on_startup(
+        TelegramClient, TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, get_base_url, app.logger
+    )
 
 
 def process_telegram_link_command(telegram_username, telegram_user_id, command_text):
@@ -551,182 +420,27 @@ def process_telegram_link_command(telegram_username, telegram_user_id, command_t
 
 
 def process_telegram_vote_command(telegram_username, command_text, telegram_user_id=None):
-    if not is_telegram_poll_voting_enabled():
-        return False, "telegram_disabled"
-    command = (command_text or "").strip()
-    parts = command.split()
-    if len(parts) not in (2, 3):
-        return False, "invalid_format"
-
-    command_name = parts[0].lower()
-    if not (command_name == "/vote" or command_name.startswith("/vote@")):
-        return False, "invalid_format"
-
-    try:
-        if len(parts) == 3:
-            poll_id = int(parts[1])
-            option_number = int(parts[2])
-        else:
-            option_number = int(parts[1])
-            poll_id = None
-    except ValueError:
-        return False, "invalid_numbers"
-
-    conn = get_db()
-    c = conn.cursor()
-    try:
-        expired_poll_ids = close_expired_polls(conn)
-        for expired_poll_id in expired_poll_ids:
-            message = build_poll_results_message(conn, expired_poll_id)
-            if message:
-                send_telegram_message(message)
-        require_linked = require_linked_telegram_for_votes()
-        if require_linked:
-            c.execute(
-                "SELECT id FROM members WHERE telegram_user_id = ? OR lower(telegram_username) IN (?, ?)",
-                (
-                    telegram_user_id,
-                    telegram_username.lower(),
-                    f"@{telegram_username.lower()}",
-                ),
-            )
-        else:
-            c.execute(
-                "SELECT id FROM members WHERE telegram_user_id = ? OR lower(username) IN (?, ?) OR lower(telegram_username) IN (?, ?)",
-                (
-                    telegram_user_id,
-                    telegram_username.lower(),
-                    f"@{telegram_username.lower()}",
-                    telegram_username.lower(),
-                    f"@{telegram_username.lower()}",
-                ),
-            )
-        member = c.fetchone()
-        if member:
-            voter_member_id = member["id"]
-        elif telegram_user_id is not None:
-            if require_linked:
-                return False, "link_required"
-            voter_member_id = -abs(int(telegram_user_id))
-        else:
-            return False, "unknown_member"
-
-        if poll_id is None:
-            c.execute("SELECT id, options_json, status FROM polls WHERE status = 'open' ORDER BY id DESC LIMIT 1")
-            poll = c.fetchone()
-            if not poll:
-                return False, "poll_not_found"
-            poll_id = poll["id"]
-        else:
-            c.execute("SELECT id, options_json, status FROM polls WHERE id = ?", (poll_id,))
-            poll = c.fetchone()
-        if not poll:
-            return False, "poll_not_found"
-        if poll["status"] != "open":
-            return False, "poll_closed"
-
-        try:
-            options = json.loads(poll["options_json"] or "[]")
-        except (TypeError, json.JSONDecodeError):
-            options = []
-        option_index = option_number - 1
-        if option_index < 0 or option_index >= len(options):
-            return False, "invalid_option"
-
-        c.execute(
-            "INSERT OR REPLACE INTO poll_votes (poll_id, member_id, option_index) VALUES (?, ?, ?)",
-            (poll_id, voter_member_id, option_index),
-        )
-        conn.commit()
-        return True, "ok"
-    finally:
-        conn.close()
+    return telegram_command_service.process_telegram_vote_command(
+        get_db, get_setting_value, send_telegram_message, telegram_username, command_text, telegram_user_id
+    )
 
 
 def process_telegram_vote_callback(telegram_username, callback_data, telegram_user_id=None):
-    data = (callback_data or "").strip()
-    parts = data.split(":")
-
-    if len(parts) == 3 and parts[0] == "pollvote":
-        try:
-            option_number = int(parts[2]) + 1
-        except ValueError:
-            return False, "invalid_numbers"
-        return process_telegram_vote_command(telegram_username, f"/vote {parts[1]} {option_number}", telegram_user_id)
-
-    if len(parts) == 3 and parts[0] == "pvote":
-        proposal_id = parts[1]
-        vote_token = parts[2]
-        return process_telegram_proposal_vote_command(telegram_username, f"/pvote {proposal_id} {vote_token}", telegram_user_id)
-
-    return False, "invalid_format"
-
-
+    return telegram_command_service.process_telegram_vote_callback(
+        get_db,
+        get_setting_value,
+        send_telegram_message,
+        record_proposal_vote,
+        telegram_username,
+        callback_data,
+        telegram_user_id,
+    )
 
 
 def process_telegram_proposal_vote_command(telegram_username, command_text, telegram_user_id=None):
-    command = (command_text or "").strip()
-    parts = command.split()
-    if len(parts) != 3:
-        return False, "invalid_format"
-
-    command_name = parts[0].lower()
-    if not (command_name == "/pvote" or command_name.startswith("/pvote@")):
-        return False, "invalid_format"
-
-    try:
-        proposal_id = int(parts[1])
-    except ValueError:
-        return False, "invalid_numbers"
-
-    vote_raw = parts[2].strip().lower()
-    if vote_raw in {"yes", "y", "in_favor", "favor", "for", "+"}:
-        vote = "in_favor"
-    elif vote_raw in {"no", "n", "against", "oppose", "-"}:
-        vote = "against"
-    else:
-        return False, "invalid_vote"
-
-    conn = get_db()
-    c = conn.cursor()
-    try:
-        if require_linked_telegram_for_votes():
-            c.execute(
-                "SELECT id FROM members WHERE telegram_user_id = ? OR lower(telegram_username) IN (?, ?)",
-                (
-                    telegram_user_id,
-                    telegram_username.lower(),
-                    f"@{telegram_username.lower()}",
-                ),
-            )
-        else:
-            c.execute(
-                "SELECT id FROM members WHERE telegram_user_id = ? OR lower(username) IN (?, ?) OR lower(telegram_username) IN (?, ?)",
-                (
-                    telegram_user_id,
-                    telegram_username.lower(),
-                    f"@{telegram_username.lower()}",
-                    telegram_username.lower(),
-                    f"@{telegram_username.lower()}",
-                ),
-            )
-        member = c.fetchone()
-        if not member:
-            return False, "link_required" if require_linked_telegram_for_votes() else "unknown_member"
-
-        c.execute("SELECT id, status FROM proposals WHERE id = ?", (proposal_id,))
-        proposal = c.fetchone()
-        if not proposal:
-            return False, "proposal_not_found"
-        if proposal["status"] != "active":
-            return False, "proposal_closed"
-
-        ok = record_proposal_vote(proposal_id, member["id"], vote, source="telegram")
-        if not ok:
-            return False, "telegram_disabled"
-        return True, "ok"
-    finally:
-        conn.close()
+    return telegram_command_service.process_telegram_proposal_vote_command(
+        get_db, get_setting_value, record_proposal_vote, telegram_username, command_text, telegram_user_id
+    )
 
 def process_proposal(proposal_id):
     conn = get_db()
@@ -822,35 +536,6 @@ def check_overbudget():
     from app.web.routes.admin_routes import check_overbudget as check_overbudget_impl
 
     return check_overbudget_impl()
-
-
-def migrate_password_if_needed(user_id, plaintext_password):
-    """Migrate old SHA256 hash to werkzeug hash on login"""
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("SELECT password_hash FROM members WHERE id = ?", (user_id,))
-    row = c.fetchone()
-    if not row:
-        conn.close()
-        return False
-
-    stored_hash = row[0]
-
-    if stored_hash.startswith("pbkdf2:sha256:"):
-        conn.close()
-        return check_password_hash(stored_hash, plaintext_password)
-
-    if stored_hash == hashlib.sha256(plaintext_password.encode()).hexdigest():
-        new_hash = generate_password_hash(plaintext_password)
-        c.execute(
-            "UPDATE members SET password_hash = ? WHERE id = ?", (new_hash, user_id)
-        )
-        conn.commit()
-        conn.close()
-        return True
-
-    conn.close()
-    return False
 
 
 if __name__ == "__main__":
