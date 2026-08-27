@@ -4,8 +4,9 @@
 > made implicitly held up fine until something *second* arrived (a second surface, a
 > second auth method, a second commit touching the same feature) and broke it, live,
 > in front of users. See "The pattern behind these findings" for the mechanism and a
-> 30-second theme map of all 19 findings, or jump straight to "How the build prompts
-> should have been ordered" for seven paste-ready prompts that would have prevented it.
+> 30-second theme map of all 22 findings, or jump straight to "How the build prompts
+> should have been ordered" for a literal, bottom-up, 14-layer prompt sequence that
+> would regenerate this app's current functionality from nothing.
 
 This project is 348 commits old as of this writing (`git log --oneline origin/main | wc -l`,
 after unshallowing this session's clone to see the real, complete history back to the
@@ -418,180 +419,387 @@ paying off are worth naming so they don't get lost in a list of regrets:
   alongside but separate from the existing admin-only `MUTATING_TOOLS`, with feedback
   submission correctly left out of the confirmation flow. A spec doesn't have to be
   perfect to work; it has to exist somewhere the next PR (or the next agent) will
-  actually read it, which is the entire argument for Phase 0 below.
+  actually read it, which is the entire argument for writing each layer's prompt down
+  below rather than reconstructing it from memory each time.
 
 ## How the build prompts should have been ordered
 
 Since this app really was built almost entirely by prompting a coding agent, PR by PR
 (see the authorship note above), the findings above aren't abstract lessons — they're a
 direct trace of what happens when prompts are reactive ("fix this bug," "add this
-feature") instead of sequenced. Below is the phase order that this history itself argues
-for. Each phase names the prompt that should have come *before* any code for that phase,
-the findings it would have prevented, and an example prompt — written to be adapted and
-pasted, not a script to follow verbatim. The through-line, per "The pattern behind these
-findings" above: every phase's job is to write an assumption down before the second
-thing arrives that would otherwise violate it silently.
+feature") instead of sequenced. What follows is not a generic template: it's the
+literal, ordered, bottom-up prompt sequence that would generate *this specific app's
+current functionality*, using the app's actual entities, columns, thresholds, routes,
+and tool names as they exist in the codebase today — checked against `docs/SPEC.md`,
+`app/db/schema.sql`, `app/db/migrations.py`, and `app/mcp_server.py` at time of writing,
+not remembered or approximated. Each layer only depends on the layers before it (true
+bottom-up: nothing here calls forward to a layer that hasn't been prompted yet), names
+the findings above it would have prevented, and gives one literal, pasteable prompt.
 
-| Phase | Fires when | Findings prevented |
-| --- | --- | --- |
-| 0. Domain spec | Before any code | 7, 11, 18, 19, 20 |
-| 1. Runtime & surface commitments | Before the 2nd feature | 2, 5, 6 |
-| 2. Security & conventions baseline | Before the 1st form ships | 3, 4, 10, 21 |
-| 3. Vertical slice per feature | Every feature, in order | 1, 9, 12 |
-| 4. New external surface | Every new API/bot/protocol | 5, 14, 15 |
-| 5. New identity/auth method | Every new login path | 13, 17 |
-| 6. Framework/frontend change | Every migration | 8 |
+| Layer | Builds | Depends on | Findings prevented |
+| --- | --- | --- | --- |
+| 0 | Skeleton, security baseline, shared UI/confirm-modal system | nothing | 3, 4, 7, 10, 21 |
+| 1 | Members, settings, auth (password-only) | 0 | 13, 17 (assumptions named early) |
+| 2 | Proposals, votes, budget ledger, thresholds | 1 | 11, 18, 19 |
+| 3 | Comments, admin panel v1 | 2 | 1, 3, 21 |
+| 4 | Proposals UX, budget chart | 2, 3 | 11, 19 |
+| 5 | i18n (EN/ES) | 3, 4 | 20 |
+| 6 | Polls | 1, 2, 3 | 1, 12 |
+| 7 | Group purchases | 1, 3 | 9, 22 (positive pattern) |
+| 8 | Service/repository layer, REST API, MCP server + authz boundary | 2, 6, 7 | 5, 6, 14 |
+| 9 | Telegram (commands, webhook, assistant, confirm flow) | 8 | 2, 6, 13, 15 |
+| 10 | OIDC/Keycloak SSO | 1, 9 | 13, 17 |
+| 11 | React/Vite nav hydration | 0 | 8 |
+| 12 | Member feedback + structured observability | 8 | 7 (live-validated), 9 |
+| 13 | Docker/persistence, backups, startup orchestration | everything | 16 |
 
-### Phase 0 — Domain spec, before any code
+### Layer 0 — Skeleton, security baseline, and a shared UI/confirm-modal system
 
-Name every entity and its states using the exact identifier the code will use, not a
-display label to be picked later; write the one-sentence definition of every
-money/threshold calculation the app will ever show, in words checkable by hand against
-one worked example, and require a test asserting that example for each one (finding 19
-found five separate numeric/unit bugs across a month precisely because no formula had
-one); name the read path for any cross-cutting per-request state — language, theme, a
-feature flag — before a second template depends on it (finding 20); start
-`docs/SPEC.md` and `docs/STYLE.md` as real files in the first commit. A spec that's
-mostly wrong on day one is still one file to correct — this project's actual first spec
-forked into a second, competing file (finding 7) precisely because there was no
-convention saying where it belonged.
+Nothing here is feature work — it exists so every later layer has something to build
+on instead of something to retrofit onto.
 
-> **Example prompt:** "Before writing any code for [app], help me draft `docs/SPEC.md`
-> and `docs/STYLE.md`. In `SPEC.md`: list every entity (e.g. a proposal, a vote, a
-> member) and every state each can be in, using the exact identifier the code will use
-> internally — if a user-facing label will ever differ from that identifier, write both
-> down together, in this file, right now. Then write, as one sentence each, every
-> calculation involving money, a percentage, or a threshold the app will ever display,
-> in terms someone could verify by hand against one concrete example, and plan one test
-> per formula that checks that example. If the app will have any per-request state that
-> more than one page reads (a language preference, a theme, a feature flag), name its
-> full read path — where it's stored, how a template gets at it, how it interacts with
-> any template caching — before the second template depends on it. In `STYLE.md`: set
-> the shared UI-component policy (one button/badge/modal component reused everywhere,
-> no one-off inline styles), the commit convention (one concern per commit, present
-> tense, no bundled unrelated changes), and the testing expectation (a test lands with
-> the feature, not after the next refactor needs one). Keep both files short and expect
-> to rewrite them — a two-paragraph spec I correct twenty times beats no spec."
+> **Prompt:** "Set up a Flask app with this structure: `app/web/app_setup.py` builds
+> the Flask app object (config from environment, logging, `Flask-WTF` `CSRFProtect`,
+> `Flask-Limiter`); `app/__init__.py` exposes `create_app()`; `app/db/connection.py`
+> gives a `get_db()` SQLite connection helper; `app/db/schema.sql` is a documentary,
+> non-executed reference of the current schema; `app/db/migrations.py` has a single
+> `run_migrations(cursor)` entry point using an `add_column_if_missing(cursor,
+> table_name, ddl)` helper for every schema change from now on, plus fresh `CREATE
+> TABLE IF NOT EXISTS` statements for new installs. Decide the blueprint namespace now,
+> even though only auth exists yet: `auth`, `api`, `proposals`, `polls`, `admin`,
+> `group_purchases`, `telegram` — every `url_for()` from the first template uses the
+> namespaced form (`auth.login`, not `login`). Security baseline, as one commit: CSRF
+> on every form; hash passwords with `werkzeug.security`; `SECRET_KEY` must be a
+> non-default value when `FLASK_ENV=production` (fail startup otherwise); cookies are
+> secure via `FLASK_SECURE_COOKIES` (default `false`, `true` when `FLASK_ENV=production`)
+> so local HTTP development isn't broken by default; debug mode off unless
+> `FLASK_DEBUG` is explicitly set; rate-limit login to `5 per minute`. Start
+> `docs/SPEC.md` (behavior contract) and `docs/STYLE.md` (conventions) as real files,
+> even mostly empty. In `STYLE.md`, and applied immediately in the base template and
+> CSS: a dark theme (`body` background `#111111`, text `#eee`), a `.card` container
+> class, a `.btn` primary-action class, a `.vote-btn` class with `.approve` (cyan
+> `#00d9ff`) and `.reject` (red `#e94560`) variants, and `.status`/`.status-<name>`
+> badge classes — every later feature must use these, never a one-off inline
+> `style=`. Build one shared, reusable confirm-action modal now (a hidden `<div>`
+> toggled by JS, `role=\"dialog\"`, `aria-modal=\"true\"`, focus trap, Escape-to-close,
+> a `confirmDangerAction(form, message)` JS helper that shows the modal and submits
+> the given form on confirm) — every destructive action in every later layer must call
+> this, never a native `confirm()`. One-concern-per-commit is the rule from commit one,
+> enforced by you telling me explicitly if a change I ask for bundles more than one
+> concern, rather than silently doing both."
 
-### Phase 1 — Runtime and surface commitments, before the second feature
+### Layer 1 — Members, settings, and password auth
 
-Decide, out loud, whether this will ever run as more than one process (multiple
-workers, restarts, a redeploy pipeline) and whether anything other than a browser will
-ever need to do what this app does (a bot, a public API, a second frontend). Either
-"maybe" is answered the same way: a thin service layer beneath routes from the first
-mutating endpoint, and durable (database-backed, not in-memory) storage for anything
-representing "this operation isn't finished yet." Both are nearly free now and
-expensive retrofits later (this project's Sprint 4/5 service-extraction work, and the
-shared-SQLite migration in finding 2).
+> **Prompt:** "Add a `members` table: `id` (PK), `username` (unique, not null),
+> `password_hash` (not null), `is_admin` (int, default 0), `created_at` (default
+> `CURRENT_TIMESTAMP`). Even though nothing but password login exists yet, also add
+> `telegram_username`, `telegram_user_id`, `last_linked_at`, `last_unlinked_at`,
+> `oidc_sub` (unique), `email`, `display_name` — all nullable — because a Telegram
+> integration and an SSO login are both planned, and every assumption password-only
+> auth makes (must a member have a username? is email unique? can two identities
+> merge?) needs to be checkable against these columns later without a migration
+> fire-drill. Add a generic `settings` table (`key` PK, `value`), seeded with
+> `registration_enabled = true`. Build registration (togglable via
+> `registration_enabled`), login accepting either `username` or `email`
+> case-insensitively (matching by username first), a 30-day session
+> (`PERMANENT_SESSION_LIFETIME`), and bootstrap the first admin from an
+> `ADMIN_BOOTSTRAP_PASSWORD` environment variable — missing it is a hard startup error
+> when `FLASK_ENV=production`, and an insecure default with a loud warning otherwise.
+> Write down, in `docs/SPEC.md`, the exact list of auth assumptions this layer makes
+> (one username per member, one password scheme, no email uniqueness enforced yet) so
+> a later SSO layer has something concrete to check itself against."
 
-> **Example prompt:** "Before we build the second feature: will [app] ever run as more
-> than one process — multiple workers, a restart, a redeploy — and could anything other
-> than a browser ever need to do what it does, like a bot or a public API? Don't answer
-> 'we'll deal with it later' if either is plausible. Instead: put a service-layer
-> boundary between routes and business logic now — routes call plain functions that take
-> their dependencies as explicit parameters, not module globals — and store any 'this
-> operation isn't finished yet' state (a pending confirmation, an idempotency key, a
-> queued job) as a database row with an expiry, not an in-memory variable, even though
-> we only run one process today."
+### Layer 2 — Proposals, votes, and the budget ledger
 
-### Phase 2 — Security and conventions baseline, before the first form ships
+The formulas are specified in prose, with the actual numbers, before any code —
+finding 19 exists because this project didn't do that until five separate numeric bugs
+forced it to, over five weeks.
 
-Apply once, as its own commit, never revisited per-feature: CSRF protection, a real
-password-hashing library, secure-cookie policy *with* an explicit local-HTTP-dev escape
-hatch (finding 3's later fix, `61c4926`, exists because this wasn't decided up front),
-non-debug-by-default, upload validation, and the URL/blueprint namespace decided even
-provisionally. None of this is feature work, which is exactly why it's cheap now and
-became a dedicated "AUDIT fixes" pass later. Fold in a mechanical check for each
-`STYLE.md` convention as it's written — a lint rule, a snapshot test, or at minimum a
-line the agent is told to grep the diff against before calling a PR done — since a
-convention stated only in a commit message isn't enforceable by anything but luck
-(finding 21).
+> **Prompt:** "Add three tables: `proposals` (`id`, `title`, `description`, `amount`
+> real not null, `url`, `image_filename`, `created_by` not null, `created_at`,
+> `status` default `'active'`, `processed_at`, `over_budget_at`, `purchased_at`,
+> `basic_supplies` int default 0); `votes` (`id`, `proposal_id`, `member_id`, `vote`,
+> `created_at`, unique on `(proposal_id, member_id)`); `activity_log` (`id`, `amount`
+> real not null, `description`, `created_by`, `created_at`, `proposal_id` nullable —
+> the running budget is always computed as `SUM(amount)` over this table, never a
+> stored balance). Before writing any voting logic, write these rules in
+> `docs/SPEC.md` exactly, then write one test asserting each against a worked example
+> with real numbers before implementing it: (1) `min_backers = max(1, int(member_count
+> * threshold_percent / 100))`; (2) threshold selection is `basic_supplies == 1` →
+> setting `threshold_basic` (seed the setting at `5`, i.e. 5% of members), else
+> `amount > 50` → `threshold_over50` (seed at `20`), else `threshold_default` (seed at
+> `10`) — note for whoever maintains `docs/SPEC.md`: an earlier version of this spec
+> also wrote '(default: 2/8/4)' next to this rule, which contradicts the actual seeded
+> settings values of 5/20/10 checked directly against the code — resolve which is
+> correct before copying either; (3) a proposal is approvable when both
+> `net_votes = in_favor - against >= min_backers` AND `amount <= current_budget`; (4)
+> proposal status starts `active`; becomes `approved` (with a negative `activity_log`
+> entry and `processed_at` set) when threshold is met and budget allows; becomes
+> `over_budget` (with `over_budget_at` set) when threshold is met but budget doesn't
+> allow, and is automatically reconsidered for approval whenever budget increases;
+> `rejected` is a valid status value reachable through the data model even if no
+> current code path assigns it — decide explicitly whether that's intentional or a gap
+> before building the next layer on top of it; admin can undo an `approved` proposal
+> back to `active`, restoring the budget and clearing `processed_at`/`purchased_at`;
+> (5) a proposal flagged `basic_supplies` whose `amount` exceeds €20 automatically has
+> the flag cleared and an explanatory comment inserted — write this as its own test
+> with `amount = 20.01` as the boundary case. Build proposal CRUD and the vote
+> endpoint only after every one of these tests passes against hand-picked numbers."
 
-> **Example prompt:** "Before the first HTML form ships: add CSRF protection to every
-> POST route, hash passwords with a real library (never a bare hash function or a
-> home-rolled scheme), default debug mode off and secure cookies on — but add an
-> explicit environment variable to disable secure cookies for local HTTP development
-> so that turning security on doesn't break local testing — validate any uploaded file's
-> actual type (not just its extension), and pick the URL/blueprint namespace now even
-> though there's only one route today. For each convention in `STYLE.md`, add a way to
-> check it mechanically — a lint rule or a snapshot test — rather than relying on
-> anyone remembering it; if that's not practical, add one line telling reviewers
-> (human or agent) exactly what to check for in a diff. Do this as one dedicated commit before any
-> feature work, not fixed in per-feature as issues come up."
+### Layer 3 — Comments and the first admin panel
 
-### Phase 3 — One full vertical slice per feature: spec → tests → code → docs
+> **Prompt:** "Add a `comments` table (`id`, `proposal_id`, `member_id`, `content` not
+> null, `created_at`). Build an admin panel with member management (add/remove,
+> toggle `is_admin`, change any member's password) and manual budget entries
+> (arbitrary description/amount into `activity_log`, plus a one-click 'Monthly
+> top-up' action for a configurable amount). Every destructive action here (removing
+> a member, deleting a comment, undoing a proposal's approval) must go through the
+> shared confirm modal from Layer 0 — do not reach for a native `confirm()` even
+> though it would be faster; that shortcut is exactly what this project did, and it
+> took a dedicated pass much later to unwind."
 
-For each feature (proposals, voting, thresholds, comments, budget ledger): write its
-acceptance behavior as a checklist, including edge cases, before code; write tests
-against that checklist before or alongside the implementation; require one smoke-test
-pass of the actual new page/endpoint's happy path before merge, not just unit tests of
-the pieces (finding 12's polls launch-day crashes were exactly this gap); and use the
-shared component vocabulary from Phase 0 rather than hand-rolling new markup for a
-control that already exists (finding 1).
+### Layer 4 — Proposals UX and the budget chart
 
-> **Example prompt:** "For [feature]: first write its acceptance behavior as a
-> checklist, including edge cases — what happens when a value is missing, zero,
-> duplicate, or the actor isn't authorized. Write tests against that checklist before
-> or alongside the implementation. Build it using the shared button/form/modal
-> components from `STYLE.md` — flag it explicitly if this feature needs a new one,
-> don't hand-roll a one-off. Before telling me it's done, load the actual new
-> page/endpoint once, end to end, as a smoke test — not just the unit tests of its
-> pieces."
+Same discipline as Layer 2: the chart's formulas are specified in prose, checked by
+hand against one example, before any Chart.js code — finding 19's whole cluster
+was this exact mistake, made three separate times across a month.
 
-### Phase 4 — Each new external surface, spec'd against the first before it's built
+> **Prompt:** "On the proposals list: status/category filter chips (all filters using
+> the shared component from Layer 0, including a visibly active state for every
+> filter including 'All' — a filter with no visual selected-state is a real, subtle
+> bug), tags for `basic_supplies` proposals and for `amount > 50`, inline quick-voting
+> showing 'N votes out of M required.' Self-host Chart.js under `static/vendor/` —
+> don't load it from a CDN at render time. Before writing the chart: write down, in
+> `docs/SPEC.md`, one sentence per series with a worked numeric example: 'Budget
+> Balance' is the running `SUM(activity_log.amount)`; 'Pending' accumulates the amount
+> of every proposal currently `over_budget` (tracked via `over_budget_at`) and
+> decreases when one of those gets approved; 'Committed' is `Budget Balance − Pending`
+> (a negative Committed means pending commitments exceed available budget — write
+> that sentence down explicitly, it is not obvious from the formula alone). Write one
+> test per series against a small fabricated `activity_log`/proposals fixture before
+> writing the Chart.js configuration that renders them."
 
-Before writing REST, MCP, or a chat-bot integration a second time in a different
-surface: does an equivalent already exist? If so, extract the shared logic into one
-function both surfaces call, with one parity test that fails if they ever disagree on
-the same input — not an audit-driven parity-testing project later (finding 5). For
-anything with its own protocol or addressing rules (an MCP client's actual request
-shape, a chat bot's group/thread routing), verify against a real reference client
-and write the routing rules down as a checklist before implementing the handler, not
-as a series of "harden X" incident fixes (findings 14, 15).
+### Layer 5 — i18n (English/Spanish)
 
-> **Example prompt:** "I'm about to implement [capability] for a second surface (e.g.
-> MCP, after it already exists in REST). Before writing new logic: does the REST
-> version already do this? If yes, extract the shared validation/query logic into one
-> function both surfaces call, and write a parity test that fails if REST and MCP ever
-> return different results for the same input. If this is a new protocol surface (MCP,
-> a chat bot), test against one real reference client before calling it done, and if it
-> has its own addressing/routing rules (like when a chat bot should treat a group
-> message as directed at it), write those rules down as a checklist first, not
-> discovered one production incident at a time."
+Prototyped against one template before it's wired into the rest of the app — finding
+20's four consecutive "fix language switching" commits happened because this project
+wired the translation filter into a dozen templates before proving the read path.
 
-### Phase 5 — Each new identity/auth method, audited against the current one's assumptions
+> **Prompt:** "Add a language switcher (English/Spanish) as a `translations.py`
+> dictionary and a Jinja filter. Before adding it to a second template: prove the full
+> read path against exactly one template — where the chosen language is stored
+> (session), how a Jinja filter or context processor reads it mid-request, and
+> whether Flask/Jinja's template caching could serve a previously-rendered page in the
+> wrong language after a switch (it can, by default — decide how this is disabled or
+> worked around explicitly, in writing, before continuing). Only once that one
+> template round-trips correctly (switch language, reload, see it took effect) should
+> the same filter be added to every other template. Update the Docker build's file
+> list in the same commit that adds `translations.py`, and add a build-smoke-test step
+> that would have caught it being missing."
 
-Before adding a second login method: list every assumption the current auth system
-makes that isn't written down anywhere (must every user have a username, is email
-globally unique, can two identities silently merge) and check the new method against
-each one explicitly. Write the answer to any trust question this raises (like "does an
-SSO login attach to an existing account by email match") down as a decision made *now*
-(finding 17), not a question an audit asks later (finding 13).
+### Layer 6 — Polls
 
-> **Example prompt:** "We're adding [new login method] alongside the existing one.
-> Before implementing: list every assumption the current auth system makes that isn't
-> written down anywhere — does every user need a username, is an email address
-> guaranteed unique, can an account be linked automatically by matching some field. Check
-> the new method against each assumption explicitly and tell me which ones it breaks.
-> For any place where the new method could silently attach to an existing account (e.g.
-> matching by email), stop and ask me to make and document that decision explicitly —
-> don't decide it implicitly in code."
+> **Prompt:** "Add `polls` (`id`, `question`, `options_json`, `created_by`,
+> `created_at`, `status` default `'open'`, `closes_at`) and `poll_votes` (`id`,
+> `poll_id`, `member_id`, `option_index`, `created_at`, unique on `(poll_id,
+> member_id)` — latest vote replaces the prior one). Enforce identically, in one
+> shared validation function reused by every entry point that will ever create a
+> poll: question 5–200 characters, 2–12 options, each option ≤120 characters. Give
+> each poll option's result bar a distinct color, not a repeated gradient. Store
+> `poll.counts` as a list indexed by `option_index`, not a dict keyed by some other
+> value — decide the exact data structure and write one test indexing into it before
+> writing the template that renders vote counts. Before merging, load the actual new
+> `/polls` page end-to-end once as a smoke test, including its interaction with the
+> admin panel's poll-management tab — this project's polls launch needed three
+> separate 'internal server error' hotfixes on launch day because nobody did this
+> before merging, and the actual bug was a startup-ordering issue any real page load
+> would have hit immediately."
 
-### Phase 6 — Any framework/frontend change, scoped to the smallest provable unit
+### Layer 7 — Group purchases
 
-Migrate exactly one component first, with its contract (e.g. a hydration boundary)
-written down and tested as a named invariant, not a comment only the original author
-will remember. Prove the production build succeeds with that one component migrated
-before proposing to migrate a second — this project's fastest follow-up fix after any
-framework change was a broken build (finding 8).
+This is the one feature this project's own history got right on the first pass —
+build this layer the same way: schema, routes, templates, and tests together, in one
+PR, not staged across several.
 
-> **Example prompt:** "Migrate exactly one component (not the whole app) to [new
-> framework/library]. Whatever contract makes that migration work — e.g. 'the
-> server-rendered markup and the client-hydrated markup must match exactly, including
-> whitespace' — write it down explicitly and add a test that fails if it's violated,
-> rather than leaving it as a comment. Verify the production build (Docker or
-> otherwise) succeeds with this one component migrated, and stop there for review
-> before proposing to migrate anything else."
+> **Prompt:** "Add five tables in one migration: `group_purchases` (`id`, `title`,
+> `description`, `created_by`, `created_at`, `status` default `'open'` — lifecycle
+> `open` → `ordered` → `received` — `deadline`, `url`, `image_filename`,
+> `payment_method`); `group_purchase_components` (`id`, `group_purchase_id`, `name`,
+> `position` default 0, `unit_price` real default 0); `group_purchase_quantities`
+> (`component_id`, `member_id`, `quantity`, `updated_at`, PK on
+> `(component_id, member_id)`); `group_purchase_payments`
+> (`group_purchase_id`, `member_id`, `received_at`, PK on both); `group_purchase_shared_costs`
+> (`id`, `group_purchase_id`, `label`, `amount`, `position`). Any member can create a
+> shared purchase with up to 30 option rows, a deadline, product URL, image, and
+> payment instructions. Shared costs (shipping, taxes) split proportionally: each
+> participant pays the same percentage of shared costs as their percentage of the
+> total selected-product value — write that formula down with a worked example before
+> implementing it. Quantities and prices are editable only while `open`; the creator
+> advances the lifecycle and can mark individual participants' payments as received.
+> Announce creation, marking-ordered, and marking-received to the configured Telegram
+> group/thread (build this against Layer 9's Telegram client once that layer exists;
+> stub it before then). Ship the schema, the routes, the templates, the translations,
+> and the tests together, in this one PR — do not split them across multiple merges."
+
+### Layer 8 — Service/repository layer, REST API, and the MCP server
+
+The service/repository extraction happens *before* REST and MCP are written, not
+after they've already drifted from each other — this is finding 5 and 6's whole
+argument, and finding 14's MCP-specific protocol-compliance lesson applies to the
+tool definitions built here.
+
+> **Prompt:** "Before writing REST or MCP: extract the business logic proposals,
+> polls, votes, and group purchases already use into `app/services/*.py` and
+> `app/repositories/*.py` — plain functions/classes taking `get_db`,
+> `get_setting_value`, and a logger as explicit parameters, never reaching for Flask
+> globals, so the same function can be called from a web route, a REST handler, and a
+> Flask-independent MCP process. Build the REST API (`api_routes.py`, admin-key
+> authenticated via `X-Admin-Key`, CSRF-exempt, `503` if the key isn't configured):
+> `POST /api/register`, `POST/GET/PUT/PATCH /api/proposals[/<id>]` (list supports
+> `status`, `age=recent|old` around a 30-day boundary, `limit`/`offset`),
+> `GET/POST /api/polls`, `GET /api/members/telegram`, `GET /api/members/statistics`
+> (opt-in `include_email`), `GET/PUT/PATCH /api/settings/voting` — every list endpoint
+> uses one shared pagination-validation function, not five copies of the same
+> try/except. Build `app/mcp_server.py` as a standalone module that must never import
+> Flask (it runs as its own process over HTTP or TCP, controlled by
+> `MCP_SERVER_ENABLED`/`MCP_SERVER_TRANSPORT`), exposing JSON-RPC 2.0 tools:
+> read tools `list_proposals`, `list_polls`, `list_user_statistics`,
+> `list_group_purchases`, `current_budget`, `list_member_telegram_links`,
+> `get_voting_settings`; write tools `create_member`, `create_proposal`, `create_poll`,
+> `update_voting_settings`. Every tool that exists in both REST and MCP calls the
+> exact same Layer-8 service function — write one parity test per shared operation
+> that fails if REST and MCP ever return different results for the same input, before
+> either is considered done. Test the MCP surface against one real external MCP
+> client, not just your own reading of the JSON-RPC spec, before calling it finished —
+> tool-name and request-shape mismatches only show up against real traffic. Build a
+> transport-neutral authorization boundary now, not later: an `Actor` (role +
+> optional `member_id`) and an `execute_tool(executor, tool_name, arguments, actor)`
+> function that checks a per-tool policy (`admin_read`, `member_write`,
+> `confirmed_admin_write`) before invoking anything, used by both the in-process
+> caller (Layer 9's Telegram assistant) and any external MCP client — do not let the
+> Telegram integration call the tool executor directly with the server's own
+> credentials and no policy check, even though that's the fastest way to wire it up
+> first."
+
+### Layer 9 — Telegram: commands, webhook, and the natural-language assistant
+
+Persistent state from the first line, not an in-memory dict retrofitted later
+(finding 2); group/forum-topic addressing rules written down before the webhook
+handler exists, not discovered one incident at a time (finding 15); role-based tool
+access designed in from the start using Layer 8's authorization boundary, not
+Sprint-8'd in after the fact (finding 6).
+
+> **Prompt:** "Add three SQLite-backed tables before writing any Telegram logic —
+> `telegram_update_dedup` (`update_id` PK, `accepted_at`), `telegram_pending_actions`
+> (`chat_id`, `telegram_user_id`, `tool_name`, `arguments_json`, `actor_member_id`,
+> `created_at`, `schema_fingerprint`, `arguments_digest`, PK on
+> `(chat_id, telegram_user_id)`), `telegram_conversation_history` (bounded to the
+> last 12 turns per chat/user) — all shared across application workers and surviving
+> restarts, because an in-memory dict here is a rewrite waiting to happen, not a
+> shortcut. Build the webhook (`POST /telegram/webhook/<secret>`, secret checked
+> against `TELEGRAM_WEBHOOK_SECRET`) handling deterministic commands `/vote`,
+> `/pvote`, `/link <app_username> <app_password>`, `/help`, `/reset`, and poll inline
+> callbacks `showvote:<poll_id>` / `pollvote:<poll_id>:<option_index>`. Before writing
+> the natural-language addressing logic, write down as a checklist, not discovered
+> live: a message qualifies in a private chat always; in a group only when it
+> `@mentions` the configured `TELEGRAM_BOT_USERNAME`, replies to the bot's own
+> message, or is posted in the admin-configured forum topic
+> (`TELEGRAM_CHAT_ID`+`TELEGRAM_THREAD_ID`, treated as an always-on conversation);
+> warn at startup if a group/thread is configured without `TELEGRAM_BOT_USERNAME`,
+> since that makes the mention-matching overly permissive. Vote-to-member mapping
+> prefers `telegram_user_id`, falls back to username matching, and — when
+> `telegram_require_linked_vote=true` — rejects unlinked voters outright rather than
+> falling back. Build the natural-language assistant against Layer 8's `execute_tool`
+> boundary: members get `member_read`-policy tools plus (via the `member_write`
+> policy) anything explicitly safe for a member to write about themselves;
+> administrators additionally get `admin_read` and, behind a `/confirm` step,
+> `confirmed_admin_write` tools. For every `confirmed_admin_write` tool call:
+> propose it as a pending action with a fingerprint of its current input schema and a
+> digest of its arguments; require `/confirm` within `TELEGRAM_CONFIRM_TTL_SECONDS`,
+> re-verifying both the fingerprint and digest at confirm time so a stale or tampered
+> pending action is rejected rather than executed; log a reason-coded audit event at
+> every step (`proposed`, `confirmed`, `completed`, `failed`, `cancelled`, `expired`,
+> `rejected`) from the first version of this flow, not added in retrospect."
+
+### Layer 10 — Keycloak/OIDC SSO
+
+Every assumption Layer 1's password-only auth made gets checked explicitly against
+this new login path, and the trust decision it raises gets written down now, not
+reconstructed by an audit later (findings 13 and 17).
+
+> **Prompt:** "Before implementing Keycloak/OIDC SSO login: list every assumption
+> Layer 1's auth made that isn't written down anywhere — must every member have a
+> `telegram_username` set through `/link` specifically, is `email` guaranteed unique,
+> can two identities be merged automatically — and check SSO against each one
+> explicitly. Implement the Authorization Code flow
+> (`GET /auth/login/keycloak` → `GET /auth/callback/keycloak`, rate-limited
+> `10 per minute`), requiring the ID token's `groups` claim to contain
+> `OIDC_REQUIRED_GROUP` (default `members-active`) and syncing an `admins` group
+> membership to `is_admin` on every login, including removal. For member
+> provisioning: resolve by `oidc_sub` first; if none exists and the claims carry an
+> `email`, decide explicitly — and write the decision into `docs/SPEC.md`, not just
+> into the code — whether finding an existing password-login member with a matching
+> email should silently attach the SSO identity to that account, or require an
+> explicit confirmation step. Whichever you choose, that's the trust boundary; don't
+> leave it implicit for a future audit to discover and ask about."
+
+### Layer 11 — React/Vite navigation hydration
+
+Scoped to exactly the one component that should survive contact with reality
+(finding 8) — not the whole app.
+
+> **Prompt:** "Migrate exactly the top navigation component to React, hydrated onto
+> server-rendered markup — not a wider rewrite. Set up `frontend/src/` with a Vite
+> build (`vite build` writing fixed-name `app.js`/`style.css` into `static/react/`,
+> matching what the base template already references) and `main.jsx`/`Nav.jsx`.
+> Write down the hydration contract explicitly, as a comment and as a test, not just
+> as tribal knowledge: the server-rendered nav markup and the client-hydrated markup
+> must match exactly, including inter-element whitespace, or React's hydration
+> recovery will cause a visible flash/layout shift. Verify the Docker build succeeds
+> with this component migrated before proposing anything else move to React."
+
+### Layer 12 — Member feedback and structured observability
+
+By the time this layer is built, Layer 8's authorization boundary already exists — so
+a member-writable capability like this is a natural extension of it, not a new
+precedent to invent under time pressure.
+
+> **Prompt:** "Add a `feedback` table (`id`, `member_id` not null, `source`
+> constrained to `web`/`telegram`/`api`, `category` constrained to
+> `bug`/`suggestion`/`other`, `message`, `status` default `'new'`, `created_at`,
+> `resolved_at`, `resolved_by`). Build `submit_feedback`/`list_feedback`/
+> `update_feedback_status` as Layer-8-style service functions, logging
+> `event=feedback_submitted source=... category=...` on submission. Expose
+> `POST /api/feedback` and `GET /api/feedback` (admin-only, paginated) and a
+> `create_feedback` MCP tool under the `member_write` policy from Layer 8 — any
+> linked member can submit feedback about themselves, without going through the
+> `/confirm` flow that `confirmed_admin_write` tools require, since this is low-stakes
+> and easily correctable. Apply the same reason-coded, `event=... source=...
+> reason_code=...` logging convention to every other rejection path this app has
+> (blocked votes by channel policy, blocked votes by link requirement) rather than
+> treating this feedback feature's logging as a one-off."
+
+### Layer 13 — Docker, backups, and startup orchestration
+
+Verified against an actual container recreation, not just "the code writes to a
+path" (finding 16).
+
+> **Prompt:** "Write a multi-stage Dockerfile (Node stage builds the Vite frontend,
+> Python stage serves Flask on `0.0.0.0:45000`) and a `docker-compose.yml` using named
+> volumes for `app.db` (`APP_DB_PATH=/data/app.db`) and `static/uploads` — not host
+> bind mounts, and with explicit ownership so the app user can write to both after a
+> rebuild. Prove this by actually rebuilding the container and confirming a file
+> written before the rebuild is still present and readable after it, not by reasoning
+> about the Dockerfile. Add scheduled backups (`backup_db()`/`backup_uploads()` every
+> 24 hours via APScheduler, pruning anything older than a configurable `keep_days`,
+> default 7) and a manual admin-triggered backup, both emitting structured
+> `*_backup_created`/`*_backup_failed` events. Build `run_startup_steps()` as one
+> deterministic, ordered sequence — DB connect and migrate, Telegram webhook sync,
+> conditionally start the scheduler and run the auto-backup check based on
+> environment, each failure appending a named reason code to a `degraded_reasons`
+> list — ending in one structured `startup_summary` log line with an overall
+> `ready`/`degraded` status. Catch specific exception types at each step
+> (`sqlite3.Error`, `OSError`, `ValueError`), never a bare `except Exception`."
 
 ## How to use this file
 
@@ -599,8 +807,10 @@ This is a retrospective, not a backlog — none of the findings above are Sprint
 candidates by themselves (most of what they describe has since been fixed; see
 `SPRINTS.md`/`IDEAS.md` for the current, forward-looking backlog). Their job is
 narrower: the next time this project (or its next major surface) is tempted to skip one
-of these for speed, this is the receipt for what skipping it cost last time. The prompt
-sequencing above is the same evidence turned forward instead of backward — for whoever
-next opens a blank prompt to build something like this, in this project or the next
-one, and could use the seven phases (and the example prompts) instead of rediscovering
-them.
+of these for speed, this is the receipt for what skipping it cost last time. The layer
+sequence above is the same evidence turned forward instead of backward, made literal:
+it's not a generic template but this specific app's actual entities, thresholds, tables,
+and tool names, ordered so each layer only ever depends on one already built. If the
+app were deleted today, following the fourteen layers in order — adapting only what a
+real rebuild would legitimately change — is a defensible way to reconstruct its current
+behavior without reproducing the roughly 48 commits of rework this document tallies.
