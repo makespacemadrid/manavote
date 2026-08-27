@@ -2,6 +2,7 @@ TRANSLATIONS = {
     "en": {
         "active": "active",
         "approved": "approved",
+        "rejected": "rejected",
         "New Proposal": "New Proposal",
         "Calendar": "Calendar",
         "Polls": "Polls",
@@ -338,6 +339,7 @@ TRANSLATIONS = {
     "es": {
         "active": "activo",
         "approved": "aprobado",
+        "rejected": "rechazado",
         "New Proposal": "Nueva Propuesta",
         "Calendar": "Calendario",
         "Polls": "Encuestas",

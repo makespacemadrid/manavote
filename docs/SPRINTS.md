@@ -229,6 +229,18 @@ limits, and confirmation audit records) is tracked as forward-looking backlog in
    webhook-sync helpers — see `IDEAS.md` A2 for the complete remaining list) is unchanged
    and still open; more slices planned.
 
+1c. **Fixed the "4 pre-existing/environmental failures" every note above cited without
+   root-causing (2026-08-27)** — full details in `IDEAS.md`'s "Fixed: the 4 tests
+   repeatedly labeled..." entry under A2. Short version: two real template bugs in
+   `templates/proposals.html` (missing CSS classes on the `approved`/`over_budget` status
+   badges, no badge at all for `rejected`, and an "All" filter button that silently
+   behaved like "Active"), fixed alongside a test that depended on ambient shared-DB
+   state instead of seeding its own fixtures; plus all four `test_production_config.py`
+   subprocess calls using bare `"python"` instead of `sys.executable`, which broke under
+   this sandbox's mismatched system `cryptography`/`cffi` install. Full suite is now
+   **511 passed, 0 failed**, no `-k` exclusion needed — `pytest -q tests/` is the correct
+   command going forward.
+
 2. **Admin reliability observability** — ✅ closed for this sprint's scope.
    - Backup-audit coverage now spans download, admin-triggered, scheduled, and
      startup-check lifecycle events (`created`/`failed` with `pruned_count`/reason

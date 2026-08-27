@@ -352,6 +352,53 @@ a silent doc fix:
   `log_proposal_vote_event`, `process_telegram_link_command`, and the Telegram messaging/
   webhook-sync helpers (`send_telegram_message`, `sync_telegram_webhook*`).
 
+### Fixed: the 4 tests repeatedly labeled "pre-existing/environmental" all session
+Every progress note above (and earlier ones) reported "same 4 pre-existing/environmental
+failures, zero regressions" without root-causing them. Investigated properly (2026-08-27)
+and fixed all four — none were flaky or environmental in the "can't be fixed" sense:
+- **`test_language.py::TestProposalStatusTags`** (3 tests: approved/rejected/over-budget
+  lowercase status tags) — two real bugs, not test flakiness:
+  1. `templates/proposals.html`'s status badges for `approved` and `over_budget` used
+     inline `style=` only, never the `status-approved`/`status-over-budget` CSS classes
+     that `static/react/style.css` already defines for them (and there was no badge
+     branch for `rejected` at all — a real, if minor, UI gap, since `rejected` is a valid
+     proposal status per `app/domain/enums.py` and is set by the admin reject action).
+     Fixed the template to add the missing classes and the missing `rejected` branch
+     (kept the existing inline colors for `approved`/`purchased` to avoid an unreviewed
+     visual change; `rejected`/`over_budget` now render via the CSS class alone, matching
+     the `active` badge's existing pattern). Added the missing `"rejected"`/`"rechazado"`
+     translation key pair.
+  2. Even with the template fixed, the tests could still fail depending on what other
+     test files happened to run first: `GET /proposals` with no `filter` query param (and
+     the "All" filter button, which linked to `url_for('proposals')` with no filter at
+     all) only ever shows `status = 'active'` proposals — so a run where no earlier test
+     left an approved/rejected/over-budget proposal behind in the shared session DB would
+     fail regardless of the template fix. Fixed the "All" button to link to
+     `filter=all` so it actually reaches the unrestricted "show every status" query
+     branch (it was silently behaving identically to "Active" before — a second small
+     real bug). Fixed the test class to seed one proposal per status itself in
+     `setUpClass`/clean up in `tearDownClass`, and to request the correct filter for
+     each status (`filter=approved`, `filter=over_budget`, `filter=all` for rejected)
+     instead of depending on ambient DB state left by unrelated tests.
+- **`test_production_config.py::test_init_db_fails_without_bootstrap_password_in_production`**
+  (plus 3 more `test_app_setup_*` tests in the same file that were being silently excluded
+  all session via `-k "not test_app_setup_"` rather than fixed) — all four spawn a
+  subprocess via bare `"python"` instead of `sys.executable`. In this sandbox, `python`/
+  `python3` resolves to a Python 3.11 interpreter, but the only `_cffi_backend` shared
+  object on the system path is built for cpython-312 — so any subprocess that imports
+  `cryptography.x509` (via `authlib`, pulled in by `app.extensions`) hits
+  `ModuleNotFoundError: No module named '_cffi_backend'`, which PyO3 turns into a Rust
+  panic. Confirmed by reproducing it directly (`python3 -c "import cryptography.x509"`)
+  independent of any test or app code. Fixed by using `sys.executable` in all four
+  subprocess calls, guaranteeing the subprocess runs with whatever interpreter is
+  actually running pytest (the `/tmp/testvenv` used throughout this session, where
+  `cryptography` is a matched pip install) rather than gambling on `PATH`.
+- Full suite now passes clean with no exclusions: **511 passed, 0 failed** (previously
+  508 collected with 3 deselected + 4 failing = 511 either way — nothing was hidden or
+  skipped, just broken). `pytest -q tests/` is the correct full-suite command going
+  forward; the `-k "not test_app_setup_"` qualifier used throughout this session's prior
+  runs is no longer needed and shouldn't be reintroduced.
+
 ---
 
 ## WS-B — Startup Reliability (P0)

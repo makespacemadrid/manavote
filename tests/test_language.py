@@ -486,11 +486,38 @@ class TestBudgetHistory(unittest.TestCase):
 
 
 class TestProposalStatusTags(unittest.TestCase):
+    """Each status's badge is checked against a proposal seeded here, on the one
+    /proposals filter that actually surfaces that status -- the default (and the
+    "All" button's) filter only shows status='active' proposals, so relying on
+    whatever the shared test-session DB happens to contain (as this class used to)
+    made these tests depend on unrelated tests having run first."""
+
     @classmethod
     def setUpClass(cls):
         budget_app.app.config["TESTING"] = True
         budget_app.app.config["WTF_CSRF_ENABLED"] = False
         cls.client = budget_app.app.test_client()
+
+        conn = main_routes.get_db()
+        c = conn.cursor()
+        cls._fixture_proposal_ids = []
+        for status in ("active", "approved", "rejected", "over_budget"):
+            c.execute(
+                "INSERT INTO proposals (title, description, amount, created_by, status) VALUES (?, ?, ?, ?, ?)",
+                (f"Status tag fixture: {status}", "", 1, 1, status),
+            )
+            cls._fixture_proposal_ids.append(c.lastrowid)
+        conn.commit()
+        conn.close()
+
+    @classmethod
+    def tearDownClass(cls):
+        conn = main_routes.get_db()
+        conn.executemany(
+            "DELETE FROM proposals WHERE id = ?", [(pid,) for pid in cls._fixture_proposal_ids]
+        )
+        conn.commit()
+        conn.close()
 
     def setUp(self):
         with self.client.session_transaction() as session:
@@ -501,25 +528,27 @@ class TestProposalStatusTags(unittest.TestCase):
 
     def test_status_active_lowercase(self):
         """Active status shows lowercase"""
-        response = self.client.get("/proposals")
+        response = self.client.get("/proposals?filter=active")
         html = response.data.decode("utf-8")
         self.assertIn("status-active", html)
 
     def test_status_approved_lowercase(self):
         """Approved status shows lowercase"""
-        response = self.client.get("/proposals")
+        response = self.client.get("/proposals?filter=approved")
         html = response.data.decode("utf-8")
         self.assertIn("status-approved", html)
 
     def test_status_rejected_lowercase(self):
         """Rejected status shows lowercase"""
-        response = self.client.get("/proposals")
+        # No filter surfaces only rejected proposals; "all" is the one filter that
+        # falls through to the unrestricted query showing every status.
+        response = self.client.get("/proposals?filter=all")
         html = response.data.decode("utf-8")
         self.assertIn("status-rejected", html)
 
     def test_status_over_budget_lowercase(self):
         """Over-budget status shows lowercase"""
-        response = self.client.get("/proposals")
+        response = self.client.get("/proposals?filter=over_budget")
         html = response.data.decode("utf-8")
         self.assertIn("status-over-budget", html)
 
