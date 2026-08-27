@@ -26,6 +26,34 @@ starts the next project (or the next major surface on this one, or the next prom
 agent building either) with the unfair advantage of already knowing how this one turned
 out.
 
+## The pattern behind these findings
+
+Read individually, the findings below look like unrelated bugs across unrelated
+features. Read together, all but two of them (1 and 19) share one mechanism: a decision
+was made implicitly, worked fine in the world that existed when it was made, and broke
+the moment a **second thing** arrived that the original decision never accounted for —
+a second surface calling the same logic (findings 5, 6, 14), a second identity provider
+or auth method (13, 17), a second commit touching the same feature (1, 11, 18), a second
+container recreation (16), or simply a second contributor or agent with no written
+convention to read (7, 9, 10). Almost none of the individual fixes were hard once
+found — most are a few lines. The cost was never in the decision itself; it was in the
+gap between *when the decision was made* and *when it was written down*, and the "second
+thing" reliably arrived somewhere inside that gap. The prompt sequence at the end of
+this document exists to close that gap before it opens, not to make better decisions —
+most of the original decisions were fine for the world they were made in.
+
+A quick map of what's below, grouped by theme rather than commit order:
+
+| Theme | Findings |
+| --- | --- |
+| Architecture & where state lives | 2, 5, 6 |
+| Security & baseline hygiene | 3, 4 |
+| Process & documentation | 7, 9, 10 |
+| Money and domain-meaning | 11, 18 |
+| External integrations (bots, APIs, auth, infra) | 13, 14, 15, 16, 17 |
+| UI/UX consistency & scope | 1, 8 |
+| What actually worked | 19 |
+
 ## 1. Give every button/form a shared component before the second one exists
 
 The withdraw-vote button alone took **six commits** to settle:
@@ -314,71 +342,158 @@ Since this app really was built almost entirely by prompting a coding agent, PR 
 (see the authorship note above), the findings above aren't abstract lessons — they're a
 direct trace of what happens when prompts are reactive ("fix this bug," "add this
 feature") instead of sequenced. Below is the phase order that this history itself argues
-for: each phase names the prompt that should have come before any code, and which
-finding above it would have prevented.
+for. Each phase names the prompt that should have come *before* any code for that phase,
+the findings it would have prevented, and an example prompt — written to be adapted and
+pasted, not a script to follow verbatim. The through-line, per "The pattern behind these
+findings" above: every phase's job is to write an assumption down before the second
+thing arrives that would otherwise violate it silently.
 
-**Phase 0 — Domain spec, before any code (prevents findings 7, 11, 18).** One prompt,
-answered in prose before the first route exists: name every entity and its states using
-the exact identifiers the code will use (not a display label picked later); write the
-one-sentence definition of every money calculation the app will show (balance, committed
-budget, thresholds) in words a non-programmer could verify by hand against one example;
-and start `docs/SPEC.md` and `docs/STYLE.md` as real files in the first commit, not
-placeholders — a spec that's mostly wrong on day one is still a single source of truth
-to correct, instead of the second competing file this project actually produced.
+| Phase | Fires when | Findings prevented |
+| --- | --- | --- |
+| 0. Domain spec | Before any code | 7, 11, 18 |
+| 1. Runtime & surface commitments | Before the 2nd feature | 2, 5, 6 |
+| 2. Security & conventions baseline | Before the 1st form ships | 3, 4, 10 |
+| 3. Vertical slice per feature | Every feature, in order | 1, 9, 12 |
+| 4. New external surface | Every new API/bot/protocol | 5, 14, 15 |
+| 5. New identity/auth method | Every new login path | 13, 17 |
+| 6. Framework/frontend change | Every migration | 8 |
 
-**Phase 1 — Runtime and surface commitments, before the second feature (prevents
-findings 2, 5, 6).** One prompt, answered before writing the second route: will this
-ever be more than a single-process web app (multiple workers, restarts, a redeploy
-pipeline)? Will anything other than a browser ever need to do the things this app does
-(a bot, a public API, a second frontend)? If either answer is "maybe," design accordingly
-now: a thin service layer beneath routes from the first mutating endpoint, and durable
-(database-backed, not in-memory) storage for anything that represents "this operation
-isn't finished yet." Both are nearly free before a second surface exists and expensive
-retrofits (this project's Sprint 4/5 A2 work, and the shared-SQLite migration in finding
-2) once it does.
+### Phase 0 — Domain spec, before any code
 
-**Phase 2 — Security and conventions baseline, before the first form ships (prevents
-findings 3, 4, 10).** One prompt, applied once and then never revisited per-feature:
-CSRF protection, a real password-hashing library, secure-cookie policy *with* an
-explicit local-HTTP-dev escape hatch (finding 3's later fix, `61c4926`, exists because
-this wasn't decided up front), non-debug-by-default, upload validation, blueprint/URL
-namespacing decided even provisionally, and a one-line commit-message rule ("one
-concern per commit"). None of this is feature work, which is exactly why it's cheap now
-and expensive as a dedicated "AUDIT fixes" pass later.
+Name every entity and its states using the exact identifier the code will use, not a
+display label to be picked later; write the one-sentence definition of every
+money/threshold calculation the app will ever show, in words checkable by hand against
+one worked example; start `docs/SPEC.md` and `docs/STYLE.md` as real files in the first
+commit. A spec that's mostly wrong on day one is still one file to correct — this
+project's actual first spec forked into a second, competing file (finding 7) precisely
+because there was no convention saying where it belonged.
 
-**Phase 3 — Core domain, one full vertical slice at a time, spec → tests → code → docs,
-in that order (prevents findings 1, 9, 12).** For each feature (proposals, voting,
-thresholds, comments, budget ledger): write the acceptance behavior first, including
-edge cases, as a checklist the agent confirms against before calling it done; write
-tests against that checklist before or alongside the implementation, not after the next
-refactor needs them; and require one smoke-test pass of the actual new page's happy path
-before merge, not just unit tests of the pieces (finding 12's polls launch-day crashes
-were exactly this gap). Establish the shared button/component vocabulary (finding 1)
-as part of the *first* slice, since every later slice will reach for it or bypass it.
+> **Example prompt:** "Before writing any code for [app], help me draft `docs/SPEC.md`
+> and `docs/STYLE.md`. In `SPEC.md`: list every entity (e.g. a proposal, a vote, a
+> member) and every state each can be in, using the exact identifier the code will use
+> internally — if a user-facing label will ever differ from that identifier, write both
+> down together, in this file, right now. Then write, as one sentence each, every
+> calculation involving money, a percentage, or a threshold the app will ever display,
+> in terms someone could verify by hand against one concrete example. In `STYLE.md`:
+> set the shared UI-component policy (one button/badge/modal component reused
+> everywhere, no one-off inline styles), the commit convention (one concern per
+> commit, present tense, no bundled unrelated changes), and the testing expectation
+> (a test lands with the feature, not after the next refactor needs one). Keep both
+> files short and expect to rewrite them — a two-paragraph spec I correct twenty times
+> beats no spec."
 
-**Phase 4 — Each new external surface, spec'd against the first before it's built
-(prevents findings 5, 14, 15).** Before writing REST, MCP, or a chat bot integration:
-write down the contract the new surface must match (request/response shape, error
-codes, protocol quirks) against a real reference client or spec, not an internal
-reading of one; and for anything with its own addressing/routing rules (a chat bot's
-group-chat and thread behavior, in this project's case), write those rules down as a
-checklist before implementing the webhook handler, not as a series of "harden X"
-follow-up PRs discovered one incident at a time.
+### Phase 1 — Runtime and surface commitments, before the second feature
 
-**Phase 5 — Each new identity/auth method, audited against the current one's
-assumptions before merge (prevents findings 13, 17).** Before adding a second login
-method: list every assumption the current auth system makes that isn't written down
-anywhere (must every user have X, is Y globally unique, does matching Z silently link
-accounts) and check the new method against each one explicitly. Answer the trust
-questions this raises (like "does an SSO login attach to an existing account by email
-match") as a documented decision made *now*, not a question an audit asks later.
+Decide, out loud, whether this will ever run as more than one process (multiple
+workers, restarts, a redeploy pipeline) and whether anything other than a browser will
+ever need to do what this app does (a bot, a public API, a second frontend). Either
+"maybe" is answered the same way: a thin service layer beneath routes from the first
+mutating endpoint, and durable (database-backed, not in-memory) storage for anything
+representing "this operation isn't finished yet." Both are nearly free now and
+expensive retrofits later (this project's Sprint 4/5 service-extraction work, and the
+shared-SQLite migration in finding 2).
 
-**Phase 6 — Any framework/frontend change, scoped to the smallest provable unit
-(prevents finding 8).** Prompt for the migration of exactly one component first, with
-its contract (e.g. a hydration boundary) written down and tested as a named invariant —
-not a comment in the template that only the person who wrote it will remember. Prove
-the Docker/build story for that one component before scoping wider, since the fastest
-follow-up fix this project needed after any framework change was a broken build.
+> **Example prompt:** "Before we build the second feature: will [app] ever run as more
+> than one process — multiple workers, a restart, a redeploy — and could anything other
+> than a browser ever need to do what it does, like a bot or a public API? Don't answer
+> 'we'll deal with it later' if either is plausible. Instead: put a service-layer
+> boundary between routes and business logic now — routes call plain functions that take
+> their dependencies as explicit parameters, not module globals — and store any 'this
+> operation isn't finished yet' state (a pending confirmation, an idempotency key, a
+> queued job) as a database row with an expiry, not an in-memory variable, even though
+> we only run one process today."
+
+### Phase 2 — Security and conventions baseline, before the first form ships
+
+Apply once, as its own commit, never revisited per-feature: CSRF protection, a real
+password-hashing library, secure-cookie policy *with* an explicit local-HTTP-dev escape
+hatch (finding 3's later fix, `61c4926`, exists because this wasn't decided up front),
+non-debug-by-default, upload validation, and the URL/blueprint namespace decided even
+provisionally. None of this is feature work, which is exactly why it's cheap now and
+became a dedicated "AUDIT fixes" pass later.
+
+> **Example prompt:** "Before the first HTML form ships: add CSRF protection to every
+> POST route, hash passwords with a real library (never a bare hash function or a
+> home-rolled scheme), default debug mode off and secure cookies on — but add an
+> explicit environment variable to disable secure cookies for local HTTP development
+> so that turning security on doesn't break local testing — validate any uploaded file's
+> actual type (not just its extension), and pick the URL/blueprint namespace now even
+> though there's only one route today. Do this as one dedicated commit before any
+> feature work, not fixed in per-feature as issues come up."
+
+### Phase 3 — One full vertical slice per feature: spec → tests → code → docs
+
+For each feature (proposals, voting, thresholds, comments, budget ledger): write its
+acceptance behavior as a checklist, including edge cases, before code; write tests
+against that checklist before or alongside the implementation; require one smoke-test
+pass of the actual new page/endpoint's happy path before merge, not just unit tests of
+the pieces (finding 12's polls launch-day crashes were exactly this gap); and use the
+shared component vocabulary from Phase 0 rather than hand-rolling new markup for a
+control that already exists (finding 1).
+
+> **Example prompt:** "For [feature]: first write its acceptance behavior as a
+> checklist, including edge cases — what happens when a value is missing, zero,
+> duplicate, or the actor isn't authorized. Write tests against that checklist before
+> or alongside the implementation. Build it using the shared button/form/modal
+> components from `STYLE.md` — flag it explicitly if this feature needs a new one,
+> don't hand-roll a one-off. Before telling me it's done, load the actual new
+> page/endpoint once, end to end, as a smoke test — not just the unit tests of its
+> pieces."
+
+### Phase 4 — Each new external surface, spec'd against the first before it's built
+
+Before writing REST, MCP, or a chat-bot integration a second time in a different
+surface: does an equivalent already exist? If so, extract the shared logic into one
+function both surfaces call, with one parity test that fails if they ever disagree on
+the same input — not an audit-driven parity-testing project later (finding 5). For
+anything with its own protocol or addressing rules (an MCP client's actual request
+shape, a chat bot's group/thread routing), verify against a real reference client
+and write the routing rules down as a checklist before implementing the handler, not
+as a series of "harden X" incident fixes (findings 14, 15).
+
+> **Example prompt:** "I'm about to implement [capability] for a second surface (e.g.
+> MCP, after it already exists in REST). Before writing new logic: does the REST
+> version already do this? If yes, extract the shared validation/query logic into one
+> function both surfaces call, and write a parity test that fails if REST and MCP ever
+> return different results for the same input. If this is a new protocol surface (MCP,
+> a chat bot), test against one real reference client before calling it done, and if it
+> has its own addressing/routing rules (like when a chat bot should treat a group
+> message as directed at it), write those rules down as a checklist first, not
+> discovered one production incident at a time."
+
+### Phase 5 — Each new identity/auth method, audited against the current one's assumptions
+
+Before adding a second login method: list every assumption the current auth system
+makes that isn't written down anywhere (must every user have a username, is email
+globally unique, can two identities silently merge) and check the new method against
+each one explicitly. Write the answer to any trust question this raises (like "does an
+SSO login attach to an existing account by email match") down as a decision made *now*
+(finding 17), not a question an audit asks later (finding 13).
+
+> **Example prompt:** "We're adding [new login method] alongside the existing one.
+> Before implementing: list every assumption the current auth system makes that isn't
+> written down anywhere — does every user need a username, is an email address
+> guaranteed unique, can an account be linked automatically by matching some field. Check
+> the new method against each assumption explicitly and tell me which ones it breaks.
+> For any place where the new method could silently attach to an existing account (e.g.
+> matching by email), stop and ask me to make and document that decision explicitly —
+> don't decide it implicitly in code."
+
+### Phase 6 — Any framework/frontend change, scoped to the smallest provable unit
+
+Migrate exactly one component first, with its contract (e.g. a hydration boundary)
+written down and tested as a named invariant, not a comment only the original author
+will remember. Prove the production build succeeds with that one component migrated
+before proposing to migrate a second — this project's fastest follow-up fix after any
+framework change was a broken build (finding 8).
+
+> **Example prompt:** "Migrate exactly one component (not the whole app) to [new
+> framework/library]. Whatever contract makes that migration work — e.g. 'the
+> server-rendered markup and the client-hydrated markup must match exactly, including
+> whitespace' — write it down explicitly and add a test that fails if it's violated,
+> rather than leaving it as a comment. Verify the production build (Docker or
+> otherwise) succeeds with this one component migrated, and stop there for review
+> before proposing to migrate anything else."
 
 ## How to use this file
 
@@ -389,4 +504,5 @@ narrower: the next time this project (or its next major surface) is tempted to s
 of these for speed, this is the receipt for what skipping it cost last time. The prompt
 sequencing above is the same evidence turned forward instead of backward — for whoever
 next opens a blank prompt to build something like this, in this project or the next
-one, and could use the six phases instead of rediscovering them.
+one, and could use the seven phases (and the example prompts) instead of rediscovering
+them.
