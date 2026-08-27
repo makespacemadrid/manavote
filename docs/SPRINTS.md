@@ -131,7 +131,7 @@ limits, and confirmation audit records) is tracked as forward-looking backlog in
 
 ### Remaining work (execution checklist)
 1. **Route decomposition closure** — in progress (2026-08-27): `main_routes.py` cut from
-   2368 to 1218 lines (-48.5%).
+   2368 to 1069 lines (-54.9%).
    - Moved the entire `/admin` handler (627 lines: every member/budget/settings/poll/
      backup admin action, plus the dashboard's data-gathering tail) from `main_routes.admin()`
      into `admin_routes.py`'s blueprint view — it previously just delegated to
@@ -141,6 +141,13 @@ limits, and confirmation audit records) is tracked as forward-looking backlog in
      `edit_comment`, `delete_comment`, `delete_proposal`, `edit_proposal`, `quick_vote`,
      `withdraw_vote`, `undo_approve`, `mark_purchased`, `unmark_purchased`) from
      `main_routes.py` into `proposal_routes.py` the same way.
+   - Moved `proposals()` (the main listing page, ~155 lines) into `proposal_routes.py` as
+     a real blueprint route (`proposals.proposals`); `main_routes.py` now carries only a
+     3-line compatibility alias at the bare `proposals` endpoint, matching the existing
+     `/about`/`/budget` pattern — needed because dozens of call sites still do
+     `url_for("proposals")`/`redirect(url_for("proposals"))` unqualified. Dropped a
+     pre-existing dead `from flask import make_response` local import and the now-unused
+     `date`/`timedelta`/`timezone` top-level imports while moving it.
    - Shared helpers each handler still needs (`get_db`, `get_current_budget`,
      `process_proposal`, `TelegramClient`, etc.) are re-read from `main_routes` as local
      variables *inside* each view on every request (`get_db = legacy.get_db`, ...) rather
@@ -151,12 +158,17 @@ limits, and confirmation audit records) is tracked as forward-looking backlog in
      since that's a genuine, correct change in where the call now lives.
    - Full suite re-run after each move; no behavior regressions, only the one expected
      test-location fix above.
-   - Remaining: `telegram_webhook` (~180 lines) and `proposals()` (~155 lines) are still
-     directly implemented in `main_routes.py` rather than behind a thin blueprint alias
-     like `/about`/`/budget`/`/settings` already are. The ~30 shared helpers underneath
-     all of this (`get_db`, threshold/vote-mode calculations, Telegram command
-     processors, `record_proposal_vote`, etc.) are a separate, larger undertaking —
-     moving *those* into `app/services/`/`app/repositories/` is WS-A A2's
+   - Remaining: `telegram_webhook` (~180 lines) is still directly implemented in
+     `main_routes.py`. Unlike the moves above, it has no existing blueprint to land in —
+     closing it out means standing up a new `telegram_routes.py` blueprint and
+     re-registering it in `app/web/routes/__init__.py`, plus checking that supporting
+     module-level state the webhook test suite patches directly
+     (`_telegram_update_deduplicator`, `_telegram_agent_executor`, `TELEGRAM_BOT_TOKEN`,
+     `TelegramClient`) still resolves correctly from wherever the route ends up. Treating
+     that as its own follow-up rather than folding it into this pass. The ~30 shared
+     helpers underneath all of this (`get_db`, threshold/vote-mode calculations, Telegram
+     command processors, `record_proposal_vote`, etc.) are a separate, larger
+     undertaking — moving *those* into `app/services/`/`app/repositories/` is WS-A A2's
      service/repository boundary work, not route decomposition itself.
 
 2. **Admin reliability observability** — ✅ closed for this sprint's scope.

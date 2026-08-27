@@ -277,13 +277,15 @@ a silent doc fix:
 - Split route responsibilities into focused modules (`auth`, `proposal`, `poll`, `admin`, `api`).
 - Move shared orchestration helpers into route-helper or service layers.
 - Register route modules consistently through app setup.
-- Progress (2026-08-27): the `/admin` handler (627 lines) and all 11 proposal-lifecycle
-  handlers moved out of `main_routes.py` into `admin_routes.py`/`proposal_routes.py`
-  proper, cutting `main_routes.py` from 2368 to 1218 lines. `/about`, `/budget`,
-  `/settings`, `/telegram-settings`, `/register`, and the backup-download/overbudget
-  routes were already thin blueprint aliases before this. Still directly implemented in
-  `main_routes.py` rather than behind a thin alias: `telegram_webhook` (~180 lines,
-  genuinely cross-cutting) and `proposals()` (~155 lines, the main listing page).
+- Progress (2026-08-27): the `/admin` handler (627 lines), all 11 proposal-lifecycle
+  handlers, and `proposals()` (the main listing page, ~155 lines) moved out of
+  `main_routes.py` into `admin_routes.py`/`proposal_routes.py` proper, cutting
+  `main_routes.py` from 2368 to 1069 lines. `/about`, `/budget`, `/settings`,
+  `/telegram-settings`, `/register`, and the backup-download/overbudget routes were
+  already thin blueprint aliases before this; `proposals()` now follows the same
+  pattern. Still directly implemented in `main_routes.py`, with no existing blueprint to
+  move into: `telegram_webhook` (~180 lines) — closing it out means standing up a new
+  `telegram_routes.py` blueprint, not just relocating a function.
 
 ### A2. Complete service/repository boundary
 - Route handlers call service entry points only.

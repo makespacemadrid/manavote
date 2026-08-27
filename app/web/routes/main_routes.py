@@ -3,7 +3,7 @@ import sqlite3
 import hashlib
 import hmac
 import logging
-from datetime import datetime, date, timedelta, timezone
+from datetime import datetime
 from zoneinfo import ZoneInfo
 try:
     from dotenv import load_dotenv
@@ -1006,158 +1006,9 @@ def register():
 @app.route("/proposals")
 @login_required
 def proposals():
-    from flask import make_response
+    from app.web.routes.proposal_routes import proposals as proposals_impl
 
-    conn = get_db()
-    c = conn.cursor()
-
-    filter_type = request.args.get("filter", "active")
-    now = datetime.now(timezone.utc)
-    old_cutoff = (now - timedelta(days=30)).replace(tzinfo=None).isoformat(sep=" ")
-
-    if filter_type == "basic":
-        c.execute(
-            "SELECT p.*, m.username as creator FROM proposals p JOIN members m ON p.created_by = m.id WHERE p.basic_supplies = 1 ORDER BY p.created_at DESC"
-        )
-    elif filter_type in ("active", "approved", "over_budget"):
-        c.execute(
-            "SELECT p.*, m.username as creator FROM proposals p JOIN members m ON p.created_by = m.id WHERE p.status = ? ORDER BY p.created_at DESC",
-            (filter_type,),
-        )
-    elif filter_type == "old":
-        c.execute(
-            "SELECT p.*, m.username as creator FROM proposals p JOIN members m ON p.created_by = m.id WHERE p.status = 'active' AND datetime(p.created_at) <= datetime(?) ORDER BY p.created_at DESC",
-            (old_cutoff,),
-        )
-    elif filter_type == "recent":
-        c.execute(
-            "SELECT p.*, m.username as creator FROM proposals p JOIN members m ON p.created_by = m.id WHERE p.status = 'active' AND datetime(p.created_at) > datetime(?) ORDER BY p.created_at DESC",
-            (old_cutoff,),
-        )
-    elif filter_type == "purchased":
-        c.execute(
-            "SELECT p.*, m.username as creator FROM proposals p JOIN members m ON p.created_by = m.id WHERE p.purchased_at IS NOT NULL ORDER BY p.created_at DESC"
-        )
-    elif filter_type == "not_purchased":
-        c.execute(
-            "SELECT p.*, m.username as creator FROM proposals p JOIN members m ON p.created_by = m.id WHERE p.status = 'approved' AND p.purchased_at IS NULL ORDER BY p.created_at DESC"
-        )
-    elif filter_type == "expensive":
-        c.execute(
-            "SELECT p.*, m.username as creator FROM proposals p JOIN members m ON p.created_by = m.id WHERE p.amount > 50 AND p.status IN ('active', 'approved') ORDER BY p.created_at DESC"
-        )
-    elif filter_type == "standard":
-        c.execute(
-            "SELECT p.*, m.username as creator FROM proposals p JOIN members m ON p.created_by = m.id WHERE p.status = 'approved' AND p.basic_supplies = 0 AND p.amount <= 50 ORDER BY p.created_at DESC"
-        )
-    else:
-        c.execute("SELECT p.*, m.username as creator FROM proposals p JOIN members m ON p.created_by = m.id ORDER BY p.created_at DESC")
-
-    proposals = [dict(row) for row in c.fetchall()]
-
-    c.execute("SELECT COUNT(*) FROM proposals")
-    total_count = c.fetchone()[0]
-
-    c.execute("SELECT * FROM activity_log ORDER BY created_at ASC")
-    budget_history_asc = [dict(row) for row in c.fetchall()]
-
-    running = 0
-    for log in budget_history_asc:
-        running += log["amount"]
-        log["balance"] = running
-
-    budget_history = list(reversed(budget_history_asc))
-
-    current_budget = get_current_budget()
-    member_count = get_member_count()
-    thresholds = get_thresholds()
-
-    # Calculate actual vote requirements based on member count and percentage thresholds
-    basic_votes = max(1, int(member_count * (thresholds.get("basic", 2) / 100)))
-    standard_votes = max(1, int(member_count * (thresholds.get("default", 4) / 100)))
-    expensive_votes = max(1, int(member_count * (thresholds.get("over50", 8) / 100)))
-
-    c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'active'")
-    active_proposals_sum = c.fetchone()[0]
-    c.execute(
-        "SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'active' AND datetime(created_at) <= datetime(?)",
-        (old_cutoff,),
-    )
-    old_proposals_sum = c.fetchone()[0]
-    c.execute(
-        "SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'active' AND datetime(created_at) > datetime(?)",
-        (old_cutoff,),
-    )
-    recent_proposals_sum = c.fetchone()[0]
-    c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'over_budget'")
-    committed = c.fetchone()[0]
-    c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'approved' AND purchased_at IS NULL")
-    pending_purchase_sum = c.fetchone()[0]
-    c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE purchased_at IS NOT NULL")
-    purchased_sum = c.fetchone()[0]
-    c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'approved'")
-    approved_sum = c.fetchone()[0]
-    c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE basic_supplies = 1")
-    basic_sum = c.fetchone()[0]
-    c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE status = 'approved' AND basic_supplies = 0 AND amount <= 50")
-    standard_sum = c.fetchone()[0]
-    c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals WHERE amount > 50")
-    expensive_sum = c.fetchone()[0]
-    c.execute("SELECT COALESCE(SUM(amount), 0) FROM proposals")
-    all_sum = c.fetchone()[0]
-
-    for p in proposals:
-        created_at = datetime.fromisoformat(str(p["created_at"]).replace("Z", "+00:00"))
-        if created_at.tzinfo is None:
-            created_at = created_at.replace(tzinfo=timezone.utc)
-        p["age_days"] = max(0, (now - created_at.astimezone(timezone.utc)).days)
-        p["old_age_threshold"] = (p["age_days"] // 30) * 30 if p["status"] == "active" and p["age_days"] >= 30 else None
-        p["min_backers"] = calculate_min_backers(
-            member_count,
-            p["amount"],
-            p.get("basic_supplies"),
-            thresholds,
-        )
-        p["approve_count"], p["reject_count"] = get_vote_counts(c, p["id"])
-        p["net_votes"] = p["approve_count"] - p["reject_count"]
-        c.execute(
-            "SELECT vote FROM votes WHERE proposal_id = ? AND member_id = ?",
-            (p["id"], session["member_id"]),
-        )
-        user_vote = c.fetchone()
-        p["user_vote"] = user_vote["vote"] if user_vote else None
-
-    conn.close()
-
-    lang = session.get("lang", "en")
-
-    return render_template(
-        "proposals.html",
-        proposals=proposals,
-        filter=filter_type,
-        total_count=total_count,
-        current_budget=current_budget,
-        budget_history=budget_history,
-        member_count=member_count,
-        active_proposals_sum=active_proposals_sum,
-        old_proposals_sum=old_proposals_sum,
-        recent_proposals_sum=recent_proposals_sum,
-        approved_sum=approved_sum,
-        committed=committed,
-        pending_purchase_sum=pending_purchase_sum,
-        purchased_sum=purchased_sum,
-        basic_sum=basic_sum,
-        standard_sum=standard_sum,
-        expensive_sum=expensive_sum,
-        all_sum=all_sum,
-        thresholds=thresholds,
-        basic_votes=basic_votes,
-        standard_votes=standard_votes,
-        expensive_votes=expensive_votes,
-        session_lang=lang,
-        is_web_proposal_vote_enabled=is_web_proposal_voting_enabled(),
-        proposal_vote_mode=get_proposal_vote_mode(),
-    )
+    return proposals_impl()
 
 
 @app.route("/admin/backups/<backup_type>/<filename>")
