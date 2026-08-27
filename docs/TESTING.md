@@ -77,6 +77,21 @@ Covers admin backup/operator reliability regressions:
   - image backup create/failure
 - server-side admin tab propagation in POST-rendered admin responses
 
+Automatic (non-admin-triggered) backups emit the same kind of structured events under
+distinct event names, covered separately:
+
+```bash
+pytest -q tests/test_backup_service.py tests/test_app_startup.py
+```
+
+- `tests/test_backup_service.py::TestScheduledBackupJob` — the daily APScheduler jobs
+  emit `scheduled_backup_created`/`scheduled_backup_failed` (with `pruned_count`/`error`)
+  for both the DB and uploads backups, and `start_scheduler` wires both jobs correctly.
+- `tests/test_app_startup.py::TestCheckAutoBackupAuditEvents` — the startup auto-backup
+  check emits `startup_backup_created`/`startup_backup_failed`, attributes a failure to
+  the right `backup_type` (`db` vs `images`), and only writes the `.last_backup` marker
+  on full success.
+
 ## MCP-focused checks
 
 ```bash

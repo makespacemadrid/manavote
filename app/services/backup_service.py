@@ -53,6 +53,40 @@ def backup_uploads(upload_dir, keep_days=7, backup_root=BACKUP_ROOT):
     return backup_name, count
 
 
+def _scheduled_backup_job(app, backup_type, backup_fn, *args):
+    """Run a scheduled backup and emit a structured lifecycle event.
+
+    APScheduler's own executor only logs uncaught exceptions to the generic
+    logger, so this wrapper guarantees every scheduled run leaves a
+    structured `scheduled_backup_created`/`scheduled_backup_failed` event
+    even when the backup itself raises.
+    """
+    from app.web.routes.helpers.admin_audit_helpers import log_admin_backup_event
+
+    try:
+        backup_name, pruned_count = backup_fn(*args, keep_days=7)
+    except Exception as exc:
+        log_admin_backup_event(
+            app.logger,
+            event="scheduled_backup_failed",
+            actor_id=None,
+            backup_type=backup_type,
+            reason_code="backup_exception",
+            status="failed",
+            error=str(exc),
+        )
+        return
+    log_admin_backup_event(
+        app.logger,
+        event="scheduled_backup_created",
+        actor_id=None,
+        backup_type=backup_type,
+        file_name=backup_name,
+        status="ok",
+        pruned_count=pruned_count,
+    )
+
+
 def start_scheduler(app, db_path, upload_dir=None):
     try:
         from apscheduler.schedulers.background import BackgroundScheduler
@@ -66,19 +100,19 @@ def start_scheduler(app, db_path, upload_dir=None):
 
     scheduler = BackgroundScheduler()
     scheduler.add_job(
-        backup_db,
+        _scheduled_backup_job,
         "interval",
         hours=24,
-        args=[db_path, 7],
+        args=[app, "db", backup_db, db_path],
         id="daily_backup",
         replace_existing=True,
     )
     if upload_dir:
         scheduler.add_job(
-            backup_uploads,
+            _scheduled_backup_job,
             "interval",
             hours=24,
-            args=[upload_dir, 7],
+            args=[app, "images", backup_uploads, upload_dir],
             id="daily_uploads_backup",
             replace_existing=True,
         )

@@ -91,6 +91,12 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
   `TELEGRAM_THREAD_ID` topic behaves as an always-on assistant conversation, with replies
   correctly threaded back via `message_thread_id`/`reply_parameters`.
 - ✅ Normalized Telegram's group-only `/confirm@botname` and `/cancel@botname` syntax.
+- ✅ Extended backup lifecycle audit events beyond admin-triggered backups: the daily
+  APScheduler jobs and the startup auto-backup check now emit the same structured
+  `*_backup_created`/`*_backup_failed` events (`scheduled_backup_*`, `startup_backup_*`)
+  with `pruned_count`/`error` metadata, so routine automatic backups are no longer
+  silent. Regression coverage added in `tests/test_backup_service.py` and
+  `tests/test_app_startup.py`.
 
 Remaining Telegram-assistant hardening (multi-worker/restart-safe conversation history and
 queue state, an end-to-end webhook contract test, public MCP application boundary,
@@ -103,8 +109,11 @@ as forward-looking backlog in [`IDEAS.md`](IDEAS.md) rather than duplicated here
    - Keep shim layer intentionally thin and measurable.
 
 2. **Admin reliability observability**
-   - Expand backup-audit coverage from download events to lifecycle events (`created`, `pruned`, `failed`) with reason codes.
-   - Add Telegram link lifecycle metadata exposure and operational diagnostics.
+   - Backup-audit coverage now spans download, admin-triggered, scheduled, and
+     startup-check lifecycle events (`created`/`failed` with `pruned_count`/reason
+     codes) — see Delivered above.
+   - Remaining: add Telegram link lifecycle metadata exposure (`last_linked_at`,
+     `last_unlinked_at`) and operational diagnostics (`IDEAS.md` item 5).
 
 3. **REST/MCP contract parity pass**
    - Add additional parity tests for shared business-rule boundaries.
