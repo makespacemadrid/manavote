@@ -43,11 +43,12 @@ See [`docs/QUICKSTART.md`](docs/QUICKSTART.md) for Docker/local setup, bootstrap
 
 - App/runtime architecture and module map: [`docs/SPEC.md`](docs/SPEC.md)
 - Startup health, reason codes, and production diagnostics: [`docs/OPERATIONS.md`](docs/OPERATIONS.md)
+- Architecture diagrams (process, request/webhook flows, confirm state machine, data model): [`docs/DIAGRAMS.md`](docs/DIAGRAMS.md)
 
 ## Documentation
 
 - Main docs index: [`docs/INDEX.md`](docs/INDEX.md)
-- Direct links: [`docs/QUICKSTART.md`](docs/QUICKSTART.md), [`docs/APIDOC.md`](docs/APIDOC.md), [`docs/SPEC.md`](docs/SPEC.md), [`docs/OPERATIONS.md`](docs/OPERATIONS.md), [`docs/TESTING.md`](docs/TESTING.md)
+- Direct links: [`docs/QUICKSTART.md`](docs/QUICKSTART.md), [`docs/APIDOC.md`](docs/APIDOC.md), [`docs/SPEC.md`](docs/SPEC.md), [`docs/OPERATIONS.md`](docs/OPERATIONS.md), [`docs/TESTING.md`](docs/TESTING.md), [`docs/DIAGRAMS.md`](docs/DIAGRAMS.md)
 
 ## Acknowledgements
 
