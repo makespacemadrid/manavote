@@ -117,17 +117,23 @@ def _telegram_entity_text(text: str, offset, length) -> str:
     return encoded[start * 2 : (start + size) * 2].decode("utf-16-le", errors="ignore")
 
 
-def is_natural_language_message(message_ctx, bot_username: str = "") -> bool:
-    """Return whether natural chat should handle this private or addressed group message."""
+def classify_message_addressing(message_ctx, bot_username: str = "") -> str:
+    """Classify why (or whether) this message is addressed to the assistant.
+
+    Returns one of ``private``, ``reply_to_bot``, ``mentioned``, or ``unaddressed``.
+    Deliberately does not consider forum-topic routing -- a configured assistant forum
+    topic overrides ``unaddressed`` at the call site (see ``is_configured_forum_topic``),
+    since that's a routing decision distinct from how this single message is addressed.
+    """
     if message_ctx.get("chat_type") in {None, "", "private"}:
-        return True
+        return "private"
     text = message_ctx.get("text") or ""
     normalized_username = bot_username.lstrip("@").casefold()
     expected_mention = f"@{normalized_username}" if normalized_username else ""
     if message_ctx.get("reply_to_bot"):
         reply_username = str(message_ctx.get("reply_to_bot_username") or "").lstrip("@").casefold()
         if not normalized_username or reply_username == normalized_username:
-            return True
+            return "reply_to_bot"
 
     for entity in message_ctx.get("entities") or []:
         if entity.get("type") not in {"mention", "bot_command"}:
@@ -136,8 +142,13 @@ def is_natural_language_message(message_ctx, bot_username: str = "") -> bool:
         # With Telegram privacy mode, an otherwise unidentified mention delivered
         # to the bot is addressed to it. A configured username permits an exact check.
         if not expected_mention or expected_mention in value.casefold():
-            return True
-    return False
+            return "mentioned"
+    return "unaddressed"
+
+
+def is_natural_language_message(message_ctx, bot_username: str = "") -> bool:
+    """Return whether natural chat should handle this private or addressed group message."""
+    return classify_message_addressing(message_ctx, bot_username) != "unaddressed"
 
 
 def is_configured_forum_topic(

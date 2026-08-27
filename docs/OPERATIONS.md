@@ -133,6 +133,24 @@ channel-disabled check fires before either is resolved (the check runs before an
 poll/member lookup on some paths) — the record is still useful in aggregate ("N vote
 attempts blocked by policy") even without full identity.
 
+## Forum-topic and mention routing decisions
+
+Group/supergroup messages that aren't a deterministic command (`/link`, `/vote`, etc.)
+log a `telegram_routing_decision` record explaining why the assistant did or didn't pick
+the message up — the "why did the bot stay silent (or respond) here" case. Private chats
+are always trivially `private` and not logged; only group-chat addressing is ambiguous
+enough to be worth a record.
+
+| Reason code | Meaning |
+| --- | --- |
+| `reply_to_bot` | The message replies to the bot's own message. |
+| `mentioned` | The message contains an `@mention` (or, under Telegram privacy mode, an unidentified mention entity) matching the bot. |
+| `forum_topic` | The message is in the configured assistant forum topic (`TELEGRAM_CHAT_ID`/`TELEGRAM_THREAD_ID`), which overrides an otherwise-unaddressed message. |
+| `unaddressed` | None of the above; the assistant ignored the message. |
+
+`addressed=True/False` mirrors whether the message was actually routed to the assistant.
+`chat_id`/`chat_type` identify where the decision was made.
+
 ## MCP and OIDC failures
 
 MCP transport/application failures log

@@ -2,6 +2,7 @@ import sqlite3
 
 from app.integrations.telegram_webhook import (
     callback_vote_response_text,
+    classify_message_addressing,
     classify_message_command,
     dispatch_callback,
     dispatch_message,
@@ -134,6 +135,32 @@ def test_natural_language_group_address_uses_utf16_offsets_and_ignores_other_bot
 
     assert is_natural_language_message(mentioned, "ManaVoteBot") is True
     assert is_natural_language_message(other_bot_reply, "ManaVoteBot") is False
+
+
+def test_classify_message_addressing_reason_codes():
+    private_chat = {"chat_type": "private", "text": "hi"}
+    ordinary_group = {
+        "text": "hello team",
+        "chat_type": "supergroup",
+        "entities": [],
+        "reply_to_bot": False,
+    }
+    mentioned_group = {
+        **ordinary_group,
+        "text": "@ManaVoteBot what is our budget?",
+        "entities": [{"type": "mention", "offset": 0, "length": 12}],
+    }
+    reply_to_bot_group = {
+        **ordinary_group,
+        "reply_to_bot": True,
+        "reply_to_bot_username": "ManaVoteBot",
+    }
+
+    assert classify_message_addressing(private_chat, "ManaVoteBot") == "private"
+    assert classify_message_addressing({}, "ManaVoteBot") == "private"
+    assert classify_message_addressing(ordinary_group, "ManaVoteBot") == "unaddressed"
+    assert classify_message_addressing(mentioned_group, "ManaVoteBot") == "mentioned"
+    assert classify_message_addressing(reply_to_bot_group, "ManaVoteBot") == "reply_to_bot"
 
 
 def test_extract_message_context_detects_group_reply_and_topic():

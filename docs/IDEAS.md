@@ -413,6 +413,11 @@ natural-language/MCP audit above.
    - Once WS-D's structured logging lands, attach a reason code (`private`,
      `mentioned`, `reply_to_bot`, `forum_topic`, `unaddressed`) to each webhook
      decision.
+   - ✅ Closed 2026-08-27 (Sprint 6 Goal 3): `is_natural_language_message` split into
+     `classify_message_addressing()` returning the reason code directly; non-command
+     group/supergroup messages now log `telegram_routing_decision
+     reason_code=... chat_id=... chat_type=... addressed=...` in
+     `telegram_routes.py`. Documented in `docs/OPERATIONS.md`.
 
 ## Docs audit findings requiring a product decision (2026-08-26)
 

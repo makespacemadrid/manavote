@@ -15,16 +15,13 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
 
 ## Current implementation focus (Q3 2026)
 
-Sprints 4 and 5 are complete. Sprint 5 delivered the MCP extraction boundary, typed
+Sprints 4, 5, and 6 are complete. Sprint 5 delivered the MCP extraction boundary, typed
 exception/reason-code handling, structured Telegram background-job observability, and
-Telegram group-routing configuration diagnostics. Current focus is Sprint 6:
-
-1. Bring the Telegram assistant's mutation-confirmation flow up to the same
-   reason-coded-audit standard Sprint 5 already applied to backups, links, votes,
-   startup, MCP transport errors, and OIDC failures.
-2. Close the two remaining small, concrete Telegram-lifecycle observability gaps
-   (blocked-vote audit events; forum-topic/mention routing reason codes).
-3. Keep docs synchronized so `README.md` stays concise and `docs/*` remain canonical.
+Telegram group-routing configuration diagnostics. Sprint 6 brought the assistant's
+`/confirm` mutation flow up to the same reason-coded-audit standard, closed the
+blocked-vote-by-policy and forum-topic/mention-routing observability gaps, and left the
+public MCP application boundary (`IDEAS.md` item 4, P1) as the leading candidate for
+Sprint 7 — see that sprint's "Explicitly deferred" section for why it wasn't pulled in.
 
 ---
 
@@ -562,12 +559,34 @@ round out the sprint since they're cheap to close now that the structured-loggin
      `link_required`-rejection case for proposal votes that had no coverage before).
      Documented the full reason-code table in `docs/OPERATIONS.md`. Full suite: 574
      passed, zero regressions.
-3. **Forum-topic/mention routing observability** — closes `IDEAS.md`'s forum-topic audit
-   item 2 (P2). Attach a reason code (`private`, `mentioned`, `reply_to_bot`,
-   `forum_topic`, `unaddressed`) to each webhook routing decision in
-   `telegram_routes.py`, using the same `_log_assistant_job`-style structured logging
-   Sprint 5 already built, so a misrouted or unexpectedly silent group message is
-   diagnosable without reading source code.
+3. **Forum-topic/mention routing observability** — ✅ closed 2026-08-27. Closes
+   `IDEAS.md`'s forum-topic audit item 2 (P2).
+   - `app/integrations/telegram_webhook.py`'s `is_natural_language_message` (a bare
+     `bool`) was split into a new `classify_message_addressing(message_ctx,
+     bot_username="")` returning a reason code (`private`, `reply_to_bot`, `mentioned`,
+     `unaddressed`); `is_natural_language_message` is now a one-line wrapper
+     (`!= "unaddressed"`) so every existing caller/test keeps its boolean contract
+     unchanged.
+   - `telegram_routes.py`'s routing block now computes `addressing_reason` up front,
+     applies the existing forum-topic override (promoting an otherwise-`unaddressed`
+     message to `forum_topic` when it's in the configured `TELEGRAM_CHAT_ID`/
+     `TELEGRAM_THREAD_ID`), and logs a `telegram_routing_decision
+     reason_code=... chat_id=... chat_type=... addressed=...` record. Deliberately
+     scoped to non-command group/supergroup messages only — private-chat addressing is
+     always trivially `private` and not diagnostically interesting, and deterministic
+     commands (`/link`, `/vote`, etc.) don't go through this ambiguity at all.
+   - Gating condition simplified from the old `is_natural_language_message(...) or
+     is_configured_forum_topic(...)` OR-expression to `addressing_reason !=
+     "unaddressed"` — same behavior, one source of truth instead of two functions
+     evaluated separately.
+   - Documented the full reason-code table in `docs/OPERATIONS.md`. 1 new test
+     (`test_classify_message_addressing_reason_codes`,
+     `tests/unit/test_telegram_webhook_helpers.py`) asserting all four reason codes
+     directly, plus the existing `is_natural_language_message`/forum-topic tests
+     re-run unchanged to confirm the refactor is behavior-preserving. Full suite: 575
+     passed, zero regressions.
+
+**Sprint 6 status: all three goals closed 2026-08-27.**
 
 ### Explicitly deferred (with reasoning, not just left off)
 - **Public MCP application boundary (`IDEAS.md` item 4, P1)** — real architectural value
