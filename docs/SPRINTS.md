@@ -500,17 +500,33 @@ round out the sprint since they're cheap to close now that the structured-loggin
 (reason codes, correlation IDs) is well established everywhere else.
 
 ### Goals
-1. **Confirmation integrity and auditability** — closes `IDEAS.md`'s item 7 (P1).
-   - Add a schema version to the tool definitions `PendingAction` captures at propose
-     time, and revalidate it at confirm time (a tool's argument shape can change between
-     proposal and confirmation if the process restarts or the registry changes).
-   - Compute and store a digest of the arguments that will execute, and re-verify it at
-     confirm time so what's confirmed is provably what was proposed.
-   - Emit one reason-coded audit record per mutation lifecycle event: `proposed`,
-     `confirmed`, `cancelled`, `expired`, `rejected` (revalidation failure at confirm
-     time), and `failed`/`completed` (the underlying MCP call's outcome) — mirroring the
-     `telegram_assistant_job`/backup-audit event shape already used elsewhere, with
-     `actor_member_id`, `tool_name`, and the new digest for correlation.
+1. **Confirmation integrity and auditability** — ✅ closed 2026-08-27. Closes `IDEAS.md`'s
+   item 7 (P1).
+   - ✅ `PendingAction` now captures `schema_fingerprint` (a hash of the tool's current
+     `inputSchema` at propose time, via a new `_schema_fingerprint()`) and
+     `arguments_digest` (a hash of the arguments that will execute, via `_stable_digest()`).
+     `/confirm` recomputes both and rejects (`schema_changed`, `arguments_tampered`) on a
+     mismatch, so a confirmed mutation is provably the one that was proposed rather than a
+     stale or corrupted row executing against a contract that no longer matches. Both
+     fields are `None`-tolerant for backward compatibility with any pending action already
+     in flight from before this migration (the checks are skipped rather than treated as a
+     forced mismatch).
+   - ✅ New `telegram_pending_actions.schema_fingerprint`/`arguments_digest` columns via
+     `add_column_if_missing`, plus updated `CREATE TABLE` for fresh installs
+     (`app/db/migrations.py`, `app/db/schema.sql`).
+   - ✅ Every mutation lifecycle step now emits a `telegram_assistant_mutation` reason-coded
+     audit record via a new `_log_mutation_event()`: `proposed`, `confirmed`, `completed`,
+     `failed` (`mcp_error`), `cancelled` (`user_cancelled` or `reset_command`), `expired`
+     (`confirmation_ttl_exceeded`), and `rejected` (`not_admin`, `actor_changed`,
+     `arguments_tampered`, `schema_changed`). Deliberately a separate event stream from
+     `telegram_assistant_job` (job-level timing for every assistant request) rather than
+     folded into it, matching how backup and Telegram-link events already get their own
+     dedicated audit trail. Documented in `docs/OPERATIONS.md` with a full reason-code
+     table. 5 new tests in `tests/unit/test_telegram_agent.py` (schema-mismatch rejection,
+     digest-mismatch rejection, a matching-digest/fingerprint success case, full
+     propose→confirm→completed event-sequence assertion via `caplog`, and
+     cancel/reset both emitting `cancelled`). Full suite: 568 passed (563 + 5 new), zero
+     regressions.
 2. **Blocked-vote-by-policy audit events** — closes the remainder of `IDEAS.md`'s item 5
    (Observability completion for Telegram lifecycle, P2). A vote rejected by
    `proposal_vote_mode`/`poll_vote_mode`/`telegram_require_linked_vote` currently has no

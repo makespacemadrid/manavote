@@ -308,7 +308,7 @@ backpressure, Telegram transport, retry behavior, documentation, and focused tes
    - Let `/cancel` cancel queued/running model work as well as pending mutations where
      the HTTP client and executor can do so safely.
 
-7. **Confirmation integrity and auditability (P1)**
+7. **Fixed: confirmation integrity and auditability (P1)** — ✅ closed 2026-08-27.
    - Store an immutable/deep-copied action envelope with actor member ID, tool schema
      version, redacted display arguments, expiry, and a digest of execution arguments.
    - Revalidate linkage, administrator role, tool availability, and arguments at confirm
@@ -320,6 +320,27 @@ backpressure, Telegram transport, retry behavior, documentation, and focused tes
      already revalidates administrator role and actor-linkage drift. Tool-schema
      versioning, an execution-argument digest, and reason-coded audit records for
      proposed/cancelled/expired/rejected/failed/completed mutations remain open.
+   - Progress (2026-08-27, Sprint 6 Goal 1): closed all three remaining pieces.
+     `PendingAction` now carries `schema_fingerprint` (a hash of the tool's current
+     `inputSchema`, captured at propose time via a new
+     `telegram_agent._schema_fingerprint()`) and `arguments_digest` (a hash of the
+     arguments that will execute, via a new `telegram_agent._stable_digest()`). `/confirm`
+     recomputes both from the freshly-loaded pending row and rejects
+     (`arguments_tampered`, `schema_changed`) on a mismatch — so a confirmed mutation is
+     provably the one that was proposed, not a stale or corrupted row executing against a
+     contract that no longer matches what the member saw. Both fields tolerate `None` for
+     backward compatibility with any pending action already in flight before this
+     migration (`telegram_pending_actions` gained the two columns via
+     `add_column_if_missing`). Every lifecycle step — `proposed`, `confirmed`,
+     `completed`, `failed` (`mcp_error`), `cancelled` (`user_cancelled`/`reset_command`),
+     `expired` (`confirmation_ttl_exceeded`), `rejected`
+     (`not_admin`/`actor_changed`/`arguments_tampered`/`schema_changed`) — now emits a
+     `telegram_assistant_mutation` reason-coded audit record via a new
+     `_log_mutation_event()`, kept as its own event stream separate from
+     `telegram_assistant_job`'s general job telemetry, matching how backup and
+     Telegram-link events already get dedicated audit trails. Documented in full in
+     `docs/OPERATIONS.md`. 5 new tests in `tests/unit/test_telegram_agent.py`. Full suite:
+     568 passed, zero regressions.
 
 8. **Conversation quality and operator controls (P2)**
    - Add explicit token budgeting and model-context truncation rather than message-count

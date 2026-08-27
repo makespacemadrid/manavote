@@ -21,9 +21,13 @@ def run_migrations(cursor):
         arguments_json TEXT NOT NULL,
         actor_member_id INTEGER,
         created_at REAL NOT NULL,
+        schema_fingerprint TEXT,
+        arguments_digest TEXT,
         PRIMARY KEY (chat_id, telegram_user_id)
     )
     """)
+    add_column_if_missing(cursor, "telegram_pending_actions", "schema_fingerprint TEXT")
+    add_column_if_missing(cursor, "telegram_pending_actions", "arguments_digest TEXT")
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS telegram_update_dedup (
         update_id INTEGER PRIMARY KEY,

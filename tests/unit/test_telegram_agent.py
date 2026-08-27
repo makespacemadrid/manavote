@@ -104,6 +104,7 @@ def test_pending_actions_survive_worker_instances_and_are_consumed_atomically(tm
             chat_id INTEGER NOT NULL, telegram_user_id INTEGER NOT NULL,
             tool_name TEXT NOT NULL, arguments_json TEXT NOT NULL,
             actor_member_id INTEGER, created_at REAL NOT NULL,
+            schema_fingerprint TEXT, arguments_digest TEXT,
             PRIMARY KEY (chat_id, telegram_user_id)
         )
         """
@@ -440,6 +441,122 @@ def test_pending_action_confirmation_expires(monkeypatch):
     assert "expired" in reply.lower()
     with telegram_agent._state_lock:
         assert key not in telegram_agent._pending_actions
+
+
+def test_confirm_rejects_tampered_arguments_digest(monkeypatch):
+    monkeypatch.setenv("OCABRA_CHAT_URL", "https://ocabra.example/v1/chat/completions")
+    key = telegram_agent._conversation_key(82, 8)
+    with telegram_agent._state_lock:
+        telegram_agent._pending_actions[key] = telegram_agent.PendingAction(
+            "create_poll", {"question": "Choose?"}, arguments_digest="not-the-real-digest"
+        )
+    monkeypatch.setattr(
+        telegram_agent,
+        "_call_mcp",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("tampered action ran")),
+    )
+
+    reply = telegram_agent.answer(82, "/confirm", telegram_user_id=8, is_admin=True)
+
+    assert "changed unexpectedly" in reply.lower()
+    with telegram_agent._state_lock:
+        assert key not in telegram_agent._pending_actions
+
+
+def test_confirm_rejects_changed_tool_schema(monkeypatch):
+    monkeypatch.setenv("OCABRA_CHAT_URL", "https://ocabra.example/v1/chat/completions")
+    key = telegram_agent._conversation_key(83, 8)
+    with telegram_agent._state_lock:
+        telegram_agent._pending_actions[key] = telegram_agent.PendingAction(
+            "create_poll", {}, schema_fingerprint="stale-fingerprint-from-a-different-version"
+        )
+    monkeypatch.setattr(
+        telegram_agent,
+        "_call_mcp",
+        lambda *_args, **_kwargs: (_ for _ in ()).throw(AssertionError("stale-schema action ran")),
+    )
+
+    reply = telegram_agent.answer(83, "/confirm", telegram_user_id=8, is_admin=True)
+
+    assert "no longer available" in reply.lower()
+
+
+def test_confirm_accepts_matching_digest_and_schema(monkeypatch):
+    monkeypatch.setenv("OCABRA_CHAT_URL", "https://ocabra.example/v1/chat/completions")
+    key = telegram_agent._conversation_key(84, 8)
+    arguments = {"question": "Choose?", "options": ["A", "B"], "created_by": 1}
+    with telegram_agent._state_lock:
+        telegram_agent._pending_actions[key] = telegram_agent.PendingAction(
+            "create_poll",
+            arguments,
+            schema_fingerprint=telegram_agent._schema_fingerprint("create_poll"),
+            arguments_digest=telegram_agent._stable_digest(arguments),
+        )
+    monkeypatch.setattr(telegram_agent, "_call_mcp", lambda *_args, **_kwargs: '{"poll_id": 5}')
+
+    reply = telegram_agent.answer(84, "/confirm", telegram_user_id=8, is_admin=True)
+
+    assert "completed" in reply.lower()
+
+
+def test_mutation_lifecycle_emits_reason_coded_audit_events(monkeypatch, caplog):
+    response = FakeResponse(
+        {
+            "role": "assistant",
+            "content": None,
+            "tool_calls": [
+                {
+                    "id": "create-1",
+                    "type": "function",
+                    "function": {
+                        "name": "create_poll",
+                        "arguments": '{"question":"Choose?","options":["A","B"]}',
+                    },
+                }
+            ],
+        }
+    )
+    monkeypatch.setenv("OCABRA_CHAT_URL", "https://ocabra.example/v1/chat/completions")
+    monkeypatch.setattr(telegram_agent.requests, "post", lambda *_a, **_kw: response)
+    monkeypatch.setattr(telegram_agent, "_call_mcp", lambda *_args, **_kwargs: '{"poll_id": 9}')
+
+    with caplog.at_level("INFO", logger="app.integrations.telegram_agent"):
+        telegram_agent.answer(85, "Create a poll", telegram_user_id=8, actor_member_id=1, is_admin=True)
+        telegram_agent.answer(85, "/confirm", telegram_user_id=8, actor_member_id=1, is_admin=True)
+
+    events = [
+        json.loads(record.message.split("telegram_assistant_mutation ", 1)[1])
+        for record in caplog.records
+        if record.message.startswith("telegram_assistant_mutation ")
+    ]
+    assert [event["event"] for event in events] == ["proposed", "confirmed", "completed"]
+    assert all(event["tool_name"] == "create_poll" for event in events)
+    assert events[0]["reason_code"] == "ok"
+    assert events[-1]["reason_code"] == "ok"
+
+
+def test_cancel_and_reset_emit_cancelled_audit_events(monkeypatch, caplog):
+    monkeypatch.setenv("OCABRA_CHAT_URL", "https://ocabra.example/v1/chat/completions")
+    key = telegram_agent._conversation_key(86, 8)
+    with telegram_agent._state_lock:
+        telegram_agent._pending_actions[key] = telegram_agent.PendingAction("create_poll", {})
+
+    with caplog.at_level("INFO", logger="app.integrations.telegram_agent"):
+        telegram_agent.answer(86, "/cancel", telegram_user_id=8, is_admin=True)
+
+    with telegram_agent._state_lock:
+        telegram_agent._pending_actions[key] = telegram_agent.PendingAction("create_poll", {})
+    with caplog.at_level("INFO", logger="app.integrations.telegram_agent"):
+        telegram_agent.reset(86, 8)
+
+    events = [
+        json.loads(record.message.split("telegram_assistant_mutation ", 1)[1])
+        for record in caplog.records
+        if record.message.startswith("telegram_assistant_mutation ")
+    ]
+    reason_codes = [event["reason_code"] for event in events if event["event"] == "cancelled"]
+    assert "user_cancelled" in reason_codes
+    assert "reset_command" in reason_codes
 
 
 def test_array_tool_arguments_are_rejected(monkeypatch):

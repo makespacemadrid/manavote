@@ -80,6 +80,38 @@ Completion/rejection reason codes:
 Prompts, model replies, tool arguments, API keys, and tokens are deliberately absent
 from these job records. `tool_name` is logged, but tool arguments are not.
 
+## Telegram assistant mutations
+
+`/confirm`-reachable mutations (`create_proposal`, `create_poll`,
+`update_voting_settings`) emit a separate `telegram_assistant_mutation` record for each
+step of the propose/confirm lifecycle — a dedicated audit trail, distinct from the
+general-purpose `telegram_assistant_job` records above, findable the same way backup and
+Telegram-link events already are. Correlate records for one action with `tool_name`,
+`actor_member_id`, and `arguments_digest` (a stable hash of the tool arguments, not the
+arguments themselves — arguments are never logged).
+
+Typical event sequence: `proposed` → `confirmed` → `completed` (or `failed`), or
+`proposed` → one of `cancelled`/`expired`/`rejected` if confirmation never completes.
+
+| Event | Reason code | Meaning |
+| --- | --- | --- |
+| `proposed` | `ok` | A mutating tool call was intercepted and stored pending `/confirm`. |
+| `confirmed` | `ok` | Confirmation passed every revalidation check; the MCP call is about to run. |
+| `completed` | `ok` | The confirmed MCP call succeeded. |
+| `failed` | `mcp_error` | The confirmed MCP call returned an error. |
+| `cancelled` | `user_cancelled` | The member issued `/cancel`. |
+| `cancelled` | `reset_command` | `/reset` discarded a pending action along with conversation history. |
+| `expired` | `confirmation_ttl_exceeded` | `/confirm` arrived after `TELEGRAM_CONFIRM_TTL_SECONDS`. |
+| `rejected` | `not_admin` | The confirming user is not a linked administrator. |
+| `rejected` | `actor_changed` | The linked member changed between propose and confirm. |
+| `rejected` | `arguments_tampered` | The stored arguments no longer match the digest captured at propose time. |
+| `rejected` | `schema_changed` | The tool's input schema (or the tool itself) changed since propose time — e.g. a process restart with an updated MCP tool registry. |
+
+The `arguments_tampered` and `schema_changed` checks exist so a confirmed mutation is
+provably the one that was proposed: a stale or corrupted pending row is rejected at
+confirm time instead of executing against a contract that no longer matches what the
+member saw.
+
 ## MCP and OIDC failures
 
 MCP transport/application failures log

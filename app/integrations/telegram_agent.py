@@ -7,7 +7,9 @@ https://github.com/luisriverag/ocabra_telegram
 from __future__ import annotations
 
 import copy
+import hashlib
 import json
+import logging
 import os
 import threading
 import time
@@ -18,6 +20,8 @@ from typing import Any, Callable
 import requests
 
 from app import mcp_server
+
+_logger = logging.getLogger(__name__)
 
 
 READ_ONLY_TOOLS = {
@@ -119,6 +123,12 @@ class PendingAction:
     arguments: dict[str, Any]
     actor_member_id: int | None = None
     created_at: float = field(default_factory=time.time)
+    # Captured at propose time so /confirm can detect the tool registry or the
+    # arguments changing underneath a pending action (a process restart picking up a
+    # new tool schema, or accidental corruption of the stored row). None for pending
+    # actions created before this field existed -- confirm-time checks skip a None.
+    schema_fingerprint: str | None = None
+    arguments_digest: str | None = None
 
 
 def configure_pending_action_store(connection_factory: Callable[[], Any] | None) -> None:
@@ -133,6 +143,8 @@ def _pending_from_row(row: Any) -> PendingAction:
         arguments=json.loads(row["arguments_json"]),
         actor_member_id=row["actor_member_id"],
         created_at=float(row["created_at"]),
+        schema_fingerprint=row["schema_fingerprint"],
+        arguments_digest=row["arguments_digest"],
     )
 
 
@@ -143,7 +155,8 @@ def _get_pending(key: ConversationKey) -> PendingAction | None:
     conn = _pending_connection_factory()
     try:
         row = conn.execute(
-            "SELECT tool_name, arguments_json, actor_member_id, created_at "
+            "SELECT tool_name, arguments_json, actor_member_id, created_at, "
+            "schema_fingerprint, arguments_digest "
             "FROM telegram_pending_actions WHERE chat_id = ? AND telegram_user_id = ?",
             key,
         ).fetchone()
@@ -162,15 +175,26 @@ def _put_pending(key: ConversationKey, action: PendingAction) -> None:
         conn.execute(
             """
             INSERT INTO telegram_pending_actions
-                (chat_id, telegram_user_id, tool_name, arguments_json, actor_member_id, created_at)
-            VALUES (?, ?, ?, ?, ?, ?)
+                (chat_id, telegram_user_id, tool_name, arguments_json, actor_member_id, created_at,
+                 schema_fingerprint, arguments_digest)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?)
             ON CONFLICT(chat_id, telegram_user_id) DO UPDATE SET
                 tool_name = excluded.tool_name,
                 arguments_json = excluded.arguments_json,
                 actor_member_id = excluded.actor_member_id,
-                created_at = excluded.created_at
+                created_at = excluded.created_at,
+                schema_fingerprint = excluded.schema_fingerprint,
+                arguments_digest = excluded.arguments_digest
             """,
-            (*key, action.tool_name, json.dumps(action.arguments), action.actor_member_id, action.created_at),
+            (
+                *key,
+                action.tool_name,
+                json.dumps(action.arguments),
+                action.actor_member_id,
+                action.created_at,
+                action.schema_fingerprint,
+                action.arguments_digest,
+            ),
         )
         conn.commit()
     finally:
@@ -185,7 +209,8 @@ def _pop_pending(key: ConversationKey) -> PendingAction | None:
     try:
         conn.execute("BEGIN IMMEDIATE")
         row = conn.execute(
-            "SELECT tool_name, arguments_json, actor_member_id, created_at "
+            "SELECT tool_name, arguments_json, actor_member_id, created_at, "
+            "schema_fingerprint, arguments_digest "
             "FROM telegram_pending_actions WHERE chat_id = ? AND telegram_user_id = ?",
             key,
         ).fetchone()
@@ -198,6 +223,54 @@ def _pop_pending(key: ConversationKey) -> PendingAction | None:
         return _pending_from_row(row) if row else None
     finally:
         conn.close()
+
+
+def _stable_digest(value: Any) -> str:
+    return hashlib.sha256(json.dumps(value, sort_keys=True).encode("utf-8")).hexdigest()
+
+
+def _schema_fingerprint(tool_name: str) -> str | None:
+    """Fingerprint of a tool's current input schema, or None if the tool no longer
+    exists. Lets /confirm detect the registry changing underneath a pending action
+    (e.g. a process restart picking up a different tool version)."""
+    definition = next(
+        (item for item in mcp_server._tool_definitions() if item["name"] == tool_name), None
+    )
+    return _stable_digest(definition["inputSchema"]) if definition is not None else None
+
+
+def _log_mutation_event(
+    event: str,
+    reason_code: str,
+    *,
+    tool_name: str,
+    actor_member_id: int | None,
+    chat_id: int | None = None,
+    telegram_user_id: int | None = None,
+    arguments_digest: str | None = None,
+) -> None:
+    """Reason-coded audit record for one step of a mutation's propose/confirm lifecycle.
+
+    Deliberately a separate event stream from telegram_routes.py's telegram_assistant_job
+    records (which cover job-level timing/retries for every assistant request, not just
+    mutations): a mutation's audit trail should be findable on its own, the way backup and
+    Telegram-link events already are, not mixed into general job telemetry.
+    """
+    _logger.info(
+        "telegram_assistant_mutation %s",
+        json.dumps(
+            {
+                "event": event,
+                "reason_code": reason_code,
+                "tool_name": tool_name,
+                "actor_member_id": actor_member_id,
+                "chat_id": chat_id,
+                "telegram_user_id": telegram_user_id,
+                "arguments_digest": arguments_digest,
+            },
+            sort_keys=True,
+        ),
+    )
 
 
 def is_configured() -> bool:
@@ -303,6 +376,14 @@ def _redact_arguments(value: Any) -> Any:
     return value
 
 
+def _mcp_result_failed(result: str) -> bool:
+    try:
+        payload = json.loads(result)
+    except (TypeError, json.JSONDecodeError):
+        return False
+    return isinstance(payload, dict) and bool(payload.get("error"))
+
+
 def _action_result_text(action: PendingAction, result: str) -> str:
     """Turn MCP JSON into a compact, Telegram-friendly completion message."""
     try:
@@ -350,23 +431,83 @@ def answer(
     normalized_text = _normalized_confirmation_command(text)
     if normalized_text in {"/cancel", "cancel"}:
         removed = _pop_pending(key)
-        return "✅ Pending action cancelled." if removed else "There is no pending action to cancel."
+        if removed is None:
+            return "There is no pending action to cancel."
+        _log_mutation_event(
+            "cancelled",
+            "user_cancelled",
+            tool_name=removed.tool_name,
+            actor_member_id=removed.actor_member_id,
+            chat_id=chat_id,
+            telegram_user_id=telegram_user_id,
+            arguments_digest=removed.arguments_digest,
+        )
+        return "✅ Pending action cancelled."
     if normalized_text in {"/confirm", "confirm"}:
         # Claim before validation/execution so two workers can never run the
         # same mutation and a concurrent replacement cannot pass stale checks.
         pending = _pop_pending(key)
         if not pending:
             return "There is no pending action to confirm."
+
+        def _reject(reason_code: str) -> None:
+            _log_mutation_event(
+                "rejected",
+                reason_code,
+                tool_name=pending.tool_name,
+                actor_member_id=pending.actor_member_id,
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                arguments_digest=pending.arguments_digest,
+            )
+
         confirmation_ttl = float(os.getenv("TELEGRAM_CONFIRM_TTL_SECONDS", "300"))
         if time.time() - pending.created_at > confirmation_ttl:
+            _log_mutation_event(
+                "expired",
+                "confirmation_ttl_exceeded",
+                tool_name=pending.tool_name,
+                actor_member_id=pending.actor_member_id,
+                chat_id=chat_id,
+                telegram_user_id=telegram_user_id,
+                arguments_digest=pending.arguments_digest,
+            )
             return "⌛ That pending action expired. Please request it again."
         if not is_admin:
+            _reject("not_admin")
             return "❌ Only a linked administrator can confirm that action."
         if pending.actor_member_id is not None and pending.actor_member_id != actor_member_id:
+            _reject("actor_changed")
             return "❌ The linked member changed. Please request that action again."
+        if pending.arguments_digest is not None and _stable_digest(pending.arguments) != pending.arguments_digest:
+            _reject("arguments_tampered")
+            return "❌ That action's arguments changed unexpectedly. Please request it again."
+        if pending.schema_fingerprint is not None and _schema_fingerprint(pending.tool_name) != pending.schema_fingerprint:
+            _reject("schema_changed")
+            return "❌ That action is no longer available in its original form. Please request it again."
+
+        _log_mutation_event(
+            "confirmed",
+            "ok",
+            tool_name=pending.tool_name,
+            actor_member_id=pending.actor_member_id,
+            chat_id=chat_id,
+            telegram_user_id=telegram_user_id,
+            arguments_digest=pending.arguments_digest,
+        )
         if on_event is not None:
             on_event("tool_call_received", {"tool_name": pending.tool_name})
         result = _call_mcp(pending.tool_name, pending.arguments, is_admin=True)
+        failed = _mcp_result_failed(result)
+        _log_mutation_event(
+            "failed" if failed else "completed",
+            "mcp_error" if failed else "ok",
+            tool_name=pending.tool_name,
+            actor_member_id=pending.actor_member_id,
+            chat_id=chat_id,
+            telegram_user_id=telegram_user_id,
+            arguments_digest=pending.arguments_digest,
+        )
         reply = _action_result_text(pending, result)
         if pending.tool_name == "create_proposal" and on_proposal_created is not None:
             try:
@@ -460,8 +601,23 @@ def answer(
                         )
                         continue
                     arguments["created_by"] = actor_member_id
-                action = PendingAction(function["name"], arguments, actor_member_id=actor_member_id)
+                action = PendingAction(
+                    function["name"],
+                    arguments,
+                    actor_member_id=actor_member_id,
+                    schema_fingerprint=_schema_fingerprint(function["name"]),
+                    arguments_digest=_stable_digest(arguments),
+                )
                 _put_pending(key, action)
+                _log_mutation_event(
+                    "proposed",
+                    "ok",
+                    tool_name=action.tool_name,
+                    actor_member_id=actor_member_id,
+                    chat_id=chat_id,
+                    telegram_user_id=telegram_user_id,
+                    arguments_digest=action.arguments_digest,
+                )
                 # Do not rely on the model to reproduce a safety prompt. Return
                 # the exact confirmation instructions immediately and avoid an
                 # unnecessary second model round.
@@ -478,4 +634,14 @@ def answer(
 def reset(chat_id: int, telegram_user_id: int | None = None) -> None:
     key = _conversation_key(chat_id, telegram_user_id)
     _clear_history(key)
-    _pop_pending(key)
+    removed = _pop_pending(key)
+    if removed is not None:
+        _log_mutation_event(
+            "cancelled",
+            "reset_command",
+            tool_name=removed.tool_name,
+            actor_member_id=removed.actor_member_id,
+            chat_id=chat_id,
+            telegram_user_id=telegram_user_id,
+            arguments_digest=removed.arguments_digest,
+        )
