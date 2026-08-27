@@ -292,6 +292,28 @@ a silent doc fix:
 - Route handlers call service entry points only.
 - Repositories own query composition and persistence concerns.
 - Critical domain operations gain direct service-level test coverage.
+- Progress (2026-08-27): extracted the poll/proposal vote-mode policy logic (7 functions —
+  `get_poll_vote_mode`, `is_web_poll_voting_enabled`, `is_telegram_poll_voting_enabled`,
+  `require_linked_telegram_for_votes`, `get_proposal_vote_mode`,
+  `is_web_proposal_voting_enabled`, `can_record_proposal_vote`) plus
+  `is_registration_enabled` into a new `app/services/voting_mode_service.py`. Each function
+  now takes `get_setting_value` as an explicit parameter instead of reaching for a module
+  global, so the policy is directly unit-testable without a DB or Flask context (6 new
+  tests in `tests/unit/test_services.py`, no mocking needed). `main_routes.py` keeps
+  one-line wrapper functions at the original names — every other blueprint module still
+  reaches these via `legacy.X` (per A1's alias pattern) and the ~15 existing tests that
+  `unittest.mock.patch("app.web.routes.main_routes.X", ...)` these names keep working
+  unchanged, since patching a module attribute doesn't care what it currently points to.
+  Verified with the full suite: 492 passed (486 + 6 new), same 4 pre-existing/environmental
+  failures, zero regressions. Remaining in `main_routes.py`'s shared helper layer: `get_db`
+  and its settings/budget read wrappers (already thin repository wrappers — see
+  `SettingsRepository`), the Telegram command processors (`process_telegram_vote_command`,
+  `process_telegram_proposal_vote_command`, `process_telegram_vote_callback`,
+  `process_telegram_link_command`), `record_proposal_vote`/`log_proposal_vote_event`, the
+  poll-close/results helpers (`close_expired_polls`, `build_poll_results_message`), and the
+  Telegram messaging/webhook-sync helpers (`send_telegram_message`, `sync_telegram_webhook*`)
+  — all still call through module globals so future slices should follow the same
+  parameter-injection pattern rather than importing `main_routes` internals directly.
 
 ---
 

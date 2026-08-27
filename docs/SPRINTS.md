@@ -130,8 +130,8 @@ limits, and confirmation audit records) is tracked as forward-looking backlog in
 [`IDEAS.md`](IDEAS.md) rather than duplicated here.
 
 ### Remaining work (execution checklist)
-1. **Route decomposition closure** — in progress (2026-08-27): `main_routes.py` cut from
-   2368 to 1069 lines (-54.9%).
+1. **Route decomposition closure** — close to done (2026-08-27): `main_routes.py` cut from
+   2368 to 873 lines (-63.1%).
    - Moved the entire `/admin` handler (627 lines: every member/budget/settings/poll/
      backup admin action, plus the dashboard's data-gathering tail) from `main_routes.admin()`
      into `admin_routes.py`'s blueprint view — it previously just delegated to
@@ -190,6 +190,23 @@ limits, and confirmation audit records) is tracked as forward-looking backlog in
      `proposals()`, and `telegram_webhook` all relocated, route decomposition itself is
      close to done; what's left in `main_routes.py` is almost entirely that shared
      helper layer plus small compatibility shims.
+
+1b. **Service/repository boundary (WS-A A2)** — started (2026-08-27): extracted the
+   poll/proposal vote-mode policy logic (`get_poll_vote_mode`,
+   `is_web_poll_voting_enabled`, `is_telegram_poll_voting_enabled`,
+   `require_linked_telegram_for_votes`, `get_proposal_vote_mode`,
+   `is_web_proposal_voting_enabled`, `can_record_proposal_vote`,
+   `is_registration_enabled`) into `app/services/voting_mode_service.py`. Each function
+   takes `get_setting_value` as an explicit parameter rather than reaching for a module
+   global, making the policy directly unit-testable without a DB or Flask context — see
+   the 6 new tests in `tests/unit/test_services.py`. `main_routes.py` keeps one-line
+   wrappers at the original names so every blueprint's existing `legacy.X` access and the
+   ~15 tests that patch `main_routes.X` for these names keep working unchanged. Full suite:
+   492 passed (486 + 6 new), same 4 pre-existing/environmental failures, zero regressions.
+   Full A2 scope (`get_db`/settings reads, Telegram command processors,
+   `record_proposal_vote`, poll-close/results helpers, Telegram messaging/webhook-sync
+   helpers — see `IDEAS.md` A2 for the complete remaining list) is unchanged and still
+   open; this is the first of several planned slices.
 
 2. **Admin reliability observability** — ✅ closed for this sprint's scope.
    - Backup-audit coverage now spans download, admin-triggered, scheduled, and

@@ -33,8 +33,7 @@ from app.services.auth_service import verify_and_migrate_password
 from app.services.budget_service import calculate_min_backers
 from app.services.proposal_service import ProposalService
 from app.web.routes.helpers.admin_audit_helpers import log_admin_backup_event, log_telegram_link_event
-from app.services.proposal_vote_service import can_record_proposal_vote_source, normalize_proposal_vote_mode
-from app.services.settings_service import get_enum_setting
+from app.services import voting_mode_service
 from app.services.telegram_link_service import process_link_command
 from app.web.app_setup import app, BASE_DIR, is_production
 from app.web.decorators import login_required, admin_required
@@ -406,47 +405,35 @@ def get_vote_counts(cursor, proposal_id):
 
 
 def is_registration_enabled():
-    value = get_setting_value("registration_enabled", "true")
-    return str(value).lower() == "true"
+    return voting_mode_service.is_registration_enabled(get_setting_value)
 
 
 def get_poll_vote_mode():
-    return get_enum_setting(
-        get_setting_value,
-        "poll_vote_mode",
-        "both",
-        {"both", "web_only", "telegram_only"},
-    )
+    return voting_mode_service.get_poll_vote_mode(get_setting_value)
 
 
 def is_web_poll_voting_enabled():
-    return get_poll_vote_mode() in {"both", "web_only"}
+    return voting_mode_service.is_web_poll_voting_enabled(get_setting_value)
 
 
 def is_telegram_poll_voting_enabled():
-    return get_poll_vote_mode() in {"both", "telegram_only"}
+    return voting_mode_service.is_telegram_poll_voting_enabled(get_setting_value)
 
 
 def require_linked_telegram_for_votes():
-    return str(get_setting_value("telegram_require_linked_vote", "false")).lower() == "true"
+    return voting_mode_service.require_linked_telegram_for_votes(get_setting_value)
 
 
 def get_proposal_vote_mode():
-    mode = get_enum_setting(
-        get_setting_value,
-        "proposal_vote_mode",
-        "both",
-        {"both", "web_only", "telegram_only"},
-    )
-    return normalize_proposal_vote_mode(mode)
+    return voting_mode_service.get_proposal_vote_mode(get_setting_value)
 
 
 def is_web_proposal_voting_enabled():
-    return get_proposal_vote_mode() in {"both", "web_only"}
+    return voting_mode_service.is_web_proposal_voting_enabled(get_setting_value)
 
 
 def can_record_proposal_vote(source: str) -> bool:
-    return can_record_proposal_vote_source(get_proposal_vote_mode(), source)
+    return voting_mode_service.can_record_proposal_vote(get_setting_value, source)
 
 
 def log_proposal_vote_event(
