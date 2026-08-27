@@ -781,6 +781,70 @@ graph.
 27. **The Proposals list has no client-side search or sort**, unlike Budget History
     further down the same page, despite being the higher-traffic list.
 
+## Member feedback / bug reports / suggestions (2026-08-27)
+
+New feature, scoped into Sprint 7 as Goal 4. Members currently have no in-app way to
+report a bug, request a feature, or leave general feedback — the only channels are
+whatever informal chat/DM exists outside the app, invisible to admins as a group and
+with no record. This closes that gap end-to-end: web, REST/MCP, and the Telegram
+assistant, with an admin-panel view to triage submissions.
+
+### Scope
+- **Schema** — new `feedback` table (`app/db/schema.sql` + `app/db/migrations.py`,
+  following the existing `add_column_if_missing`/fresh-`CREATE TABLE` pattern used for
+  every other table): `id`, `member_id` (nullable — Telegram-linked members always
+  resolve to one, but keep the column nullable rather than assuming every future
+  submission path will have an authenticated member), `source` (`web`/`telegram`),
+  `category` (`bug`/`suggestion`/`general`), `message`, `status`
+  (`new`/`reviewed`/`resolved`, default `new`), `created_at`, `resolved_at`,
+  `resolved_by` (member id of the admin who resolved it).
+- **Service** — `app/services/feedback_service.py` following the A2 service/repository
+  boundary pattern already established this session: plain functions taking `get_db`/
+  `logger` as explicit parameters (`submit_feedback`, `list_feedback`,
+  `update_feedback_status`), directly unit-testable without Flask. Emits a
+  reason-coded `event=feedback_submitted source=... category=...` /
+  `event=feedback_status_changed ...` log on each action, matching the
+  `log_poll_vote_event`/`log_proposal_vote_event` style already in place.
+- **REST API** (`app/web/routes/api_routes.py`) — `POST /api/feedback` (any
+  authenticated member; category + message body, source inferred as `web`);
+  `GET /api/feedback` (admin-only, paginated via the existing
+  `parse_pagination_params` helper, filterable by `status`/`category`, matching the
+  shape/error codes of the other list endpoints); `PATCH /api/feedback/<id>`
+  (admin-only, status transitions).
+- **MCP tool** — new `create_feedback` tool in `app/mcp_server.py`, so the Telegram
+  assistant can store feedback "when instructed" (e.g. a member tells the bot "I found
+  a bug: ..." or "please suggest to admins that ..."). **This is a deliberate first**:
+  every existing mutating MCP tool (`create_proposal`, `create_poll`, `create_member`,
+  `update_voting_settings`) is admin-only in `telegram_agent.py`'s `TELEGRAM_TOOLS`
+  split (`allowed = TELEGRAM_TOOLS if is_admin else READ_ONLY_TOOLS`) — there is
+  currently no precedent for a non-admin member invoking a mutating tool through the
+  assistant. `create_feedback` needs a new tool category (e.g.
+  `MEMBER_WRITABLE_TOOLS`) exposed to linked members regardless of `is_admin`, scoped
+  to inserting a feedback row attributed to the calling member's own `member_id` only
+  (never someone else's).
+  - **Open design decision, to resolve during implementation, not here**: should
+    `create_feedback` go through the existing `/confirm` mutation-integrity flow
+    (`MUTATING_TOOLS`)? Recommendation: no — unlike creating a public proposal/poll or
+    changing voting policy, submitting feedback is low-stakes, has no visible
+    side-effect on shared state, and is trivially correctable (submit again). Adding
+    confirmation friction to "hey bot, log a bug I just found" undermines the point of
+    a fast, no-ceremony feedback channel. Worth a second opinion before shipping, since
+    it's the first tool to deliberately skip a pattern otherwise applied uniformly.
+- **Admin panel** (`templates/admin.html`) — new "Feedback" section (following the
+  existing per-section pattern) listing submissions with category/status badges (reuse
+  `.status`/`status-*` classes rather than one-off inline colors — see the UX/UI audit
+  above for why that matters), filterable by status, with a mark
+  reviewed/resolved action per row.
+
+### Explicit non-goals for the first slice
+- No email/push notification to admins on new feedback — a "N new" badge in the admin
+  nav is enough for v1; notification channels can follow once there's evidence anyone
+  needs it (same scale-appropriate reasoning applied to WS-D and fair-use limits
+  elsewhere in this backlog).
+- No public/member-facing view of feedback status or replies — this is an admin
+  triage tool first, not a support-ticket system with two-way conversation.
+- No file/screenshot attachments on the first slice — text only.
+
 ## UX / UI Design Track (Forward)
 
 See "UX/UI audit (2026-08-27)" above for concrete, file/line-grounded findings backing

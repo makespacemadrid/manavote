@@ -627,7 +627,7 @@ round out the sprint since they're cheap to close now that the structured-loggin
 
 ---
 
-## Sprint 7 (Scoped 2026-08-27) — UX/UI: Button Layout, Placement & Budget Graph
+## Sprint 7 (Scoped 2026-08-27) — UX/UI: Button Layout, Placement, Budget Graph & Feedback
 
 ### Why this scope
 Sprints 3-6 focused entirely on backend hygiene: MCP/REST convergence, exception
@@ -638,10 +638,14 @@ repeatedly: a real shared system exists (`.card`/`.btn`/`.vote-btn`/`.status`) b
 routinely bypassed by one-off inline styles, so buttons drift in color, placement, and
 visual weight across pages that do conceptually the same thing (e.g. proposal voting
 vs. poll voting), and the budget graph — the app's single most important piece of
-data visualization — has never had a dedicated pass. Sprint 7 scopes three goals
-directly from that audit's P1/P2 findings, prioritizing the ones explicitly called out
-(button layout/placement, the budget graph) plus the safety-relevant confirmation-UX
-gaps that surfaced in the same read.
+data visualization — has never had a dedicated pass. Goals 1-3 scope directly from
+that audit's P1/P2 findings, prioritizing the ones explicitly called out (button
+layout/placement, the budget graph) plus the safety-relevant confirmation-UX gaps that
+surfaced in the same read. Goal 4 was added by explicit request: members currently
+have no in-app channel to report bugs or suggest ideas, visible to admins as a group;
+it's scoped end-to-end (schema, service, REST, MCP, admin panel) per `IDEAS.md`'s
+"Member feedback / bug reports / suggestions (2026-08-27)", so the Telegram assistant
+can store feedback the same way it already handles proposal/poll creation.
 
 ### Goals
 1. **Consistent, safe confirmation UX for destructive actions.** Closes audit items 3,
@@ -693,6 +697,29 @@ gaps that surfaced in the same read.
    - Give each poll option's result bar a distinct color instead of the same gradient
      for every option.
    - Add thousands separators to currency formatting app-wide.
+4. **Member feedback / bug reports / suggestions.** New feature (not from the UX audit),
+   scoped per `IDEAS.md`'s "Member feedback / bug reports / suggestions (2026-08-27)".
+   - New `feedback` table (`member_id`, `source`, `category`, `message`, `status`,
+     `created_at`, `resolved_at`, `resolved_by`) via the standard migration pattern.
+   - `app/services/feedback_service.py` (submit/list/update-status), reason-coded
+     `event=feedback_submitted`/`event=feedback_status_changed` logging matching the
+     established style.
+   - REST: `POST /api/feedback` (any member), `GET /api/feedback` (admin, paginated,
+     filterable), `PATCH /api/feedback/<id>` (admin, status transitions).
+   - MCP: new `create_feedback` tool so the Telegram assistant can store feedback when
+     a member asks it to. First member-writable (non-admin-only) mutating tool in the
+     MCP surface — needs a new `MEMBER_WRITABLE_TOOLS` category in
+     `telegram_agent.py` distinct from the existing admin-only `MUTATING_TOOLS`, scoped
+     so a member can only attribute feedback to their own `member_id`. Whether it
+     should go through the existing `/confirm` flow is an open call to make during
+     implementation (leaning no — see `IDEAS.md` for reasoning); flag for a second
+     opinion since it would be the first mutating tool to deliberately skip that
+     pattern.
+   - Admin panel: new "Feedback" section in `admin.html` listing submissions with
+     status/category badges (reusing `.status`/`status-*` classes, not one-off inline
+     colors) and a mark-reviewed/resolved action.
+   - First slice explicitly excludes admin notifications, a member-facing status view,
+     and attachments — see `IDEAS.md` for the full non-goals list.
 
 ### Explicitly deferred (with reasoning, not just left off)
 - **Public MCP application boundary (`IDEAS.md` item 4, P1)** — real architectural value,
@@ -725,5 +752,9 @@ gaps that surfaced in the same read.
 - The budget chart doesn't depend on a public CDN at render time, offers a date-range
   control, and the page restates the current balance without requiring the chart to be
   read.
+- A member can submit feedback from the web app and from the Telegram assistant; every
+  submission is visible and triageable (status + category) from the admin panel; REST
+  and MCP stay convergent on the same `feedback_service` rather than duplicating
+  validation.
 
 **Status:** ⚪ Scoped, not started.
