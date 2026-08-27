@@ -16,13 +16,14 @@ from typing import Any
 from werkzeug.security import generate_password_hash
 
 from app.domain.enums import ProposalStatus
+from app.services import pagination_service, voting_settings_service
 from app.services.telegram_link_diagnostics import LINKED_CONDITION_SQL, link_state_case_sql
 from app.services.user_statistics import user_statistics_query, user_statistics_rows, user_statistics_total_query
+from app.services.voting_settings_service import VALID_VOTE_MODES
 
 DB_PATH = os.getenv("APP_DB_PATH", os.path.join(os.path.dirname(os.path.dirname(__file__)), "app.db"))
 MCP_API_KEY = os.getenv("MCP_API_KEY", "")
 VALID_PROPOSAL_STATUSES = {status.value for status in ProposalStatus}
-VALID_VOTE_MODES = {"both", "web_only", "telegram_only"}
 VALID_GROUP_PURCHASE_STATUSES = {"open", "ordered", "received"}
 TOOL_ALIASES = {"crreate_proposal": "create_proposal"}
 
@@ -133,6 +134,20 @@ def _pagination_properties(maximum: int) -> dict[str, Any]:
         "limit": {"type": "integer", "minimum": 1, "maximum": maximum},
         "offset": {"type": "integer", "minimum": 0},
     }
+
+
+def _paginate(
+    req_id: Any, arguments: dict[str, Any], default_limit: int, max_limit: int
+) -> tuple[int | None, int | None, dict[str, Any] | None]:
+    """Shared with the REST transport via app.services.pagination_service so limit/offset
+    validation can't silently drift between the two -- see that module's docstring."""
+    limit, offset, reason_code = pagination_service.parse_limit_offset(
+        arguments.get("limit"), arguments.get("offset"), default_limit, max_limit
+    )
+    if reason_code is None:
+        return limit, offset, None
+    message = pagination_service.REASON_MESSAGES[reason_code].format(max_limit=max_limit)
+    return None, None, _error(req_id, -32602, f"Invalid params: {message}")
 
 
 def _tool_definitions() -> list[dict[str, Any]]:
@@ -358,15 +373,9 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
                 return _error(req_id, -32602, "Invalid params: age must be recent or old")
             if age and status and status != "active":
                 return _error(req_id, -32602, "Invalid params: age can only be combined with status=active")
-            try:
-                limit = int(arguments["limit"]) if "limit" in arguments else 20
-                offset = int(arguments["offset"]) if "offset" in arguments else 0
-            except (TypeError, ValueError):
-                return _error(req_id, -32602, "Invalid params: limit/offset must be integers")
-            if limit < 1 or limit > 200:
-                return _error(req_id, -32602, "Invalid params: limit must be between 1 and 200")
-            if offset < 0:
-                return _error(req_id, -32602, "Invalid params: offset must be >= 0")
+            limit, offset, pagination_error = _paginate(req_id, arguments, default_limit=20, max_limit=200)
+            if pagination_error:
+                return pagination_error
             query = (
                 "SELECT p.id,p.title,p.description,p.amount,p.status,p.created_at,p.created_by,m.username "
                 "FROM proposals p JOIN members m ON m.id = p.created_by"
@@ -399,15 +408,9 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
                 return _error(req_id, -32602, "Invalid params: poll status must be open or closed")
             if "username" in arguments and not username:
                 return _error(req_id, -32602, "Invalid params: username must not be empty")
-            try:
-                limit = int(arguments["limit"]) if "limit" in arguments else 20
-                offset = int(arguments["offset"]) if "offset" in arguments else 0
-            except (TypeError, ValueError):
-                return _error(req_id, -32602, "Invalid params: limit/offset must be integers")
-            if limit < 1 or limit > 200:
-                return _error(req_id, -32602, "Invalid params: limit must be between 1 and 200")
-            if offset < 0:
-                return _error(req_id, -32602, "Invalid params: offset must be >= 0")
+            limit, offset, pagination_error = _paginate(req_id, arguments, default_limit=20, max_limit=200)
+            if pagination_error:
+                return pagination_error
             conditions: list[str] = []
             query_params: list[Any] = []
             if status:
@@ -473,15 +476,9 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
                 return _error(req_id, -32602, "Invalid params: unknown sort_by value")
             if sort_direction not in {"asc", "desc"}:
                 return _error(req_id, -32602, "Invalid params: sort_direction must be asc or desc")
-            try:
-                limit = int(arguments["limit"]) if "limit" in arguments else 100
-                offset = int(arguments["offset"]) if "offset" in arguments else 0
-            except (TypeError, ValueError):
-                return _error(req_id, -32602, "Invalid params: limit/offset must be integers")
-            if limit < 1 or limit > 500:
-                return _error(req_id, -32602, "Invalid params: limit must be between 1 and 500")
-            if offset < 0:
-                return _error(req_id, -32602, "Invalid params: offset must be >= 0")
+            limit, offset, pagination_error = _paginate(req_id, arguments, default_limit=100, max_limit=500)
+            if pagination_error:
+                return pagination_error
 
             query, query_params = user_statistics_query(
                 limit,
@@ -514,15 +511,9 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
                 return _error(req_id, -32602, "Invalid params: unknown group purchase status")
             if "username" in arguments and not username:
                 return _error(req_id, -32602, "Invalid params: username must not be empty")
-            try:
-                limit = int(arguments["limit"]) if "limit" in arguments else 20
-                offset = int(arguments["offset"]) if "offset" in arguments else 0
-            except (TypeError, ValueError):
-                return _error(req_id, -32602, "Invalid params: limit/offset must be integers")
-            if limit < 1 or limit > 200:
-                return _error(req_id, -32602, "Invalid params: limit must be between 1 and 200")
-            if offset < 0:
-                return _error(req_id, -32602, "Invalid params: offset must be >= 0")
+            limit, offset, pagination_error = _paginate(req_id, arguments, default_limit=20, max_limit=200)
+            if pagination_error:
+                return pagination_error
             conditions: list[str] = []
             query_params: list[Any] = []
             if status:
@@ -603,15 +594,9 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
             include_unlinked = _as_bool_or_none(arguments.get("include_unlinked", False))
             if include_unlinked is None:
                 return _error(req_id, -32602, "Invalid params: include_unlinked must be boolean")
-            try:
-                limit = int(arguments["limit"]) if "limit" in arguments else 200
-                offset = int(arguments["offset"]) if "offset" in arguments else 0
-            except (TypeError, ValueError):
-                return _error(req_id, -32602, "Invalid params: limit/offset must be integers")
-            if offset < 0:
-                return _error(req_id, -32602, "Invalid params: offset must be >= 0")
-            if limit < 1 or limit > 500:
-                return _error(req_id, -32602, "Invalid params: limit must be between 1 and 500")
+            limit, offset, pagination_error = _paginate(req_id, arguments, default_limit=200, max_limit=500)
+            if pagination_error:
+                return pagination_error
 
             if include_unlinked:
                 rows = _db_rows(
@@ -658,19 +643,12 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
 
             conn = sqlite3.connect(DB_PATH)
             try:
-                cur = conn.cursor()
-                if poll_vote_mode is not None:
-                    cur.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('poll_vote_mode', ?)", (str(poll_vote_mode),))
-                if proposal_vote_mode is not None:
-                    cur.execute(
-                        "INSERT OR REPLACE INTO settings (key, value) VALUES ('proposal_vote_mode', ?)", (str(proposal_vote_mode),)
-                    )
-                if linked_required is not None:
-                    cur.execute(
-                        "INSERT OR REPLACE INTO settings (key, value) VALUES ('telegram_require_linked_vote', ?)",
-                        ("true" if linked_required_bool else "false",),
-                    )
-                conn.commit()
+                voting_settings_service.apply_voting_settings(
+                    conn,
+                    poll_vote_mode=str(poll_vote_mode) if poll_vote_mode is not None else None,
+                    proposal_vote_mode=str(proposal_vote_mode) if proposal_vote_mode is not None else None,
+                    telegram_require_linked_vote=linked_required_bool if linked_required is not None else None,
+                )
             finally:
                 conn.close()
             return _tool_text(req_id, _read_voting_settings())

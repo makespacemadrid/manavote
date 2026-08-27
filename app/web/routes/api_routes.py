@@ -7,8 +7,10 @@ from werkzeug.security import generate_password_hash
 
 from app.domain.enums import ProposalStatus
 from app.extensions import csrf, limiter
+from app.services import voting_settings_service
 from app.services.telegram_link_diagnostics import LINKED_CONDITION_SQL, link_state_case_sql
 from app.services.user_statistics import user_statistics_query, user_statistics_rows, user_statistics_total_query
+from app.services.voting_settings_service import VALID_VOTE_MODES
 from app.web.routes import main_routes as legacy
 from app.web.routes.helpers.api_helpers import (
     normalize_poll_options,
@@ -369,9 +371,9 @@ def api_update_voting_settings():
 
     if poll_vote_mode is None and proposal_vote_mode is None and linked_vote_policy is None:
         return api_error("no_changes_provided", "at least one voting setting must be provided", 400)
-    if poll_vote_mode is not None and poll_vote_mode not in {"both", "web_only", "telegram_only"}:
+    if poll_vote_mode is not None and poll_vote_mode not in VALID_VOTE_MODES:
         return api_error("invalid_poll_vote_mode", "poll_vote_mode must be one of: both, web_only, telegram_only", 400)
-    if proposal_vote_mode is not None and proposal_vote_mode not in {"both", "web_only", "telegram_only"}:
+    if proposal_vote_mode is not None and proposal_vote_mode not in VALID_VOTE_MODES:
         return api_error("invalid_proposal_vote_mode", "proposal_vote_mode must be one of: both, web_only, telegram_only", 400)
 
     linked_vote_policy_bool = _parse_optional_bool(linked_vote_policy)
@@ -379,18 +381,13 @@ def api_update_voting_settings():
         return api_error("invalid_telegram_require_linked_vote", "telegram_require_linked_vote must be a boolean", 400)
 
     conn = legacy.get_db()
-    c = conn.cursor()
     try:
-        if poll_vote_mode is not None:
-            c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('poll_vote_mode', ?)", (poll_vote_mode,))
-        if proposal_vote_mode is not None:
-            c.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('proposal_vote_mode', ?)", (proposal_vote_mode,))
-        if linked_vote_policy_bool is not None:
-            c.execute(
-                "INSERT OR REPLACE INTO settings (key, value) VALUES ('telegram_require_linked_vote', ?)",
-                ("true" if linked_vote_policy_bool else "false",),
-            )
-        conn.commit()
+        voting_settings_service.apply_voting_settings(
+            conn,
+            poll_vote_mode=poll_vote_mode,
+            proposal_vote_mode=proposal_vote_mode,
+            telegram_require_linked_vote=linked_vote_policy_bool,
+        )
     finally:
         conn.close()
 

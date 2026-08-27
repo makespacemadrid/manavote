@@ -44,6 +44,46 @@ rechecking the previously audited Telegram-link parity paths.
 2. **MCP extraction boundary (P1)**
    - User statistics and Telegram link classification now have shared boundaries, but proposal listing, voting-setting writes, and create operations remain embedded in `app/mcp_server.py`.
    - Extract one use case at a time behind service/repository interfaces shared with REST; avoid a broad rewrite.
+   - Progress (2026-08-27, Sprint 5 slice 1): before touching any single tool, compared
+     each MCP list tool against its REST counterpart to find what's genuinely safe to
+     converge. `list_proposals`/`list_polls` turned out to have meaningfully different
+     response shapes on purpose (REST's proposal listing includes vote counts but not
+     creator username; MCP's includes creator username for natural-language answers but
+     not votes) — forcing one shared query would mean growing or shrinking a response
+     shape neither transport asked for, which is a product decision, not a safe
+     refactor. What *is* shared and safe across every list tool is the limit/offset
+     validation itself — extracted into `app/services/pagination_service.py`
+     (`parse_limit_offset`, transport-agnostic: returns normalized values or a reason
+     code, no Flask/JSON-RPC coupling). REST's `parse_pagination_params` and all 5 of
+     MCP's duplicated try/except pagination blocks (`list_proposals`, `list_polls`,
+     `list_user_statistics`, `list_group_purchases`, `list_member_telegram_links`) now
+     delegate to it — this is exactly the class of bug that already bit this project
+     twice (the polls-pagination gap, the `basic_supplies`/`created_by` drifts), so
+     collapsing 5 near-identical copies into one tested function closes that risk for
+     every list endpoint at once, not just the one that happened to get audited.
+   - Progress (2026-08-27, Sprint 5 slice 2): voting settings' *write* path was
+     genuinely duplicated (both REST's `PUT /api/settings/voting` and MCP's
+     `update_voting_settings` ran the identical three `INSERT OR REPLACE INTO settings`
+     statements with the identical boolean-to-string convention) — extracted into
+     `app/services/voting_settings_service.py` (`apply_voting_settings(conn, ...)`,
+     validated by the caller, three independently-optional keys). Also deduplicated the
+     `{"both", "web_only", "telegram_only"}` mode-validation set, which was defined
+     three separate times (REST inline, MCP's own `VALID_VOTE_MODES`, and
+     `proposal_vote_service.VALID_PROPOSAL_VOTE_MODES`) — now everyone imports the one
+     in `proposal_vote_service`, re-exported from `voting_settings_service` as
+     `VALID_VOTE_MODES`. Left the *read* path alone: MCP's `_read_voting_settings()`
+     batches all three settings into one `WHERE key IN (...)` query for its own
+     process-local `_db_rows` helper, while REST's read goes through
+     `main_routes.get_poll_vote_mode()`/etc. (Flask-coupled, single-key reads) — these
+     read paths differ for a real reason (MCP has no Flask `get_db()`/app context to
+     share), and unifying them would mean giving up MCP's batching for no behavior gain.
+     11 new direct unit tests across `tests/unit/test_pagination_service.py` and
+     `tests/unit/test_voting_settings_service.py` (5 + 6). `app/mcp_server.py`: 872 → 850
+     lines. Full suite: 543 passed, zero regressions.
+   - Remaining for this item: `create_proposal`/`create_poll` validation (both already
+     produce matching results per the Sprint 4 drift fixes, but the validation code
+     itself is still duplicated, not shared); `create_member` and `list_group_purchases`
+     have no REST equivalent to converge with, so they stay MCP-only for this item.
 
 3. **Statistics scale and semantics (P1)**
    - The user-statistics query uses correlated count subqueries and has no total-row metadata for pagination.

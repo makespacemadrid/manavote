@@ -344,6 +344,29 @@ document parity, it makes future drift structurally harder to introduce.
    one use case at a time (same incremental, test-verified-after-each-slice approach used
    for A2). Closes IDEAS.md's "MCP extraction boundary (P1)" and is the natural
    system-wide conclusion of WS-A A2, which only covered `main_routes.py`.
+   - Slice 1 (2026-08-27): compared each MCP list tool against its REST counterpart
+     first, before extracting anything. `list_proposals`/`list_polls` have genuinely
+     different response shapes on purpose (votes vs. creator username), so forcing one
+     shared query would be a product decision, not a safe refactor — left those alone.
+     What *is* identical everywhere is limit/offset validation: extracted into
+     `app/services/pagination_service.py` (`parse_limit_offset`, transport-agnostic), now
+     used by REST's `parse_pagination_params` and all 5 of MCP's previously-duplicated
+     pagination blocks (`list_proposals`, `list_polls`, `list_user_statistics`,
+     `list_group_purchases`, `list_member_telegram_links`).
+   - Slice 2 (2026-08-27): voting settings' write path (REST `PUT /api/settings/voting`
+     and MCP `update_voting_settings`) ran identical SQL — extracted into
+     `app/services/voting_settings_service.py` (`apply_voting_settings`). Also
+     deduplicated the vote-mode validation set, previously defined three separate times.
+     Deliberately left the *read* path alone (MCP batches all three settings in one
+     query with no Flask app context to share; REST reads through `main_routes`'s
+     Flask-coupled single-key getters) — no shared behavior to converge there, only a
+     different, equally-valid implementation strategy per transport.
+   - 11 new direct unit tests (`tests/unit/test_pagination_service.py`,
+     `tests/unit/test_voting_settings_service.py`). `app/mcp_server.py`: 872 → 850 lines.
+     Full suite: 543 passed, zero regressions. Remaining: `create_proposal`/`create_poll`
+     validation (results already match per Sprint 4's drift fixes, but the code itself
+     isn't shared yet); `create_member`/`list_group_purchases` have no REST equivalent to
+     converge with, so they stay MCP-only for this goal. Full details in `IDEAS.md`.
 2. **Route exception granularity** — replace the 19 broad `except Exception` blocks
    across 8 files (`mcp_server.py`, `backup_service.py`, `main_helpers.py`,
    `api_routes.py`, `poll_routes.py`, `admin_routes.py`, `telegram_routes.py`,
