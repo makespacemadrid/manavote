@@ -142,13 +142,20 @@ backpressure, Telegram transport, retry behavior, documentation, and focused tes
      decision — e.g. a single dedicated assistant worker, or a database/Redis-backed
      lease — rather than a like-for-like SQLite swap.
 
-3. **End-to-end natural-language webhook contract (P0)**
+3. **End-to-end natural-language webhook contract (P0)** — ✅ delivered (2026-08-27)
    - Existing functional webhook tests exercise deterministic commands and callbacks,
      while model/Telegram lifecycle pieces are primarily unit-tested.
    - Add a Flask-level test covering linked and unlinked senders, thinking-message create
      and delete, tool call, final chunk delivery, duplicate `update_id`, and queue-full UX.
    - Add an administrator test spanning proposed mutation → `/confirm` → one MCP write,
      including role removal between proposal and confirmation.
+   - `tests/test_telegram_natural_language_webhook.py` now drives the real
+     `POST /telegram/webhook/<secret>` route end-to-end (mocking only the outbound
+     Telegram HTTP client and the OpenAI-compatible model response) covering every item
+     above. Building it surfaced a real test-infrastructure gotcha worth remembering: the
+     update-ID deduplicator persists to the shared session SQLite file by design, so
+     fixed literal `update_id`/`telegram_user_id` values collide across separate test
+     runs against that file — the test generates fresh ones every run.
 
 4. **Public MCP application boundary (P1)**
    - The assistant currently consumes the private `_tool_definitions()` helper and calls

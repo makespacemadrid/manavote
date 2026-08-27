@@ -163,6 +163,7 @@ pytest -q \
   tests/unit/test_telegram_webhook_helpers.py \
   tests/test_telegram_client.py
 pytest -q tests/test_app_functionality.py -k telegram_webhook
+pytest -q tests/test_telegram_natural_language_webhook.py
 ```
 
 Coverage is split by responsibility:
@@ -188,6 +189,16 @@ Coverage is split by responsibility:
 - `tests/test_app_functionality.py -k telegram_webhook`
   - authenticated Flask webhook routes, proposal/poll commands, callbacks, linking,
     edited messages, strict linked-vote policy, and malformed requests
+- `tests/test_telegram_natural_language_webhook.py`
+  - end-to-end: drives the real `POST /telegram/webhook/<secret>` route (not just
+    `telegram_agent.answer()` directly) with only the outbound Telegram client and the
+    OpenAI-compatible model response mocked
+  - unlinked senders are ignored without enqueueing work; linked senders get a thinking
+    message that is deleted after a real tool-call round trip and final reply delivery
+  - a full assistant queue returns the busy notice and still cleans up the thinking
+    message; a duplicate `update_id` is acknowledged without repeating the work
+  - an administrator's propose → `/confirm` flow executes exactly one MCP write, and the
+    same flow with the admin role removed between the two steps executes zero
 
 No live Ocabra or Telegram credentials are required for this pack. HTTP/model calls
 are mocked; use an explicitly configured test bot only for optional manual smoke tests.

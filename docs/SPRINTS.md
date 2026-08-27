@@ -115,6 +115,13 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
   value (including the JSON string `"false"`) instead of validating it like MCP already
   did, and MCP's `create_proposal` uniquely classified a non-positive `created_by` as an
   invalid-params error instead of not-found, unlike REST and MCP's own `create_poll`.
+- ✅ Added the end-to-end natural-language webhook contract test
+  (`tests/test_telegram_natural_language_webhook.py`) that drives the real webhook route:
+  unlinked senders are silently ignored, linked senders get a thinking message that's
+  deleted after a real tool-call round trip and final reply delivery, a full queue
+  returns the busy notice and still cleans up the thinking message, a duplicate
+  `update_id` isn't reprocessed, and an admin's propose → `/confirm` flow creates
+  exactly one proposal — while a role removed between the two leaves zero.
 
 Remaining Telegram-assistant hardening (a process-local model-request queue that needs an
 architectural decision rather than a like-for-like SQLite swap, an end-to-end webhook
@@ -148,7 +155,8 @@ limits, and confirmation audit records) is tracked as forward-looking backlog in
    - Conversation history is now shared across workers (see Delivered above). Remaining:
      decide an approach for the process-local model-request queue (`IDEAS.md` P0 item on
      shared state for multi-worker/restart safety).
-   - Add the end-to-end natural-language webhook contract test called for in `IDEAS.md`.
+   - ✅ The end-to-end natural-language webhook contract test called for in `IDEAS.md` is
+     done — see Delivered above.
 
 ### Exit Criteria
 - `main_routes.py` is reduced to compatibility routing with minimal orchestration logic.
