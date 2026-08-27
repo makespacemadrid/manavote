@@ -268,7 +268,7 @@ def api_list_member_telegram_links():
     if include_unlinked:
         c.execute(
             f"""
-            SELECT id, username, telegram_username, telegram_user_id,
+            SELECT id, username, telegram_username, telegram_user_id, last_linked_at, last_unlinked_at,
                    CASE WHEN {LINKED_CONDITION_SQL} THEN 1 ELSE 0 END AS linked,
                    {link_state_case_sql()} AS link_state
             FROM members
@@ -280,7 +280,8 @@ def api_list_member_telegram_links():
     else:
         c.execute(
             f"""
-            SELECT id, username, telegram_username, telegram_user_id, 1 AS linked, 'linked' AS link_state
+            SELECT id, username, telegram_username, telegram_user_id, last_linked_at, last_unlinked_at,
+                   1 AS linked, 'linked' AS link_state
             FROM members
             WHERE {LINKED_CONDITION_SQL}
             ORDER BY id ASC

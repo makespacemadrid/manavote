@@ -67,6 +67,9 @@ Primary modules and responsibilities:
 
 ### `members`
 - `id`, `username` (unique), `password_hash`, `is_admin`, `telegram_username` (nullable), `telegram_user_id` (nullable), `created_at`
+- `last_linked_at` (nullable), `last_unlinked_at` (nullable) — set whenever `telegram_user_id`
+  is established/changed (via `/link` or an OIDC login whose claims carry a Telegram
+  identity) or cleared (admin or member self-service unlink), for admin diagnostics
 - `oidc_sub` (nullable, unique), `email` (nullable), `display_name` (nullable) — populated by Keycloak/OIDC SSO login (see §5)
 
 ### `proposals`

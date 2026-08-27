@@ -5,6 +5,8 @@ CREATE TABLE IF NOT EXISTS members (
     is_admin INTEGER DEFAULT 0,
     telegram_username TEXT,
     telegram_user_id INTEGER,
+    last_linked_at TEXT,
+    last_unlinked_at TEXT,
     oidc_sub TEXT UNIQUE,
     email TEXT,
     display_name TEXT,

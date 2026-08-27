@@ -1,5 +1,6 @@
 import logging
 import secrets
+from datetime import datetime
 from urllib.parse import urlencode
 
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
@@ -159,9 +160,15 @@ def _upsert_oidc_member(claims):
         )
         member = cursor.fetchone()
     if member:
+        new_telegram_user_id = telegram_user_id if telegram_user_id is not None else member["telegram_user_id"]
+        linked_at = (
+            datetime.now().isoformat()
+            if new_telegram_user_id is not None and new_telegram_user_id != member["telegram_user_id"]
+            else None
+        )
         cursor.execute(
-            "UPDATE members SET oidc_sub = ?, email = COALESCE(?, email), display_name = ?, is_admin = ?, telegram_username = COALESCE(?, telegram_username), telegram_user_id = COALESCE(?, telegram_user_id) WHERE id = ?",
-            (subject, email, display_name, is_admin, telegram_username, telegram_user_id, member["id"]),
+            "UPDATE members SET oidc_sub = ?, email = COALESCE(?, email), display_name = ?, is_admin = ?, telegram_username = COALESCE(?, telegram_username), telegram_user_id = COALESCE(?, telegram_user_id), last_linked_at = COALESCE(?, last_linked_at) WHERE id = ?",
+            (subject, email, display_name, is_admin, telegram_username, telegram_user_id, linked_at, member["id"]),
         )
         member_id = member["id"]
     else:
@@ -170,9 +177,10 @@ def _upsert_oidc_member(claims):
         while cursor.execute("SELECT 1 FROM members WHERE username = ?", (username,)).fetchone():
             suffix += 1
             username = f"{preferred}-{suffix}"
+        linked_at = datetime.now().isoformat() if telegram_user_id is not None else None
         cursor.execute(
-            "INSERT INTO members (username, password_hash, is_admin, telegram_username, telegram_user_id, oidc_sub, email, display_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            (username, generate_password_hash(secrets.token_urlsafe(32)), is_admin, telegram_username, telegram_user_id, subject, email, display_name),
+            "INSERT INTO members (username, password_hash, is_admin, telegram_username, telegram_user_id, last_linked_at, oidc_sub, email, display_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (username, generate_password_hash(secrets.token_urlsafe(32)), is_admin, telegram_username, telegram_user_id, linked_at, subject, email, display_name),
         )
         member_id = cursor.lastrowid
     conn.commit()

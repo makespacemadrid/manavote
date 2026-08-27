@@ -108,6 +108,8 @@ def run_migrations(cursor):
     add_column_if_missing(cursor, "polls", "status TEXT DEFAULT 'open'")
     add_column_if_missing(cursor, "members", "telegram_username TEXT")
     add_column_if_missing(cursor, "members", "telegram_user_id INTEGER")
+    add_column_if_missing(cursor, "members", "last_linked_at TEXT")
+    add_column_if_missing(cursor, "members", "last_unlinked_at TEXT")
     add_column_if_missing(cursor, "members", "oidc_sub TEXT")
     add_column_if_missing(cursor, "members", "email TEXT")
     add_column_if_missing(cursor, "members", "display_name TEXT")

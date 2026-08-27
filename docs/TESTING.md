@@ -207,6 +207,18 @@ Covers structured audit-log emission on:
 - member self-service Telegram unlink
 - Telegram `/link` command success path
 
+`last_linked_at`/`last_unlinked_at` metadata coverage:
+
+```bash
+pytest -q tests/unit/test_telegram_link_service.py tests/test_oidc_auth.py -k "last_linked or link"
+```
+
+- `tests/unit/test_telegram_link_service.py` — `/link` sets `last_linked_at`; unlink sets
+  `last_unlinked_at`.
+- `tests/test_oidc_auth.py::test_oidc_member_last_linked_at_only_bumps_when_telegram_id_changes`
+  — an OIDC login only bumps `last_linked_at` when the claims' Telegram identity is newly
+  set or actually changes, not on every login with the same value.
+
 ## OpenID Connect regression tests
 
 Run the focused Makespace SSO regression pack with:

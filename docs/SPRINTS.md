@@ -97,6 +97,16 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
   with `pruned_count`/`error` metadata, so routine automatic backups are no longer
   silent. Regression coverage added in `tests/test_backup_service.py` and
   `tests/test_app_startup.py`.
+- ✅ Added `members.last_linked_at`/`last_unlinked_at`, set on every link (`/link`
+  command or an OIDC login carrying a Telegram identity) and unlink (admin or member
+  self-service), and exposed on `GET /api/members/telegram` and
+  `list_member_telegram_links` for operator diagnostics.
+- ✅ Fixed a pre-existing test-isolation bug in `tests/test_oidc_auth.py`: four tests
+  using the `isolated_db_path` fixture never pointed `main_routes.DB_PATH` at it, so they
+  silently ran against the shared session database instead of an isolated one — the
+  extra write volume from the change above made this consistently fail as lock
+  contention rather than occasionally. Fixed by mirroring the one test that already did
+  this correctly.
 
 Remaining Telegram-assistant hardening (multi-worker/restart-safe conversation history and
 queue state, an end-to-end webhook contract test, public MCP application boundary,
@@ -108,12 +118,13 @@ as forward-looking backlog in [`IDEAS.md`](IDEAS.md) rather than duplicated here
    - Move any remaining substantial handler logic out of `main_routes.py`.
    - Keep shim layer intentionally thin and measurable.
 
-2. **Admin reliability observability**
+2. **Admin reliability observability** — ✅ closed for this sprint's scope.
    - Backup-audit coverage now spans download, admin-triggered, scheduled, and
      startup-check lifecycle events (`created`/`failed` with `pruned_count`/reason
      codes) — see Delivered above.
-   - Remaining: add Telegram link lifecycle metadata exposure (`last_linked_at`,
-     `last_unlinked_at`) and operational diagnostics (`IDEAS.md` item 5).
+   - Telegram link lifecycle metadata (`last_linked_at`/`last_unlinked_at`) is now
+     exposed via REST/MCP — see Delivered above. Reason-coded audit events for
+     policy-blocked votes remain open (`IDEAS.md` item 5).
 
 3. **REST/MCP contract parity pass**
    - Add additional parity tests for shared business-rule boundaries.

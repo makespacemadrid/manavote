@@ -61,6 +61,11 @@ rechecking the previously audited Telegram-link parity paths.
 5. **Observability completion for Telegram lifecycle (P2)**
    - Add reason-coded audit events for link/unlink operations and blocked votes by policy mode.
    - Expose `last_linked_at`/`last_unlinked_at` metadata for admin diagnostics.
+   - Progress (2026-08-27): `members.last_linked_at`/`last_unlinked_at` are now set on
+     every link (`/link` command or an OIDC login whose claims carry a Telegram identity)
+     and unlink (admin or member self-service), and exposed on both
+     `GET /api/members/telegram` and the `list_member_telegram_links` MCP tool. Blocked
+     votes by policy mode still need reason-coded audit events.
 
 6. **Statistics privacy and authorization review (P2)**
    - User statistics expose member email addresses to API/MCP administrators.
@@ -338,6 +343,8 @@ Proposed startup lifecycle:
 
 ### Telegram identity lifecycle
 - Add explicit metadata (`last_linked_at`, linked `telegram_user_id`) visible to admins.
+  Delivered (2026-08-27) at the API/MCP diagnostics layer (`GET /api/members/telegram`,
+  `list_member_telegram_links`); still not surfaced in the admin panel UI itself.
 - Add optional self-service unlink for members with explicit confirmation UX.
 
 ### UX quality gates

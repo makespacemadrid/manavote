@@ -370,6 +370,11 @@ curl -X POST http://localhost:45000/api/polls \
 
 When `include_unlinked=false` (default), only fully linked members are returned and `link_state` is always `linked`.
 
+Every row also includes `last_linked_at` and `last_unlinked_at` (nullable timestamps) for
+operator diagnostics — the last time `telegram_user_id` was established/changed (via
+`/link` or an OIDC login carrying a Telegram identity) and the last time it was cleared
+(admin or member self-service unlink), respectively.
+
 ### Success response
 **200 OK**
 ```json
@@ -384,6 +389,8 @@ When `include_unlinked=false` (default), only fully linked members are returned 
       "username": "alice",
       "telegram_username": "alice_tg",
       "telegram_user_id": 123456,
+      "last_linked_at": "2026-08-27T10:15:00",
+      "last_unlinked_at": null,
       "linked": 1,
       "link_state": "linked"
     }
@@ -548,8 +555,9 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
   - returns the same per-user participation fields as `GET /api/members/statistics`
   - returns page `count` and matching `total`; email is opt-in and defaults to omitted
 - `list_member_telegram_links` (optional `include_unlinked`, `limit`, `offset`)
-  - result rows include `linked` and `link_state` (`linked|missing_user_id|unlinked`) — see
-    the `link_state` definition under `GET /api/members/telegram` above
+  - result rows include `linked`, `link_state` (`linked|missing_user_id|unlinked`), and
+    `last_linked_at`/`last_unlinked_at` — see the definitions under
+    `GET /api/members/telegram` above
   - `limit` validation: must be between `1` and `500`
   - invalid boolean values for `include_unlinked` are rejected with `-32602`
 - `get_voting_settings`

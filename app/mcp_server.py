@@ -616,7 +616,7 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
             if include_unlinked:
                 rows = _db_rows(
                     """
-                    SELECT id, username, telegram_username, telegram_user_id,
+                    SELECT id, username, telegram_username, telegram_user_id, last_linked_at, last_unlinked_at,
                            CASE WHEN {linked_condition} THEN 1 ELSE 0 END AS linked,
                            {link_state_case} AS link_state
                     FROM members
@@ -628,7 +628,8 @@ def handle_request(req: dict[str, Any], headers: dict[str, str] | None = None) -
             else:
                 rows = _db_rows(
                     """
-                    SELECT id, username, telegram_username, telegram_user_id, 1 AS linked, 'linked' AS link_state
+                    SELECT id, username, telegram_username, telegram_user_id, last_linked_at, last_unlinked_at,
+                           1 AS linked, 'linked' AS link_state
                     FROM members
                     WHERE {linked_condition}
                     ORDER BY id ASC
