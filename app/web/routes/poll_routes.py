@@ -3,6 +3,7 @@ import sqlite3
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
+from app.services import poll_service
 from app.web.decorators import login_required
 from app.web.routes import main_routes as legacy
 
@@ -22,12 +23,21 @@ def polls_page():
             legacy.send_telegram_message(message)
 
     if request.method == "POST":
+        poll_id = request.form.get("poll_id", type=int)
+        option_index = request.form.get("option_index", type=int)
         if not legacy.is_web_poll_voting_enabled():
+            poll_service.log_poll_vote_event(
+                legacy.app.logger,
+                legacy.get_setting_value,
+                event="poll_vote_rejected",
+                source="web",
+                poll_id=poll_id,
+                member_id=session.get("member_id"),
+                reason_code="channel_disabled",
+            )
             flash("Web voting is disabled by admin", "error")
             conn.close()
             return redirect(url_for("polls.polls_page"))
-        poll_id = request.form.get("poll_id", type=int)
-        option_index = request.form.get("option_index", type=int)
         if poll_id is None or option_index is None:
             flash("Invalid vote", "error")
         else:

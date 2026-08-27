@@ -150,7 +150,7 @@ rechecking the previously audited Telegram-link parity paths.
      honored, response shape matches MCP's) and its rejection paths (out-of-range limit,
      non-integer offset). Full suite: 530 passed, zero regressions.
 
-5. **Observability completion for Telegram lifecycle (P2)**
+5. **Fixed: observability completion for Telegram lifecycle (P2)** — ✅ closed 2026-08-27.
    - Add reason-coded audit events for link/unlink operations and blocked votes by policy mode.
    - Expose `last_linked_at`/`last_unlinked_at` metadata for admin diagnostics.
    - Progress (2026-08-27): `members.last_linked_at`/`last_unlinked_at` are now set on
@@ -158,6 +158,22 @@ rechecking the previously audited Telegram-link parity paths.
      and unlink (admin or member self-service), and exposed on both
      `GET /api/members/telegram` and the `list_member_telegram_links` MCP tool. Blocked
      votes by policy mode still need reason-coded audit events.
+   - Progress (2026-08-27, Sprint 6 Goal 2): closed the blocked-votes gap. Proposal votes
+     already had a `channel_disabled` audit event, but it was only reachable from the
+     Telegram path — the web route short-circuited with a flash message *before* ever
+     calling into the function that logged it, so a web-blocked vote was silently
+     unaudited. Poll votes had no audit infrastructure on either channel, and
+     `telegram_require_linked_vote` rejections (`link_required`) were unaudited
+     everywhere. Added `poll_service.log_poll_vote_event()` (mirrors
+     `log_proposal_vote_event`'s exact shape) and call sites in `poll_routes.py`,
+     `proposal_routes.py` (both vote entry points), and
+     `app/services/telegram_command_service.py` (which gained a `logger` parameter,
+     matching its existing dependency-injection pattern). Full reason-code table
+     documented in `docs/OPERATIONS.md`. Along the way, found and fixed a real
+     test-hygiene bug: an existing test monkeypatched a shared named logger's `.info`
+     method directly instead of using `caplog`, permanently polluting that logger for
+     every later test in the same run. 6 new tests. Full suite: 574 passed, zero
+     regressions.
 
 6. **Statistics privacy and authorization review (P2)**
    - User statistics expose member email addresses to API/MCP administrators.

@@ -1,7 +1,10 @@
-"""Poll lifecycle helpers: closing expired polls and rendering their results."""
+"""Poll lifecycle helpers: closing expired polls, rendering their results, and auditing
+votes blocked by policy."""
 
 import json
 from datetime import datetime
+
+from app.services import voting_mode_service
 
 
 def close_expired_polls(conn):
@@ -87,3 +90,21 @@ def build_poll_results_message(conn, poll_id):
     lines.append("")
     lines.append(f"Total votes: *{total_votes}*")
     return "\n".join(lines)
+
+
+def log_poll_vote_event(
+    logger, get_setting_value, event, source, poll_id=None, member_id=None, reason_code=None
+):
+    """Reason-coded audit record for a poll vote, mirroring
+    proposal_vote_recording_service.log_proposal_vote_event's shape. `poll_id`/
+    `member_id` may be None when a vote is blocked before either is resolved (e.g. the
+    channel-disabled check runs before any poll/member lookup)."""
+    logger.info(
+        "event=%s source=%s mode=%s poll_id=%s member_id=%s reason_code=%s",
+        event,
+        source,
+        voting_mode_service.get_poll_vote_mode(get_setting_value),
+        poll_id,
+        member_id,
+        reason_code,
+    )

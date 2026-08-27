@@ -112,6 +112,27 @@ provably the one that was proposed: a stale or corrupted pending row is rejected
 confirm time instead of executing against a contract that no longer matches what the
 member saw.
 
+## Votes blocked by policy
+
+A vote rejected by `proposal_vote_mode`, `poll_vote_mode`, or
+`telegram_require_linked_vote` logs a plain-text `event=... source=... mode=...` record
+(the same shape `record_proposal_vote`'s own accept/reject logging already used), so a
+policy-blocked vote is distinguishable from an ordinary invalid-vote rejection without
+reading logs line-by-line.
+
+| Log line prefix | Meaning |
+| --- | --- |
+| `event=proposal_vote_rejected ... reason_code=channel_disabled` | A proposal vote was blocked by `proposal_vote_mode` (web or Telegram). |
+| `event=proposal_vote_rejected ... reason_code=link_required` | A Telegram proposal vote was blocked because `telegram_require_linked_vote` is enabled and the sender isn't linked. |
+| `event=poll_vote_rejected ... reason_code=channel_disabled` | A poll vote was blocked by `poll_vote_mode` (web or Telegram). |
+| `event=poll_vote_rejected ... reason_code=link_required` | A Telegram poll vote was blocked because `telegram_require_linked_vote` is enabled and the sender isn't linked. |
+
+`source=web` or `source=telegram` identifies the channel; `mode` is the effective vote
+mode at rejection time. `poll_id`/`proposal_id` and `member_id` are `None` when the
+channel-disabled check fires before either is resolved (the check runs before any
+poll/member lookup on some paths) — the record is still useful in aggregate ("N vote
+attempts blocked by policy") even without full identity.
+
 ## MCP and OIDC failures
 
 MCP transport/application failures log

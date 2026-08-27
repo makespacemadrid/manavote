@@ -1,20 +1,30 @@
 """Deterministic Telegram vote commands: /vote, /pvote, and their callback-button forms.
 
 Each function takes its DB/messaging/settings dependencies as explicit parameters
-(`get_db`, `get_setting_value`, `send_telegram_message`, `record_proposal_vote`) rather
-than reaching for a module global, so the command-parsing and validation logic here is
-testable without a live Telegram client or Flask app context.
+(`get_db`, `get_setting_value`, `send_telegram_message`, `record_proposal_vote`, `logger`)
+rather than reaching for a module global, so the command-parsing and validation logic
+here is testable without a live Telegram client or Flask app context.
 """
 
 import json
 
 from app.services import poll_service, voting_mode_service
+from app.services.proposal_vote_recording_service import log_proposal_vote_event
 
 
 def process_telegram_vote_command(
-    get_db, get_setting_value, send_telegram_message, telegram_username, command_text, telegram_user_id=None
+    get_db,
+    get_setting_value,
+    send_telegram_message,
+    logger,
+    telegram_username,
+    command_text,
+    telegram_user_id=None,
 ):
     if not voting_mode_service.is_telegram_poll_voting_enabled(get_setting_value):
+        poll_service.log_poll_vote_event(
+            logger, get_setting_value, event="poll_vote_rejected", source="telegram", reason_code="channel_disabled"
+        )
         return False, "telegram_disabled"
     command = (command_text or "").strip()
     parts = command.split()
@@ -69,6 +79,10 @@ def process_telegram_vote_command(
             voter_member_id = member["id"]
         elif telegram_user_id is not None:
             if require_linked:
+                poll_service.log_poll_vote_event(
+                    logger, get_setting_value, event="poll_vote_rejected", source="telegram",
+                    poll_id=poll_id, reason_code="link_required",
+                )
                 return False, "link_required"
             voter_member_id = -abs(int(telegram_user_id))
         else:
@@ -111,6 +125,7 @@ def process_telegram_vote_callback(
     get_setting_value,
     send_telegram_message,
     record_proposal_vote,
+    logger,
     telegram_username,
     callback_data,
     telegram_user_id=None,
@@ -127,6 +142,7 @@ def process_telegram_vote_callback(
             get_db,
             get_setting_value,
             send_telegram_message,
+            logger,
             telegram_username,
             f"/vote {parts[1]} {option_number}",
             telegram_user_id,
@@ -139,6 +155,7 @@ def process_telegram_vote_callback(
             get_db,
             get_setting_value,
             record_proposal_vote,
+            logger,
             telegram_username,
             f"/pvote {proposal_id} {vote_token}",
             telegram_user_id,
@@ -148,7 +165,13 @@ def process_telegram_vote_callback(
 
 
 def process_telegram_proposal_vote_command(
-    get_db, get_setting_value, record_proposal_vote, telegram_username, command_text, telegram_user_id=None
+    get_db,
+    get_setting_value,
+    record_proposal_vote,
+    logger,
+    telegram_username,
+    command_text,
+    telegram_user_id=None,
 ):
     command = (command_text or "").strip()
     parts = command.split()
@@ -197,7 +220,13 @@ def process_telegram_proposal_vote_command(
             )
         member = c.fetchone()
         if not member:
-            return False, "link_required" if voting_mode_service.require_linked_telegram_for_votes(get_setting_value) else "unknown_member"
+            if voting_mode_service.require_linked_telegram_for_votes(get_setting_value):
+                log_proposal_vote_event(
+                    logger, get_setting_value, event="proposal_vote_rejected", source="telegram",
+                    proposal_id=proposal_id, member_id=None, vote=vote, reason_code="link_required",
+                )
+                return False, "link_required"
+            return False, "unknown_member"
 
         c.execute("SELECT id, status FROM proposals WHERE id = ?", (proposal_id,))
         proposal = c.fetchone()

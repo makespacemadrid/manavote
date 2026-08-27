@@ -527,12 +527,41 @@ round out the sprint since they're cheap to close now that the structured-loggin
      propose→confirm→completed event-sequence assertion via `caplog`, and
      cancel/reset both emitting `cancelled`). Full suite: 568 passed (563 + 5 new), zero
      regressions.
-2. **Blocked-vote-by-policy audit events** — closes the remainder of `IDEAS.md`'s item 5
-   (Observability completion for Telegram lifecycle, P2). A vote rejected by
-   `proposal_vote_mode`/`poll_vote_mode`/`telegram_require_linked_vote` currently has no
-   audit trail distinct from a normal rejection; add a reason-coded event so an admin can
-   tell "policy blocked this" from "the vote was otherwise invalid" without reading logs
-   line-by-line.
+2. **Blocked-vote-by-policy audit events** — ✅ closed 2026-08-27. Closes the remainder of
+   `IDEAS.md`'s item 5 (Observability completion for Telegram lifecycle, P2).
+   - Verified before implementing: proposal votes already had a `channel_disabled` audit
+     event, but only reachable from the Telegram path — `record_proposal_vote`'s internal
+     check never actually ran on the web path, since `proposal_routes.py` short-circuited
+     with a flash message *before* calling it. Poll votes had no audit infrastructure at
+     all, on either channel. `telegram_require_linked_vote` rejections (`link_required`)
+     were unaudited on every path.
+   - Added `poll_service.log_poll_vote_event()` (mirrors
+     `proposal_vote_recording_service.log_proposal_vote_event`'s shape/style exactly —
+     `event=... source=... mode=... poll_id=... member_id=... reason_code=...`, so both
+     read the same way in logs).
+   - Web paths: `poll_routes.py` and `proposal_routes.py` (both `proposal_detail` and
+     `quick_vote`) now log `channel_disabled` at their existing early-return sites instead
+     of just flashing a message.
+   - Telegram paths (`app/services/telegram_command_service.py`): added a `logger`
+     parameter (matching the existing DI pattern) threaded through
+     `process_telegram_vote_command`, `process_telegram_vote_callback`, and
+     `process_telegram_proposal_vote_command`; `main_routes.py`'s three wrappers now pass
+     `app.logger`. Audits both `channel_disabled` (poll_vote_mode) and `link_required`
+     (`telegram_require_linked_vote`) — the latter closes a real gap since it was
+     previously unaudited on every path, not just the ones this slice touched.
+   - Found and fixed a real test-hygiene bug while adding coverage: an existing test
+     (`test_log_proposal_vote_event_includes_current_mode`) monkeypatched
+     `logging.getLogger("test").info` directly instead of using `caplog` — since
+     `getLogger` returns the same singleton per name, this permanently overwrote the
+     shared `"test"` logger for every other test using that name, silently breaking new
+     `caplog`-based assertions added elsewhere in the same full-suite run (passed in
+     isolation, failed only when the polluting test ran first). Fixed it and two new
+     tests of the same shape to use `caplog` instead.
+   - 6 new tests in `tests/unit/test_poll_closing.py` (2) and
+     `tests/unit/test_telegram_command_service.py` (4, including one new
+     `link_required`-rejection case for proposal votes that had no coverage before).
+     Documented the full reason-code table in `docs/OPERATIONS.md`. Full suite: 574
+     passed, zero regressions.
 3. **Forum-topic/mention routing observability** — closes `IDEAS.md`'s forum-topic audit
    item 2 (P2). Attach a reason code (`private`, `mentioned`, `reply_to_bot`,
    `forum_topic`, `unaddressed`) to each webhook routing decision in
