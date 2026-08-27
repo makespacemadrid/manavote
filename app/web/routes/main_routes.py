@@ -76,6 +76,12 @@ def localtime_filter(dt_str, fmt="%Y-%m-%d %H:%M"):
     return format_datetime(dt_str, get_db, fmt)
 
 
+@app.template_filter("currency")
+def currency_filter(value):
+    """Format a numeric amount consistently with grouping and two decimals."""
+    return f"{float(value or 0):,.2f}"
+
+
 from translations import TRANSLATIONS
 
 

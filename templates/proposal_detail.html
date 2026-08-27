@@ -10,13 +10,6 @@
 <div class="nav">
     <a href="{{ url_for('proposals') }}">← {{ t('Proposals') }}</a>
     <a href="{{ url_for('polls.polls_page') }}">{{ 'Polls'|lang }}</a>
-    {% if proposal.status == 'active' and (proposal.created_by == session.member_id or session.is_admin) %}
-    <a href="{{ url_for('proposals.edit_proposal', proposal_id=proposal.id) }}">{{ t('Edit') }}</a>
-    <form method="POST" action="{{ url_for('proposals.delete_proposal', proposal_id=proposal.id) }}" style="display: inline;" onsubmit="return confirm('{{ 'Delete proposal confirm'|lang }}');">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-            <button type="submit" style="background: none; border: none; color: #e63946; cursor: pointer; padding: 0; font-size: inherit;">{{ t('Delete') }}</button>
-        </form>
-    {% endif %}
     <a href="{{ url_for('settings_page') }}" style="margin-left: auto;">{{ 'Settings'|lang }}</a>
 </div>
 
@@ -35,15 +28,9 @@
                 {% if proposal.status == 'approved' and proposal.amount > 50 %}<span class="status" style="background: #9b59b622; color: #9b59b6; margin-left: 5px;">{{ 'expensive'|lang }}</span>{% endif %}
                 {% if proposal.status == 'approved' and not proposal.basic_supplies and proposal.amount <= 50 %}<span class="status" style="background: #00d9ff22; color: #00d9ff; margin-left: 5px;">{{ 'standard'|lang }}</span>{% endif %}
                 {% if proposal.purchased_at %}<span class="status" style="background: #4a4;">{{ 'purchased'|lang }}</span>{% endif %}
-                {% if session.is_admin and proposal.status == 'approved' %}
-                <form method="GET" action="{{ url_for('proposals.undo_approve', proposal_id=proposal.id) }}" style="display: inline;" onsubmit="return confirm('{{ 'Undo approval confirm'|lang }}');">
-                    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                    <button type="submit" style="background: #e63946; color: white; border: none; padding: 5px 10px; border-radius: 4px; cursor: pointer; margin-left: 5px;">{{ 'Undo Approval'|lang }}</button>
-                </form>
-                {% endif %}
             </p>
         </div>
-        <div class="proposal-amount">€{{ "%.2f"|format(proposal.amount) }}</div>
+        <div class="proposal-amount">€{{ proposal.amount|currency }}</div>
     </div>
     
     {% if proposal.image_filename %}
@@ -67,7 +54,7 @@
     <div style="display: flex; gap: 30px; margin: 20px 0; padding: 15px; background: #0f3460; border-radius: 4px;">
         <div>
             <div style="color: #888; font-size: 0.85em;">{{ t('Budget') }}</div>
-            <div style="font-size: 1.3em;">€{{ "%.2f"|format(current_budget) }}</div>
+            <div style="font-size: 1.3em;">€{{ current_budget|currency }}</div>
         </div>
         <div>
             <div style="color: #888; font-size: 0.85em;">{{ t('Minimum Backers') }}</div>
@@ -103,9 +90,33 @@
             </button>
         </form>
         {% if user_vote %}
-        <a href="{{ url_for('proposals.withdraw_vote', proposal_id=proposal.id) }}" class="vote-btn" style="border-color: #888; color: #888;">{{ t('withdraw') }}</a>
+        <form method="POST" action="{{ url_for('proposals.withdraw_vote', proposal_id=proposal.id) }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+            <button type="submit" class="vote-btn" style="border-color: #888; color: #888;">{{ t('withdraw') }}</button>
+        </form>
         {% endif %}
     </div>
+    {% endif %}
+
+    {% if (proposal.status == 'active' and (proposal.created_by == session.member_id or session.is_admin)) or (session.is_admin and proposal.status == 'approved') %}
+    <section style="margin-top: 24px; padding-top: 18px; border-top: 1px solid #3a3a3a;" aria-labelledby="proposalActionsHeading">
+        <h3 id="proposalActionsHeading" style="font-size: 1em; color: #aaa;">{{ 'Proposal actions'|lang }}</h3>
+        <div class="button-row">
+            {% if proposal.status == 'active' and (proposal.created_by == session.member_id or session.is_admin) %}
+            <a href="{{ url_for('proposals.edit_proposal', proposal_id=proposal.id) }}" class="btn btn-secondary">{{ t('Edit') }}</a>
+            <form method="POST" action="{{ url_for('proposals.delete_proposal', proposal_id=proposal.id) }}" onsubmit="return confirmDangerAction(this, '{{ 'Delete proposal confirm'|lang }}');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" class="btn btn-danger">{{ t('Delete') }}</button>
+            </form>
+            {% endif %}
+            {% if session.is_admin and proposal.status == 'approved' %}
+            <form method="POST" action="{{ url_for('proposals.undo_approve', proposal_id=proposal.id) }}" onsubmit="return confirmDangerAction(this, '{{ 'Undo approval confirm'|lang }}');">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
+                <button type="submit" class="btn btn-danger">{{ 'Undo Approval'|lang }}</button>
+            </form>
+            {% endif %}
+        </div>
+    </section>
     {% endif %}
 </div>
 
@@ -156,7 +167,7 @@
                     <span style="color: #888; font-size: 0.85em;">{{ c.created_at|localtime("%Y-%m-%d %H:%M") }}</span>
                     {% if session.is_admin %}
                     <a href="{{ url_for('proposals.edit_comment', comment_id=c.id) }}" style="color: #4cc9f0; font-size: 0.85em;">{{ t('Edit') }}</a>
-                    <form method="POST" action="{{ url_for('proposals.delete_comment', comment_id=c.id) }}" style="display: inline;" onsubmit="return confirm('{{ t('Delete comment') }}');">
+                    <form method="POST" action="{{ url_for('proposals.delete_comment', comment_id=c.id) }}" style="display: inline;" onsubmit="return confirmDangerAction(this, '{{ t('Delete comment') }}');">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
                         <button type="submit" style="background: none; border: none; color: #e63946; font-size: 0.85em; cursor: pointer; padding: 0;">{{ t('Delete') }}</button>
                     </form>

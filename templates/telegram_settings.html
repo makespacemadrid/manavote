@@ -38,7 +38,7 @@
     {% endif %}
 
     {% if is_telegram_linked %}
-    <form method="post" style="margin-top: 14px;" onsubmit="return confirm('{{ 'Unlink Telegram confirm'|lang }}');">
+    <form method="post" style="margin-top: 14px;" onsubmit="return confirmDangerAction(this, '{{ 'Unlink Telegram confirm'|lang }}');">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="unlink_telegram">
         <button type="submit" class="btn danger">{{ 'Unlink Telegram account'|lang }}</button>

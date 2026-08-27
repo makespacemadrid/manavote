@@ -2,14 +2,15 @@ import json
 import sqlite3
 from datetime import datetime, timedelta, timezone
 
-from flask import Blueprint, jsonify, request
+from flask import Blueprint, current_app, jsonify, request, session
 from werkzeug.security import generate_password_hash
 
 from app.domain.enums import ProposalStatus
 from app.extensions import csrf, limiter
 from app.repositories.poll_repo import PollRepository
 from app.repositories.proposal_repo import ProposalRepository
-from app.services import voting_settings_service
+from app.services import feedback_service, voting_settings_service
+from app.services.pagination_service import REASON_MESSAGES, parse_limit_offset
 from app.services.telegram_link_diagnostics import LINKED_CONDITION_SQL, link_state_case_sql
 from app.services.user_statistics import user_statistics_query, user_statistics_rows, user_statistics_total_query
 from app.services.voting_settings_service import VALID_VOTE_MODES
@@ -24,6 +25,76 @@ from app.web.routes.helpers.api_helpers import (
 )
 
 api_bp = Blueprint("api", __name__)
+
+
+@api_bp.route("/api/feedback", methods=["POST"], endpoint="api_create_feedback")
+@csrf.exempt
+def api_create_feedback():
+    member_id = session.get("member_id")
+    if not member_id:
+        return api_error("authentication_required", "Login required", 401)
+    data, json_error = require_json_body()
+    if json_error:
+        return json_error
+    conn = legacy.get_db()
+    try:
+        feedback_id = feedback_service.submit_feedback(
+            conn,
+            member_id=member_id,
+            source="web",
+            category=data.get("category"),
+            message=data.get("message"),
+            logger=current_app.logger,
+        )
+    except feedback_service.FeedbackValidationError as exc:
+        conn.close()
+        return api_error(exc.code, str(exc), 400 if exc.code != "member_not_found" else 404)
+    conn.close()
+    return jsonify({"success": True, "feedback_id": feedback_id}), 201
+
+
+@api_bp.route("/api/feedback", methods=["GET"], endpoint="api_list_feedback")
+def api_list_feedback():
+    if not session.get("member_id"):
+        return api_error("authentication_required", "Login required", 401)
+    if not session.get("is_admin"):
+        return api_error("admin_required", "Admin access required", 403)
+    limit, offset, reason = parse_limit_offset(request.args.get("limit"), request.args.get("offset"), 50, 100)
+    if reason:
+        return api_error(reason, REASON_MESSAGES[reason].format(max_limit=100), 400)
+    conn = legacy.get_db()
+    try:
+        items = feedback_service.list_feedback(
+            conn, status=request.args.get("status"), category=request.args.get("category"), limit=limit, offset=offset
+        )
+    except feedback_service.FeedbackValidationError as exc:
+        conn.close()
+        return api_error(exc.code, str(exc), 400)
+    conn.close()
+    return jsonify({"feedback": items, "limit": limit, "offset": offset})
+
+
+@api_bp.route("/api/feedback/<int:feedback_id>", methods=["PATCH"], endpoint="api_update_feedback")
+@csrf.exempt
+def api_update_feedback(feedback_id):
+    if not session.get("member_id"):
+        return api_error("authentication_required", "Login required", 401)
+    if not session.get("is_admin"):
+        return api_error("admin_required", "Admin access required", 403)
+    data, json_error = require_json_body()
+    if json_error:
+        return json_error
+    conn = legacy.get_db()
+    try:
+        feedback_service.update_feedback_status(
+            conn, feedback_id=feedback_id, status=str(data.get("status") or ""),
+            resolved_by=session["member_id"], logger=current_app.logger,
+        )
+    except feedback_service.FeedbackValidationError as exc:
+        conn.close()
+        return api_error(exc.code, str(exc), 404 if exc.code == "feedback_not_found" else 400)
+    conn.close()
+    return jsonify({"success": True, "feedback_id": feedback_id, "status": data["status"]})
 
 
 def _parse_optional_bool(value):

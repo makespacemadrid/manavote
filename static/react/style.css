@@ -16,6 +16,8 @@
         .btn-secondary:hover { background: #ff6b6b; }
         .btn-success { background: #00d9ff; color: #1a1a2e; }
         .btn-success:hover { background: #00b8d9; }
+        .btn-danger { background: #e94560; color: #fff; }
+        .btn-danger:hover { background: #c92f49; }
         input, textarea { width: 100%; padding: 10px; margin-bottom: 10px; background: #2a2a2a; border: 1px solid #4a4a4a; color: #eee; border-radius: 4px; }
         textarea { min-height: 100px; resize: vertical; }
         label { display: block; margin-bottom: 5px; color: #aaa; }
@@ -40,6 +42,10 @@
         .status-approved { background: #00ff8822; color: #00ff88; }
         .status-rejected { background: #e9456022; color: #e94560; }
         .status-over-budget { background: #ffa50022; color: #ffa500; }
+        .status-bug, .status-new { background: #e9456022; color: #ff8fa3; }
+        .status-suggestion, .status-reviewed { background: #00d9ff22; color: #00d9ff; }
+        .status-other { background: #c0c0c022; color: #c0c0c0; }
+        .status-resolved { background: #00ff8822; color: #00ff88; }
         .vote-buttons { display: flex; gap: 10px; margin-top: 10px; }
         .vote-btn { flex: 1; padding: 8px; border: 2px solid; border-radius: 4px; background: transparent; cursor: pointer; font-weight: bold; text-align: center; text-decoration: none; display: inline-block; }
         .vote-btn:hover { opacity: 0.8; }
@@ -47,6 +53,22 @@
         .vote-btn.approve:hover, .vote-btn.approve.active { background: #00d9ff; color: #1a1a2e; }
         .vote-btn.reject { border-color: #e94560; color: #e94560; }
         .vote-btn.reject:hover, .vote-btn.reject.active { background: #e94560; color: white; }
+        .filter-row { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 15px; }
+        .filter-chip { --filter-color: #00d9ff; display: inline-flex; align-items: center; padding: 5px 10px; color: var(--filter-color); border: 1px solid var(--filter-color); border-radius: 999px; font-size: 0.8em; line-height: 1.2; text-decoration: none; transition: background-color 0.15s ease, color 0.15s ease; }
+        .filter-chip:hover, .filter-chip.active { background: color-mix(in srgb, var(--filter-color) 18%, transparent); color: #fff; }
+        .filter-chip.active { box-shadow: 0 0 0 1px var(--filter-color); }
+        .poll-card-grid { display: flex; gap: 12px; flex-wrap: wrap; margin-top: 12px; }
+        .poll-card-panel { flex: 1; min-width: 200px; background: #232323; padding: 12px; border-radius: 8px; border: 1px solid #3a3a3a; }
+        .poll-vote-submit { width: 100%; margin-top: 10px; }
+        .poll-result-fill { height: 100%; background: var(--result-color, #00d9ff); }
+        .danger-modal[hidden] { display: none; }
+        .danger-modal { position: fixed; inset: 0; display: grid; place-items: center; padding: 20px; background: rgba(0, 0, 0, 0.75); z-index: 1100; overflow-y: auto; }
+        .danger-modal-panel { width: min(480px, 100%); padding: 20px; background: #1f1f1f; border: 1px solid #e94560; border-radius: 8px; box-shadow: 0 20px 60px #000a; }
+        .danger-modal-panel:focus { outline: 2px solid #00d9ff; outline-offset: 3px; }
+        .danger-modal-panel h3 { color: #ff8fa3; }
+        .danger-modal-panel p { color: #cbd5e1; line-height: 1.45; }
+        .danger-modal-panel .danger-modal-hint { color: #94a3b8; font-size: 0.9em; margin-top: 8px; }
+        .danger-modal-panel .button-row { margin-top: 14px; }
         .nav { display: flex; flex-wrap: wrap; gap: 15px; margin-bottom: 20px; padding-bottom: 15px; border-bottom: 1px solid #3a3a3a; }
         .nav-header { display: contents; }
         .nav-links { display: flex; flex-wrap: wrap; gap: 15px; }
@@ -63,7 +85,7 @@
         .lang-selector a.active { opacity: 1; font-weight: bold; }
         .settings-dropdown { position: relative; margin-left: auto; }
         .settings-menu { display: none; position: absolute; right: 0; top: 20px; background: #1f1f1f; border: 1px solid #3a3a3a; border-radius: 4px; padding: 10px; min-width: 150px; z-index: 100; }
-        .settings-dropdown:hover .settings-menu { display: block; }
+        .settings-dropdown:hover .settings-menu, .settings-dropdown:focus-within .settings-menu { display: block; }
         .settings-menu a { display: block; padding: 5px 10px; color: #ffff00; text-decoration: none; }
         .settings-menu a:hover { background: #2a2a2a; }
         @media (max-width: 600px) {

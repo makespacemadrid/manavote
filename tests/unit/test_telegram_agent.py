@@ -26,14 +26,21 @@ class FakeResponse:
         return {"choices": [{"message": self.message}]}
 
 
-def test_non_admin_tools_are_read_only():
+def test_non_admin_tools_include_member_feedback_only_as_a_write():
     names = {tool["function"]["name"] for tool in telegram_agent._openai_tools(is_admin=False)}
-    assert names == telegram_agent.READ_ONLY_TOOLS
+    assert names == telegram_agent.READ_ONLY_TOOLS | telegram_agent.MEMBER_WRITABLE_TOOLS
     assert "create_member" not in names
     assert "list_member_telegram_links" not in names
     assert "list_user_statistics" not in names
     assert "list_polls" in names
     assert "list_group_purchases" in names
+
+
+def test_feedback_tool_hides_member_attribution_from_model():
+    tools = telegram_agent._openai_tools(is_admin=False, actor_member_id=42)
+    feedback = next(tool["function"] for tool in tools if tool["function"]["name"] == "create_feedback")
+    assert "member_id" not in feedback["parameters"]["properties"]
+    assert "member_id" not in feedback["parameters"]["required"]
 
 
 def test_admin_tools_exclude_password_bearing_member_creation():

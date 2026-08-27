@@ -96,14 +96,14 @@
     {% if purchase.payment_method %}<p style="margin:8px 0;">💳 <strong>{{ 'Payment method'|lang }}:</strong> {{ purchase.payment_method }}</p>{% endif %}
     {% if purchase.shared_costs %}
         <p style="margin:8px 0;">➕ <strong>{{ 'Shared costs'|lang }}:</strong>
-            {% for cost in purchase.shared_costs %}{{ cost.label }}: €{{ '%.2f'|format(cost.amount) }}{% if not loop.last %}, {% endif %}{% endfor %}
-            ({{ 'Total'|lang }}: €{{ '%.2f'|format(purchase.shared_cost_total) }})
+            {% for cost in purchase.shared_costs %}{{ cost.label }}: €{{ cost.amount|currency }}{% if not loop.last %}, {% endif %}{% endfor %}
+            ({{ 'Total'|lang }}: €{{ purchase.shared_cost_total|currency }})
         </p>
     {% endif %}
     {% if purchase.created_by == session.member_id or session.get('is_admin') %}
         <div class="button-row" style="margin:10px 0;">
             <a class="btn btn-secondary" href="{{ url_for('group_purchases.edit_purchase', purchase_id=purchase.id) }}">{{ 'Edit'|lang }}</a>
-            <form method="post" action="{{ url_for('group_purchases.delete_purchase', purchase_id=purchase.id) }}" onsubmit="return confirm('{{ 'Delete this group purchase?'|lang }}');">
+            <form method="post" action="{{ url_for('group_purchases.delete_purchase', purchase_id=purchase.id) }}" onsubmit="return confirmDangerAction(this, '{{ 'Delete this group purchase?'|lang }}');">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-secondary" type="submit">{{ 'Delete'|lang }}</button>
             </form>
@@ -123,7 +123,7 @@
     {% for component in purchase.components %}
     <section class="component">
         <div class="component-row">
-            <div><strong>{{ component.name }}</strong><br><span class="proposal-meta">{{ 'Unit price'|lang }}: €{{ '%.2f'|format(component.unit_price) }} · {{ 'Total units'|lang }}: {{ component.total_quantity }}</span></div>
+            <div><strong>{{ component.name }}</strong><br><span class="proposal-meta">{{ 'Unit price'|lang }}: €{{ component.unit_price|currency }} · {{ 'Total units'|lang }}: {{ component.total_quantity }}</span></div>
             {% if purchase.status == 'open' %}<form class="quantity-form" method="post" action="{{ url_for('group_purchases.set_quantity', purchase_id=purchase.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="component_id" value="{{ component.id }}">
@@ -144,7 +144,7 @@
             <table>
                 <thead><tr><th>{{ 'Member'|lang }}</th><th>{{ 'Amount owed'|lang }}</th><th>{{ 'Payment'|lang }}</th></tr></thead>
                 <tbody>{% for debt in purchase.debts %}<tr>
-                    <td>{{ debt.username|username }}</td><td>€{{ '%.2f'|format(debt.amount_owed) }}<br><span class="proposal-meta">€{{ '%.2f'|format(debt.selection_amount) }} + €{{ '%.2f'|format(debt.shared_cost_share) }} ({{ '%.1f'|format(debt.selection_percentage) }}%)</span></td>
+                    <td>{{ debt.username|username }}</td><td>€{{ debt.amount_owed|currency }}<br><span class="proposal-meta">€{{ debt.selection_amount|currency }} + €{{ debt.shared_cost_share|currency }} ({{ '%.1f'|format(debt.selection_percentage) }}%)</span></td>
                     <td>
                         {% if debt.received_at %}<span class="amount-positive">✓ {{ 'Received'|lang }}</span>{% else %}<span class="proposal-meta">{{ 'Pending'|lang }}</span>{% endif %}
                         {% if purchase.created_by == session.member_id %}

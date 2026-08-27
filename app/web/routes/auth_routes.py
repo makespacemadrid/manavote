@@ -11,6 +11,7 @@ from werkzeug.security import generate_password_hash
 
 from app.extensions import limiter, oauth
 from app.services.auth_service import verify_and_migrate_password
+from app.services import feedback_service
 from app.services.telegram_link_service import unlink_member_telegram
 from app.web.routes.helpers.admin_audit_helpers import log_telegram_link_event
 from app.web.decorators import login_required
@@ -309,6 +310,18 @@ def settings_page():
     member = cursor.fetchone()
 
     if request.method == "POST":
+        if request.form.get("action") == "submit_feedback":
+            try:
+                feedback_service.submit_feedback(
+                    conn, member_id=session["member_id"], source="web",
+                    category=request.form.get("category"), message=request.form.get("message"),
+                    logger=current_app.logger,
+                )
+                flash("Feedback submitted. Thank you!", "success")
+            except feedback_service.FeedbackValidationError as exc:
+                flash(str(exc), "error")
+            conn.close()
+            return redirect(url_for("auth.settings_page"))
         existing_email = (member["email"] or "").strip() if member else ""
         email = request.form.get("email", "").strip().lower()
         if existing_email:

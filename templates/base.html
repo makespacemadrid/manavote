@@ -2,7 +2,7 @@
 <html lang="{{ session_lang|default('en') }}">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <link rel="icon" type="image/x-icon" href="{{ url_for('static', filename='img/favicon.ico') }}">
     <title>{{ 'MakeSpace Madrid Budget Voting'|lang }}</title>
     <link rel="stylesheet" href="{{ url_for('static', filename='react/style.css') }}">
@@ -19,6 +19,7 @@
         
         {% block content %}{% endblock %}
     </div>
+    {% include "_danger_action_modal.html" %}
     <script type="module" src="{{ url_for('static', filename='react/app.js') }}"></script>
 </body>
 </html>

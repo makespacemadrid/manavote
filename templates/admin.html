@@ -7,7 +7,7 @@
 <h2>{{ 'Admin'|lang }}</h2>
 
 <div class="admin-toolbar">
-    {% for section, label in [('members', 'Members'), ('budget', 'Budget'), ('polls', 'Polls'), ('group_purchases', 'Group purchases'), ('settings', 'Settings')] %}
+    {% for section, label in [('members', 'Members'), ('budget', 'Budget'), ('polls', 'Polls'), ('group_purchases', 'Group purchases'), ('feedback', 'Feedback'), ('settings', 'Settings')] %}
     <a href="{{ url_for('admin.admin', tab=section) }}" class="btn btn-secondary admin-tab-btn{% if active_admin_tab == section %} active{% endif %}" data-section="{{ section }}" onclick="showSection('{{ section }}', this); return false;">{{ label|lang }}</a>
     {% endfor %}
 </div>
@@ -91,6 +91,7 @@ function showSection(sectionId, buttonEl) {
         budget: ['thresholds', 'budget', 'budget-history', 'proposal-history'],
         polls: ['polls'],
         group_purchases: ['group-purchases'],
+        feedback: ['feedback'],
         settings: ['settings', 'timezone', 'backup', 'telegram']
     };
 
@@ -363,10 +364,10 @@ document.addEventListener('DOMContentLoaded', function() {
                 <td>{{ log.created_at|localtime("%Y-%m-%d %H:%M") }}</td>
                 <td>{{ log.description }}</td>
                 <td class="{{ 'amount-positive' if log.amount > 0 else 'amount-negative' }}">
-                    {{ "+" if log.amount > 0 else "" }}€{{ "%.2f"|format(log.amount) }}
+                    {{ "+" if log.amount > 0 else "" }}€{{ log.amount|currency }}
                 </td>
                 <td class="{{ 'amount-positive' if log.balance > 0 else 'amount-negative' }}">
-                    €{{ "%.2f"|format(log.balance) }}
+                    €{{ log.balance|currency }}
                 </td>
             </tr>
             {% endfor %}
@@ -500,6 +501,27 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 
+
+<div id="feedback" class="card">
+    <h3>{{ 'Feedback'|lang }}</h3>
+    {% if feedback_items %}
+    <div style="overflow-x: auto;"><table>
+        <thead><tr><th>{{ 'Date'|lang }}</th><th>{{ 'Member'|lang }}</th><th>{{ 'Type'|lang }}</th><th>{{ 'Message'|lang }}</th><th>{{ 'Status'|lang }}</th><th>{{ 'Action'|lang }}</th></tr></thead>
+        <tbody>{% for item in feedback_items %}<tr>
+            <td>{{ item.created_at|localtime }}</td><td>{{ item.username|username }}</td>
+            <td><span class="status status-{{ item.category }}">{{ item.category|lang }}</span><br><small>{{ item.source }}</small></td>
+            <td style="white-space: normal; min-width: 240px;">{{ item.message }}</td>
+            <td><span class="status status-{{ item.status }}">{{ item.status|lang }}</span></td>
+            <td><form method="POST" class="button-row">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="tab" value="feedback">
+                <input type="hidden" name="action" value="update_feedback_status"><input type="hidden" name="feedback_id" value="{{ item.id }}">
+                {% if item.status == 'new' %}<button class="btn btn-secondary" name="status" value="reviewed">{{ 'Mark reviewed'|lang }}</button>{% endif %}
+                {% if item.status != 'resolved' %}<button class="btn btn-success" name="status" value="resolved">{{ 'Resolve'|lang }}</button>{% endif %}
+            </form></td>
+        </tr>{% endfor %}</tbody>
+    </table></div>
+    {% else %}<p>{{ 'No feedback yet.'|lang }}</p>{% endif %}
+</div>
 
 <div id="settings" class="card">
     <h3>{{ 'Settings'|lang }}</h3>
@@ -720,40 +742,7 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
 </div>
 
-<div id="dangerActionModal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); z-index:1100; overflow-y:auto;">
-    <div style="max-width: 480px; margin: 60px auto; background:#1f1f1f; border:1px solid #e94560; border-radius:8px; width:92%; padding:20px;">
-        <h3 style="margin-top:0; color:#ff8fa3;">Confirm action</h3>
-        <p id="dangerActionMessage" style="color:#cbd5e1; line-height:1.45;"></p>
-        <p style="color:#94a3b8; font-size:0.9em; margin-top:8px;">Please confirm to continue.</p>
-        <div style="display:flex; gap:10px; margin-top:14px;">
-            <button type="button" class="btn btn-secondary" onclick="hideDangerAction()">Cancel</button>
-            <button type="button" class="btn" style="background:#ffff00; color:#000000;" onclick="submitDangerAction()">Confirm</button>
-        </div>
-    </div>
-</div>
-
 <script>
-let pendingDangerForm = null;
-
-function confirmDangerAction(form, message) {
-    pendingDangerForm = form;
-    document.getElementById('dangerActionMessage').textContent = message;
-    document.getElementById('dangerActionModal').style.display = 'block';
-    return false;
-}
-
-function hideDangerAction() {
-    document.getElementById('dangerActionModal').style.display = 'none';
-    pendingDangerForm = null;
-}
-
-function submitDangerAction() {
-    if (pendingDangerForm) {
-        pendingDangerForm.submit();
-    }
-    hideDangerAction();
-}
-
 function showChangePassword(memberId, username) {
     document.getElementById('changePasswordMemberId').value = memberId;
     document.getElementById('changePasswordUser').textContent = '{{ 'Changing password for'|lang }} ' + username;
@@ -768,9 +757,6 @@ function hideChangePassword() {
 // Close modal on outside click
 document.getElementById('changePasswordModal').addEventListener('click', function(e) {
     if (e.target === this) hideChangePassword();
-});
-document.getElementById('dangerActionModal').addEventListener('click', function(e) {
-    if (e.target === this) hideDangerAction();
 });
 </script>
 </div>
