@@ -7,6 +7,7 @@ from flask import Blueprint, flash, redirect, render_template, request, send_fil
 from werkzeug.security import generate_password_hash
 
 from app.extensions import limiter
+from app.services import backup_service
 from app.services.telegram_link_service import unlink_member_telegram
 from app.web.routes.helpers.admin_audit_helpers import log_admin_backup_event, log_telegram_link_event
 
@@ -428,9 +429,7 @@ def admin():
 
         elif action == "backup_db":
             try:
-                from app.services.backup_service import backup_db
-
-                backup_name, pruned_count = backup_db(DB_PATH, keep_days=7)
+                backup_name, pruned_count = backup_service.backup_db(DB_PATH, keep_days=7)
                 log_admin_backup_event(
                     app.logger,
                     event="admin_backup_created",
@@ -444,22 +443,22 @@ def admin():
                     f"Backup created: {backup_name} (pruned {pruned_count} old backup(s))",
                     "success",
                 )
-            except Exception as exc:
+            except backup_service.BACKUP_FAILURES as exc:
                 log_admin_backup_event(
                     app.logger,
                     event="admin_backup_failed",
                     actor_id=session.get("member_id"),
                     backup_type="db",
-                    reason_code="backup_exception",
+                    reason_code=backup_service.backup_failure_reason(exc),
                     status="failed",
                     error=str(exc),
                 )
                 flash(f"Backup failed: {exc}", "error")
         elif action == "backup_images":
             try:
-                from app.services.backup_service import backup_uploads
-
-                backup_name, pruned_count = backup_uploads(app.config["UPLOAD_FOLDER"], keep_days=7)
+                backup_name, pruned_count = backup_service.backup_uploads(
+                    app.config["UPLOAD_FOLDER"], keep_days=7
+                )
                 log_admin_backup_event(
                     app.logger,
                     event="admin_backup_created",
@@ -473,13 +472,13 @@ def admin():
                     f"Image backup created: {backup_name} (pruned {pruned_count} old backup(s))",
                     "success",
                 )
-            except Exception as exc:
+            except backup_service.BACKUP_FAILURES as exc:
                 log_admin_backup_event(
                     app.logger,
                     event="admin_backup_failed",
                     actor_id=session.get("member_id"),
                     backup_type="images",
-                    reason_code="backup_exception",
+                    reason_code=backup_service.backup_failure_reason(exc),
                     status="failed",
                     error=str(exc),
                 )
@@ -646,8 +645,11 @@ def admin():
             LIMIT 50
         """)
         polls = [dict(row) for row in c.fetchall()]
-    except Exception:
+    except sqlite3.Error as exc:
         polls = []
+        app.logger.warning(
+            "admin_page_failure reason_code=poll_list_failed error=%s", exc
+        )
 
     c.execute("""
         SELECT gp.id, gp.title, gp.status, gp.created_at, m.username AS creator

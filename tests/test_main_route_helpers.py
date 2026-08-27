@@ -1,3 +1,5 @@
+import sqlite3
+
 from app.web.routes.helpers.main_helpers import (
     detect_image_type,
     format_datetime,
@@ -37,6 +39,22 @@ def test_truncate_username():
 def test_get_app_timezone_uses_setting_row():
     tz = get_app_timezone(lambda: _DummyConn({"value": "UTC"}))
     assert str(tz) == "UTC"
+
+
+def test_get_app_timezone_falls_back_for_invalid_setting_and_closes_connection():
+    conn = _DummyConn({"value": "Not/A-Timezone"})
+    conn.closed = False
+    conn.close = lambda: setattr(conn, "closed", True)
+
+    assert str(get_app_timezone(lambda: conn)) == "Europe/Madrid"
+    assert conn.closed is True
+
+
+def test_get_app_timezone_falls_back_for_database_error():
+    def unavailable_db():
+        raise sqlite3.OperationalError("database unavailable")
+
+    assert str(get_app_timezone(unavailable_db)) == "Europe/Madrid"
 
 
 def test_format_datetime_converts_to_target_timezone():

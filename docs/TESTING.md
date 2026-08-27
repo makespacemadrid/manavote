@@ -7,6 +7,9 @@ pytest -q
 npm test
 ```
 
+Operator-facing meanings for the reason codes and structured events exercised below are
+documented in [`OPERATIONS.md`](OPERATIONS.md).
+
 ## Targeted regression packs
 
 ```bash
@@ -36,6 +39,8 @@ npm test
 - `tests/test_app_startup.py`
   - App startup sequencing remains deterministic and DB failures are fail-fast.
   - Optional startup jobs (scheduler/auto-backup) remain warning-only and can be skipped in `test` env.
+  - Telegram group/forum configuration without `TELEGRAM_BOT_USERNAME` emits the stable
+    `missing_bot_username_for_group` warning without false positives for private chats.
 - `tests/test_startup_policy.py`
   - Runtime policy flags are environment-aware (`test` disables optional startup jobs).
 - `tests/unit/test_settings_service.py`
@@ -102,6 +107,8 @@ Covers MCP auth, tool discovery, create-tool happy paths, and key negative-path 
 - validation failures (`-32602`)
 - conflict class (`-32010`)
 - not-found class (`-32004`)
+- internal application failures preserve the request ID, return generic `-32000` error
+  text, and do not disclose database exception details
 - `list_user_statistics` success shape, admin-only `include_email` opt-in, invalid
   pagination, and budget/poll/group-purchase ranking and filtering
 
@@ -199,6 +206,8 @@ Coverage is split by responsibility:
     message; a duplicate `update_id` is acknowledged without repeating the work
   - an administrator's propose → `/confirm` flow executes exactly one MCP write, and the
     same flow with the admin role removed between the two steps executes zero
+  - structured job logs correlate `update_id`, chat/member identity, queue wait, model
+    latency, tool name, job duration, and stable completion/rejection reason codes
 
 No live Ocabra or Telegram credentials are required for this pack. HTTP/model calls
 are mocked; use an explicitly configured test bot only for optional manual smoke tests.

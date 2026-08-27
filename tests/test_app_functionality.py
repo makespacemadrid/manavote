@@ -510,7 +510,7 @@ class TestAdminFunctionality(unittest.TestCase):
                 self.assertEqual(args[7], 2)
 
     def test_admin_backup_db_failure_emits_audit_log_event(self):
-        with patch("app.services.backup_service.backup_db", side_effect=RuntimeError("disk full")):
+        with patch("app.services.backup_service.backup_db", side_effect=OSError("disk full")):
             with patch.object(budget_app.app.logger, "info") as log_info:
                 response = self.client.post("/admin", data={"action": "backup_db", "csrf_token": ""}, follow_redirects=True)
                 self.assertEqual(response.status_code, 200)
@@ -523,7 +523,7 @@ class TestAdminFunctionality(unittest.TestCase):
                 self.assertEqual(args[2], 1)
                 self.assertEqual(args[3], "db")
                 self.assertIsNone(args[4])
-                self.assertEqual(args[5], "backup_exception")
+                self.assertEqual(args[5], "backup_io_error")
                 self.assertEqual(args[6], "failed")
                 self.assertEqual(args[9], "disk full")
 
@@ -546,7 +546,7 @@ class TestAdminFunctionality(unittest.TestCase):
                 self.assertEqual(args[7], 1)
 
     def test_admin_backup_images_failure_emits_audit_log_event(self):
-        with patch("app.services.backup_service.backup_uploads", side_effect=RuntimeError("zip failed")):
+        with patch("app.services.backup_service.backup_uploads", side_effect=OSError("zip failed")):
             with patch.object(budget_app.app.logger, "info") as log_info:
                 response = self.client.post("/admin", data={"action": "backup_images", "csrf_token": ""}, follow_redirects=True)
                 self.assertEqual(response.status_code, 200)
@@ -559,7 +559,7 @@ class TestAdminFunctionality(unittest.TestCase):
                 self.assertEqual(args[2], 1)
                 self.assertEqual(args[3], "images")
                 self.assertIsNone(args[4])
-                self.assertEqual(args[5], "backup_exception")
+                self.assertEqual(args[5], "backup_io_error")
                 self.assertEqual(args[6], "failed")
                 self.assertEqual(args[9], "zip failed")
 

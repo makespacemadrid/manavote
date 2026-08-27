@@ -1,4 +1,5 @@
 import json
+import sqlite3
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
@@ -33,8 +34,13 @@ def polls_page():
             try:
                 c.execute("SELECT options_json, status FROM polls WHERE id = ?", (poll_id,))
                 poll_row = c.fetchone()
-            except Exception:
+            except sqlite3.Error as exc:
                 poll_row = None
+                legacy.app.logger.warning(
+                    "polls_page_failure reason_code=poll_lookup_failed poll_id=%s error=%s",
+                    poll_id,
+                    exc,
+                )
                 flash("Polls are temporarily unavailable", "error")
             if poll_row is not None:
                 try:
@@ -65,8 +71,11 @@ def polls_page():
             """
         )
         poll_rows = c.fetchall()
-    except Exception:
+    except sqlite3.Error as exc:
         poll_rows = []
+        legacy.app.logger.warning(
+            "polls_page_failure reason_code=poll_list_failed error=%s", exc
+        )
         flash("Polls are temporarily unavailable", "error")
 
     polls = []
@@ -110,9 +119,14 @@ def polls_page():
                 (poll["id"], session["member_id"]),
             )
             own = c.fetchone()
-        except Exception:
+        except sqlite3.Error as exc:
             votes = []
             own = None
+            legacy.app.logger.warning(
+                "polls_page_failure reason_code=poll_votes_load_failed poll_id=%s error=%s",
+                poll["id"],
+                exc,
+            )
         counts = [0] * len(options)
         for v in votes:
             if v["option_index"] < len(counts):

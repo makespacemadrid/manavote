@@ -86,6 +86,21 @@ def test_oidc_callback_rejects_inactive_members(monkeypatch):
     assert response.status_code == 403
 
 
+def test_oidc_callback_handles_typed_provider_error(monkeypatch, caplog):
+    app = configure_app(monkeypatch, TESTING=True, OIDC_ENABLED=True)
+
+    class FakeClient:
+        def authorize_access_token(self):
+            raise auth_routes.OAuthError(error="access_denied", description="Denied")
+
+    monkeypatch.setattr(auth_routes.oauth, "keycloak", FakeClient())
+    response = app.test_client().get("/auth/callback/keycloak")
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/login")
+    assert "reason_code=oidc_token_exchange_failed" in caplog.text
+
+
 def test_oidc_callback_rejects_identity_without_subject(monkeypatch):
     app = configure_app(monkeypatch, TESTING=True, OIDC_ENABLED=True)
 

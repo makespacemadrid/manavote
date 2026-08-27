@@ -339,6 +339,7 @@ def answer(
     actor_member_id: int | None = None,
     is_admin: bool = False,
     on_proposal_created: Callable[[int, dict[str, Any]], bool] | None = None,
+    on_event: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> str:
     """Answer natural language and let the model operate ManaVote through MCP tools."""
     url = os.getenv("OCABRA_CHAT_URL", "").strip()
@@ -363,6 +364,8 @@ def answer(
             return "❌ Only a linked administrator can confirm that action."
         if pending.actor_member_id is not None and pending.actor_member_id != actor_member_id:
             return "❌ The linked member changed. Please request that action again."
+        if on_event is not None:
+            on_event("tool_call_received", {"tool_name": pending.tool_name})
         result = _call_mcp(pending.tool_name, pending.arguments, is_admin=True)
         reply = _action_result_text(pending, result)
         if pending.tool_name == "create_proposal" and on_proposal_created is not None:
@@ -400,7 +403,8 @@ def answer(
     ]
     tools = _openai_tools(is_admin=is_admin, actor_member_id=actor_member_id)
 
-    for _ in range(MAX_TOOL_ROUNDS):
+    for round_number in range(1, MAX_TOOL_ROUNDS + 1):
+        model_started = time.monotonic()
         response = requests.post(
             url,
             headers=_headers(),
@@ -416,6 +420,14 @@ def answer(
         )
         response.raise_for_status()
         assistant = response.json()["choices"][0]["message"]
+        if on_event is not None:
+            on_event(
+                "model_request_completed",
+                {
+                    "model_latency_ms": round((time.monotonic() - model_started) * 1000, 2),
+                    "model_round": round_number,
+                },
+            )
         tool_calls = assistant.get("tool_calls") or []
         if not tool_calls:
             reply = (assistant.get("content") or "I couldn't produce a response.").strip()
@@ -427,6 +439,11 @@ def answer(
         messages.append(assistant)
         for tool_call in tool_calls:
             function = tool_call.get("function") or {}
+            if on_event is not None:
+                on_event(
+                    "tool_call_received",
+                    {"tool_name": str(function.get("name") or "unknown")},
+                )
             try:
                 arguments = json.loads(function.get("arguments") or "{}")
             except (TypeError, json.JSONDecodeError):

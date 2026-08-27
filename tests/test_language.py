@@ -217,6 +217,22 @@ class TestProposalsFiltersAndStatus(unittest.TestCase):
         budget_app.app.config["TESTING"] = True
         budget_app.app.config["WTF_CSRF_ENABLED"] = False
         cls.client = budget_app.app.test_client()
+        conn = main_routes.get_db()
+        cursor = conn.execute(
+            "INSERT INTO proposals (title, description, amount, created_by, status) "
+            "VALUES (?, ?, ?, ?, ?)",
+            ("Filter status fixture", "", 1, 1, "active"),
+        )
+        cls._active_proposal_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+    @classmethod
+    def tearDownClass(cls):
+        conn = main_routes.get_db()
+        conn.execute("DELETE FROM proposals WHERE id = ?", (cls._active_proposal_id,))
+        conn.commit()
+        conn.close()
 
     def setUp(self):
         with self.client.session_transaction() as session:

@@ -211,6 +211,40 @@ def test_agent_executes_mcp_tool_and_returns_model_answer(monkeypatch):
     }
 
 
+def test_agent_reports_model_latency_and_tool_names(monkeypatch):
+    responses = iter(
+        [
+            FakeResponse(
+                {
+                    "role": "assistant",
+                    "tool_calls": [
+                        {
+                            "id": "call-1",
+                            "function": {"name": "current_budget", "arguments": "{}"},
+                        }
+                    ],
+                }
+            ),
+            FakeResponse({"role": "assistant", "content": "€100"}),
+        ]
+    )
+    events = []
+    monkeypatch.setenv("OCABRA_CHAT_URL", "https://ocabra.example/v1/chat/completions")
+    monkeypatch.setattr(telegram_agent.requests, "post", lambda *_a, **_kw: next(responses))
+    monkeypatch.setattr(telegram_agent, "_call_mcp", lambda *_a, **_kw: "{}")
+
+    telegram_agent.answer(56, "Budget?", on_event=lambda event, details: events.append((event, details)))
+
+    assert [event for event, _details in events] == [
+        "model_request_completed",
+        "tool_call_received",
+        "model_request_completed",
+    ]
+    assert events[0][1]["model_round"] == 1
+    assert events[0][1]["model_latency_ms"] >= 0
+    assert events[1][1] == {"tool_name": "current_budget"}
+
+
 def test_disallowed_mcp_tool_is_not_called(monkeypatch):
     monkeypatch.setattr(telegram_agent, "_openai_tools", lambda **_kwargs: [])
     assert "may not use" in telegram_agent._call_mcp("create_member", {}, is_admin=False)

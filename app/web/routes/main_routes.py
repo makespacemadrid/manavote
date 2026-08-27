@@ -1,6 +1,7 @@
+import atexit
+import logging
 import os
 import sqlite3
-import logging
 from zoneinfo import ZoneInfo
 try:
     from dotenv import load_dotenv
@@ -56,6 +57,7 @@ _telegram_agent_executor = BoundedExecutor(
     max_pending=32,
     thread_name_prefix="telegram-agent",
 )
+atexit.register(_telegram_agent_executor.shutdown)
 _telegram_update_deduplicator = TelegramUpdateDeduplicator(
     connection_factory=lambda: get_db()
 )

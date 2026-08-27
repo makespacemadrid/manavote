@@ -11,6 +11,27 @@ from .startup_policy import get_startup_runtime_policy
 from .web.routes.main_routes import ensure_db_ready, sync_telegram_webhook_on_startup
 
 
+def check_telegram_group_configuration(logger=None, environ=None):
+    """Warn when group message routing cannot identify this bot exactly."""
+    logger = logger or logging.getLogger(__name__)
+    environ = os.environ if environ is None else environ
+    chat_id = environ.get("TELEGRAM_CHAT_ID", "").strip()
+    thread_id = environ.get("TELEGRAM_THREAD_ID", "").strip()
+    bot_username = environ.get("TELEGRAM_BOT_USERNAME", "").strip()
+
+    # Telegram private-chat IDs are positive. Group and supergroup IDs are negative;
+    # a configured thread also unambiguously identifies a forum supergroup.
+    group_configured = chat_id.startswith("-") or bool(thread_id)
+    if group_configured and not bot_username:
+        logger.warning(
+            "telegram_configuration_warning reason_code=%s "
+            "TELEGRAM_BOT_USERNAME must be set for exact group mention matching",
+            "missing_bot_username_for_group",
+        )
+        return "missing_bot_username_for_group"
+    return None
+
+
 def check_auto_backup(db_path, upload_dir=None, logger=None):
     """Simple auto-backup check without APScheduler."""
     logger = logger or logging.getLogger(__name__)
@@ -73,6 +94,7 @@ def run_startup_steps(app, db_path, upload_folder, app_env=None):
 
     ensure_db_ready()
 
+    check_telegram_group_configuration(logger=app.logger)
     telegram_status = sync_telegram_webhook_on_startup()
     if telegram_status not in {"skipped", "synced"}:
         degraded_reasons.append(f"telegram_webhook_{telegram_status}")
