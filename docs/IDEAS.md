@@ -136,7 +136,7 @@ backpressure, Telegram transport, retry behavior, documentation, and focused tes
      direct-call, and confirmation boundaries; broader log/history controls remain
      follow-up work.
 
-2. **Shared state for multi-worker/restart safety (P0)**
+2. **Shared state for multi-worker/restart safety (P0)** — ✅ closed (2026-08-27).
    - Conversation history, pending confirmations, update deduplication, and queue state
      are process-local. Multiple WSGI workers can route `/confirm` to a process that does
      not own the pending action; restarts lose confirmations and retry memory.
@@ -148,11 +148,56 @@ backpressure, Telegram transport, retry behavior, documentation, and focused tes
      atomically consumed before execution.
    - Progress (2026-08-27): conversation history now uses the same SQLite-backed pattern
      (`telegram_conversation_history`, `configure_history_store`), bounded to the last
-     `MAX_HISTORY_MESSAGES` (12) turns per chat/user and shared across workers. Bounded
-     model-request queue state (the in-process worker pool limiting concurrent model
-     calls) is fundamentally process-local by design and still needs an architectural
-     decision — e.g. a single dedicated assistant worker, or a database/Redis-backed
-     lease — rather than a like-for-like SQLite swap.
+     `MAX_HISTORY_MESSAGES` (12) turns per chat/user and shared across workers.
+   - **Decision (2026-08-27)**: the one remaining piece — the bounded model-request
+     queue's in-process worker pool — stays process-local by design; it does not move to
+     SQLite/Redis. Reasoning:
+     - Every piece of state where cross-worker visibility is a *correctness* requirement
+       (a `/confirm` reply must find the pending action a different worker created; a
+       retried webhook must not be reprocessed; conversation history must be consistent
+       regardless of which worker answers) is now durable and shared, per the two
+       progress notes above. The queue's job is different in kind: it only limits how
+       many model calls run concurrently *within one process*, to avoid overloading the
+       downstream LLM API. It doesn't need cross-worker visibility to do that correctly —
+       each process independently staying within its own 4 active / 32 pending bound is
+       sufficient for that purpose.
+     - The actual residual risk was never "an in-flight job is invisible to other
+       workers" — it was "if the process holding a job crashes mid-flight, that one reply
+       is silently lost, with nothing logged and no signal to the user or an operator."
+       That's a real gap, but a narrow one: the user's message was already deduplicated
+       (marked consumed) so it will never be retried, and it costs the user one missed
+       chat reply, recoverable by asking again. Nothing that requires durability — votes,
+       proposal mutations, `/confirm` itself — depends on this in-memory queue; those all
+       already flow through the SQLite-backed paths above.
+     - A genuine fix for that narrow gap (a persistent job queue with claim/lease
+       semantics, retry/backoff, and safe-replay handling for a job that was mid-flight
+       when a process died) is real infrastructure work, and disproportionate to what it
+       buys for an app at this scale (a small community makerspace tool, not a
+       high-throughput service) — and it would add a new dependency (Redis, or a
+       hand-rolled SQLite lease system) this app doesn't otherwise need. "A single
+       dedicated assistant worker" (the other option floated in the prior note) doesn't
+       actually eliminate the risk either — that one worker can still crash mid-job — so
+       it wasn't pursued as a fix for this specific gap.
+     - What was fixed instead, because it's cheap, safe, and closes the part of the gap
+       that actually matters — silence: `_answer_and_send` in `app/web/routes/telegram_routes.py`
+       previously had no catch-all around reply generation or delivery, so
+       `concurrent.futures` would silently drop any exception outside the narrow
+       `(requests.RequestException, RuntimeError, KeyError, IndexError, ValueError)` tuple
+       `_natural_language_reply` already handled — including any failure in
+       `client.send_long_message(...)` itself, or in the `on_proposal_created` callback.
+       Wrapped every stage (reply generation, delivery, thinking-message cleanup) in its
+       own try/except that logs via `app.logger.exception(...)` with chat/member context
+       and, where possible, still sends the user a graceful fallback message instead of
+       leaving them with a deleted "🤔 Thinking…" message and nothing else. Regression
+       test added: `test_unexpected_reply_error_is_logged_and_user_gets_a_graceful_message`
+       in `tests/test_telegram_natural_language_webhook.py`, which forces an exception type
+       outside that tuple and asserts it's both logged and gracefully answered rather than
+       silently dropped.
+     - Operational note for future deployment changes: the model-request concurrency cap
+       (4 active / 32 pending) is enforced *per process*. Running N worker processes
+       multiplies the effective global cap by N. That's fine at this app's current scale;
+       revisit if the deployment ever moves to many workers or the assistant sees load
+       that makes per-process-only bounding matter.
 
 3. **End-to-end natural-language webhook contract (P0)** — ✅ delivered (2026-08-27)
    - Existing functional webhook tests exercise deterministic commands and callbacks,

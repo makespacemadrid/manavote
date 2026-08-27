@@ -281,17 +281,23 @@ limits, and confirmation audit records) is tracked as forward-looking backlog in
 4. **Docs synchronization pass**
    - Keep `APIDOC.md`, `SPEC.md`, `TESTING.md`, and sprint notes aligned for any contract or workflow change.
 
-5. **Telegram-assistant reliability closure** — blocked on a human decision.
-   - Conversation history is now shared across workers (see Delivered above). Remaining:
-     decide an approach for the process-local model-request queue (`IDEAS.md` P0 item on
-     shared state for multi-worker/restart safety). This is the one item in this sprint
-     that has repeatedly been flagged (here and in `IDEAS.md`) as needing an architectural
-     decision — how much in-flight-request state is acceptable to lose on a worker
-     restart, whether a queue depth/backpressure policy is wanted, what "shared" means for
-     a bounded in-memory executor — rather than a like-for-like SQLite swap a coding pass
-     can make unilaterally. Not resolved in this pass; still open.
+5. **Telegram-assistant reliability closure** — ✅ closed (2026-08-27).
+   - Conversation history is now shared across workers (see Delivered above).
    - ✅ The end-to-end natural-language webhook contract test called for in `IDEAS.md` is
      done — see Delivered above.
+   - ✅ Decided the process-local model-request queue architecture question (asked of and
+     decided by the user, full reasoning in `IDEAS.md`'s "Shared state for multi-worker/
+     restart safety" entry): the bounded worker pool stays process-local by design, since
+     the only state where cross-worker visibility is a correctness requirement
+     (confirmations, dedup, conversation history) is already durable, and the residual
+     risk — an in-flight reply lost if the process crashes mid-job — costs one missed
+     chat reply, not a lost vote or mutation. Building a persistent job queue to close
+     that narrow gap was judged disproportionate to what this app's scale needs. What
+     *was* fixed: `_answer_and_send` had no catch-all, so `concurrent.futures` silently
+     dropped any exception outside a narrow expected-error tuple — including a failure in
+     the outbound Telegram delivery call itself. Added logging + a graceful user-facing
+     fallback at every stage, with a regression test forcing an unhandled exception type
+     and asserting it's caught, logged, and answered rather than silently lost.
 
 ### Exit Criteria
 - ✅ `main_routes.py` is reduced to compatibility routing with minimal orchestration logic
@@ -300,15 +306,17 @@ limits, and confirmation audit records) is tracked as forward-looking backlog in
 - ✅ Admin reliability operations are observable through logs/events without ad-hoc DB inspection.
 - ✅ REST and MCP validation/error contracts are consistent for high-value endpoints/tools.
 - 🟡 Docs remain synchronized with implementation behavior (ongoing, not a one-time gate).
-- 🔴 The Telegram assistant is safe to run behind multiple application workers without losing
-  pending confirmations or conversation state — pending confirmations/conversation history
-  are already shared via SQLite; the model-request queue itself is still process-local and
-  needs the human decision noted in item 5 above before it can move.
+- ✅ The Telegram assistant is safe to run behind multiple application workers without losing
+  pending confirmations or conversation state — pending confirmations, update
+  deduplication, and conversation history are all SQLite-backed and shared; the
+  model-request queue's process-local scope is a documented, deliberate design decision
+  (see item 5), not an open gap.
 
-**Status:** 🟡 In Progress — everything is closed except item 5's model-request-queue
-architecture decision (needs a human call, see above), and item 1b's small remaining A2
-cleanup (`get_db`/settings-budget read wrappers, already thin; `process_telegram_link_command`,
-deliberately left thin). Once the queue decision is made and acted on, this sprint is done.
+**Status:** 🟡 In Progress — only item 1b's small remaining A2 cleanup is open
+(`get_db`/settings-budget read wrappers, already appropriately thin;
+`process_telegram_link_command`, deliberately left thin) plus the ongoing docs-sync item,
+which by nature never fully "completes." Every other checklist item and exit criterion is
+closed; this sprint is functionally done.
 
 ---
 
