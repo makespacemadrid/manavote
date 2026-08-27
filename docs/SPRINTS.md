@@ -228,6 +228,23 @@ limits, and confirmation audit records) is tracked as forward-looking backlog in
    `log_proposal_vote_event`, `process_telegram_link_command`, Telegram messaging/
    webhook-sync helpers — see `IDEAS.md` A2 for the complete remaining list) is unchanged
    and still open; more slices planned.
+   Fourth and fifth slices (2026-08-27): extracted `record_proposal_vote`/
+   `log_proposal_vote_event` into `app/services/proposal_vote_recording_service.py`
+   (taking `get_db`, `get_setting_value`, `process_proposal`, and `logger` as explicit
+   parameters), and `send_telegram_message`/`send_telegram_admin_test_message`/
+   `sync_telegram_webhook`/`sync_telegram_webhook_on_startup` into
+   `app/services/telegram_messaging_service.py` (taking the `TelegramClient` class itself
+   as a parameter rather than importing it — tests replace `main_routes.TelegramClient`
+   wholesale with a fake, so the service must re-resolve it from the caller on every call,
+   same reasoning as every prior injection). 17 new direct unit tests across both modules.
+   Also removed `migrate_password_if_needed` from `main_routes.py`: confirmed via grep
+   it was dead code, fully superseded by `app.services.auth_service.verify_and_migrate_password`
+   (already used by the real login path in `auth_routes.py`) and called by nothing, so this
+   was deletion, not extraction. `main_routes.py`: 627 → 545 lines since this checklist
+   item's last update. Full suite: 524 passed, zero regressions.
+   Remaining A2 scope is now just `get_db`/settings-budget read wrappers (already
+   appropriately thin) and `process_telegram_link_command` (deliberately left, see third
+   slice above) — everything else originally scoped for A2 is done.
 
 1c. **Fixed the "4 pre-existing/environmental failures" every note above cited without
    root-causing (2026-08-27)** — full details in `IDEAS.md`'s "Fixed: the 4 tests
@@ -249,31 +266,49 @@ limits, and confirmation audit records) is tracked as forward-looking backlog in
      exposed via REST/MCP — see Delivered above. Reason-coded audit events for
      policy-blocked votes remain open (`IDEAS.md` item 5).
 
-3. **REST/MCP contract parity pass**
+3. **REST/MCP contract parity pass** — ✅ closed for this sprint's scope.
    - Add additional parity tests for shared business-rule boundaries.
    - Verify consistent machine-readable error semantics across interfaces.
-   - ✅ `create_proposal`/`create_poll` covered — see Delivered above. Remaining:
-     pagination/type errors across list endpoints (`IDEAS.md` item 4).
+   - ✅ `create_proposal`/`create_poll` covered — see Delivered above.
+   - ✅ Pagination/type errors across list endpoints (2026-08-27): added REST/MCP parity
+     tests for `list_proposals` (this was a coverage gap only — REST already validated
+     correctly). Found and fixed a real drift for `list_polls`: MCP already supported
+     `limit`/`offset`, but REST's `GET /api/polls` had none at all (hardcoded `LIMIT 100`).
+     Added matching pagination support and validation to `GET /api/polls`, documented in
+     `APIDOC.md`, with parity tests for both the success and rejection paths. Full details
+     in `IDEAS.md` item 4.
 
 4. **Docs synchronization pass**
    - Keep `APIDOC.md`, `SPEC.md`, `TESTING.md`, and sprint notes aligned for any contract or workflow change.
 
-5. **Telegram-assistant reliability closure**
+5. **Telegram-assistant reliability closure** — blocked on a human decision.
    - Conversation history is now shared across workers (see Delivered above). Remaining:
      decide an approach for the process-local model-request queue (`IDEAS.md` P0 item on
-     shared state for multi-worker/restart safety).
+     shared state for multi-worker/restart safety). This is the one item in this sprint
+     that has repeatedly been flagged (here and in `IDEAS.md`) as needing an architectural
+     decision — how much in-flight-request state is acceptable to lose on a worker
+     restart, whether a queue depth/backpressure policy is wanted, what "shared" means for
+     a bounded in-memory executor — rather than a like-for-like SQLite swap a coding pass
+     can make unilaterally. Not resolved in this pass; still open.
    - ✅ The end-to-end natural-language webhook contract test called for in `IDEAS.md` is
      done — see Delivered above.
 
 ### Exit Criteria
-- `main_routes.py` is reduced to compatibility routing with minimal orchestration logic.
-- Admin reliability operations are observable through logs/events without ad-hoc DB inspection.
-- REST and MCP validation/error contracts are consistent for high-value endpoints/tools.
-- Docs remain synchronized with implementation behavior.
-- The Telegram assistant is safe to run behind multiple application workers without losing
-  pending confirmations or conversation state.
+- ✅ `main_routes.py` is reduced to compatibility routing with minimal orchestration logic
+  (2368 → 545 lines, -77%; remaining content is DB bootstrap, thin repository/service
+  wrappers kept for `legacy.X` compatibility, and Flask route-registration shims).
+- ✅ Admin reliability operations are observable through logs/events without ad-hoc DB inspection.
+- ✅ REST and MCP validation/error contracts are consistent for high-value endpoints/tools.
+- 🟡 Docs remain synchronized with implementation behavior (ongoing, not a one-time gate).
+- 🔴 The Telegram assistant is safe to run behind multiple application workers without losing
+  pending confirmations or conversation state — pending confirmations/conversation history
+  are already shared via SQLite; the model-request queue itself is still process-local and
+  needs the human decision noted in item 5 above before it can move.
 
-**Status:** 🟡 In Progress.
+**Status:** 🟡 In Progress — everything is closed except item 5's model-request-queue
+architecture decision (needs a human call, see above), and item 1b's small remaining A2
+cleanup (`get_db`/settings-budget read wrappers, already thin; `process_telegram_link_command`,
+deliberately left thin). Once the queue decision is made and acted on, this sprint is done.
 
 ---
 

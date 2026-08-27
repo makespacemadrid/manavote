@@ -412,6 +412,9 @@ def api_list_polls():
     auth_error = require_api_key(legacy.ADMIN_API_KEY)
     if auth_error:
         return auth_error
+    limit, offset, pagination_error = parse_pagination_params(default_limit=100, max_limit=200)
+    if pagination_error:
+        return pagination_error
 
     conn = legacy.get_db()
     c = conn.cursor()
@@ -421,8 +424,9 @@ def api_list_polls():
                (SELECT COUNT(*) FROM poll_votes pv WHERE pv.poll_id = p.id) AS total_votes
         FROM polls p
         ORDER BY p.created_at DESC
-        LIMIT 100
-        """
+        LIMIT ? OFFSET ?
+        """,
+        (limit, offset),
     )
     rows = c.fetchall()
     conn.close()
@@ -434,7 +438,7 @@ def api_list_polls():
         except (TypeError, json.JSONDecodeError):
             poll["options"] = []
         polls.append(poll)
-    return jsonify({"success": True, "polls": polls})
+    return jsonify({"success": True, "count": len(polls), "limit": limit, "offset": offset, "polls": polls})
 
 
 @api_bp.route("/api/polls", methods=["POST"], endpoint="api_create_poll")

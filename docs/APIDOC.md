@@ -273,11 +273,18 @@ votes; the response names are retained for API compatibility.
 ### Request headers
 - `X-Admin-Key: <ADMIN_API_KEY>`
 
+### Query params
+- `limit` (optional): default `100`, max `200`
+- `offset` (optional): default `0`
+
 ### Success response
 **200 OK**
 ```json
 {
   "success": true,
+  "count": 1,
+  "limit": 100,
+  "offset": 0,
   "polls": [
     {
       "id": 3,
@@ -299,6 +306,7 @@ curl http://localhost:45000/api/polls \
 ```
 
 ### Error responses
+- `400` invalid `limit`/`offset` (`invalid_limit`, `invalid_offset`, `limit_out_of_range`, `offset_out_of_range`)
 - `401` unauthorized (missing or wrong `X-Admin-Key`)
 - `503` API not configured (`ADMIN_API_KEY` missing)
 

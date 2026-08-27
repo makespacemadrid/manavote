@@ -66,8 +66,20 @@ rechecking the previously audited Telegram-link parity paths.
      and MCP's `create_proposal` uniquely treated a non-positive `created_by` as an
      invalid-params error while REST and MCP's own `create_poll` both treat it as
      not-found. Proposal *update* has no MCP equivalent tool, so its validation edges
-     still only have REST-side coverage. Pagination/type errors across list endpoints
-     remain open.
+     still only have REST-side coverage.
+   - Progress (2026-08-27): closed the pagination/type-errors item. Added REST/MCP parity
+     tests for `list_proposals` pagination (out-of-range limit, non-integer limit, negative
+     offset) — REST already validated these correctly, this was a test-coverage gap only.
+     Found and fixed a real drift for polls: MCP's `list_polls` tool already supported
+     `limit`/`offset` (bounds 1-200, same as `list_proposals`), but REST's `GET /api/polls`
+     had no pagination at all — a hardcoded `LIMIT 100` with no query params or validation.
+     Added `limit`/`offset` support to `GET /api/polls` using the same
+     `parse_pagination_params` helper and error codes (`invalid_limit`, `invalid_offset`,
+     `limit_out_of_range`, `offset_out_of_range`) as the other three REST list endpoints,
+     and added `count`/`limit`/`offset` to its response shape to match. Documented in
+     `APIDOC.md`. Added parity tests covering the new pagination working (limit/offset
+     honored, response shape matches MCP's) and its rejection paths (out-of-range limit,
+     non-integer offset). Full suite: 530 passed, zero regressions.
 
 5. **Observability completion for Telegram lifecycle (P2)**
    - Add reason-coded audit events for link/unlink operations and blocked votes by policy mode.

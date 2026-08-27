@@ -1,6 +1,5 @@
 import os
 import sqlite3
-import hashlib
 import logging
 from zoneinfo import ZoneInfo
 try:
@@ -27,12 +26,17 @@ from app.integrations.bounded_executor import BoundedExecutor
 from app.integrations import telegram_agent
 from app.integrations.telegram_webhook import TelegramUpdateDeduplicator
 from app.repositories.settings_repo import SettingsRepository
-from app.repositories.vote_repo import VoteRepository
 from app.services.auth_service import verify_and_migrate_password
 from app.services.budget_service import calculate_min_backers
 from app.services.proposal_service import ProposalService
 from app.web.routes.helpers.admin_audit_helpers import log_admin_backup_event, log_telegram_link_event
-from app.services import poll_service, telegram_command_service, voting_mode_service
+from app.services import (
+    poll_service,
+    proposal_vote_recording_service,
+    telegram_command_service,
+    telegram_messaging_service,
+    voting_mode_service,
+)
 from app.services.telegram_link_service import process_link_command
 from app.web.app_setup import app, BASE_DIR, is_production
 from app.web.decorators import login_required, admin_required
@@ -42,10 +46,9 @@ from app.web.routes.helpers.main_helpers import (
     truncate_username as helper_truncate_username,
 )
 from werkzeug.utils import secure_filename
-from werkzeug.security import generate_password_hash, check_password_hash
+from werkzeug.security import generate_password_hash
 import markdown
 import warnings
-import time
 
 
 _telegram_agent_executor = BoundedExecutor(
@@ -360,94 +363,39 @@ def can_record_proposal_vote(source: str) -> bool:
 def log_proposal_vote_event(
     event, source, proposal_id, member_id, vote=None, reason_code=None, latency_ms=None
 ):
-    app.logger.info(
-        "event=%s source=%s mode=%s proposal_id=%s member_id=%s vote=%s reason_code=%s latency_ms=%s",
-        event,
-        source,
-        get_proposal_vote_mode(),
-        proposal_id,
-        member_id,
-        vote,
-        reason_code,
-        latency_ms,
+    proposal_vote_recording_service.log_proposal_vote_event(
+        app.logger, get_setting_value, event, source, proposal_id, member_id, vote, reason_code, latency_ms
     )
 
 
 def record_proposal_vote(proposal_id, member_id, vote, source="web"):
-    started_at = time.perf_counter()
-    if not can_record_proposal_vote(source):
-        log_proposal_vote_event(
-            event="proposal_vote_rejected",
-            source=source,
-            proposal_id=proposal_id,
-            member_id=member_id,
-            reason_code="channel_disabled",
-            latency_ms=round((time.perf_counter() - started_at) * 1000, 3),
-        )
-        return False
-    conn = get_db()
-    try:
-        votes = VoteRepository(conn)
-        votes.upsert_proposal_vote(proposal_id, member_id, vote)
+    return proposal_vote_recording_service.record_proposal_vote(
+        get_db, get_setting_value, process_proposal, app.logger, proposal_id, member_id, vote, source
+    )
 
-        c = conn.cursor()
-        c.execute("SELECT status FROM proposals WHERE id = ?", (proposal_id,))
-        status = c.fetchone()
-        if status and status["status"] == "active":
-            process_proposal(proposal_id)
-        log_proposal_vote_event(
-            event="proposal_vote_accepted",
-            source=source,
-            proposal_id=proposal_id,
-            member_id=member_id,
-            vote=vote,
-            reason_code="ok",
-            latency_ms=round((time.perf_counter() - started_at) * 1000, 3),
-        )
-        return True
-    finally:
-        conn.close()
+
 def send_telegram_message(message, poll_id=None, options=None):
-    client = TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_THREAD_ID)
-    if poll_id is not None and options is not None:
-        return client.send_poll_message(message, poll_id, options)
-    return client.send_message(message)
+    return telegram_messaging_service.send_telegram_message(
+        TelegramClient, TELEGRAM_BOT_TOKEN, TELEGRAM_CHAT_ID, TELEGRAM_THREAD_ID, message, poll_id, options
+    )
 
 
 def send_telegram_admin_test_message(message, poll_id=None, options=None):
-    client = TelegramClient(TELEGRAM_BOT_TOKEN, TELEGRAM_ADMIN_ID, "")
-    if poll_id is not None and options is not None:
-        return client.send_poll_message(message, poll_id, options)
-    return client.send_message(message)
+    return telegram_messaging_service.send_telegram_admin_test_message(
+        TelegramClient, TELEGRAM_BOT_TOKEN, TELEGRAM_ADMIN_ID, message, poll_id, options
+    )
 
 
 def sync_telegram_webhook(base_url: str) -> bool:
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_WEBHOOK_SECRET or not base_url:
-        return False
-    webhook_url = f"{base_url.rstrip('/')}/telegram/webhook/{TELEGRAM_WEBHOOK_SECRET}"
-    client = TelegramClient(TELEGRAM_BOT_TOKEN, "", "")
-    return client.set_webhook(webhook_url)
+    return telegram_messaging_service.sync_telegram_webhook(
+        TelegramClient, TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, base_url
+    )
 
 
 def sync_telegram_webhook_on_startup() -> str:
-    """Synchronize a configured bot webhook after the database is ready.
-
-    Returning a small status value lets startup distinguish an intentionally
-    unconfigured integration from a Telegram API failure.
-    """
-    if not TELEGRAM_BOT_TOKEN or not TELEGRAM_WEBHOOK_SECRET:
-        return "skipped"
-    base_url = get_base_url().rstrip("/")
-    if not base_url:
-        app.logger.warning(
-            "Telegram bot is configured but its Base URL is empty; webhook was not synchronized"
-        )
-        return "missing_base_url"
-    if sync_telegram_webhook(base_url):
-        app.logger.info("Telegram webhook synchronized")
-        return "synced"
-    app.logger.warning("Telegram webhook synchronization failed")
-    return "failed"
+    return telegram_messaging_service.sync_telegram_webhook_on_startup(
+        TelegramClient, TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, get_base_url, app.logger
+    )
 
 
 def process_telegram_link_command(telegram_username, telegram_user_id, command_text):
@@ -588,35 +536,6 @@ def check_overbudget():
     from app.web.routes.admin_routes import check_overbudget as check_overbudget_impl
 
     return check_overbudget_impl()
-
-
-def migrate_password_if_needed(user_id, plaintext_password):
-    """Migrate old SHA256 hash to werkzeug hash on login"""
-    conn = get_db()
-    c = conn.cursor()
-    c.execute("SELECT password_hash FROM members WHERE id = ?", (user_id,))
-    row = c.fetchone()
-    if not row:
-        conn.close()
-        return False
-
-    stored_hash = row[0]
-
-    if stored_hash.startswith("pbkdf2:sha256:"):
-        conn.close()
-        return check_password_hash(stored_hash, plaintext_password)
-
-    if stored_hash == hashlib.sha256(plaintext_password.encode()).hexdigest():
-        new_hash = generate_password_hash(plaintext_password)
-        c.execute(
-            "UPDATE members SET password_hash = ? WHERE id = ?", (new_hash, user_id)
-        )
-        conn.commit()
-        conn.close()
-        return True
-
-    conn.close()
-    return False
 
 
 if __name__ == "__main__":
