@@ -212,9 +212,22 @@ limits, and confirmation audit records) is tracked as forward-looking backlog in
    than depending on Flask/app internals — direct service-level coverage per A2's stated
    goal, no loss of behavior checked. Full suite: 492 passed, same 4 pre-existing/
    environmental failures, zero regressions.
-   Remaining A2 scope (`get_db`/settings reads, Telegram command processors,
-   `record_proposal_vote`, Telegram messaging/webhook-sync helpers — see `IDEAS.md` A2
-   for the complete remaining list) is unchanged and still open; more slices planned.
+   Third slice (2026-08-27): extracted `process_telegram_vote_command`,
+   `process_telegram_vote_callback`, and `process_telegram_proposal_vote_command`
+   (~150 lines of `/vote`/`/pvote` parsing, member lookup, and vote-recording logic) into
+   `app/services/telegram_command_service.py`, taking `get_db`, `get_setting_value`,
+   `send_telegram_message`, and/or `record_proposal_vote` as explicit parameters. 12 new
+   tests in `tests/unit/test_telegram_command_service.py` exercise it directly against a
+   throwaway sqlite file — no Flask, no monkeypatching. `main_routes.py` keeps one-line
+   wrappers as before. Left `process_telegram_link_command` where it is — it's already a
+   thin adapter over the existing `process_link_command` service plus one audit-log call,
+   so moving it would trade one call site for four injected parameters with no logic
+   gained. Full suite: 504 passed (492 + 12 new), same 4 pre-existing/environmental
+   failures, zero regressions.
+   Remaining A2 scope (`get_db`/settings reads, `record_proposal_vote`/
+   `log_proposal_vote_event`, `process_telegram_link_command`, Telegram messaging/
+   webhook-sync helpers — see `IDEAS.md` A2 for the complete remaining list) is unchanged
+   and still open; more slices planned.
 
 2. **Admin reliability observability** — ✅ closed for this sprint's scope.
    - Backup-audit coverage now spans download, admin-triggered, scheduled, and

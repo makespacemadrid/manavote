@@ -325,6 +325,32 @@ a silent doc fix:
   `sync_telegram_webhook*`) — all still call through module globals so future slices
   should follow the same parameter-injection pattern rather than importing `main_routes`
   internals directly.
+- Progress (2026-08-27, third slice): extracted the deterministic Telegram vote-command
+  processors — `process_telegram_vote_command`, `process_telegram_vote_callback`, and
+  `process_telegram_proposal_vote_command` (~150 lines of command parsing, member lookup,
+  and vote-recording logic; not the natural-language assistant path) — into a new
+  `app/services/telegram_command_service.py`. Each function takes `get_db`,
+  `get_setting_value`, `send_telegram_message`, and/or `record_proposal_vote` as explicit
+  parameters, so it calls `poll_service`/`voting_mode_service` directly rather than through
+  `main_routes`, and is directly testable with a stub settings getter and a throwaway
+  sqlite file — no Flask, no monkeypatching (12 new tests in
+  `tests/unit/test_telegram_command_service.py`, covering disabled-channel rejection,
+  malformed commands, linked vs. unlinked-but-permitted Telegram voters, the
+  `telegram_require_linked_vote` gate, proposal-vote success/rejection, and both callback
+  dispatch branches). `main_routes.py` keeps one-line wrappers at the original names, same
+  `legacy.X`/patch-compatibility reasoning as the prior two slices — nothing in the test
+  suite patches `close_expired_polls`/`build_poll_results_message`/`send_telegram_message`
+  *while exercising these specific command processors*, so bypassing `main_routes` inside
+  the new service module for the already-relocated `poll_service` calls is safe (confirmed
+  by grep before making the change). Deliberately left `process_telegram_link_command` in
+  `main_routes.py` — it's already a thin adapter over `process_link_command` (an existing
+  service) plus one audit-log call, so moving it would trade one call site for four
+  injected parameters with no real logic gained. Dropped the now-dead `json` import from
+  `main_routes.py` (its only remaining use was inside the moved commands). Full suite: 504
+  passed (492 + 12 new), same 4 pre-existing/environmental failures, zero regressions.
+  Remaining A2 scope: `get_db`/settings-budget read wrappers, `record_proposal_vote`/
+  `log_proposal_vote_event`, `process_telegram_link_command`, and the Telegram messaging/
+  webhook-sync helpers (`send_telegram_message`, `sync_telegram_webhook*`).
 
 ---
 
