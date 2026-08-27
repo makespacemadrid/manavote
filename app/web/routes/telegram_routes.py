@@ -10,13 +10,13 @@ from flask import Blueprint, request
 from app.extensions import csrf
 from app.integrations import telegram_agent
 from app.integrations.telegram_webhook import (
+    classify_message_addressing,
     classify_message_command,
     dispatch_callback,
     dispatch_message,
     extract_callback_context,
     extract_message_context,
     is_configured_forum_topic,
-    is_natural_language_message,
 )
 from app.services.telegram_access_service import get_telegram_principal
 from app.web.routes import main_routes as legacy
@@ -169,17 +169,30 @@ def telegram_webhook(secret):
     # Telegram expects webhooks to acknowledge updates quickly. Ocabra may take
     # several seconds (and may perform multiple MCP rounds), so configured
     # natural-language work is completed outside the request thread.
-    if (
-        classify_message_command(message_ctx["text"]) == "other"
-        and (
-            is_natural_language_message(message_ctx, TELEGRAM_BOT_USERNAME)
-            # A configured forum topic is a dedicated assistant conversation.
-            # Telegram does not attach a mention entity to ordinary messages in
-            # that topic, so requiring an @mention makes it appear unresponsive.
-            or is_configured_forum_topic(
-                message_ctx, TELEGRAM_CHAT_ID, TELEGRAM_THREAD_ID
-            )
+    is_command = classify_message_command(message_ctx["text"]) == "other"
+    addressing_reason = classify_message_addressing(message_ctx, TELEGRAM_BOT_USERNAME)
+    if addressing_reason == "unaddressed" and is_configured_forum_topic(
+        message_ctx, TELEGRAM_CHAT_ID, TELEGRAM_THREAD_ID
+    ):
+        # A configured forum topic is a dedicated assistant conversation.
+        # Telegram does not attach a mention entity to ordinary messages in
+        # that topic, so requiring an @mention makes it appear unresponsive.
+        addressing_reason = "forum_topic"
+    # Private-chat addressing is never ambiguous (always "private", always routed) --
+    # only group/supergroup messages are worth this record, including the
+    # "unaddressed" outcome, which is exactly the "why did the bot stay silent here"
+    # case this is for.
+    if is_command and message_ctx.get("chat_type") not in {None, "", "private"}:
+        app.logger.info(
+            "telegram_routing_decision reason_code=%s chat_id=%s chat_type=%s addressed=%s",
+            addressing_reason,
+            chat_id,
+            message_ctx.get("chat_type"),
+            addressing_reason != "unaddressed",
         )
+    if (
+        is_command
+        and addressing_reason != "unaddressed"
         and telegram_agent.is_configured()
         and TELEGRAM_BOT_TOKEN
         and chat_id

@@ -80,6 +80,77 @@ Completion/rejection reason codes:
 Prompts, model replies, tool arguments, API keys, and tokens are deliberately absent
 from these job records. `tool_name` is logged, but tool arguments are not.
 
+## Telegram assistant mutations
+
+`/confirm`-reachable mutations (`create_proposal`, `create_poll`,
+`update_voting_settings`) emit a separate `telegram_assistant_mutation` record for each
+step of the propose/confirm lifecycle — a dedicated audit trail, distinct from the
+general-purpose `telegram_assistant_job` records above, findable the same way backup and
+Telegram-link events already are. Correlate records for one action with `tool_name`,
+`actor_member_id`, and `arguments_digest` (a stable hash of the tool arguments, not the
+arguments themselves — arguments are never logged).
+
+Typical event sequence: `proposed` → `confirmed` → `completed` (or `failed`), or
+`proposed` → one of `cancelled`/`expired`/`rejected` if confirmation never completes.
+
+| Event | Reason code | Meaning |
+| --- | --- | --- |
+| `proposed` | `ok` | A mutating tool call was intercepted and stored pending `/confirm`. |
+| `confirmed` | `ok` | Confirmation passed every revalidation check; the MCP call is about to run. |
+| `completed` | `ok` | The confirmed MCP call succeeded. |
+| `failed` | `mcp_error` | The confirmed MCP call returned an error. |
+| `cancelled` | `user_cancelled` | The member issued `/cancel`. |
+| `cancelled` | `reset_command` | `/reset` discarded a pending action along with conversation history. |
+| `expired` | `confirmation_ttl_exceeded` | `/confirm` arrived after `TELEGRAM_CONFIRM_TTL_SECONDS`. |
+| `rejected` | `not_admin` | The confirming user is not a linked administrator. |
+| `rejected` | `actor_changed` | The linked member changed between propose and confirm. |
+| `rejected` | `arguments_tampered` | The stored arguments no longer match the digest captured at propose time. |
+| `rejected` | `schema_changed` | The tool's input schema (or the tool itself) changed since propose time — e.g. a process restart with an updated MCP tool registry. |
+
+The `arguments_tampered` and `schema_changed` checks exist so a confirmed mutation is
+provably the one that was proposed: a stale or corrupted pending row is rejected at
+confirm time instead of executing against a contract that no longer matches what the
+member saw.
+
+## Votes blocked by policy
+
+A vote rejected by `proposal_vote_mode`, `poll_vote_mode`, or
+`telegram_require_linked_vote` logs a plain-text `event=... source=... mode=...` record
+(the same shape `record_proposal_vote`'s own accept/reject logging already used), so a
+policy-blocked vote is distinguishable from an ordinary invalid-vote rejection without
+reading logs line-by-line.
+
+| Log line prefix | Meaning |
+| --- | --- |
+| `event=proposal_vote_rejected ... reason_code=channel_disabled` | A proposal vote was blocked by `proposal_vote_mode` (web or Telegram). |
+| `event=proposal_vote_rejected ... reason_code=link_required` | A Telegram proposal vote was blocked because `telegram_require_linked_vote` is enabled and the sender isn't linked. |
+| `event=poll_vote_rejected ... reason_code=channel_disabled` | A poll vote was blocked by `poll_vote_mode` (web or Telegram). |
+| `event=poll_vote_rejected ... reason_code=link_required` | A Telegram poll vote was blocked because `telegram_require_linked_vote` is enabled and the sender isn't linked. |
+
+`source=web` or `source=telegram` identifies the channel; `mode` is the effective vote
+mode at rejection time. `poll_id`/`proposal_id` and `member_id` are `None` when the
+channel-disabled check fires before either is resolved (the check runs before any
+poll/member lookup on some paths) — the record is still useful in aggregate ("N vote
+attempts blocked by policy") even without full identity.
+
+## Forum-topic and mention routing decisions
+
+Group/supergroup messages that aren't a deterministic command (`/link`, `/vote`, etc.)
+log a `telegram_routing_decision` record explaining why the assistant did or didn't pick
+the message up — the "why did the bot stay silent (or respond) here" case. Private chats
+are always trivially `private` and not logged; only group-chat addressing is ambiguous
+enough to be worth a record.
+
+| Reason code | Meaning |
+| --- | --- |
+| `reply_to_bot` | The message replies to the bot's own message. |
+| `mentioned` | The message contains an `@mention` (or, under Telegram privacy mode, an unidentified mention entity) matching the bot. |
+| `forum_topic` | The message is in the configured assistant forum topic (`TELEGRAM_CHAT_ID`/`TELEGRAM_THREAD_ID`), which overrides an otherwise-unaddressed message. |
+| `unaddressed` | None of the above; the assistant ignored the message. |
+
+`addressed=True/False` mirrors whether the message was actually routed to the assistant.
+`chat_id`/`chat_type` identify where the decision was made.
+
 ## MCP and OIDC failures
 
 MCP transport/application failures log

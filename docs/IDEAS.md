@@ -1,6 +1,6 @@
 # IDEAS — Forward Roadmap
 
-Last updated: 2026-08-26
+Last updated: 2026-08-27
 
 This document captures **forward-looking** product and engineering initiatives only.
 Execution sequencing and status tracking belong in [`SPRINTS.md`](SPRINTS.md).
@@ -43,7 +43,7 @@ rechecking the previously audited Telegram-link parity paths.
      catch explicit exception families and emit stable reason codes. MCP clients receive
      a generic internal error while detailed exception data remains server-side.
 
-2. **MCP extraction boundary (P1)**
+2. **Fixed: MCP extraction boundary (P1)** — ✅ closed 2026-08-27 (see the three slices below).
    - User statistics and Telegram link classification now have shared boundaries, but proposal listing, voting-setting writes, and create operations remain embedded in `app/mcp_server.py`.
    - Extract one use case at a time behind service/repository interfaces shared with REST; avoid a broad rewrite.
    - Progress (2026-08-27, Sprint 5 slice 1): before touching any single tool, compared
@@ -150,7 +150,7 @@ rechecking the previously audited Telegram-link parity paths.
      honored, response shape matches MCP's) and its rejection paths (out-of-range limit,
      non-integer offset). Full suite: 530 passed, zero regressions.
 
-5. **Observability completion for Telegram lifecycle (P2)**
+5. **Fixed: observability completion for Telegram lifecycle (P2)** — ✅ closed 2026-08-27.
    - Add reason-coded audit events for link/unlink operations and blocked votes by policy mode.
    - Expose `last_linked_at`/`last_unlinked_at` metadata for admin diagnostics.
    - Progress (2026-08-27): `members.last_linked_at`/`last_unlinked_at` are now set on
@@ -158,6 +158,22 @@ rechecking the previously audited Telegram-link parity paths.
      and unlink (admin or member self-service), and exposed on both
      `GET /api/members/telegram` and the `list_member_telegram_links` MCP tool. Blocked
      votes by policy mode still need reason-coded audit events.
+   - Progress (2026-08-27, Sprint 6 Goal 2): closed the blocked-votes gap. Proposal votes
+     already had a `channel_disabled` audit event, but it was only reachable from the
+     Telegram path — the web route short-circuited with a flash message *before* ever
+     calling into the function that logged it, so a web-blocked vote was silently
+     unaudited. Poll votes had no audit infrastructure on either channel, and
+     `telegram_require_linked_vote` rejections (`link_required`) were unaudited
+     everywhere. Added `poll_service.log_poll_vote_event()` (mirrors
+     `log_proposal_vote_event`'s exact shape) and call sites in `poll_routes.py`,
+     `proposal_routes.py` (both vote entry points), and
+     `app/services/telegram_command_service.py` (which gained a `logger` parameter,
+     matching its existing dependency-injection pattern). Full reason-code table
+     documented in `docs/OPERATIONS.md`. Along the way, found and fixed a real
+     test-hygiene bug: an existing test monkeypatched a shared named logger's `.info`
+     method directly instead of using `caplog`, permanently polluting that logger for
+     every later test in the same run. 6 new tests. Full suite: 574 passed, zero
+     regressions.
 
 6. **Statistics privacy and authorization review (P2)**
    - User statistics expose member email addresses to API/MCP administrators.
@@ -308,7 +324,7 @@ backpressure, Telegram transport, retry behavior, documentation, and focused tes
    - Let `/cancel` cancel queued/running model work as well as pending mutations where
      the HTTP client and executor can do so safely.
 
-7. **Confirmation integrity and auditability (P1)**
+7. **Fixed: confirmation integrity and auditability (P1)** — ✅ closed 2026-08-27.
    - Store an immutable/deep-copied action envelope with actor member ID, tool schema
      version, redacted display arguments, expiry, and a digest of execution arguments.
    - Revalidate linkage, administrator role, tool availability, and arguments at confirm
@@ -320,6 +336,27 @@ backpressure, Telegram transport, retry behavior, documentation, and focused tes
      already revalidates administrator role and actor-linkage drift. Tool-schema
      versioning, an execution-argument digest, and reason-coded audit records for
      proposed/cancelled/expired/rejected/failed/completed mutations remain open.
+   - Progress (2026-08-27, Sprint 6 Goal 1): closed all three remaining pieces.
+     `PendingAction` now carries `schema_fingerprint` (a hash of the tool's current
+     `inputSchema`, captured at propose time via a new
+     `telegram_agent._schema_fingerprint()`) and `arguments_digest` (a hash of the
+     arguments that will execute, via a new `telegram_agent._stable_digest()`). `/confirm`
+     recomputes both from the freshly-loaded pending row and rejects
+     (`arguments_tampered`, `schema_changed`) on a mismatch — so a confirmed mutation is
+     provably the one that was proposed, not a stale or corrupted row executing against a
+     contract that no longer matches what the member saw. Both fields tolerate `None` for
+     backward compatibility with any pending action already in flight before this
+     migration (`telegram_pending_actions` gained the two columns via
+     `add_column_if_missing`). Every lifecycle step — `proposed`, `confirmed`,
+     `completed`, `failed` (`mcp_error`), `cancelled` (`user_cancelled`/`reset_command`),
+     `expired` (`confirmation_ttl_exceeded`), `rejected`
+     (`not_admin`/`actor_changed`/`arguments_tampered`/`schema_changed`) — now emits a
+     `telegram_assistant_mutation` reason-coded audit record via a new
+     `_log_mutation_event()`, kept as its own event stream separate from
+     `telegram_assistant_job`'s general job telemetry, matching how backup and
+     Telegram-link events already get dedicated audit trails. Documented in full in
+     `docs/OPERATIONS.md`. 5 new tests in `tests/unit/test_telegram_agent.py`. Full suite:
+     568 passed, zero regressions.
 
 8. **Conversation quality and operator controls (P2)**
    - Add explicit token budgeting and model-context truncation rather than message-count
@@ -376,6 +413,11 @@ natural-language/MCP audit above.
    - Once WS-D's structured logging lands, attach a reason code (`private`,
      `mentioned`, `reply_to_bot`, `forum_topic`, `unaddressed`) to each webhook
      decision.
+   - ✅ Closed 2026-08-27 (Sprint 6 Goal 3): `is_natural_language_message` split into
+     `classify_message_addressing()` returning the reason code directly; non-command
+     group/supergroup messages now log `telegram_routing_decision
+     reason_code=... chat_id=... chat_type=... addressed=...` in
+     `telegram_routes.py`. Documented in `docs/OPERATIONS.md`.
 
 ## Docs audit findings requiring a product decision (2026-08-26)
 
@@ -628,7 +670,185 @@ Proposed startup lifecycle:
 
 ---
 
+## UX/UI audit (2026-08-27)
+
+Audit scope: every page template (`templates/*.html`), `static/react/style.css`, and
+`static/react/app.js`/`_top_nav.html`, read against actual rendered markup rather than
+aspirational categories — this gives concrete, file/line-grounded backing to the
+"UX / UI Design Track (Forward)" categories below. Prompted by a request to scope
+Sprint 7 around UX/UI, with explicit focus on button layout/placement and the budget
+graph.
+
+### Confirmed strengths (worth building on, not replacing)
+- A real shared design system already exists in `style.css` (`.card`, `.btn`,
+  `.vote-btn`, `.status`, `.flash`) and is used correctly in the common case.
+- The mobile nav (`_top_nav.html`) already has a proper hamburger toggle with
+  `aria-expanded`/`aria-controls`/`aria-current` — a solid baseline other components
+  don't yet match.
+- `admin.html` already has a themed, on-brand confirm modal (`dangerActionModal`) and a
+  change-password modal — nicer than a native `confirm()`, just not reused anywhere else.
+- `polls.html` already groups related information into three labeled cards (results,
+  voter list, web-vote form) — a good pattern, just mis-ordered (see below).
+- `budget.html` already has table sort, pagination, and category filters on the
+  transaction list — a good pattern the Proposals list doesn't share.
+
+### Global design system & consistency (P1)
+1. **Inline styles duplicate the shared classes instead of using them.** Proposals.html's
+   9 status/size filter-chip links (lines 32-44) each hand-roll their own
+   border/background/color inline instead of a `.filter-chip`/`.filter-chip.active`
+   class — a future palette or spacing change means hunting every template instead of
+   editing one CSS rule.
+2. **"In favor" is two different colors depending on the page.** `.vote-approve` /
+   `.vote-btn.approve` use cyan (`#00d9ff`) in `style.css`, but `proposals.html`'s inline
+   vote-count spans use green (`#00ff88`) for the identical concept (lines 92, 130, 139).
+3. **Two incompatible confirmation patterns coexist.** `admin.html`'s styled
+   `dangerActionModal` vs. the native unstyled browser `confirm()` used everywhere else
+   (proposal delete, comment delete, mark-purchased, undo-approval) — an unbranded
+   browser dialog breaks the app's look outside the admin page.
+4. **The same action is confirmed inconsistently.** "Undo approval" has a `confirm()`
+   dialog on `proposal_detail.html` (lines 39-42) but the identical action from the list
+   page's quick action (`proposals.html` line 119) is a bare link with no confirmation.
+5. **State-changing actions implemented as plain GET links** (`undo_approve`,
+   `withdraw_vote`) rather than POST forms/buttons — besides the CSRF/idempotency smell,
+   they read as ordinary navigation rather than "this changes state," and can't carry a
+   confirm-before-submit affordance the way a form can.
+6. **The settings dropdown is hover-only** (`.settings-dropdown:hover .settings-menu`,
+   `style.css` lines 65-66) — unusable on touch devices, which is most of this app's
+   traffic given the mobile-first viewport meta.
+
+### Button placement & interaction hierarchy (P1)
+7. **Destructive "Delete" sits inline in the top nav row** (`proposal_detail.html` lines
+   10-20), visually indistinguishable in position from ordinary navigation links
+   ("Proposals", "Polls") except by color.
+8. **"Undo Approval" is buried inside a paragraph of status badges** (`proposal_detail.html`
+   lines 38-43) rather than living in a clear actions area.
+9. **The Polls page's actual voting card is placed last.** "Vote via web" is the third of
+   three cards (`polls.html` lines 45-105), after "Votes so far" and "Who voted what" —
+   the primary action of a voting page is its least prominent element.
+10. **Poll voting looks like a different, weaker product than proposal voting.** Poll vote
+    buttons are a plain small `.btn` (padding 6px 12px); proposal vote buttons are the
+    bold, 2px-bordered, flex-filled `.vote-btn`. Two core "cast a vote" flows in the same
+    app read as visually unrelated.
+11. **The "All" proposals filter never shows an active state**, unlike every other filter
+    chip (`proposals.html` line 32) — a user on the default view has no confirmation any
+    filter is "selected."
+12. **12 filter chips compete for attention with no grouping** (status filters and
+    size-category filters look identical, `proposals.html` lines 32-44), with no way to
+    combine filters or search instead.
+13. **Truncated proposal titles have no fallback.** CSS ellipsis (`proposals.html` line 67)
+    hides the full title with no `title=""` attribute to recover it without opening the
+    detail page.
+
+### Budget graph & data visualization (P2 — explicit sprint focus)
+14. **Chart.js loads from a public CDN at render time** (`budget.html` line 132) rather
+    than being self-hosted — an external dependency for the app's core visualization,
+    with no fallback if the CDN is unreachable.
+15. **One canvas carries 6 datasets** (2 stacked lines + 4 stacked/grouped bars) with no
+    built-in way to reduce density beyond Chart.js's own legend-click toggle, which isn't
+    discoverable without already knowing Chart.js.
+16. **No date-range control** — the chart always renders full history; this will get
+    harder to read as budget history grows, with no way to focus on "last 3 months."
+17. **Two disconnected filter UIs look related but aren't.** The custom "calendar legend"
+    buttons (lines 42-58) filter only the table below; Chart.js's own legend toggles only
+    the chart above. A user is likely to expect one to affect the other.
+18. **No restated "current balance" on the budget page itself** — `proposals.html` shows
+    one (the "Available" card) but `/budget` requires reading the end of the line chart.
+19. **Currency has no thousands separator anywhere** (`€1234.56` style), harder to scan
+    for larger figures as the treasury grows.
+20. **Every poll option's result bar uses the same gradient** (`polls.html` line 57) — with
+    3+ options, bars are distinguishable only by length and the numeric label, not color.
+
+### Accessibility (P1/P2)
+21. **Pinch-to-zoom is disabled app-wide**
+    (`<meta name="viewport" ... maximum-scale=1.0, user-scalable=no">`, `base.html` line
+    5) — a real accessibility regression for low-vision users, not required by the layout.
+22. **The admin modals have no dialog semantics** — no `role="dialog"`, no
+    `aria-modal="true"`, no focus trap, no Escape-to-close.
+23. **A few indicators rely on color alone** (e.g. the calendar legend's plain colored
+    `<span>` swatches, `budget.html` lines 44-58) without an accompanying icon or label.
+24. **A responsive rule targets elements by their literal inline `style` string**
+    (`div[style*="gap: 20px"][style*="margin-bottom: 15px"]`, `style.css` line 80) — any
+    future edit to that inline style silently breaks the responsive behavior with no
+    visible signal.
+25. **Two admin section headers bypass i18n** (`Full Proposal History`,
+    `Backup Uploaded Images` in `admin.html`) — hardcoded English, don't translate.
+
+### Information architecture (P2/P3)
+26. **`admin.html` is one ~780-line page covering 14+ unrelated sections** (registration,
+    members, two statistics blocks, thresholds, budget, two history blocks, polls, group
+    purchases, settings, timezone, two backup blocks, Telegram config, password) with no
+    tab/anchor navigation or section collapsing — pure linear scroll.
+27. **The Proposals list has no client-side search or sort**, unlike Budget History
+    further down the same page, despite being the higher-traffic list.
+
+## Member feedback / bug reports / suggestions (2026-08-27)
+
+New feature, scoped into Sprint 7 as Goal 4. Members currently have no in-app way to
+report a bug, request a feature, or leave general feedback — the only channels are
+whatever informal chat/DM exists outside the app, invisible to admins as a group and
+with no record. This closes that gap end-to-end: web, REST/MCP, and the Telegram
+assistant, with an admin-panel view to triage submissions.
+
+### Scope
+- **Schema** — new `feedback` table (`app/db/schema.sql` + `app/db/migrations.py`,
+  following the existing `add_column_if_missing`/fresh-`CREATE TABLE` pattern used for
+  every other table): `id`, `member_id` (nullable — Telegram-linked members always
+  resolve to one, but keep the column nullable rather than assuming every future
+  submission path will have an authenticated member), `source` (`web`/`telegram`),
+  `category` (`bug`/`suggestion`/`general`), `message`, `status`
+  (`new`/`reviewed`/`resolved`, default `new`), `created_at`, `resolved_at`,
+  `resolved_by` (member id of the admin who resolved it).
+- **Service** — `app/services/feedback_service.py` following the A2 service/repository
+  boundary pattern already established this session: plain functions taking `get_db`/
+  `logger` as explicit parameters (`submit_feedback`, `list_feedback`,
+  `update_feedback_status`), directly unit-testable without Flask. Emits a
+  reason-coded `event=feedback_submitted source=... category=...` /
+  `event=feedback_status_changed ...` log on each action, matching the
+  `log_poll_vote_event`/`log_proposal_vote_event` style already in place.
+- **REST API** (`app/web/routes/api_routes.py`) — `POST /api/feedback` (any
+  authenticated member; category + message body, source inferred as `web`);
+  `GET /api/feedback` (admin-only, paginated via the existing
+  `parse_pagination_params` helper, filterable by `status`/`category`, matching the
+  shape/error codes of the other list endpoints); `PATCH /api/feedback/<id>`
+  (admin-only, status transitions).
+- **MCP tool** — new `create_feedback` tool in `app/mcp_server.py`, so the Telegram
+  assistant can store feedback "when instructed" (e.g. a member tells the bot "I found
+  a bug: ..." or "please suggest to admins that ..."). **This is a deliberate first**:
+  every existing mutating MCP tool (`create_proposal`, `create_poll`, `create_member`,
+  `update_voting_settings`) is admin-only in `telegram_agent.py`'s `TELEGRAM_TOOLS`
+  split (`allowed = TELEGRAM_TOOLS if is_admin else READ_ONLY_TOOLS`) — there is
+  currently no precedent for a non-admin member invoking a mutating tool through the
+  assistant. `create_feedback` needs a new tool category (e.g.
+  `MEMBER_WRITABLE_TOOLS`) exposed to linked members regardless of `is_admin`, scoped
+  to inserting a feedback row attributed to the calling member's own `member_id` only
+  (never someone else's).
+  - **Open design decision, to resolve during implementation, not here**: should
+    `create_feedback` go through the existing `/confirm` mutation-integrity flow
+    (`MUTATING_TOOLS`)? Recommendation: no — unlike creating a public proposal/poll or
+    changing voting policy, submitting feedback is low-stakes, has no visible
+    side-effect on shared state, and is trivially correctable (submit again). Adding
+    confirmation friction to "hey bot, log a bug I just found" undermines the point of
+    a fast, no-ceremony feedback channel. Worth a second opinion before shipping, since
+    it's the first tool to deliberately skip a pattern otherwise applied uniformly.
+- **Admin panel** (`templates/admin.html`) — new "Feedback" section (following the
+  existing per-section pattern) listing submissions with category/status badges (reuse
+  `.status`/`status-*` classes rather than one-off inline colors — see the UX/UI audit
+  above for why that matters), filterable by status, with a mark
+  reviewed/resolved action per row.
+
+### Explicit non-goals for the first slice
+- No email/push notification to admins on new feedback — a "N new" badge in the admin
+  nav is enough for v1; notification channels can follow once there's evidence anyone
+  needs it (same scale-appropriate reasoning applied to WS-D and fair-use limits
+  elsewhere in this backlog).
+- No public/member-facing view of feedback status or replies — this is an admin
+  triage tool first, not a support-ticket system with two-way conversation.
+- No file/screenshot attachments on the first slice — text only.
+
 ## UX / UI Design Track (Forward)
+
+See "UX/UI audit (2026-08-27)" above for concrete, file/line-grounded findings backing
+the categories below — Sprint 7 scopes its goals directly from that audit.
 
 ### A) UX foundations
 - Define personas (casual member, power member, admin/operator).

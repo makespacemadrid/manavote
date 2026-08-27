@@ -423,7 +423,13 @@ def process_telegram_link_command(telegram_username, telegram_user_id, command_t
 
 def process_telegram_vote_command(telegram_username, command_text, telegram_user_id=None):
     return telegram_command_service.process_telegram_vote_command(
-        get_db, get_setting_value, send_telegram_message, telegram_username, command_text, telegram_user_id
+        get_db,
+        get_setting_value,
+        send_telegram_message,
+        app.logger,
+        telegram_username,
+        command_text,
+        telegram_user_id,
     )
 
 
@@ -433,6 +439,7 @@ def process_telegram_vote_callback(telegram_username, callback_data, telegram_us
         get_setting_value,
         send_telegram_message,
         record_proposal_vote,
+        app.logger,
         telegram_username,
         callback_data,
         telegram_user_id,
@@ -441,7 +448,13 @@ def process_telegram_vote_callback(telegram_username, callback_data, telegram_us
 
 def process_telegram_proposal_vote_command(telegram_username, command_text, telegram_user_id=None):
     return telegram_command_service.process_telegram_proposal_vote_command(
-        get_db, get_setting_value, record_proposal_vote, telegram_username, command_text, telegram_user_id
+        get_db,
+        get_setting_value,
+        record_proposal_vote,
+        app.logger,
+        telegram_username,
+        command_text,
+        telegram_user_id,
     )
 
 def process_proposal(proposal_id):

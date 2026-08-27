@@ -481,6 +481,13 @@ def proposal_detail(proposal_id):
     if request.method == "POST":
         if "vote" in request.form:
             if not can_record_proposal_vote("web"):
+                legacy.log_proposal_vote_event(
+                    event="proposal_vote_rejected",
+                    source="web",
+                    proposal_id=proposal_id,
+                    member_id=session.get("member_id"),
+                    reason_code="channel_disabled",
+                )
                 flash("Web voting is disabled by admin", "error")
                 conn.close()
                 return redirect(url_for("proposals.proposal_detail", proposal_id=proposal_id))
@@ -757,6 +764,13 @@ def quick_vote(proposal_id):
     record_proposal_vote = legacy.record_proposal_vote
 
     if not can_record_proposal_vote("web"):
+        legacy.log_proposal_vote_event(
+            event="proposal_vote_rejected",
+            source="web",
+            proposal_id=proposal_id,
+            member_id=session.get("member_id"),
+            reason_code="channel_disabled",
+        )
         flash("Web voting is disabled by admin", "error")
         return redirect(url_for("proposals"))
 

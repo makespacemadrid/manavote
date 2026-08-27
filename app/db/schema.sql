@@ -67,6 +67,8 @@ CREATE TABLE IF NOT EXISTS telegram_pending_actions (
     arguments_json TEXT NOT NULL,
     actor_member_id INTEGER,
     created_at REAL NOT NULL,
+    schema_fingerprint TEXT,
+    arguments_digest TEXT,
     PRIMARY KEY (chat_id, telegram_user_id)
 );
 

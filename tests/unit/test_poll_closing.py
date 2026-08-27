@@ -1,3 +1,4 @@
+import logging
 import sqlite3
 from datetime import datetime, timedelta
 
@@ -69,3 +70,43 @@ def test_build_poll_results_message_handles_invalid_options_payload():
 
     assert "Broken payload" in message
     assert "No valid poll options were found." in message
+
+
+def _settings(values):
+    return lambda key, default=None: values.get(key, default)
+
+
+def test_log_poll_vote_event_includes_current_mode(caplog):
+    logger = logging.getLogger("test")
+
+    with caplog.at_level("INFO", logger="test"):
+        poll_service.log_poll_vote_event(
+            logger,
+            _settings({"poll_vote_mode": "web_only"}),
+            event="poll_vote_rejected",
+            source="telegram",
+            poll_id=3,
+            member_id=None,
+            reason_code="channel_disabled",
+        )
+
+    assert [record.message for record in caplog.records] == [
+        "event=poll_vote_rejected source=telegram mode=web_only poll_id=3 member_id=None reason_code=channel_disabled"
+    ]
+
+
+def test_log_poll_vote_event_defaults_poll_and_member_to_none(caplog):
+    logger = logging.getLogger("test")
+
+    with caplog.at_level("INFO", logger="test"):
+        poll_service.log_poll_vote_event(
+            logger,
+            _settings({}),
+            event="poll_vote_rejected",
+            source="telegram",
+            reason_code="channel_disabled",
+        )
+
+    assert [record.message for record in caplog.records] == [
+        "event=poll_vote_rejected source=telegram mode=both poll_id=None member_id=None reason_code=channel_disabled"
+    ]
