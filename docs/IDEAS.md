@@ -37,9 +37,11 @@ rechecking the previously audited Telegram-link parity paths.
 - Parity tests cover the user-statistics response shape and invalid pagination bounds.
 
 ### Follow-up gaps to prioritize
-1. **Route exception granularity (P0)**
-   - Several route handlers still use broad `except Exception` blocks and generic failure messages.
-   - Introduce typed exceptions + reason-code mapping for predictable operator diagnostics.
+1. **Fixed: route exception granularity (P0)** — ✅ closed 2026-08-27.
+   - All 19 broad `except Exception` blocks identified by the audit have been removed.
+   - Database, backup, scheduler, OIDC, MCP transport, and Telegram worker boundaries now
+     catch explicit exception families and emit stable reason codes. MCP clients receive
+     a generic internal error while detailed exception data remains server-side.
 
 2. **MCP extraction boundary (P1)**
    - User statistics and Telegram link classification now have shared boundaries, but proposal listing, voting-setting writes, and create operations remain embedded in `app/mcp_server.py`.
@@ -291,11 +293,13 @@ backpressure, Telegram transport, retry behavior, documentation, and focused tes
      default until explicitly classified as member-read, admin-read, or confirmed-write.
 
 5. **Background-job observability and lifecycle (P1)**
-   - Attach `update_id`, chat ID, actor member ID, tool name, queue wait, model latency,
-     MCP latency, delivery result, and stable reason codes to structured logs.
-   - Observe completed futures so unexpected worker exceptions cannot remain silent.
-   - Add graceful executor shutdown and counters for active, queued, rejected, failed,
-     cancelled, and completed requests without logging prompts or secrets.
+   - ✅ Structured job logs now carry `update_id`, chat ID, actor member ID, tool name,
+     queue wait, per-round model latency, delivery outcome, and stable reason codes.
+   - ✅ Worker exceptions are observed and the bounded executor is registered for
+     graceful process-exit shutdown.
+   - Remaining: add MCP-specific latency and aggregate counters for active, queued,
+     rejected, failed, cancelled, and completed requests without logging prompts or
+     secrets. These are operational metrics, not missing per-request diagnostics.
 
 6. **Fair-use limits and cancellation (P1)**
    - The global bounded queue protects memory but one linked user can consume all slots.
@@ -352,7 +356,7 @@ natural-language/MCP audit above.
 
 ### Follow-up gaps to prioritize
 
-1. **Unconfigured bot-username group matching is overly permissive (P2)**
+1. **Fixed: unconfigured bot-username group matching was overly permissive (P2)**
    - `is_natural_language_message` only exact-matches an `@mention` or
      `bot_command` entity against `TELEGRAM_BOT_USERNAME`; when that variable is
      unset (still the `sample.env` default) it accepts any `mention`/`bot_command`
@@ -360,10 +364,10 @@ natural-language/MCP audit above.
      every group message, so an unconfigured bot username makes the assistant
      respond to messages that mention a different user or invoke a different
      bot's command in the same chat.
-   - Docs already recommend setting `TELEGRAM_BOT_USERNAME`; add a startup check
-     that warns (or refuses to enable non-forum-topic group handling) when a
-     Telegram group integration is configured without it, so the permissive
-     default cannot ship unnoticed.
+   - ✅ Closed 2026-08-27: startup emits a warning with the stable reason code
+     `missing_bot_username_for_group` when a negative Telegram chat ID or forum
+     thread is configured without `TELEGRAM_BOT_USERNAME`. Positive private-chat
+     IDs are excluded so valid private-only deployments do not get a false alarm.
 
 2. **No operator visibility into forum-topic/mention routing decisions (P2)**
    - Neither the addressed-message match nor the configured-forum-topic match

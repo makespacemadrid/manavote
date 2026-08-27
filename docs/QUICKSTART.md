@@ -1,5 +1,8 @@
 # Quick Start
 
+For startup-health interpretation, structured reason codes, backup lifecycle events,
+and Telegram assistant diagnostics, see [`OPERATIONS.md`](OPERATIONS.md).
+
 ### Docker
 ```bash
 cp sample.env .env

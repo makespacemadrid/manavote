@@ -1,19 +1,26 @@
+import sqlite3
 from datetime import datetime
-from zoneinfo import ZoneInfo
+from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
 
 
 def get_app_timezone(get_db):
     """Get configured timezone from settings; fallback to Europe/Madrid."""
+    conn = None
     try:
         conn = get_db()
         c = conn.cursor()
         c.execute("SELECT value FROM settings WHERE key = 'timezone'")
         row = c.fetchone()
-        conn.close()
         tz_name = row["value"] if row else "Europe/Madrid"
         return ZoneInfo(tz_name)
-    except Exception:
+    except (sqlite3.Error, KeyError, IndexError, TypeError, ZoneInfoNotFoundError):
         return ZoneInfo("Europe/Madrid")
+    finally:
+        if conn is not None:
+            try:
+                conn.close()
+            except sqlite3.Error:
+                pass
 
 
 def format_datetime(dt_str, get_db, fmt="%Y-%m-%d %H:%M:%S"):

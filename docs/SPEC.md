@@ -302,8 +302,8 @@ Committed series behavior:
    `TELEGRAM_BOT_USERNAME`, a reply to one of the bot's own messages, or being posted in
    the admin-configured forum topic (`TELEGRAM_CHAT_ID` + `TELEGRAM_THREAD_ID`), which is
    treated as an always-on assistant conversation. Leaving `TELEGRAM_BOT_USERNAME` unset
-   while group privacy mode is disabled makes this matching overly permissive (see
-   `IDEAS.md`).
+   while group privacy mode is disabled makes this matching overly permissive; startup
+   logs `missing_bot_username_for_group` when it detects that configuration.
 3. The sender's numeric Telegram ID is resolved from `members.telegram_user_id` for every message. Unknown IDs are ignored before worker admission; link/unlink and admin changes therefore apply immediately.
 4. The bot posts `🤔 Thinking…`, then submits the model request to a four-worker queue with at most 32 pending requests. Saturated queues return a retry message rather than growing without bound.
 5. The OpenAI-compatible model receives MCP function schemas. Members receive read-only proposal, poll, group-purchase, budget, and voting-setting tools; administrators receive the complete MCP tool set.
@@ -359,6 +359,11 @@ process and is not yet shared across workers.
 - Image upload validation uses signature-based sniffing (JPEG/PNG headers) in proposal create/edit flows; files failing signature checks are rejected.
 
 ## 10) Known implementation notes
+
+Operator-facing startup states, structured event sequences, stable reason-code meanings,
+and troubleshooting actions are defined in [`OPERATIONS.md`](OPERATIONS.md). This
+specification defines application behavior; the operations guide defines how to diagnose
+that behavior without exposing prompts, credentials, or provider payloads.
 
 - `current_budget` exists in settings for backward compatibility, while live balance is computed from `activity_log`.
 - Auto-backup runs every 24 hours via APScheduler when the app starts (except in `FLASK_ENV=test`), pruning backups older than 7 days.

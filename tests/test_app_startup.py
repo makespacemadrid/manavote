@@ -2,13 +2,47 @@ import os
 import sqlite3
 import tempfile
 import unittest
-from unittest.mock import patch
+from unittest.mock import Mock, patch
 
 import app
-from app.startup import check_auto_backup, run_startup_steps
+from app.startup import check_auto_backup, check_telegram_group_configuration, run_startup_steps
 
 
 class TestAppStartup(unittest.TestCase):
+    def test_warns_when_telegram_group_has_no_bot_username(self):
+        environment = {
+            "TELEGRAM_CHAT_ID": "-1001234567890",
+            "TELEGRAM_BOT_USERNAME": "",
+        }
+        with patch("app.startup.logging.getLogger") as get_logger:
+            reason = check_telegram_group_configuration(environ=environment)
+
+        self.assertEqual(reason, "missing_bot_username_for_group")
+        warning = get_logger.return_value.warning
+        warning.assert_called_once()
+        self.assertIn("reason_code=%s", warning.call_args.args[0])
+        self.assertEqual(warning.call_args.args[1], "missing_bot_username_for_group")
+
+    def test_does_not_warn_for_private_chat_or_configured_group(self):
+        configurations = (
+            {"TELEGRAM_CHAT_ID": "123456789", "TELEGRAM_BOT_USERNAME": ""},
+            {"TELEGRAM_CHAT_ID": "-1001234567890", "TELEGRAM_BOT_USERNAME": "ManaVoteBot"},
+        )
+        for environment in configurations:
+            logger = Mock()
+            reason = check_telegram_group_configuration(logger=logger, environ=environment)
+            self.assertIsNone(reason)
+            logger.warning.assert_not_called()
+
+    def test_warns_for_forum_thread_even_without_negative_chat_id(self):
+        logger = Mock()
+        reason = check_telegram_group_configuration(
+            logger=logger,
+            environ={"TELEGRAM_THREAD_ID": "42"},
+        )
+        self.assertEqual(reason, "missing_bot_username_for_group")
+        logger.warning.assert_called_once()
+
     def test_create_app_fails_fast_on_db_initialization_error(self):
         with patch("app.run_startup_steps", side_effect=sqlite3.OperationalError("boom")):
             with self.assertRaises(RuntimeError):

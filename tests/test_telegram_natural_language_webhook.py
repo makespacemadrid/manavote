@@ -188,6 +188,7 @@ class TestTelegramNaturalLanguageWebhook(unittest.TestCase):
 
     def test_linked_sender_gets_thinking_message_tool_call_and_final_reply(self):
         telegram_user_id = _unique_id()
+        update_id = _unique_id()
         self._link_member(1, telegram_user_id)
         responses = iter(
             [
@@ -207,10 +208,11 @@ class TestTelegramNaturalLanguageWebhook(unittest.TestCase):
                 FakeModelResponse({"role": "assistant", "content": "The current budget is €300."}),
             ]
         )
-        with patch.object(telegram_agent.requests, "post", lambda *_a, **_kw: next(responses)):
-            response = self._post_message(
-                "What's our budget?", telegram_user_id=telegram_user_id, update_id=_unique_id()
-            )
+        with self.assertLogs(main_routes.app.logger, level="INFO") as logs:
+            with patch.object(telegram_agent.requests, "post", lambda *_a, **_kw: next(responses)):
+                response = self._post_message(
+                    "What's our budget?", telegram_user_id=telegram_user_id, update_id=update_id
+                )
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(RecordingTelegramClient.instances), 1)
@@ -219,6 +221,14 @@ class TestTelegramNaturalLanguageWebhook(unittest.TestCase):
         self.assertEqual(client.deleted_message_ids, [RecordingTelegramClient.next_thinking_message_id])
         self.assertEqual(len(client.long_messages), 1)
         self.assertIn("300", client.long_messages[0])
+        job_logs = "\n".join(logs.output)
+        self.assertIn(f'"update_id": {update_id}', job_logs)
+        self.assertIn(f'"chat_id": {telegram_user_id}', job_logs)
+        self.assertIn('"actor_member_id": 1', job_logs)
+        self.assertIn('"queue_wait_ms":', job_logs)
+        self.assertIn('"model_latency_ms":', job_logs)
+        self.assertIn('"tool_name": "current_budget"', job_logs)
+        self.assertIn('"reason_code": "completed"', job_logs)
 
     def test_queue_full_deletes_thinking_message_and_sends_busy_notice(self):
         telegram_user_id = _unique_id()
@@ -233,6 +243,21 @@ class TestTelegramNaturalLanguageWebhook(unittest.TestCase):
         self.assertEqual(client.deleted_message_ids, [RecordingTelegramClient.next_thinking_message_id])
         self.assertIn("⏳ The assistant is busy right now. Please try again shortly.", client.sent_messages)
         self.assertEqual(client.long_messages, [])
+
+    def test_failed_reply_delivery_is_reported_in_structured_job_log(self):
+        telegram_user_id = _unique_id()
+        self._link_member(1, telegram_user_id)
+        response_payload = FakeModelResponse({"role": "assistant", "content": "Hello"})
+
+        with patch.object(telegram_agent.requests, "post", return_value=response_payload), \
+             patch.object(RecordingTelegramClient, "send_long_message", return_value=False), \
+             self.assertLogs(main_routes.app.logger, level="INFO") as logs:
+            response = self._post_message(
+                "Hello", telegram_user_id=telegram_user_id, update_id=_unique_id()
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn('"reason_code": "reply_delivery_failed"', "\n".join(logs.output))
 
     def test_unexpected_reply_error_is_logged_and_user_gets_a_graceful_message(self):
         # A submitted job runs on a background thread via the bounded executor; nothing

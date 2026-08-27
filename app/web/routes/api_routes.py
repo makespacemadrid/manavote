@@ -241,7 +241,12 @@ def api_edit_proposal(proposal_id):
         conn.commit()
         conn.close()
         return jsonify({"success": True, "message": "Proposal updated", "proposal_id": proposal_id})
-    except Exception as e:
+    except sqlite3.Error as exc:
+        legacy.app.logger.warning(
+            "api_request_failure reason_code=proposal_update_failed proposal_id=%s error=%s",
+            proposal_id,
+            exc,
+        )
         conn.close()
         return api_error("proposal_update_failed", "Failed to update proposal", 500)
 

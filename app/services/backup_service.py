@@ -3,8 +3,21 @@ import shutil
 import logging
 from datetime import datetime, timedelta
 
+from apscheduler.schedulers.background import BackgroundScheduler
+from apscheduler.schedulers.base import SchedulerAlreadyRunningError
+
 REPO_ROOT = os.path.dirname(os.path.dirname(os.path.dirname(__file__)))
 BACKUP_ROOT = os.path.join(REPO_ROOT, "backups")
+BACKUP_FAILURES = (OSError, shutil.Error, ValueError)
+
+
+def backup_failure_reason(exc):
+    """Return a stable operator reason code for an expected backup failure."""
+    if isinstance(exc, shutil.Error):
+        return "backup_archive_error"
+    if isinstance(exc, ValueError):
+        return "backup_configuration_error"
+    return "backup_io_error"
 
 
 def backup_db(db_path, keep_days=7, backup_root=BACKUP_ROOT):
@@ -65,13 +78,13 @@ def _scheduled_backup_job(app, backup_type, backup_fn, *args):
 
     try:
         backup_name, pruned_count = backup_fn(*args, keep_days=7)
-    except Exception as exc:
+    except BACKUP_FAILURES as exc:
         log_admin_backup_event(
             app.logger,
             event="scheduled_backup_failed",
             actor_id=None,
             backup_type=backup_type,
-            reason_code="backup_exception",
+            reason_code=backup_failure_reason(exc),
             status="failed",
             error=str(exc),
         )
@@ -88,16 +101,6 @@ def _scheduled_backup_job(app, backup_type, backup_fn, *args):
 
 
 def start_scheduler(app, db_path, upload_dir=None):
-    try:
-        from apscheduler.schedulers.background import BackgroundScheduler
-    except Exception as exc:
-        logging.getLogger(__name__).warning(
-            "APScheduler unavailable (%s); automatic backups disabled. "
-            "Install with `pip install APScheduler` and verify the same Python environment is used at runtime.",
-            exc,
-        )
-        return None
-
     scheduler = BackgroundScheduler()
     scheduler.add_job(
         _scheduled_backup_job,
@@ -118,8 +121,10 @@ def start_scheduler(app, db_path, upload_dir=None):
         )
     try:
         scheduler.start()
-    except Exception as exc:
-        logging.getLogger(__name__).warning("APScheduler failed to start: %s", exc)
+    except SchedulerAlreadyRunningError as exc:
+        logging.getLogger(__name__).warning(
+            "scheduler_start_failed reason_code=scheduler_already_running error=%s", exc
+        )
         return None
     app.scheduler = scheduler
     return scheduler

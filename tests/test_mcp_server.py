@@ -2,6 +2,7 @@ import importlib.util
 import json
 import os
 import socket
+import sqlite3
 import threading
 import time
 import urllib.request
@@ -806,7 +807,7 @@ def test_tools_call_create_proposal_returns_integrity_error_code(monkeypatch):
 
 def test_process_jsonrpc_body_preserves_request_id_on_server_error(monkeypatch):
     def _boom(*_args, **_kwargs):
-        raise RuntimeError("boom")
+        raise sqlite3.OperationalError("sensitive database detail")
 
     monkeypatch.setattr(mcp_server, "handle_request", _boom)
     status, payload = mcp_server._process_jsonrpc_body(json.dumps(_req("initialize", req_id=999)))
@@ -814,12 +815,14 @@ def test_process_jsonrpc_body_preserves_request_id_on_server_error(monkeypatch):
     assert status == 500
     assert body["id"] == 999
     assert body["error"]["code"] == -32000
+    assert body["error"]["message"] == "Internal server error"
+    assert "sensitive database detail" not in payload.decode("utf-8")
 
 
 def test_process_jsonrpc_body_batch_preserves_item_id_on_server_error(monkeypatch):
     def _boom(req, headers=None):
         if req.get("id") == 2:
-            raise RuntimeError("boom")
+            raise sqlite3.OperationalError("boom")
         return mcp_server._result(req.get("id"), {"ok": True})
 
     monkeypatch.setattr(mcp_server, "handle_request", _boom)

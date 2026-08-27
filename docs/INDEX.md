@@ -8,6 +8,7 @@ Use this page as the entry point for project documentation.
 - **Technical behavior contract**: [`SPEC.md`](SPEC.md)
 - **REST API + MCP reference**: [`APIDOC.md`](APIDOC.md)
 - **Testing commands and coverage map**: [`TESTING.md`](TESTING.md)
+- **Operations, logs, and troubleshooting**: [`OPERATIONS.md`](OPERATIONS.md)
 
 ## Engineering process
 
@@ -21,3 +22,5 @@ Use this page as the entry point for project documentation.
 - Update **`APIDOC.md`** for API request/response contract changes.
 - Update **`QUICKSTART.md`** for setup/runtime configuration changes.
 - Update **`TESTING.md`** when new regression packs or testing workflows are added.
+- Update **`OPERATIONS.md`** for reason codes, structured logs, startup health, backup
+  lifecycle, and production troubleshooting.

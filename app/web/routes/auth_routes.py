@@ -3,6 +3,9 @@ import secrets
 from datetime import datetime
 from urllib.parse import urlencode
 
+import requests
+from authlib.integrations.base_client.errors import OAuthError
+from authlib.jose.errors import JoseError
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
 from werkzeug.security import generate_password_hash
 
@@ -104,8 +107,12 @@ def keycloak_callback():
 
     try:
         token = oauth.keycloak.authorize_access_token()
-    except Exception:  # Authlib errors vary by provider response and validation stage.
-        logger.exception("Makespace OIDC callback failed")
+    except (OAuthError, JoseError, requests.RequestException, KeyError, ValueError) as exc:
+        logger.warning(
+            "oidc_callback_failure reason_code=oidc_token_exchange_failed error_type=%s",
+            type(exc).__name__,
+            exc_info=True,
+        )
         flash("Makespace SSO login failed. Please try again.", "error")
         return redirect(url_for("auth.login"))
 

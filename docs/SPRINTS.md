@@ -15,15 +15,11 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
 
 ## Current implementation focus (Q3 2026)
 
-Sprint 4 (route decomposition, service/repository boundary for `main_routes.py`, REST/MCP
-contract parity, Telegram multi-worker safety) is complete — see Sprint 4 below. Current
-focus is Sprint 5:
-
-1. Extend the service/repository boundary work to `app/mcp_server.py`, converging REST
-   and MCP onto shared logic (this is what caught real drift bugs in Sprint 4).
-2. Replace broad `except Exception` handling with typed exceptions and reason codes.
-3. Structured observability for the Telegram assistant's background jobs.
-4. Keep docs synchronized so `README.md` stays concise and `docs/*` remain canonical.
+Sprints 4 and 5 are complete. Sprint 5 delivered the MCP extraction boundary, typed
+exception/reason-code handling, structured Telegram background-job observability, and
+Telegram group-routing configuration diagnostics. No new implementation sprint is
+currently scoped; forward-looking candidates and their prioritization rationale remain
+canonical in [`IDEAS.md`](IDEAS.md).
 
 ---
 
@@ -323,7 +319,7 @@ item and exit criterion above is closed.
 
 ---
 
-## Sprint 5 (Scoped 2026-08-27) — MCP/REST Convergence + Exception Hygiene
+## Sprint 5 (Completed 2026-08-27) — MCP/REST Convergence + Exception Hygiene
 
 ### Why this scope
 Sprint 4's A2 work (moving `main_routes.py`'s embedded logic into
@@ -391,16 +387,44 @@ document parity, it makes future drift structurally harder to introduce.
    `auth_routes.py`) with typed exceptions and stable reason codes, so failures are
    diagnosable instead of collapsing into one generic message. Closes IDEAS.md's "Route
    exception granularity (P0)".
+   - Slice 1 (2026-08-27): removed all four broad catches from `poll_routes.py` and
+     `main_helpers.py`. Poll database failures now catch `sqlite3.Error` and log stable
+     `poll_lookup_failed`, `poll_list_failed`, or `poll_votes_load_failed` reason codes
+     with the relevant poll ID. Timezone lookup now catches only the database, row-shape,
+     and timezone-data failures it can safely fall back from, and reliably closes an
+     opened connection. The same slice typed the proposal-update API and admin poll-list
+     catches as `sqlite3.Error`, retaining the API's existing `proposal_update_failed`
+     code and adding reason-coded operator logs. The remaining broad-catch count is 13
+     across 5 files. The full-suite run also exposed a second status-rendering test that
+     still depended on an active proposal left by unrelated tests; it now owns and
+     removes its fixture, so repeated full-suite runs remain deterministic.
+   - Slice 2 (2026-08-27): ✅ closed the remaining 13. Backup jobs and admin actions now
+     share typed filesystem/archive/configuration failures and the stable
+     `backup_io_error`, `backup_archive_error`, and `backup_configuration_error` codes;
+     APScheduler is a declared dependency and scheduler startup catches its typed
+     already-running failure. OIDC catches Authlib/Jose/request/claim-validation errors
+     with `oidc_token_exchange_failed`. MCP's JSON-RPC and TCP boundaries catch explicit
+     application failures, log `application_failure`, and no longer disclose exception
+     text to clients. Telegram's worker stages use an explicit failure tuple, while a
+     future callback records truly unexpected worker crashes as
+     `unexpected_worker_failure`. No `except Exception` remains anywhere under `app/`.
 3. **Background-job observability** — attach `update_id`, chat ID, actor member ID, tool
    name, queue-wait time, model latency, and a stable reason code to structured logs for
-   the Telegram assistant's background jobs; add graceful executor shutdown. Advances
-   IDEAS.md's "Background-job observability and lifecycle (P1)" (the "observe completed
-   futures so exceptions aren't silent" half of that item already shipped in Sprint 4).
+   the Telegram assistant's background jobs; add graceful executor shutdown. ✅ Completed
+   2026-08-27: job start/completion/rejection, every model round, and every tool call now
+   emit structured `telegram_assistant_job` records with the requested correlation and
+   timing fields; process exit gracefully drains and shuts down the bounded executor.
+   Advances IDEAS.md's broader "Background-job observability and lifecycle (P1)" item;
+   aggregate counters and MCP-specific latency remain a future operational-metrics
+   enhancement.
 4. **Telegram group-routing hardening (small, cheap)** — add a startup warning when a
    Telegram group integration is configured without `TELEGRAM_BOT_USERNAME` set, since
    `is_natural_language_message` currently treats that as "match any mention," which is
-   silently over-permissive in a multi-bot group. Closes the P2 gap flagged in the
-   forum-topic routing audit.
+   silently over-permissive in a multi-bot group. ✅ Completed 2026-08-27: startup now
+   emits the stable `missing_bot_username_for_group` reason code for a negative Telegram
+   chat ID or configured forum thread without a bot username; private chats do not
+   produce a false-positive warning. Closes the P2 gap flagged in the forum-topic
+   routing audit.
 
 ### Explicitly deferred (with reasoning, not just left off)
 - **WS-C C4, query/index optimization** — needs `EXPLAIN QUERY PLAN` results against
@@ -435,14 +459,19 @@ document parity, it makes future drift structurally harder to introduce.
   itself. No code change needed; full reasoning in `IDEAS.md`.
 
 ### Exit criteria
-- MCP's proposal/poll/member/voting-setting logic routes through the same
+- ✅ MCP's proposal/poll/member/voting-setting logic routes through the same
   services/repositories REST uses, with no remaining large blocks of inline SQL in
-  `app/mcp_server.py` for those use cases.
-- No bare `except Exception` remains in a route/service handler without a typed
+  `app/mcp_server.py` for those use cases. MCP-only member/group-purchase operations and
+  intentionally different list response shapes are documented non-convergence cases,
+  not duplicated REST business logic (see Goal 1).
+- ✅ No bare `except Exception` remains in a route/service handler without a typed
   exception and reason code behind it.
-- Telegram background-job logs carry enough structured fields to diagnose a stuck or
+- ✅ Telegram background-job logs carry enough structured fields to diagnose a stuck or
   failed request without reading source code.
 - ✅ The OIDC trust-model question has an explicit answer — resolved before this sprint
   started; see "Resolved before this sprint started" above.
 
-**Status:** ⚪ Scoped, not started.
+**Status:** ✅ Completed (2026-08-27). All four goals and exit criteria are closed.
+MCP-specific latency/counters remain an explicitly documented operational enhancement,
+not missing request-level diagnostics; the larger public MCP application boundary stays
+in `IDEAS.md` for future sprint scoping.

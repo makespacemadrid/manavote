@@ -29,6 +29,8 @@ MCP_API_KEY = os.getenv("MCP_API_KEY", "")
 VALID_PROPOSAL_STATUSES = {status.value for status in ProposalStatus}
 VALID_GROUP_PURCHASE_STATUSES = {"open", "ordered", "received"}
 TOOL_ALIASES = {"crreate_proposal": "create_proposal"}
+MCP_APPLICATION_FAILURES = (sqlite3.Error, OSError, KeyError, TypeError, ValueError)
+logger = logging.getLogger(__name__)
 
 
 def _db_rows(query: str, params: tuple[Any, ...] = ()) -> list[dict[str, Any]]:
@@ -734,8 +736,6 @@ def _process_jsonrpc_body(body: str, headers: dict[str, str] | None = None) -> t
         req = json.loads(body)
     except json.JSONDecodeError:
         return 400, json.dumps(_error(None, -32700, "Parse error")).encode("utf-8")
-    except Exception as exc:
-        return 500, json.dumps(_error(None, -32000, f"Server error: {exc}")).encode("utf-8")
 
     if isinstance(req, list):
         if not req:
@@ -748,8 +748,12 @@ def _process_jsonrpc_body(body: str, headers: dict[str, str] | None = None) -> t
             item_id = item.get("id")
             try:
                 resp = handle_request(item, headers=headers)
-            except Exception as exc:
-                resp = _error(item_id, -32000, f"Server error: {exc}")
+            except MCP_APPLICATION_FAILURES:
+                logger.exception(
+                    "mcp_request_failure reason_code=application_failure request_id=%s",
+                    item_id,
+                )
+                resp = _error(item_id, -32000, "Internal server error")
             if resp is not None:
                 responses.append(resp)
         if not responses:
@@ -762,8 +766,11 @@ def _process_jsonrpc_body(body: str, headers: dict[str, str] | None = None) -> t
     req_id = req.get("id") if isinstance(req, dict) else None
     try:
         resp = handle_request(req, headers=headers)
-    except Exception as exc:
-        return 500, json.dumps(_error(req_id, -32000, f"Server error: {exc}")).encode("utf-8")
+    except MCP_APPLICATION_FAILURES:
+        logger.exception(
+            "mcp_request_failure reason_code=application_failure request_id=%s", req_id
+        )
+        return 500, json.dumps(_error(req_id, -32000, "Internal server error")).encode("utf-8")
     if resp is None:
         return 202, b"{}"
     return 200, json.dumps(resp).encode("utf-8")
@@ -788,9 +795,20 @@ class _TCPHandler(socketserver.StreamRequestHandler):
                 continue
             try:
                 req = json.loads(line)
-                resp = handle_request(req) if isinstance(req, dict) else _error(None, -32600, "Invalid Request")
-            except Exception as exc:
-                resp = _error(None, -32000, f"Server error: {exc}")
+            except json.JSONDecodeError:
+                resp = _error(None, -32700, "Parse error")
+            else:
+                try:
+                    resp = (
+                        handle_request(req)
+                        if isinstance(req, dict)
+                        else _error(None, -32600, "Invalid Request")
+                    )
+                except MCP_APPLICATION_FAILURES:
+                    logger.exception(
+                        "mcp_request_failure reason_code=application_failure transport=tcp"
+                    )
+                    resp = _error(None, -32000, "Internal server error")
             if resp is not None:
                 self.wfile.write((json.dumps(resp) + "\n").encode("utf-8"))
 

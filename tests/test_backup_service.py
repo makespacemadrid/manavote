@@ -14,16 +14,17 @@ class DummyApp:
 
 class TestBackupScheduler(unittest.TestCase):
     @patch("app.services.backup_service.logging.getLogger")
-    @patch("builtins.__import__", side_effect=ImportError("No module named apscheduler"))
-    def test_start_scheduler_logs_install_hint_when_apscheduler_missing(self, _mock_import, mock_get_logger):
+    @patch("app.services.backup_service.BackgroundScheduler")
+    def test_start_scheduler_reports_already_running(self, scheduler_cls, mock_get_logger):
         app = DummyApp()
+        scheduler_cls.return_value.start.side_effect = backup_service.SchedulerAlreadyRunningError()
 
         scheduler = backup_service.start_scheduler(app, "/tmp/app.db")
 
         self.assertIsNone(scheduler)
         mock_get_logger.return_value.warning.assert_called()
         message = mock_get_logger.return_value.warning.call_args.args[0]
-        self.assertIn("Install with `pip install APScheduler`", message)
+        self.assertIn("scheduler_already_running", message)
 
 
 if __name__ == "__main__":
@@ -99,7 +100,7 @@ class TestScheduledBackupJob(unittest.TestCase):
         app.logger = "fake-logger"
 
         def _raise(*a, **kw):
-            raise RuntimeError("disk full")
+            raise OSError("disk full")
 
         with patch("app.web.routes.helpers.admin_audit_helpers.log_admin_backup_event") as log_mock:
             backup_service._scheduled_backup_job(app, "images", _raise, "/tmp/uploads")
@@ -108,7 +109,7 @@ class TestScheduledBackupJob(unittest.TestCase):
         self.assertEqual(log_mock.call_args.kwargs["event"], "scheduled_backup_failed")
         self.assertEqual(log_mock.call_args.kwargs["backup_type"], "images")
         self.assertEqual(log_mock.call_args.kwargs["status"], "failed")
-        self.assertEqual(log_mock.call_args.kwargs["reason_code"], "backup_exception")
+        self.assertEqual(log_mock.call_args.kwargs["reason_code"], "backup_io_error")
         self.assertEqual(log_mock.call_args.kwargs["error"], "disk full")
 
     def test_start_scheduler_registers_jobs_that_call_backup_functions(self):
