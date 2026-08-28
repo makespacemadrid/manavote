@@ -338,13 +338,16 @@ process and is not yet shared across workers.
 
 ### MCP JSON-RPC tools (`/mcp`)
 - Read/list tools:
-  - `list_proposals` (optional `status`, `age=recent|old`, `limit`, `offset`; age filters select active proposals around the 30-day boundary)
+  - `list_proposals` (optional `status`, `age=recent|old`, `limit`, `offset`; age filters select active proposals around the 30-day boundary; results include `url` and `image_filename`)
   - `current_budget`
   - `list_member_telegram_links` (optional `include_unlinked`, `limit`, `offset`)
   - `list_user_statistics` (optional `limit`, `offset`, `username`, sorting, and opt-in `include_email`; includes matching `total`)
 - Create tools:
   - `create_member` (`username`, `password`, optional `is_admin`)
-  - `create_proposal` (`title`, `amount`, `created_by`, optional `description`/`url`/`basic_supplies`)
+  - `create_proposal` (`title`, `amount`, `created_by`, optional `description`/`url`/
+    `basic_supplies`/`image`; `image` accepts base64 or a base64 data URL, directly or
+    as `{data, mime_type}`, and persists signature-validated PNG/JPEG content up to
+    10 MiB under `static/uploads/`)
   - `create_poll` (`question`, `options`, `created_by`)
 
 ## 9) Security notes

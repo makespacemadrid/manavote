@@ -131,6 +131,8 @@ Covers contract-alignment scenarios for `PATCH /api/settings/voting` and MCP `up
 - `create_proposal` parity: missing fields, non-positive amount, unknown/non-positive
   `created_by` (classified as not-found on both interfaces, not invalid-params),
   invalid `basic_supplies`, and success shape
+- MCP proposal attachment coverage: URL and generated image-filename persistence,
+  upload-file contents, and rejection of malformed base64 image data
 - `create_poll` parity: question/option bounds (short question, too few/many options,
   an over-long option) and success shape
 

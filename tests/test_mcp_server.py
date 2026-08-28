@@ -1,3 +1,4 @@
+import base64
 import importlib.util
 import json
 import os
@@ -524,6 +525,53 @@ def test_tools_call_create_proposal(monkeypatch):
     payload = json.loads(response["result"]["content"][0]["text"])
     assert payload["success"] is True
     assert payload["proposal_id"] == 77
+
+
+def test_create_proposal_persists_url_and_image(tmp_path, monkeypatch):
+    db_path = tmp_path / "proposal-mcp.db"
+    upload_folder = tmp_path / "uploads"
+    conn = sqlite3.connect(db_path)
+    conn.executescript("""
+        CREATE TABLE members (id INTEGER PRIMARY KEY, username TEXT);
+        INSERT INTO members VALUES (1, 'alice');
+        CREATE TABLE proposals (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, title TEXT NOT NULL, description TEXT,
+            amount REAL NOT NULL, url TEXT, image_filename TEXT, created_by INTEGER NOT NULL,
+            basic_supplies INTEGER DEFAULT 0
+        );
+        CREATE TABLE comments (
+            id INTEGER PRIMARY KEY AUTOINCREMENT, proposal_id INTEGER, member_id INTEGER, content TEXT
+        );
+    """)
+    conn.close()
+    monkeypatch.setattr(mcp_server, "DB_PATH", str(db_path))
+    monkeypatch.setattr(mcp_server, "UPLOAD_FOLDER", str(upload_folder))
+    png = b"\x89PNG\r\n\x1a\n" + b"proposal-image"
+
+    response = mcp_server.handle_request(_req("tools/call", params={
+        "name": "create_proposal",
+        "arguments": {
+            "title": "New printer", "amount": 150, "created_by": 1,
+            "url": "https://example.com/printer",
+            "image": {"data": base64.b64encode(png).decode(), "mime_type": "image/png"},
+        },
+    }))
+    payload = json.loads(response["result"]["content"][0]["text"])
+
+    with sqlite3.connect(db_path) as check:
+        saved = check.execute("SELECT url, image_filename FROM proposals").fetchone()
+    assert saved == ("https://example.com/printer", payload["image_filename"])
+    assert (upload_folder / saved[1]).read_bytes() == png
+
+
+def test_create_proposal_rejects_invalid_image(monkeypatch):
+    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"id": 1}])
+    response = mcp_server.handle_request(_req("tools/call", params={
+        "name": "create_proposal",
+        "arguments": {"title": "Desk", "amount": 10, "created_by": 1, "image": "not-base64"},
+    }))
+    assert response["error"]["code"] == -32602
+    assert "invalid base64" in response["error"]["message"]
 
 
 def test_tools_call_create_proposal_rejects_missing_creator(monkeypatch):
