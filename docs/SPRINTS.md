@@ -1,6 +1,6 @@
 # SPRINTS — Implementation Planning and Progress Tracking
 
-Last updated: 2026-08-27
+Last updated: 2026-08-28
 
 This document tracks implementation sequencing, active sprint scope, and completion status.
 Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
@@ -15,16 +15,11 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
 
 ## Current implementation focus (Q3 2026)
 
-Sprints 4, 5, and 6 are complete. Sprint 5 delivered the MCP extraction boundary, typed
-exception/reason-code handling, structured Telegram background-job observability, and
-Telegram group-routing configuration diagnostics. Sprint 6 brought the assistant's
-`/confirm` mutation flow up to the same reason-coded-audit standard and closed the
-blocked-vote-by-policy and forum-topic/mention-routing observability gaps. Sprint 7
-shifts focus to UX/UI — a dedicated audit (`docs/IDEAS.md`, "UX/UI audit
-(2026-08-27)") found consistent gaps in button placement/visual hierarchy and a budget
-graph that's never had a dedicated pass; Sprint 7's three goals are scoped directly
-from that audit. The public MCP application boundary (`IDEAS.md` item 4, P1),
-previously the leading Sprint 7 candidate, now leads Sprint 8 instead.
+Sprints 3 through 8 are complete. Sprint 7 delivered the UX/UI, budget-visualization,
+and member-feedback work scoped from the dedicated UX audit. Sprint 8 then completed
+the public MCP application boundary: JSON-RPC and Telegram now share a transport-neutral
+execution layer with explicit actor policy. Forward-looking work is tracked in
+[`IDEAS.md`](IDEAS.md) until the next sprint is scoped.
 
 ---
 
@@ -51,7 +46,7 @@ previously the leading Sprint 7 candidate, now leads Sprint 8 instead.
 
 ---
 
-## Sprint 4 (In Progress) — Route Finalization + Admin Reliability
+## Sprint 4 (Completed 2026-08-27) — Route Finalization + Admin Reliability
 
 ### Goals
 1. Finish extraction of remaining route logic from `main_routes.py`.
@@ -785,7 +780,7 @@ can store feedback the same way it already handles proposal/poll creation.
 
 ---
 
-## Sprint 8 (Started 2026-08-27) — Public MCP Application Boundary
+## Sprint 8 (Completed 2026-08-27) — Public MCP Application Boundary
 
 ### Goal
 Replace the Telegram assistant's dependence on MCP server internals with a public tool

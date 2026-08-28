@@ -565,6 +565,8 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
   - optional args: `status` (`active|approved|over_budget|rejected`), `age` (`recent|old`), `username` (exact, case-insensitive creator match), `limit` (1..200), `offset` (>=0)
   - `age=recent` returns active proposals newer than 30 days; `age=old` returns active proposals at least 30 days old. It may only be combined with `status=active`.
   - out-of-range pagination is rejected with `-32602`; values are not silently clamped.
+  - each proposal includes its persisted `url` and local `image_filename` (either may
+    be empty when no corresponding attachment was supplied)
 - `list_polls`
   - optional args: `status` (`open|closed`), `username` (creator match), `limit`, `offset`
   - returns each poll's options and per-option vote results
@@ -593,7 +595,13 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
     found), matching REST and `create_poll`, not `-32602`
   - optional args: `description`, `url`, `basic_supplies` (must parse as boolean;
     an unrecognized value is rejected with `-32602`, matching REST's
-    `invalid_basic_supplies`)
+    `invalid_basic_supplies`), and `image`
+  - `image` accepts a base64 data URL, a raw base64 string, or an object containing
+    `data` plus optional `mime_type`. Only signature-validated PNG/JPEG content up to
+    10 MiB is accepted. Invalid encoding, size, type, or MIME/content mismatches return
+    `-32602` without creating a proposal.
+  - successful results include `proposal_id`, the persisted `url`, and the generated
+    local `image_filename` (or `null` when no image was supplied)
 - `create_poll`
   - required args: `question` (5..200 characters), `options` (2..12 items), `created_by` (existing member id)
 
@@ -647,6 +655,11 @@ pytest -q tests/test_mcp_server.py
       "amount": 249.99,
       "created_by": 1,
       "description": "Upgrade for metal workshop",
+      "url": "https://example.com/drill-press",
+      "image": {
+        "data": "iVBORw0KGgoAAA...",
+        "mime_type": "image/png"
+      },
       "basic_supplies": false
     }
   }
@@ -751,3 +764,5 @@ Use `/reset` to clear only the requesting user's conversation and pending action
 
 - **2026-05-09**: Added MCP create tools (`create_member`, `create_proposal`, `create_poll`) with documented validation and error code conventions.
 - **2026-05-09**: Added MCP create request example payload and API-focused testing guidance alignment (`docs/TESTING.md`).
+- **2026-08-28**: Added MCP proposal PNG/JPEG image persistence and exposed proposal
+  URL/image metadata in create and list results.

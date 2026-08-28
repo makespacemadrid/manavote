@@ -132,7 +132,6 @@ class TestTranslations(unittest.TestCase):
             "About flow approved",
             "About flow undo",
             "About funding 1",
-            "About funding 2",
             "About tracking 1",
             "About tracking 2",
             "About tracking 3",

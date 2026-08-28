@@ -2,13 +2,22 @@ class ProposalRepository:
     def __init__(self, conn):
         self.conn = conn
 
-    def create(self, title, description, amount, url, created_by, basic_supplies):
+    def create(self, title, description, amount, url, created_by, basic_supplies, image_filename=None):
         """Insert a proposal; auto-clears basic_supplies when amount exceeds the €20 threshold."""
         cur = self.conn.cursor()
-        cur.execute(
-            "INSERT INTO proposals (title, description, amount, url, created_by, basic_supplies) VALUES (?, ?, ?, ?, ?, ?)",
-            (title, description, amount, url, created_by, basic_supplies),
-        )
+        if image_filename is None:
+            # Keep compatibility with databases that predate the image column.
+            cur.execute(
+                "INSERT INTO proposals (title, description, amount, url, created_by, basic_supplies) VALUES (?, ?, ?, ?, ?, ?)",
+                (title, description, amount, url, created_by, basic_supplies),
+            )
+        else:
+            cur.execute(
+                "INSERT INTO proposals "
+                "(title, description, amount, url, image_filename, created_by, basic_supplies) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (title, description, amount, url, image_filename, created_by, basic_supplies),
+            )
         proposal_id = cur.lastrowid
         if basic_supplies and amount > 20.0:
             cur.execute("UPDATE proposals SET basic_supplies = 0 WHERE id = ?", (proposal_id,))

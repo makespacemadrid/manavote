@@ -2,11 +2,14 @@
 
 from __future__ import annotations
 
+import base64
+import binascii
 import hmac
 import http.server
 import json
 import logging
 import os
+import secrets
 import socketserver
 import sqlite3
 import sys
@@ -26,7 +29,11 @@ from app.services.user_statistics import user_statistics_query, user_statistics_
 from app.services.voting_settings_service import VALID_VOTE_MODES
 
 DB_PATH = os.getenv("APP_DB_PATH", os.path.join(os.path.dirname(os.path.dirname(__file__)), "app.db"))
+UPLOAD_FOLDER = os.getenv(
+    "UPLOAD_FOLDER", os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "uploads")
+)
 MCP_API_KEY = os.getenv("MCP_API_KEY", "")
+MAX_PROPOSAL_IMAGE_BYTES = 10 * 1024 * 1024
 VALID_PROPOSAL_STATUSES = {status.value for status in ProposalStatus}
 VALID_GROUP_PURCHASE_STATUSES = {"open", "ordered", "received"}
 TOOL_ALIASES = {"crreate_proposal": "create_proposal"}
@@ -63,14 +70,67 @@ def _create_proposal_record(
     url: str,
     created_by_val: int,
     basic_supplies: int,
+    image_filename: str | None = None,
 ) -> int:
     conn = sqlite3.connect(DB_PATH)
     try:
         return int(
-            ProposalRepository(conn).create(title, description, amount_val, url, created_by_val, basic_supplies) or 0
+            ProposalRepository(conn).create(
+                title, description, amount_val, url, created_by_val, basic_supplies, image_filename
+            )
+            or 0
         )
     finally:
         conn.close()
+
+
+def _save_proposal_image(value: Any) -> str:
+    """Decode an MCP-supplied PNG/JPEG and return its local upload filename."""
+    mime_type = ""
+    encoded: Any = value
+    if isinstance(value, dict):
+        encoded = value.get("data")
+        mime_type = str(value.get("mime_type") or value.get("mimeType") or "").lower()
+    if not isinstance(encoded, str) or not encoded.strip():
+        raise ValueError("image must contain base64-encoded PNG or JPEG data")
+
+    encoded = encoded.strip()
+    if encoded.startswith("data:"):
+        header, separator, encoded = encoded.partition(",")
+        if not separator or ";base64" not in header.lower():
+            raise ValueError("image data URL must be base64 encoded")
+        mime_type = header[5:].split(";", 1)[0].lower()
+    try:
+        image_bytes = base64.b64decode(encoded, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise ValueError("image contains invalid base64 data") from exc
+    if not image_bytes or len(image_bytes) > MAX_PROPOSAL_IMAGE_BYTES:
+        raise ValueError("image must be between 1 byte and 10 MiB")
+
+    if image_bytes.startswith(b"\x89PNG\r\n\x1a\n"):
+        extension, detected_mime = "png", "image/png"
+    elif image_bytes.startswith(b"\xff\xd8\xff"):
+        extension, detected_mime = "jpg", "image/jpeg"
+    else:
+        raise ValueError("image must be a PNG or JPEG")
+    if mime_type and mime_type not in {detected_mime, "image/jpg" if extension == "jpg" else detected_mime}:
+        raise ValueError("image MIME type does not match its contents")
+
+    os.makedirs(UPLOAD_FOLDER, exist_ok=True)
+    filename = f"{secrets.token_hex(8)}.{extension}"
+    path = os.path.join(UPLOAD_FOLDER, filename)
+    with open(path, "xb") as image_file:
+        image_file.write(image_bytes)
+    return filename
+
+
+def _remove_uploaded_image(filename: str | None) -> None:
+    if not filename:
+        return
+    try:
+        os.remove(os.path.join(UPLOAD_FOLDER, filename))
+    except FileNotFoundError:
+        pass
 
 
 def _error(req_id: Any, code: int, message: str) -> dict[str, Any]:
@@ -289,7 +349,7 @@ def tool_definitions() -> list[dict[str, Any]]:
         },
         {
             "name": "create_proposal",
-            "description": "Create a proposal (admin-only action).",
+            "description": "Create a proposal, including its link and optional PNG/JPEG image (admin-only action).",
             "inputSchema": {
                 "type": "object",
                 "required": ["title", "amount", "created_by"],
@@ -298,6 +358,22 @@ def tool_definitions() -> list[dict[str, Any]]:
                     "description": {"type": "string"},
                     "amount": {"type": "number", "exclusiveMinimum": 0},
                     "url": {"type": "string"},
+                    "image": {
+                        "description": (
+                            "PNG/JPEG as a base64 data URL, raw base64 string, or an object with data and mime_type."
+                        ),
+                        "oneOf": [
+                            {"type": "string", "minLength": 1},
+                            {
+                                "type": "object",
+                                "required": ["data"],
+                                "properties": {
+                                    "data": {"type": "string", "minLength": 1},
+                                    "mime_type": {"type": "string", "enum": ["image/png", "image/jpeg"]},
+                                },
+                            },
+                        ],
+                    },
                     "basic_supplies": {"type": "boolean"},
                     "created_by": {"type": "integer", "minimum": 1},
                 },
@@ -354,7 +430,7 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
         if pagination_error:
             return pagination_error
         query = (
-            "SELECT p.id,p.title,p.description,p.amount,p.status,p.created_at,p.created_by,m.username "
+            "SELECT p.id,p.title,p.description,p.amount,p.url,p.image_filename,p.status,p.created_at,p.created_by,m.username "
             "FROM proposals p JOIN members m ON m.id = p.created_by"
         )
         conditions: list[str] = []
@@ -686,13 +762,23 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
         member = _db_rows("SELECT id FROM members WHERE id = ? LIMIT 1", (created_by_val,))
         if not member:
             return _error(req_id, -32004, "Not found: creator member not found")
+        image_filename = None
+        if arguments.get("image") is not None:
+            try:
+                image_filename = _save_proposal_image(arguments["image"])
+            except (OSError, ValueError) as exc:
+                return _error(req_id, -32602, f"Invalid params: {exc}")
         try:
-            proposal_id = _create_proposal_record(title, description, amount_val, url, created_by_val, basic_supplies)
+            proposal_id = _create_proposal_record(
+                title, description, amount_val, url, created_by_val, basic_supplies, image_filename
+            )
         except sqlite3.IntegrityError as exc:
+            _remove_uploaded_image(image_filename)
             return _error(req_id, -32011, f"Conflict: create_proposal failed integrity checks ({exc})")
         except sqlite3.OperationalError as exc:
+            _remove_uploaded_image(image_filename)
             return _error(req_id, -32012, f"Unavailable: create_proposal database operation failed ({exc})")
-        payload = {"success": True, "proposal_id": proposal_id}
+        payload = {"success": True, "proposal_id": proposal_id, "url": url, "image_filename": image_filename}
         if alias_warning:
             payload["warning"] = alias_warning
         return _tool_text(req_id, payload)
