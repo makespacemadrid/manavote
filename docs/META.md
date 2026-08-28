@@ -1,4 +1,4 @@
-# META — Retrospective: What ~300 Commits Ago Needed to Know
+# META — Retrospective: What I wish I'd known ~300 Commits Ago
 
 > **TL;DR:** Almost every regression documented below follows one shape — a decision
 > made implicitly held up fine until something *second* arrived (a second surface, a
