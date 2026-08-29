@@ -213,8 +213,11 @@ def tool_definitions() -> list[dict[str, Any]]:
         {
             "name": "list_proposals",
             "description": (
-                "List latest proposals, optionally filtered by status and age. Returns the original "
-                "reference URL plus public proposal_url and image_url links when configured."
+                "List latest proposals, optionally filtered by status and age. Each proposal includes "
+                "its creation and lifecycle dates (processed, over-budget, and purchased), plus comments "
+                "and comment authors, its basic-supplies flag, and votes with voter, choice, and date "
+                "alongside in-favor/against totals. Returns the original reference URL plus public "
+                "proposal_url and image_url links when configured."
             ),
             "inputSchema": {
                 "type": "object",
@@ -448,7 +451,25 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
         if pagination_error:
             return pagination_error
         query = (
-            "SELECT p.id,p.title,p.description,p.amount,p.url,p.image_filename,p.status,p.created_at,p.created_by,m.username, "
+            "SELECT p.id,p.title,p.description,p.amount,p.url,p.image_filename,p.status,"
+            "p.created_at,p.processed_at,p.over_budget_at,p.purchased_at,p.basic_supplies,"
+            "p.created_by,m.username, "
+            "(SELECT COUNT(*) FROM votes v WHERE v.proposal_id = p.id AND v.vote = 'in_favor') AS yes_votes, "
+            "(SELECT COUNT(*) FROM votes v WHERE v.proposal_id = p.id AND v.vote = 'against') AS no_votes, "
+            "COALESCE((SELECT json_group_array(json_object("
+            "'id', ordered_votes.id, 'member_id', ordered_votes.member_id, "
+            "'username', ordered_votes.username, 'vote', ordered_votes.vote, "
+            "'created_at', ordered_votes.created_at)) FROM ("
+            "SELECT v.id,v.member_id,vm.username,v.vote,v.created_at FROM votes v "
+            "JOIN members vm ON vm.id = v.member_id WHERE v.proposal_id = p.id "
+            "ORDER BY v.created_at ASC,v.id ASC) AS ordered_votes), '[]') AS votes_json, "
+            "COALESCE((SELECT json_group_array(json_object("
+            "'id', ordered_comments.id, 'member_id', ordered_comments.member_id, "
+            "'username', ordered_comments.username, 'content', ordered_comments.content, "
+            "'created_at', ordered_comments.created_at)) FROM ("
+            "SELECT c.id,c.member_id,cm.username,c.content,c.created_at FROM comments c "
+            "JOIN members cm ON cm.id = c.member_id WHERE c.proposal_id = p.id "
+            "ORDER BY c.created_at ASC,c.id ASC) AS ordered_comments), '[]') AS comments_json, "
             "(SELECT value FROM settings WHERE key = 'url' LIMIT 1) AS public_base_url "
             "FROM proposals p JOIN members m ON m.id = p.created_by"
         )
@@ -475,6 +496,16 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
         query += " ORDER BY p.created_at DESC LIMIT ? OFFSET ?"
         rows = _db_rows(query, tuple(query_params) + (limit, offset))
         for row in rows:
+            votes_json = row.pop("votes_json", "[]")
+            try:
+                row["votes"] = json.loads(votes_json) if votes_json else []
+            except (TypeError, json.JSONDecodeError):
+                row["votes"] = []
+            comments_json = row.pop("comments_json", "[]")
+            try:
+                row["comments"] = json.loads(comments_json) if comments_json else []
+            except (TypeError, json.JSONDecodeError):
+                row["comments"] = []
             base_url = str(row.pop("public_base_url", "") or "").rstrip("/")
             row["proposal_url"] = f"{base_url}/proposal/{row['id']}" if base_url else None
             image_filename = row.get("image_filename")
