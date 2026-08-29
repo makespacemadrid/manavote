@@ -22,6 +22,25 @@ class TestTelegramClient(unittest.TestCase):
         self.assertFalse(sent)
 
     @patch("app.integrations.telegram_client.requests.post")
+    def test_send_photo_uses_public_url_and_preserves_topic_reply(self, mock_post):
+        mock_post.return_value.status_code = 200
+        mock_post.return_value.json.return_value = {"ok": True}
+        client = TelegramClient("token", "-100123", "7", reply_to_message_id=91)
+
+        self.assertTrue(client.send_photo("https://vote.example/static/uploads/image.png"))
+
+        self.assertTrue(mock_post.call_args.args[0].endswith("/sendPhoto"))
+        self.assertEqual(
+            mock_post.call_args.kwargs["json"],
+            {
+                "chat_id": "-100123",
+                "photo": "https://vote.example/static/uploads/image.png",
+                "message_thread_id": 7,
+                "reply_parameters": {"message_id": 91, "allow_sending_without_reply": True},
+            },
+        )
+
+    @patch("app.integrations.telegram_client.requests.post")
     def test_send_message_with_id_returns_created_telegram_message_id(self, mock_post):
         mock_post.return_value.status_code = 200
         mock_post.return_value.json.return_value = {

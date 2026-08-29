@@ -18,8 +18,9 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
 Sprints 3 through 8 are complete. Sprint 7 delivered the UX/UI, budget-visualization,
 and member-feedback work scoped from the dedicated UX audit. Sprint 8 then completed
 the public MCP application boundary: JSON-RPC and Telegram now share a transport-neutral
-execution layer with explicit actor policy. Forward-looking work is tracked in
-[`IDEAS.md`](IDEAS.md) until the next sprint is scoped.
+execution layer with explicit actor policy. Sprint 9 completed reliable proposal-resource discovery and sharing through Telegram
+natural chat, including missing-Base-URL operator diagnostics. Forward-looking work is
+tracked in [`IDEAS.md`](IDEAS.md) until the next sprint is scoped.
 
 ---
 
@@ -800,3 +801,44 @@ logic and denying new Telegram tools until their actor policy is explicit.
   admin policies, and overwrites member/creator attribution before dispatch.
 
 **Status:** ✅ Complete (2026-08-27).
+
+---
+
+## Sprint 9 (Active 2026-08-29) — Telegram Proposal Resource Sharing
+
+### Goal
+Let linked members ask naturally for any proposal and receive usable, unambiguous links
+to its ManaVote detail page and uploaded image without confusing those resources with
+the proposal's external vendor/reference URL.
+
+### Progress
+- ✅ `list_proposals` now returns `proposal_url` and `image_url`, derived from the public
+  Base URL configured in Admin → Telegram Configuration. Missing configuration or images
+  produce explicit `null` fields rather than malformed relative links.
+- ✅ Uploaded-image filenames are URL-encoded before they are exposed.
+- ✅ The Telegram tool prompt and sample configuration tell the model to include these
+  resource links when available and preserve the separate external reference `url`.
+- ✅ `list_proposals` accepts an exact positive `proposal_id`, allowing natural chat to
+  retrieve an older or otherwise non-default-page proposal by ID.
+- ✅ MCP contract and Telegram prompt regression tests cover generated, absent, and
+  filename-encoded URLs plus exact-ID validation and filtering.
+- ✅ The end-to-end webhook contract now requests a specific proposal through the model,
+  executes the real MCP application path, and verifies Telegram receives both public
+  resource URLs while the external reference URL remains distinct.
+
+- ✅ Admin → Telegram Configuration now displays a localized warning when the public
+  Base URL is missing, explaining that Telegram/MCP proposal and image links require it.
+- ✅ Base URL updates now require a credential-free HTTPS URL, reject ambiguous query or
+  fragment components, and support explicitly clearing the setting without leaving a
+  stale URL active or attempting an invalid webhook synchronization.
+- ✅ When an assistant answer references an MCP-provided `image_url`, Telegram now sends
+  the resource with `sendPhoto` in the originating private chat or forum thread, while
+  retaining the clickable image URL in the textual answer.
+
+### Exit criteria
+- A linked member can request a proposal by ID in Telegram natural language and receive
+  its public detail URL plus image URL when an image exists.
+- External reference URLs remain clearly distinct from ManaVote-owned resource URLs.
+- Missing Base URL configuration is visible to operators and never creates broken links.
+
+**Status:** ✅ Complete (2026-08-29).

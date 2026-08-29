@@ -1935,6 +1935,44 @@ class TestAdminTelegramWebhookSync(unittest.TestCase):
         self.assertEqual(response.status_code, 200)
         mock_sync.assert_called_once_with("https://example.org")
 
+    def test_update_url_rejects_non_https_value_without_syncing(self):
+        from app.web.routes import main_routes
+
+        with patch.object(main_routes, "sync_telegram_webhook") as mock_sync:
+            response = self.client.post(
+                "/admin",
+                data={"action": "update_url", "base_url": "javascript:alert(1)", "csrf_token": ""},
+                follow_redirects=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Base URL must be a public HTTPS URL", response.data.decode("utf-8"))
+        mock_sync.assert_not_called()
+
+    def test_update_url_can_clear_setting_without_syncing(self):
+        from app.web.routes import main_routes
+
+        conn = budget_app.get_db()
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('url', 'https://old.example') "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value"
+        )
+        conn.commit()
+        conn.close()
+        with patch.object(main_routes, "sync_telegram_webhook") as mock_sync:
+            response = self.client.post(
+                "/admin",
+                data={"action": "update_url", "base_url": "", "csrf_token": ""},
+                follow_redirects=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Base URL cleared", response.data.decode("utf-8"))
+        mock_sync.assert_not_called()
+        conn = budget_app.get_db()
+        self.assertIsNone(conn.execute("SELECT value FROM settings WHERE key = 'url'").fetchone())
+        conn.close()
+
     def test_sync_telegram_webhook_action_calls_sync(self):
         from app.web.routes import main_routes
 

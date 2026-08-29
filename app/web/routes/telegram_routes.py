@@ -160,6 +160,7 @@ def telegram_webhook(secret):
                 actor_member_id=principal.member_id,
                 is_admin=principal.is_admin,
                 on_proposal_created=_notify_created_proposal,
+                on_images=lambda image_urls: all(client.send_photo(url) for url in image_urls),
                 on_event=on_event,
             )
         except (requests.RequestException, RuntimeError, KeyError, IndexError, ValueError) as exc:

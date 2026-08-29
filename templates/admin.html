@@ -700,13 +700,20 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <div id="telegram" class="card">
     <h3>{{ 'Telegram Configuration'|lang }}</h3>
+    {% set telegram_base_url = get_setting_value('url', '')|trim %}
+    {% if not telegram_base_url %}
+    <div role="status" class="telegram-base-url-warning" style="margin-bottom:14px; padding:12px; border:1px solid #f59e0b; border-radius:8px; background:#f59e0b22; color:#fef3c7;">
+        <strong>{{ 'Public Base URL missing'|lang }}</strong>
+        <p style="margin:6px 0 0;">{{ 'Public Base URL missing guidance'|lang }}</p>
+    </div>
+    {% endif %}
     <form method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="update_url">
         <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
             <div style="flex: 2; min-width: 200px;">
                 <label>{{ 'Base URL for proposal links'|lang }}</label>
-                <input type="url" name="base_url" value="{{ get_setting_value('url', '') }}" placeholder="https://manavote.mksmad.org">
+                <input type="url" name="base_url" value="{{ telegram_base_url }}" placeholder="https://manavote.mksmad.org">
             </div>
             <button type="submit" class="btn">{{ 'Update URL'|lang }}</button>
         </div>
