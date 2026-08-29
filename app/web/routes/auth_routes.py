@@ -315,13 +315,17 @@ def settings_page():
                 feedback_service.submit_feedback(
                     conn, member_id=session["member_id"], source="web",
                     category=request.form.get("category"), message=request.form.get("message"),
+                    section=request.form.get("section"),
                     logger=current_app.logger,
                 )
                 flash("Feedback submitted. Thank you!", "success")
             except feedback_service.FeedbackValidationError as exc:
                 flash(str(exc), "error")
             conn.close()
-            return redirect(url_for("auth.settings_page"))
+            return_to = request.form.get("return_to", "")
+            if not return_to.startswith("/") or return_to.startswith("//"):
+                return_to = url_for("auth.settings_page")
+            return redirect(return_to)
         existing_email = (member["email"] or "").strip() if member else ""
         email = request.form.get("email", "").strip().lower()
         if existing_email:

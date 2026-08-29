@@ -7,11 +7,8 @@
 }}{% endmacro %}
 
 {% block content %}
-<div class="nav">
-    <a href="{{ url_for('proposals') }}">← {{ t('Proposals') }}</a>
-    <a href="{{ url_for('polls.polls_page') }}">{{ 'Polls'|lang }}</a>
-    <a href="{{ url_for('settings_page') }}" style="margin-left: auto;">{{ 'Settings'|lang }}</a>
-</div>
+{% include "_top_nav.html" %}
+<p style="margin-bottom: 15px;"><a href="{{ url_for('proposals') }}">← {{ t('Proposals') }}</a></p>
 
 <div class="card">
     <div style="display: flex; justify-content: space-between; align-items: start;">

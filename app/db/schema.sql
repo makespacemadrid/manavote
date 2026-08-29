@@ -61,6 +61,7 @@ CREATE TABLE IF NOT EXISTS feedback (
     source TEXT NOT NULL,
     category TEXT NOT NULL,
     message TEXT NOT NULL,
+    section TEXT,
     status TEXT NOT NULL DEFAULT 'new',
     created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
     resolved_at TEXT,

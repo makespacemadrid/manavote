@@ -10,7 +10,10 @@ const props = {
     navigationLabel: 'Primary navigation',
   },
   currentPath: '/proposals',
-  links: [{ href: '/proposals', label: 'Proposals' }],
+  links: [
+    { href: '/proposals', label: 'Proposals' },
+    { action: 'feedback', label: 'Feedback' },
+  ],
 };
 
 describe('Nav', () => {
@@ -22,5 +25,7 @@ describe('Nav', () => {
     expect(html).toContain('aria-controls="primary-navigation"');
     expect(html).toContain('aria-current="page"');
     expect(html).toContain('aria-expanded="false"');
+    expect(html).toContain('class="nav-feedback"');
+    expect(html).toContain('aria-haspopup="dialog"');
   });
 });
