@@ -210,6 +210,135 @@ def test_tools_call_list_proposals_uses_null_links_without_public_base_url(monke
     assert proposal["image_url"] is None
 
 
+def test_tools_call_list_proposals_returns_comments_with_authors(monkeypatch):
+    captured = {}
+
+    def fake_db_rows(query, params=()):
+        captured.update(query=query, params=params)
+        return [{
+            "id": 42,
+            "comments_json": json.dumps([
+                {
+                    "id": 3,
+                    "member_id": 7,
+                    "username": "alice",
+                    "content": "This would be useful.",
+                    "created_at": "2026-08-29 12:00:00",
+                }
+            ]),
+            "public_base_url": None,
+        }]
+
+    monkeypatch.setattr(mcp_server, "_db_rows", fake_db_rows)
+    response = mcp_server.handle_request(
+        _req("tools/call", req_id=25, params={"name": "list_proposals", "arguments": {"proposal_id": 42}})
+    )
+    proposal = json.loads(response["result"]["content"][0]["text"])["proposals"][0]
+
+    assert "FROM comments c" in captured["query"]
+    assert proposal["comments"] == [{
+        "id": 3,
+        "member_id": 7,
+        "username": "alice",
+        "content": "This would be useful.",
+        "created_at": "2026-08-29 12:00:00",
+    }]
+    assert "comments_json" not in proposal
+
+
+def test_tools_call_list_proposals_returns_lifecycle_dates(monkeypatch):
+    captured = {}
+    expected_dates = {
+        "created_at": "2026-07-01 09:00:00",
+        "processed_at": "2026-07-03T10:00:00",
+        "over_budget_at": "2026-07-02T10:00:00",
+        "purchased_at": "2026-07-10T11:00:00",
+    }
+
+    def fake_db_rows(query, params=()):
+        captured.update(query=query, params=params)
+        return [{"id": 42, "public_base_url": None, **expected_dates}]
+
+    monkeypatch.setattr(mcp_server, "_db_rows", fake_db_rows)
+    response = mcp_server.handle_request(
+        _req("tools/call", req_id=27, params={"name": "list_proposals", "arguments": {"proposal_id": 42}})
+    )
+    proposal = json.loads(response["result"]["content"][0]["text"])["proposals"][0]
+
+    assert "p.created_at,p.processed_at,p.over_budget_at,p.purchased_at" in captured["query"]
+    assert {name: proposal[name] for name in expected_dates} == expected_dates
+
+
+def test_tools_call_list_proposals_returns_classification_and_vote_totals(monkeypatch):
+    captured = {}
+
+    def fake_db_rows(query, params=()):
+        captured.update(query=query, params=params)
+        return [{
+            "id": 42,
+            "basic_supplies": 1,
+            "yes_votes": 5,
+            "no_votes": 2,
+            "public_base_url": None,
+        }]
+
+    monkeypatch.setattr(mcp_server, "_db_rows", fake_db_rows)
+    response = mcp_server.handle_request(
+        _req("tools/call", req_id=28, params={"name": "list_proposals", "arguments": {"proposal_id": 42}})
+    )
+    proposal = json.loads(response["result"]["content"][0]["text"])["proposals"][0]
+
+    assert "p.basic_supplies" in captured["query"]
+    assert "v.vote = 'in_favor'" in captured["query"]
+    assert "v.vote = 'against'" in captured["query"]
+    assert proposal["basic_supplies"] == 1
+    assert proposal["yes_votes"] == 5
+    assert proposal["no_votes"] == 2
+
+
+def test_tools_call_list_proposals_returns_votes_with_voters(monkeypatch):
+    captured = {}
+    expected_votes = [
+        {
+            "id": 11,
+            "member_id": 7,
+            "username": "alice",
+            "vote": "in_favor",
+            "created_at": "2026-08-28 10:00:00",
+        },
+        {
+            "id": 12,
+            "member_id": 8,
+            "username": "bob",
+            "vote": "against",
+            "created_at": "2026-08-29 10:00:00",
+        },
+    ]
+
+    def fake_db_rows(query, params=()):
+        captured.update(query=query, params=params)
+        return [{"id": 42, "votes_json": json.dumps(expected_votes), "public_base_url": None}]
+
+    monkeypatch.setattr(mcp_server, "_db_rows", fake_db_rows)
+    response = mcp_server.handle_request(
+        _req("tools/call", req_id=29, params={"name": "list_proposals", "arguments": {"proposal_id": 42}})
+    )
+    proposal = json.loads(response["result"]["content"][0]["text"])["proposals"][0]
+
+    assert "FROM votes v" in captured["query"]
+    assert proposal["votes"] == expected_votes
+    assert "votes_json" not in proposal
+
+
+def test_tools_list_documents_proposal_comments():
+    response = mcp_server.handle_request(_req("tools/list", req_id=26))
+    definition = next(tool for tool in response["result"]["tools"] if tool["name"] == "list_proposals")
+
+    assert "comments and comment authors" in definition["description"]
+    assert "creation and lifecycle dates" in definition["description"]
+    assert "votes with voter, choice, and date" in definition["description"]
+
+
 def test_tools_call_list_proposals_rejects_incompatible_age_and_status():
     response = mcp_server.handle_request(
         _req(
