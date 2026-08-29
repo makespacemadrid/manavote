@@ -21,6 +21,16 @@ def test_admin_uses_shared_top_nav_partial():
     assert '{% include "_top_nav.html" %}' in admin_template
 
 
+def test_admin_warns_when_public_base_url_is_missing():
+    admin_template = Path("templates/admin.html").read_text(encoding="utf-8")
+
+    assert "{% set telegram_base_url = get_setting_value('url', '')|trim %}" in admin_template
+    assert "{% if not telegram_base_url %}" in admin_template
+    assert 'role="status" class="telegram-base-url-warning"' in admin_template
+    assert "Public Base URL missing guidance" in admin_template
+    assert 'value="{{ telegram_base_url }}"' in admin_template
+
+
 def test_csrf_hidden_inputs_are_well_formed_in_key_templates():
     csrf_pattern = re.compile(
         r'<input\s+type="hidden"\s+name="csrf_token"\s+value="\{\{\s*csrf_token\(\)\s*\}\}"\s*/?>'

@@ -177,6 +177,28 @@ def test_conversation_history_survives_worker_instances_and_stays_bounded(tmp_pa
     assert telegram_agent._get_history(key) == []
 
 
+def test_default_prompt_tells_model_to_return_proposal_and_image_urls(monkeypatch):
+    payloads = []
+    monkeypatch.setenv("OCABRA_CHAT_URL", "https://ocabra.example/v1/chat/completions")
+    monkeypatch.delenv("TELEGRAM_AGENT_SYSTEM_PROMPT", raising=False)
+    monkeypatch.setattr(
+        telegram_agent.requests,
+        "post",
+        lambda *_args, **kwargs: (
+            payloads.append(kwargs["json"])
+            or FakeResponse({"role": "assistant", "content": "Here it is."})
+        ),
+    )
+
+    telegram_agent.answer(54, "Show me the latest proposal and its image")
+
+    prompt = payloads[0]["messages"][0]["content"]
+    assert "proposal_url" in prompt
+    assert "image_url" in prompt
+    assert "separate url field" in prompt
+    assert "listed, external, vendor, product, or reference" in prompt
+
+
 def test_agent_executes_mcp_tool_and_returns_model_answer(monkeypatch):
     responses = iter(
         [

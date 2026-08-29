@@ -53,6 +53,21 @@ class TelegramClient:
         except RequestException:
             return False
 
+    def send_photo(self, image_url: str, caption: str | None = None) -> bool:
+        """Ask Telegram to fetch and send a public image URL in the current conversation."""
+        if not self.bot_token or not self.chat_id or not str(image_url or "").strip():
+            return False
+        url = f"https://api.telegram.org/bot{self.bot_token}/sendPhoto"
+        payload = self._message_payload(caption or "")
+        payload.pop("text", None)
+        payload["photo"] = str(image_url).strip()
+        if caption:
+            payload["caption"] = caption
+        try:
+            return self._telegram_ok(url, payload)
+        except RequestException:
+            return False
+
     def send_message_with_id(self, message: str) -> int | None:
         """Send a message and return its Telegram message ID when available."""
         if not self.bot_token or not self.chat_id:

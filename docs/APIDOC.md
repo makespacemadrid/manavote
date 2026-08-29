@@ -562,11 +562,18 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
 
 ### Implemented MCP tools
 - `list_proposals`
-  - optional args: `status` (`active|approved|over_budget|rejected`), `age` (`recent|old`), `username` (exact, case-insensitive creator match), `limit` (1..200), `offset` (>=0)
+  - optional args: `proposal_id` (exact positive integer ID), `status` (`active|approved|over_budget|rejected`), `age` (`recent|old`), `username` (exact, case-insensitive creator match), `limit` (1..200), `offset` (>=0)
   - `age=recent` returns active proposals newer than 30 days; `age=old` returns active proposals at least 30 days old. It may only be combined with `status=active`.
-  - out-of-range pagination is rejected with `-32602`; values are not silently clamped.
-  - each proposal includes its persisted `url` and local `image_filename` (either may
-    be empty when no corresponding attachment was supplied)
+  - out-of-range pagination and invalid proposal IDs are rejected with `-32602`; values are not silently clamped.
+  - each proposal includes its persisted external reference `url` and local
+    `image_filename`, plus public `proposal_url` and `image_url` fields derived from the
+    Base URL configured in Admin → Telegram Configuration. Public fields are `null` when
+    the Base URL is unset; `image_url` is also `null` when the proposal has no image.
+    Telegram natural chat can return all three links: it uses `url` when a member asks
+    for the listed/vendor/reference link and labels it separately from the ManaVote
+    proposal and image links. When the assistant includes a returned `image_url` in its
+    answer, the Telegram adapter also sends that URL through Telegram's `sendPhoto`, so
+    the image appears as media as well as remaining available as a clickable link.
 - `list_polls`
   - optional args: `status` (`open|closed`), `username` (creator match), `limit`, `offset`
   - returns each poll's options and per-option vote results
@@ -766,3 +773,6 @@ Use `/reset` to clear only the requesting user's conversation and pending action
 - **2026-05-09**: Added MCP create request example payload and API-focused testing guidance alignment (`docs/TESTING.md`).
 - **2026-08-28**: Added MCP proposal PNG/JPEG image persistence and exposed proposal
   URL/image metadata in create and list results.
+- **2026-08-29**: Added public proposal-detail/image URLs to `list_proposals` for
+  Telegram natural chat and an exact `proposal_id` filter so linked members can request
+  links for a specific proposal.

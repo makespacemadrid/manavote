@@ -71,6 +71,38 @@ def test_tools_call_list_proposals_invalid_status():
     assert response["error"]["code"] == -32602
 
 
+def test_tools_call_list_proposals_filters_by_exact_id(monkeypatch):
+    captured = {}
+
+    def fake_db_rows(query, params=()):
+        captured.update(query=query, params=params)
+        return []
+
+    monkeypatch.setattr(mcp_server, "_db_rows", fake_db_rows)
+    response = mcp_server.handle_request(
+        _req("tools/call", req_id=18, params={"name": "list_proposals", "arguments": {"proposal_id": 42}})
+    )
+
+    assert "p.id = ?" in captured["query"]
+    assert captured["params"] == (42, 20, 0)
+    assert json.loads(response["result"]["content"][0]["text"])["proposals"] == []
+
+
+def test_tools_call_list_proposals_rejects_invalid_id():
+    for proposal_id in (0, -1, True, "42", 1.5):
+        response = mcp_server.handle_request(
+            _req(
+                "tools/call",
+                req_id=17,
+                params={"name": "list_proposals", "arguments": {"proposal_id": proposal_id}},
+            )
+        )
+        assert response["error"] == {
+            "code": -32602,
+            "message": "Invalid params: proposal_id must be a positive integer",
+        }
+
+
 def test_tools_call_list_proposals_rejects_invalid_pagination():
     for arguments in ({"limit": 0}, {"limit": 201}, {"offset": -1}, {"limit": "many"}):
         response = mcp_server.handle_request(
@@ -134,6 +166,48 @@ def test_tools_call_list_proposals_filters_old_active_proposals(monkeypatch):
     assert "datetime(p.created_at) <= datetime(?)" in captured["query"]
     assert len(captured["params"]) == 3
     assert json.loads(response["result"]["content"][0]["text"])["count"] == 0
+
+
+def test_tools_call_list_proposals_returns_public_proposal_and_image_urls(monkeypatch):
+    monkeypatch.setattr(
+        mcp_server,
+        "_db_rows",
+        lambda *_args, **_kwargs: [{
+            "id": 42,
+            "title": "Laser cutter",
+            "url": "https://vendor.example/cutter",
+            "image_filename": "cutter image.png",
+            "public_base_url": "https://vote.example/",
+        }],
+    )
+
+    response = mcp_server.handle_request(
+        _req("tools/call", req_id=23, params={"name": "list_proposals", "arguments": {}})
+    )
+    proposal = json.loads(response["result"]["content"][0]["text"])["proposals"][0]
+
+    assert proposal["url"] == "https://vendor.example/cutter"
+    assert proposal["proposal_url"] == "https://vote.example/proposal/42"
+    assert proposal["image_url"] == "https://vote.example/static/uploads/cutter%20image.png"
+    assert "public_base_url" not in proposal
+
+
+def test_tools_call_list_proposals_uses_null_links_without_public_base_url(monkeypatch):
+    monkeypatch.setattr(
+        mcp_server,
+        "_db_rows",
+        lambda *_args, **_kwargs: [{
+            "id": 42, "image_filename": "image.png", "public_base_url": None,
+        }],
+    )
+
+    response = mcp_server.handle_request(
+        _req("tools/call", req_id=24, params={"name": "list_proposals", "arguments": {}})
+    )
+    proposal = json.loads(response["result"]["content"][0]["text"])["proposals"][0]
+
+    assert proposal["proposal_url"] is None
+    assert proposal["image_url"] is None
 
 
 def test_tools_call_list_proposals_rejects_incompatible_age_and_status():

@@ -206,6 +206,10 @@ Coverage is split by responsibility:
     message that is deleted after a real tool-call round trip and final reply delivery
   - a full assistant queue returns the busy notice and still cleans up the thinking
     message; a duplicate `update_id` is acknowledged without repeating the work
+  - a linked member can request a specific proposal by natural language; the real MCP
+    result supplies distinct `proposal_url`, `image_url`, and external-reference `url`
+    fields, the final Telegram reply includes all requested links, and a referenced
+    `image_url` is delivered through Telegram as a photo in the originating chat/thread
   - an administrator's propose → `/confirm` flow executes exactly one MCP write, and the
     same flow with the admin role removed between the two steps executes zero
   - structured job logs correlate `update_id`, chat/member identity, queue wait, model

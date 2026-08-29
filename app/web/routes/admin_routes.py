@@ -8,6 +8,7 @@ from werkzeug.security import generate_password_hash
 
 from app.extensions import limiter
 from app.services import backup_service, feedback_service
+from app.services.settings_service import normalize_public_base_url
 from app.services.telegram_link_service import unlink_member_telegram
 from app.web.routes.helpers.admin_audit_helpers import log_admin_backup_event, log_telegram_link_event
 
@@ -225,18 +226,27 @@ def admin():
             flash("Thresholds updated!", "success")
 
         elif action == "update_url":
-            base_url = request.form.get("base_url", "").rstrip("/")
-            if base_url:
-                c.execute(
-                    "INSERT INTO settings (key, value) VALUES ('url', ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value",
-                    (base_url,),
-                )
-            conn.commit()
-            synced = sync_telegram_webhook(base_url) if base_url else False
-            if synced:
-                flash("Base URL updated and Telegram webhook synced!", "success")
+            try:
+                base_url = normalize_public_base_url(request.form.get("base_url", ""))
+            except ValueError as exc:
+                flash(str(exc), "error")
             else:
-                flash("Base URL updated!", "success")
+                if base_url:
+                    c.execute(
+                        "INSERT INTO settings (key, value) VALUES ('url', ?) "
+                        "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+                        (base_url,),
+                    )
+                else:
+                    c.execute("DELETE FROM settings WHERE key = 'url'")
+                conn.commit()
+                synced = sync_telegram_webhook(base_url) if base_url else False
+                if synced:
+                    flash("Base URL updated and Telegram webhook synced!", "success")
+                elif base_url:
+                    flash("Base URL updated!", "success")
+                else:
+                    flash("Base URL cleared. Proposal and image links are unavailable.", "success")
 
         elif action == "sync_telegram_webhook":
             base_url = get_setting_value("url", "").rstrip("/")

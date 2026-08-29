@@ -8,6 +8,7 @@ lifecycle, and telegram_agent itself is exercised together.
 """
 
 import itertools
+import json
 import os
 import pathlib
 import sys
@@ -58,6 +59,7 @@ class RecordingTelegramClient:
         self.sent_messages = []
         self.long_messages = []
         self.deleted_message_ids = []
+        self.sent_photos = []
         RecordingTelegramClient.instances.append(self)
 
     def send_message_with_id(self, message):
@@ -66,6 +68,10 @@ class RecordingTelegramClient:
 
     def send_long_message(self, message):
         self.long_messages.append(message)
+        return True
+
+    def send_photo(self, image_url, caption=None):
+        self.sent_photos.append((image_url, caption))
         return True
 
     def send_message(self, message):
@@ -229,6 +235,98 @@ class TestTelegramNaturalLanguageWebhook(unittest.TestCase):
         self.assertIn('"model_latency_ms":', job_logs)
         self.assertIn('"tool_name": "current_budget"', job_logs)
         self.assertIn('"reason_code": "completed"', job_logs)
+
+    def test_specific_proposal_request_returns_public_detail_and_image_urls(self):
+        telegram_user_id = _unique_id()
+        self._link_member(1, telegram_user_id)
+        conn = budget_app.get_db()
+        previous_url_row = conn.execute("SELECT value FROM settings WHERE key = 'url'").fetchone()
+        previous_url = previous_url_row["value"] if previous_url_row else None
+        conn.execute(
+            "INSERT INTO settings (key, value) VALUES ('url', ?) "
+            "ON CONFLICT(key) DO UPDATE SET value = excluded.value",
+            ("https://vote.example/",),
+        )
+        cursor = conn.execute(
+            "INSERT INTO proposals "
+            "(title, description, amount, url, image_filename, created_by, status) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?)",
+            (
+                "Telegram resource contract",
+                "Proposal used to verify public links",
+                42,
+                "https://vendor.example/item",
+                "telegram image.png",
+                1,
+                "active",
+            ),
+        )
+        proposal_id = cursor.lastrowid
+        conn.commit()
+        conn.close()
+
+        model_payloads = []
+
+        def fake_post(*_args, **kwargs):
+            payload = kwargs["json"]
+            model_payloads.append(payload)
+            if len(model_payloads) == 1:
+                return FakeModelResponse(
+                    {
+                        "role": "assistant",
+                        "content": None,
+                        "tool_calls": [
+                            {
+                                "id": "call-proposal-links",
+                                "type": "function",
+                                "function": {
+                                    "name": "list_proposals",
+                                    "arguments": json.dumps({"proposal_id": proposal_id}),
+                                },
+                            }
+                        ],
+                    }
+                )
+            tool_payload = json.loads(payload["messages"][-1]["content"])
+            proposal = tool_payload["proposals"][0]
+            return FakeModelResponse(
+                {
+                    "role": "assistant",
+                    "content": (
+                        f"Proposal: {proposal['proposal_url']}\n"
+                        f"Image: {proposal['image_url']}\n"
+                        f"External reference: {proposal['url']}"
+                    ),
+                }
+            )
+
+        try:
+            with patch.object(telegram_agent.requests, "post", fake_post):
+                response = self._post_message(
+                    f"Show proposal {proposal_id}, its image, and its listed product link",
+                    telegram_user_id=telegram_user_id,
+                    update_id=_unique_id(),
+                )
+
+            self.assertEqual(response.status_code, 200)
+            expected_proposal_url = f"https://vote.example/proposal/{proposal_id}"
+            expected_image_url = "https://vote.example/static/uploads/telegram%20image.png"
+            reply = RecordingTelegramClient.instances[-1].long_messages[0]
+            self.assertIn(expected_proposal_url, reply)
+            self.assertIn(expected_image_url, reply)
+            self.assertIn("https://vendor.example/item", reply)
+            self.assertEqual(RecordingTelegramClient.instances[-1].sent_photos, [(expected_image_url, None)])
+            tool_payload = json.loads(model_payloads[1]["messages"][-1]["content"])
+            self.assertEqual(tool_payload["proposals"][0]["url"], "https://vendor.example/item")
+        finally:
+            conn = budget_app.get_db()
+            conn.execute("DELETE FROM proposals WHERE id = ?", (proposal_id,))
+            if previous_url is None:
+                conn.execute("DELETE FROM settings WHERE key = 'url'")
+            else:
+                conn.execute("UPDATE settings SET value = ? WHERE key = 'url'", (previous_url,))
+            conn.commit()
+            conn.close()
 
     def test_queue_full_deletes_thinking_message_and_sends_busy_notice(self):
         telegram_user_id = _unique_id()

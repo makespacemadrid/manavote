@@ -407,6 +407,7 @@ def answer(
     actor_member_id: int | None = None,
     is_admin: bool = False,
     on_proposal_created: Callable[[int, dict[str, Any]], bool] | None = None,
+    on_images: Callable[[list[str]], bool] | None = None,
     on_event: Callable[[str, dict[str, Any]], None] | None = None,
 ) -> str:
     """Answer natural language and let the model operate ManaVote through MCP tools."""
@@ -515,6 +516,9 @@ def answer(
             "content": os.getenv(
                 "TELEGRAM_AGENT_SYSTEM_PROMPT",
                 "You are the ManaVote Telegram assistant. Use the supplied tools for ManaVote facts and actions. "
+                "When users ask about proposals, use list_proposals. Include proposal_url and image_url when those "
+                "ManaVote links are available. If the user asks for the listed, external, vendor, product, or reference "
+                "link, include the separate url field too; label it clearly and never substitute one kind of link for another. "
                 "For administrators, use list_user_statistics for per-user proposal budget totals and to rank "
                 "users by proposed budget, approved budget, or approved budget percentage. "
                 "Use list_polls for poll questions and list_user_statistics to compare who created polls or how "
@@ -530,6 +534,7 @@ def answer(
         {"role": "user", "content": text},
     ]
     tools = _openai_tools(is_admin=is_admin, actor_member_id=actor_member_id)
+    available_image_urls: set[str] = set()
 
     for round_number in range(1, MAX_TOOL_ROUNDS + 1):
         model_started = time.monotonic()
@@ -559,6 +564,9 @@ def answer(
         tool_calls = assistant.get("tool_calls") or []
         if not tool_calls:
             reply = (assistant.get("content") or "I couldn't produce a response.").strip()
+            selected_images = sorted(url for url in available_image_urls if url in reply)
+            if selected_images and on_images is not None:
+                on_images(selected_images)
             _append_history(
                 key, [{"role": "user", "content": text}, {"role": "assistant", "content": reply}]
             )
@@ -618,6 +626,20 @@ def answer(
                 return _confirmation_text(action)
             else:
                 result = _call_mcp(function.get("name", ""), arguments, is_admin=is_admin)
+                if function.get("name") == "list_proposals":
+                    try:
+                        proposal_payload = json.loads(result)
+                    except (TypeError, json.JSONDecodeError):
+                        proposal_payload = {}
+                    proposals = (
+                        proposal_payload.get("proposals", [])
+                        if isinstance(proposal_payload, dict)
+                        else []
+                    )
+                    for proposal in proposals:
+                        image_url = proposal.get("image_url") if isinstance(proposal, dict) else None
+                        if isinstance(image_url, str) and image_url:
+                            available_image_urls.add(image_url)
             messages.append(
                 {"role": "tool", "tool_call_id": tool_call.get("id", ""), "content": result}
             )

@@ -15,6 +15,7 @@ import sqlite3
 import sys
 from datetime import datetime, timedelta, timezone
 from typing import Any
+from urllib.parse import quote
 
 from werkzeug.security import generate_password_hash
 
@@ -211,7 +212,10 @@ def tool_definitions() -> list[dict[str, Any]]:
     return [
         {
             "name": "list_proposals",
-            "description": "List latest proposals, optionally filtered by status and age.",
+            "description": (
+                "List latest proposals, optionally filtered by status and age. Returns the original "
+                "reference URL plus public proposal_url and image_url links when configured."
+            ),
             "inputSchema": {
                 "type": "object",
                 "properties": {
@@ -220,6 +224,11 @@ def tool_definitions() -> list[dict[str, Any]]:
                         "type": "string",
                         "enum": ["recent", "old"],
                         "description": "Active proposals newer than 30 days (recent) or at least 30 days old (old).",
+                    },
+                    "proposal_id": {
+                        "type": "integer",
+                        "minimum": 1,
+                        "description": "Return the proposal with this exact ID.",
                     },
                     "username": {"type": "string", "minLength": 1, "description": "Exact creator username."},
                     **_pagination_properties(200),
@@ -417,6 +426,15 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
     if normalized_name == "list_proposals":
         status = str(arguments.get("status") or "").strip().lower()
         age = str(arguments.get("age") or "").strip().lower()
+        proposal_id = arguments.get("proposal_id")
+        if proposal_id is not None and (
+            isinstance(proposal_id, bool)
+            or not isinstance(proposal_id, int)
+            or proposal_id < 1
+        ):
+            return _error(
+                req_id, -32602, "Invalid params: proposal_id must be a positive integer"
+            )
         username = str(arguments.get("username") or "").strip()
         if "username" in arguments and not username:
             return _error(req_id, -32602, "Invalid params: username must not be empty")
@@ -430,11 +448,15 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
         if pagination_error:
             return pagination_error
         query = (
-            "SELECT p.id,p.title,p.description,p.amount,p.url,p.image_filename,p.status,p.created_at,p.created_by,m.username "
+            "SELECT p.id,p.title,p.description,p.amount,p.url,p.image_filename,p.status,p.created_at,p.created_by,m.username, "
+            "(SELECT value FROM settings WHERE key = 'url' LIMIT 1) AS public_base_url "
             "FROM proposals p JOIN members m ON m.id = p.created_by"
         )
         conditions: list[str] = []
         query_params: list[Any] = []
+        if proposal_id is not None:
+            conditions.append("p.id = ?")
+            query_params.append(proposal_id)
         if status:
             conditions.append("p.status = ?")
             query_params.append(status)
@@ -452,6 +474,15 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
             query += " WHERE " + " AND ".join(conditions)
         query += " ORDER BY p.created_at DESC LIMIT ? OFFSET ?"
         rows = _db_rows(query, tuple(query_params) + (limit, offset))
+        for row in rows:
+            base_url = str(row.pop("public_base_url", "") or "").rstrip("/")
+            row["proposal_url"] = f"{base_url}/proposal/{row['id']}" if base_url else None
+            image_filename = row.get("image_filename")
+            row["image_url"] = (
+                f"{base_url}/static/uploads/{quote(str(image_filename), safe='')}"
+                if base_url and image_filename
+                else None
+            )
         return _tool_text(req_id, {"count": len(rows), "limit": limit, "offset": offset, "proposals": rows})
 
     if normalized_name == "list_polls":
