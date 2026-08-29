@@ -44,6 +44,7 @@ def api_create_feedback():
             source="web",
             category=data.get("category"),
             message=data.get("message"),
+            section=data.get("section"),
             logger=current_app.logger,
         )
     except feedback_service.FeedbackValidationError as exc:

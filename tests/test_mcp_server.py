@@ -100,6 +100,7 @@ def test_create_feedback_tool_persists_member_attribution(tmp_path, monkeypatch)
         CREATE TABLE feedback (
             id INTEGER PRIMARY KEY AUTOINCREMENT, member_id INTEGER NOT NULL,
             source TEXT NOT NULL, category TEXT NOT NULL, message TEXT NOT NULL,
+            section TEXT,
             status TEXT NOT NULL DEFAULT 'new', created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             resolved_at TEXT, resolved_by INTEGER
         );

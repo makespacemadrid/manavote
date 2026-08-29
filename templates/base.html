@@ -19,6 +19,7 @@
         
         {% block content %}{% endblock %}
     </div>
+    {% if session.get('member_id') %}{% include "_feedback_modal.html" %}{% endif %}
     {% include "_danger_action_modal.html" %}
     <script type="module" src="{{ url_for('static', filename='react/app.js') }}"></script>
 </body>

@@ -74,6 +74,10 @@
         .nav-links { display: flex; flex-wrap: wrap; gap: 15px; }
         .nav a { color: #ffff00; text-decoration: none; }
         .nav a:hover { text-decoration: underline; }
+        .nav .nav-feedback { padding: 6px 12px; margin-top: -6px; margin-bottom: -6px; border: 0; border-radius: 4px; background: #ffff00; color: #000; font: inherit; font-weight: 700; cursor: pointer; }
+        .nav .nav-feedback:hover { background: #ff6b6b; }
+        .feedback-modal-panel { border-color: #ffff00; }
+        .feedback-modal-panel h3 { color: #ffff00; }
         .nav-toggle { display: none; margin-left: auto; background: #2a2a2a; color: #ffff00; border: 1px solid #4a4a4a; border-radius: 4px; padding: 4px 10px; font-size: 1.1em; cursor: pointer; }
         table { width: 100%; border-collapse: collapse; }
         th, td { padding: 10px; text-align: left; border-bottom: 1px solid #3a3a3a; }

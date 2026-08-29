@@ -1,0 +1,53 @@
+<div id="feedbackModal" class="danger-modal" hidden role="dialog" aria-modal="true" aria-labelledby="feedbackModalTitle">
+    <div class="danger-modal-panel feedback-modal-panel" tabindex="-1">
+        <h3 id="feedbackModalTitle">{{ 'Feedback'|lang }}</h3>
+        <p>{{ 'Report a bug or suggest an improvement.'|lang }}</p>
+        <form method="POST" action="{{ url_for('auth.settings_page') }}" class="email-settings-form">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <input type="hidden" name="action" value="submit_feedback">
+            <input type="hidden" name="section" value="{{ request.path }}">
+            <input type="hidden" name="return_to" value="{{ request.full_path if request.query_string else request.path }}">
+            <label for="feedback-category">{{ 'Feedback category'|lang }}</label>
+            <select id="feedback-category" name="category" required>
+                <option value="bug">{{ 'Bug report'|lang }}</option>
+                <option value="suggestion">{{ 'Suggestion'|lang }}</option>
+                <option value="other">{{ 'Other'|lang }}</option>
+            </select>
+            <label for="feedback-message">{{ 'Describe your feedback'|lang }}</label>
+            <textarea id="feedback-message" name="message" maxlength="4000" required></textarea>
+            <div class="button-row">
+                <button type="button" class="btn btn-secondary" data-feedback-cancel>{{ 'Cancel'|lang }}</button>
+                <button type="submit" class="btn">{{ 'Send feedback'|lang }}</button>
+            </div>
+        </form>
+    </div>
+</div>
+<script>
+(() => {
+    const modal = document.getElementById('feedbackModal');
+    const panel = modal.querySelector('.feedback-modal-panel');
+    const message = modal.querySelector('#feedback-message');
+    let opener = null;
+
+    function closeFeedback() {
+        modal.hidden = true;
+        opener?.focus();
+    }
+
+    document.addEventListener('click', event => {
+        const button = event.target.closest('[data-feedback-open]');
+        if (!button) return;
+        opener = button;
+        modal.hidden = false;
+        panel.focus();
+        message.focus();
+    });
+    modal.querySelector('[data-feedback-cancel]').addEventListener('click', closeFeedback);
+    modal.addEventListener('click', event => {
+        if (event.target === modal) closeFeedback();
+    });
+    modal.addEventListener('keydown', event => {
+        if (event.key === 'Escape') closeFeedback();
+    });
+})();
+</script>

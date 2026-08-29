@@ -20,12 +20,14 @@ def run_migrations(cursor):
         source TEXT NOT NULL,
         category TEXT NOT NULL,
         message TEXT NOT NULL,
+        section TEXT,
         status TEXT NOT NULL DEFAULT 'new',
         created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
         resolved_at TEXT,
         resolved_by INTEGER
     )
     """)
+    add_column_if_missing(cursor, "feedback", "section TEXT")
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS telegram_pending_actions (
         chat_id INTEGER NOT NULL,

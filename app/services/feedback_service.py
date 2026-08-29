@@ -4,6 +4,7 @@ VALID_CATEGORIES = {"bug", "suggestion", "other"}
 VALID_STATUSES = {"new", "reviewed", "resolved"}
 VALID_SOURCES = {"web", "telegram", "api"}
 MAX_MESSAGE_LENGTH = 4000
+MAX_SECTION_LENGTH = 250
 
 
 class FeedbackValidationError(ValueError):
@@ -12,10 +13,11 @@ class FeedbackValidationError(ValueError):
         self.code = code
 
 
-def submit_feedback(conn, *, member_id, source, category, message, logger=None):
+def submit_feedback(conn, *, member_id, source, category, message, section=None, logger=None):
     source = str(source or "").strip().lower()
     category = str(category or "").strip().lower()
     message = str(message or "").strip()
+    section = str(section or "").strip() or None
     if source not in VALID_SOURCES:
         raise FeedbackValidationError("invalid_source", "source must be web, telegram, or api")
     if category not in VALID_CATEGORIES:
@@ -24,17 +26,19 @@ def submit_feedback(conn, *, member_id, source, category, message, logger=None):
         raise FeedbackValidationError("message_required", "message is required")
     if len(message) > MAX_MESSAGE_LENGTH:
         raise FeedbackValidationError("message_too_long", f"message must be at most {MAX_MESSAGE_LENGTH} characters")
+    if section and len(section) > MAX_SECTION_LENGTH:
+        raise FeedbackValidationError("section_too_long", f"section must be at most {MAX_SECTION_LENGTH} characters")
     member = conn.execute("SELECT id FROM members WHERE id = ?", (member_id,)).fetchone()
     if not member:
         raise FeedbackValidationError("member_not_found", "member not found")
     cursor = conn.execute(
-        "INSERT INTO feedback (member_id, source, category, message) VALUES (?, ?, ?, ?)",
-        (member_id, source, category, message),
+        "INSERT INTO feedback (member_id, source, category, message, section) VALUES (?, ?, ?, ?, ?)",
+        (member_id, source, category, message, section),
     )
     conn.commit()
     feedback_id = int(cursor.lastrowid)
     if logger:
-        logger.info("event=feedback_submitted feedback_id=%s member_id=%s source=%s category=%s", feedback_id, member_id, source, category)
+        logger.info("event=feedback_submitted feedback_id=%s member_id=%s source=%s category=%s section=%s", feedback_id, member_id, source, category, section)
     return feedback_id
 
 

@@ -506,10 +506,11 @@ document.addEventListener('DOMContentLoaded', function() {
     <h3>{{ 'Feedback'|lang }}</h3>
     {% if feedback_items %}
     <div style="overflow-x: auto;"><table>
-        <thead><tr><th>{{ 'Date'|lang }}</th><th>{{ 'Member'|lang }}</th><th>{{ 'Type'|lang }}</th><th>{{ 'Message'|lang }}</th><th>{{ 'Status'|lang }}</th><th>{{ 'Action'|lang }}</th></tr></thead>
+        <thead><tr><th>{{ 'Date'|lang }}</th><th>{{ 'Member'|lang }}</th><th>{{ 'Type'|lang }}</th><th>{{ 'Section'|lang }}</th><th>{{ 'Message'|lang }}</th><th>{{ 'Status'|lang }}</th><th>{{ 'Action'|lang }}</th></tr></thead>
         <tbody>{% for item in feedback_items %}<tr>
             <td>{{ item.created_at|localtime }}</td><td>{{ item.username|username }}</td>
             <td><span class="status status-{{ item.category }}">{{ item.category|lang }}</span><br><small>{{ item.source }}</small></td>
+            <td><code>{{ item.section or '—' }}</code></td>
             <td style="white-space: normal; min-width: 240px;">{{ item.message }}</td>
             <td><span class="status status-{{ item.status }}">{{ item.status|lang }}</span></td>
             <td><form method="POST" class="button-row">

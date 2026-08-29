@@ -21,6 +21,7 @@ def conn():
         CREATE TABLE feedback (
             id INTEGER PRIMARY KEY AUTOINCREMENT, member_id INTEGER NOT NULL,
             source TEXT NOT NULL, category TEXT NOT NULL, message TEXT NOT NULL,
+            section TEXT,
             status TEXT NOT NULL DEFAULT 'new', created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             resolved_at TEXT, resolved_by INTEGER
         );
@@ -34,6 +35,7 @@ def test_submit_list_and_resolve_feedback(conn, caplog):
         feedback_id = submit_feedback(
             conn, member_id=1, source="web", category="bug",
             message="The vote button overlaps", logger=logging.getLogger("feedback-test"),
+            section="/proposals/42",
         )
         update_feedback_status(
             conn, feedback_id=feedback_id, status="resolved", resolved_by=2,
@@ -42,9 +44,11 @@ def test_submit_list_and_resolve_feedback(conn, caplog):
 
     item = list_feedback(conn, status="resolved")[0]
     assert item["message"] == "The vote button overlaps"
+    assert item["section"] == "/proposals/42"
     assert item["resolved_by_username"] == "admin"
     assert item["resolved_at"] is not None
     assert "event=feedback_submitted" in caplog.text
+    assert "section=/proposals/42" in caplog.text
     assert "event=feedback_status_changed" in caplog.text
 
 

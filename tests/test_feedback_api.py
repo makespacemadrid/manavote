@@ -16,6 +16,7 @@ def feedback_db(tmp_path, monkeypatch):
         CREATE TABLE feedback (
             id INTEGER PRIMARY KEY AUTOINCREMENT, member_id INTEGER NOT NULL,
             source TEXT NOT NULL, category TEXT NOT NULL, message TEXT NOT NULL,
+            section TEXT,
             status TEXT NOT NULL DEFAULT 'new', created_at TEXT DEFAULT CURRENT_TIMESTAMP,
             resolved_at TEXT, resolved_by INTEGER
         );
@@ -41,7 +42,7 @@ def test_member_can_submit_and_admin_can_triage_feedback(feedback_db):
     app.config.update(TESTING=True, WTF_CSRF_ENABLED=False)
     client = app.test_client()
     _login(client, 1)
-    created = client.post("/api/feedback", json={"category": "bug", "message": "Buttons overlap"})
+    created = client.post("/api/feedback", json={"category": "bug", "message": "Buttons overlap", "section": "/polls"})
     assert created.status_code == 201
     feedback_id = created.get_json()["feedback_id"]
 
@@ -49,6 +50,7 @@ def test_member_can_submit_and_admin_can_triage_feedback(feedback_db):
     _login(client, 2, True)
     listed = client.get("/api/feedback?category=bug").get_json()["feedback"]
     assert listed[0]["member_id"] == 1
+    assert listed[0]["section"] == "/polls"
     resolved = client.patch(f"/api/feedback/{feedback_id}", json={"status": "resolved"})
     assert resolved.status_code == 200
 

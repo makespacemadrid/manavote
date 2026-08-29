@@ -38,7 +38,18 @@ export function Nav({ username, links, currentPath }) {
         </button>
       </div>
       <div className="nav-links" id="primary-navigation" data-nav-links>
-        {links.map((link) => (
+        {links.map((link) => link.action === 'feedback' ? (
+          <button
+            type="button"
+            key={link.action}
+            className="nav-feedback"
+            data-feedback-open
+            aria-haspopup="dialog"
+            onClick={() => setIsOpen(false)}
+          >
+            {link.label}
+          </button>
+        ) : (
           <a
             href={link.href}
             key={link.href}

@@ -85,12 +85,13 @@
                 <a class="btn btn-secondary" href="{{ url_for('auth.set_language', lang='es') }}">{{ 'Español'|lang }}</a>
             </div>
         </div>
-        <div class="user-settings-item">
+        <div class="user-settings-item" id="feedback">
             <h4>{{ 'Feedback'|lang }}</h4>
             <p>{{ 'Report a bug or suggest an improvement.'|lang }}</p>
             <form method="POST" class="email-settings-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="action" value="submit_feedback">
+                <input type="hidden" name="section" value="{{ request.args.get('section', '/settings') }}">
                 <select name="category" required aria-label="{{ 'Feedback category'|lang }}">
                     <option value="bug">{{ 'Bug report'|lang }}</option>
                     <option value="suggestion">{{ 'Suggestion'|lang }}</option>
