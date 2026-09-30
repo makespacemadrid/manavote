@@ -303,6 +303,7 @@ votes; the response names are retained for API compatibility.
       "status": "open",
       "created_at": "2026-05-03 18:20:00",
       "created_by": 1,
+      "allow_multiple": false,
       "total_votes": 4,
       "options": ["Room A", "Room B"]
     }
@@ -336,7 +337,8 @@ curl http://localhost:45000/api/polls \
 {
   "question": "Where should we meet?",
   "options": ["Room A", "Room B"],
-  "created_by": 1
+  "created_by": 1,
+  "allow_multiple": false
 }
 ```
 
@@ -344,6 +346,7 @@ curl http://localhost:45000/api/polls \
 - `question` required, 5..200 chars
 - `options` required, array with 2..12 non-empty entries, max 120 chars each
 - `created_by` required and must exist in `members`
+- `allow_multiple` optional boolean, defaults to `false`; fixed for the poll's lifetime once created (see SPEC.md's "Multi-select polls")
 
 ### Success response
 **201 Created**
@@ -359,7 +362,7 @@ curl http://localhost:45000/api/polls \
 - `401` unauthorized (missing or wrong `X-Admin-Key`)
 - `503` API not configured (`ADMIN_API_KEY` missing)
 - `415` content type is not `application/json`
-- `400` `invalid_poll_question`, `invalid_poll_options`, or `created_by_required`
+- `400` `invalid_poll_question`, `invalid_poll_options`, `invalid_allow_multiple`, or `created_by_required`
 - `404` `creator_member_not_found`
 - `500` `poll_create_failed`
 
@@ -576,7 +579,7 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
     the image appears as media as well as remaining available as a clickable link.
 - `list_polls`
   - optional args: `status` (`open|closed`), `username` (creator match), `limit`, `offset`
-  - returns each poll's options and per-option vote results
+  - returns each poll's options, `allow_multiple` flag, and per-option vote results
 - `list_group_purchases`
   - optional args: `status`, `username`, `limit`, `offset`
   - returns components, shared costs, and per-participant amounts owed/paid
@@ -611,10 +614,14 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
     local `image_filename` (or `null` when no image was supplied)
 - `create_poll`
   - required args: `question` (5..200 characters), `options` (2..12 items), `created_by` (existing member id)
+  - optional args: `allow_multiple` (`true`/`false`, defaults to `false`; must parse
+    as boolean, an unrecognized value is rejected with `-32602`); fixed for the
+    poll's lifetime once created (see SPEC.md's "Multi-select polls")
   - on success, announces the poll to the configured Telegram chat (inline "Vote"
     button) using the same message the web form and `POST /api/polls` send; the
     announcement always uses `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`/
     `TELEGRAM_THREAD_ID` from the environment, independent of the MCP caller
+  - successful results include `allow_multiple` reflecting what was created
 
 Natural-language Telegram members (non-administrators) receive the read-only tools:
 `list_proposals`, `list_polls`, `list_group_purchases`, `current_budget`, and
@@ -682,7 +689,8 @@ pytest -q tests/test_mcp_server.py
 
 - `/link <app_username> <app_password>` — link Telegram identity to a member account.
   It is accepted only in a private bot chat; the bot attempts to delete the credential-bearing command immediately after receipt.
-- `/vote <poll_id> <option_number>` or `/vote <option_number>` — vote in polls (subject to `poll_vote_mode`).
+- `/vote <poll_id> <option_number> [option_number...]` or `/vote <option_number>` — vote in polls (subject to `poll_vote_mode`).
+  Multiple option numbers are only accepted with the explicit `poll_id` form; the two-token shorthand `/vote <option_number>` (targeting the latest open poll) stays single-option only. Submitting more than one option number against a poll that doesn't allow multiple selections is rejected with reason `multiple_options_not_allowed`.
 - `/pvote <proposal_id> <yes|no>` — vote on proposals (subject to `proposal_vote_mode`).
 - If `telegram_require_linked_vote=true`, Telegram vote commands only work for linked accounts; unlinked users are told to run `/link <app_username> <app_password>`.
 - Proposal inline callback payload: `pvote:<proposal_id>:yes|no` (same policy path as `/pvote`).

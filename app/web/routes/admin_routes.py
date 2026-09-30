@@ -333,6 +333,7 @@ def admin():
             question = request.form.get("question", "").strip()
             raw_options = request.form.get("options", "")
             closes_at_raw = request.form.get("closes_at", "").strip()
+            allow_multiple = request.form.get("allow_multiple") == "on"
             options = [line.strip() for line in raw_options.splitlines() if line.strip()]
             closes_at = None
             if len(question) < 5:
@@ -359,12 +360,14 @@ def admin():
             if closes_at is not None:
                 closes_at_iso = closes_at.isoformat()
                 c.execute(
-                    "INSERT INTO polls (question, options_json, created_by, status, closes_at) VALUES (?, ?, ?, 'open', ?)",
-                    (question, json.dumps(options), session["member_id"], closes_at_iso),
+                    "INSERT INTO polls (question, options_json, created_by, status, closes_at, allow_multiple) VALUES (?, ?, ?, 'open', ?, ?)",
+                    (question, json.dumps(options), session["member_id"], closes_at_iso, 1 if allow_multiple else 0),
                 )
                 conn.commit()
                 poll_id = c.lastrowid
-                message = poll_service.build_poll_announcement_message(question, options, closes_at_iso)
+                message = poll_service.build_poll_announcement_message(
+                    question, options, closes_at_iso, allow_multiple
+                )
                 send_telegram_message(message, poll_id, options)
                 flash("Poll created!", "success")
 
@@ -418,7 +421,7 @@ def admin():
                 except (TypeError, json.JSONDecodeError):
                     options = []
                 message = poll_service.build_poll_announcement_message(
-                    poll["question"], options, poll["closes_at"]
+                    poll["question"], options, poll["closes_at"], bool(poll["allow_multiple"])
                 )
 
                 if action == "send_poll_telegram_test":

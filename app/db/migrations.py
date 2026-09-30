@@ -12,6 +12,48 @@ def add_column_if_missing(cursor, table_name, ddl):
         cursor.execute(f"ALTER TABLE {table_name} ADD COLUMN {ddl}")
 
 
+def _poll_votes_allows_multiple_options(cursor):
+    """True once poll_votes' unique constraint covers option_index too, so a member
+    can hold more than one row per poll (one per selected option)."""
+    cursor.execute("PRAGMA index_list('poll_votes')")
+    for _seq, index_name, is_unique, *_rest in cursor.fetchall():
+        if not is_unique:
+            continue
+        cursor.execute(f"PRAGMA index_info({index_name})")
+        columns = {info_row[2] for info_row in cursor.fetchall()}
+        if columns == {"poll_id", "member_id", "option_index"}:
+            return True
+    return False
+
+
+def _migrate_poll_votes_for_multi_select(cursor):
+    """Existing databases have UNIQUE(poll_id, member_id) on poll_votes, which caps
+    a member at one row per poll -- incompatible with multi-select polls. SQLite
+    can't alter a UNIQUE constraint in place, so rebuild the table with the wider
+    constraint, preserving every existing vote (each was already unique by
+    (poll_id, member_id), so it stays unique under the new, looser constraint too)."""
+    if _poll_votes_allows_multiple_options(cursor):
+        return
+    cursor.execute(
+        """
+        CREATE TABLE poll_votes_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            poll_id INTEGER NOT NULL,
+            member_id INTEGER NOT NULL,
+            option_index INTEGER NOT NULL,
+            created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+            UNIQUE(poll_id, member_id, option_index)
+        )
+        """
+    )
+    cursor.execute(
+        "INSERT INTO poll_votes_new (id, poll_id, member_id, option_index, created_at) "
+        "SELECT id, poll_id, member_id, option_index, created_at FROM poll_votes"
+    )
+    cursor.execute("DROP TABLE poll_votes")
+    cursor.execute("ALTER TABLE poll_votes_new RENAME TO poll_votes")
+
+
 def run_migrations(cursor):
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS feedback (
@@ -113,7 +155,8 @@ def run_migrations(cursor):
         question TEXT NOT NULL,
         options_json TEXT NOT NULL,
         created_by INTEGER NOT NULL,
-        created_at TEXT DEFAULT CURRENT_TIMESTAMP
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        allow_multiple INTEGER NOT NULL DEFAULT 0
     )
     """)
     cursor.execute("""
@@ -123,7 +166,7 @@ def run_migrations(cursor):
         member_id INTEGER NOT NULL,
         option_index INTEGER NOT NULL,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-        UNIQUE(poll_id, member_id)
+        UNIQUE(poll_id, member_id, option_index)
     )
     """)
     add_column_if_missing(cursor, "settings", "url TEXT")
@@ -148,6 +191,8 @@ def run_migrations(cursor):
     )
     cursor.execute("CREATE UNIQUE INDEX IF NOT EXISTS idx_members_telegram_user_id ON members(telegram_user_id) WHERE telegram_user_id IS NOT NULL")
     add_column_if_missing(cursor, "polls", "closes_at TEXT")
+    add_column_if_missing(cursor, "polls", "allow_multiple INTEGER NOT NULL DEFAULT 0")
+    _migrate_poll_votes_for_multi_select(cursor)
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('poll_vote_mode', 'both')")
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('proposal_vote_mode', 'both')")
     cursor.execute(

@@ -411,6 +411,10 @@ def tool_definitions() -> list[dict[str, Any]]:
                         "items": {"type": "string"},
                     },
                     "created_by": {"type": "integer", "minimum": 1},
+                    "allow_multiple": {
+                        "type": "boolean",
+                        "description": "Allow voters to select more than one option. Defaults to false.",
+                    },
                 },
             },
         },
@@ -541,7 +545,7 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
             query_params.append(username)
         query = """
             SELECT p.id,p.question,p.options_json,p.status,p.created_at,p.closes_at,
-                   p.created_by,m.username,COUNT(pv.id) AS total_votes
+                   p.created_by,p.allow_multiple,m.username,COUNT(pv.id) AS total_votes
             FROM polls p
             JOIN members m ON m.id = p.created_by
             LEFT JOIN poll_votes pv ON pv.poll_id = p.id
@@ -566,6 +570,7 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
         polls = []
         for row in rows:
             poll = dict(row)
+            poll["allow_multiple"] = bool(poll["allow_multiple"])
             try:
                 poll["options"] = json.loads(poll.pop("options_json") or "[]")
             except (TypeError, json.JSONDecodeError):
@@ -869,12 +874,15 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
             created_by_val = int(created_by)
         except (TypeError, ValueError):
             return _error(req_id, -32602, "Invalid params: created_by must be an integer")
+        allow_multiple = _as_bool_or_none(arguments.get("allow_multiple", False))
+        if allow_multiple is None:
+            return _error(req_id, -32602, "Invalid params: allow_multiple must be boolean")
         member = _db_rows("SELECT id FROM members WHERE id = ? LIMIT 1", (created_by_val,))
         if not member:
             return _error(req_id, -32004, "Not found: creator member not found")
         conn = sqlite3.connect(DB_PATH)
         try:
-            poll_id = PollRepository(conn).create(question, cleaned, created_by_val)
+            poll_id = PollRepository(conn).create(question, cleaned, created_by_val, allow_multiple)
         finally:
             conn.close()
         telegram_messaging_service.send_telegram_message(
@@ -882,11 +890,11 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
             TELEGRAM_BOT_TOKEN,
             TELEGRAM_CHAT_ID,
             TELEGRAM_THREAD_ID,
-            poll_service.build_poll_announcement_message(question, cleaned),
+            poll_service.build_poll_announcement_message(question, cleaned, allow_multiple=allow_multiple),
             poll_id,
             cleaned,
         )
-        return _tool_text(req_id, {"success": True, "poll_id": poll_id})
+        return _tool_text(req_id, {"success": True, "poll_id": poll_id, "allow_multiple": allow_multiple})
 
     return _error(req_id, -32601, f"Unknown tool: {tool_name}")
 

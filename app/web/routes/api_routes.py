@@ -484,7 +484,7 @@ def api_list_polls():
     c = conn.cursor()
     c.execute(
         """
-        SELECT p.id, p.question, p.options_json, p.status, p.created_at, p.created_by,
+        SELECT p.id, p.question, p.options_json, p.status, p.created_at, p.created_by, p.allow_multiple,
                (SELECT COUNT(*) FROM poll_votes pv WHERE pv.poll_id = p.id) AS total_votes
         FROM polls p
         ORDER BY p.created_at DESC
@@ -501,6 +501,7 @@ def api_list_polls():
             poll["options"] = json.loads(poll.pop("options_json") or "[]")
         except (TypeError, json.JSONDecodeError):
             poll["options"] = []
+        poll["allow_multiple"] = bool(poll["allow_multiple"])
         polls.append(poll)
     return jsonify({"success": True, "count": len(polls), "limit": limit, "offset": offset, "polls": polls})
 
@@ -518,6 +519,10 @@ def api_create_poll():
     question = str(data.get("question", "")).strip()
     options = normalize_poll_options(data.get("options"))
     created_by = data.get("created_by")
+    allow_multiple = _parse_optional_bool(data.get("allow_multiple"))
+    if allow_multiple is None and "allow_multiple" in data:
+        return api_error("invalid_allow_multiple", "allow_multiple must be a boolean", 400)
+    allow_multiple = bool(allow_multiple)
     if len(question) < 5 or len(question) > 200:
         return api_error("invalid_poll_question", "question must be between 5 and 200 characters", 400)
     if options is None:
@@ -536,12 +541,14 @@ def api_create_poll():
         conn.close()
         return api_error("creator_member_not_found", "Creator member not found", 404)
     try:
-        poll_id = PollRepository(conn).create(question, options, created_by)
+        poll_id = PollRepository(conn).create(question, options, created_by, allow_multiple)
     except sqlite3.Error:
         return api_error("poll_create_failed", "Failed to create poll", 500)
     finally:
         conn.close()
     legacy.send_telegram_message(
-        poll_service.build_poll_announcement_message(question, options), poll_id, options
+        poll_service.build_poll_announcement_message(question, options, allow_multiple=allow_multiple),
+        poll_id,
+        options,
     )
     return jsonify({"success": True, "message": "Poll created", "poll_id": poll_id}), 201

@@ -13,9 +13,13 @@ def _make_db(tmp_path):
         "CREATE TABLE members (id INTEGER PRIMARY KEY, username TEXT, telegram_username TEXT, telegram_user_id INTEGER)"
     )
     conn.execute(
-        "CREATE TABLE polls (id INTEGER PRIMARY KEY AUTOINCREMENT, question TEXT, options_json TEXT, status TEXT, closes_at TEXT)"
+        "CREATE TABLE polls (id INTEGER PRIMARY KEY AUTOINCREMENT, question TEXT, options_json TEXT, "
+        "status TEXT, closes_at TEXT, allow_multiple INTEGER NOT NULL DEFAULT 0)"
     )
-    conn.execute("CREATE TABLE poll_votes (poll_id INTEGER, member_id INTEGER, option_index INTEGER, UNIQUE(poll_id, member_id))")
+    conn.execute(
+        "CREATE TABLE poll_votes (poll_id INTEGER, member_id INTEGER, option_index INTEGER, "
+        "UNIQUE(poll_id, member_id, option_index))"
+    )
     conn.execute("CREATE TABLE proposals (id INTEGER PRIMARY KEY, status TEXT)")
     conn.commit()
     conn.close()
@@ -116,6 +120,65 @@ def test_vote_command_records_vote_for_linked_member(tmp_path):
     row = conn.execute("SELECT option_index FROM poll_votes").fetchone()
     conn.close()
     assert row["option_index"] == 1
+
+
+def test_vote_command_records_multiple_options_for_multi_select_poll(tmp_path):
+    db_path = _make_db(tmp_path)
+    conn = _connect(db_path)
+    conn.execute("INSERT INTO members (username, telegram_user_id) VALUES ('alice', 42)")
+    conn.execute(
+        "INSERT INTO polls (question, options_json, status, allow_multiple) VALUES "
+        "('Snacks?', '[\"Yes\",\"No\",\"Maybe\"]', 'open', 1)"
+    )
+    conn.commit()
+    conn.close()
+
+    ok, reason = telegram_command_service.process_telegram_vote_command(
+        lambda: _connect(db_path), _settings(), lambda message: None, _logger, "alice", "/vote 1 1 3", telegram_user_id=42
+    )
+
+    assert (ok, reason) == (True, "ok")
+    conn = _connect(db_path)
+    rows = conn.execute("SELECT option_index FROM poll_votes ORDER BY option_index").fetchall()
+    conn.close()
+    assert [r["option_index"] for r in rows] == [0, 2]
+
+
+def test_vote_command_rejects_multiple_options_on_single_select_poll(tmp_path):
+    db_path = _make_db(tmp_path)
+    conn = _connect(db_path)
+    conn.execute("INSERT INTO members (username, telegram_user_id) VALUES ('alice', 42)")
+    conn.execute("INSERT INTO polls (question, options_json, status) VALUES ('Snacks?', '[\"Yes\",\"No\"]', 'open')")
+    conn.commit()
+    conn.close()
+
+    ok, reason = telegram_command_service.process_telegram_vote_command(
+        lambda: _connect(db_path), _settings(), lambda message: None, _logger, "alice", "/vote 1 1 2", telegram_user_id=42
+    )
+
+    assert (ok, reason) == (False, "multiple_options_not_allowed")
+
+
+def test_vote_command_two_token_shorthand_stays_single_option(tmp_path):
+    db_path = _make_db(tmp_path)
+    conn = _connect(db_path)
+    conn.execute("INSERT INTO members (username, telegram_user_id) VALUES ('alice', 42)")
+    conn.execute(
+        "INSERT INTO polls (question, options_json, status, allow_multiple) VALUES "
+        "('Snacks?', '[\"Yes\",\"No\"]', 'open', 1)"
+    )
+    conn.commit()
+    conn.close()
+
+    ok, reason = telegram_command_service.process_telegram_vote_command(
+        lambda: _connect(db_path), _settings(), lambda message: None, _logger, "alice", "/vote 2", telegram_user_id=42
+    )
+
+    assert (ok, reason) == (True, "ok")
+    conn = _connect(db_path)
+    rows = conn.execute("SELECT option_index FROM poll_votes").fetchall()
+    conn.close()
+    assert [r["option_index"] for r in rows] == [1]
 
 
 def test_proposal_vote_command_rejected_when_record_returns_false(tmp_path):

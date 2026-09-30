@@ -941,6 +941,33 @@ class TestPollTelegramActions(unittest.TestCase):
         self.assertEqual(sent_poll_id, self._latest_poll_id())
         self.assertEqual(sent_options, ["Yes", "No"])
 
+    def test_create_poll_with_allow_multiple_checkbox(self):
+        from unittest.mock import patch
+        from app.web.routes import main_routes
+        with patch.object(main_routes, "send_telegram_message", return_value=True) as mock_send:
+            response = self.client.post(
+                "/admin",
+                data={
+                    "action": "create_poll",
+                    "question": "Which toppings do you want?",
+                    "options": "Cheese\nPepperoni\nMushroom",
+                    "closes_at": (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M"),
+                    "allow_multiple": "on",
+                    "csrf_token": "",
+                },
+                follow_redirects=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Poll created!", response.data.decode("utf-8"))
+        sent_message = mock_send.call_args[0][0]
+        self.assertIn("You may select more than one option.", sent_message)
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT allow_multiple FROM polls WHERE id = ?", (self._latest_poll_id(),))
+        self.assertEqual(c.fetchone()["allow_multiple"], 1)
+        conn.close()
+
     def test_admin_can_enable_linked_telegram_vote_requirement(self):
         response = self.client.post(
             "/admin",
@@ -2259,6 +2286,55 @@ class TestApiPolls(unittest.TestCase):
         finally:
             main_routes.ADMIN_API_KEY = old
 
+    def test_create_poll_with_allow_multiple_true(self):
+        from app.web.routes import main_routes
+
+        old = main_routes.ADMIN_API_KEY
+        main_routes.ADMIN_API_KEY = "test-key"
+        try:
+            with patch.object(main_routes.TelegramClient, "send_poll_message", return_value=True):
+                create_response = self.client.post(
+                    "/api/polls",
+                    headers={"X-Admin-Key": "test-key"},
+                    json={
+                        "question": "Multi-select poll question",
+                        "options": ["Option 1", "Option 2", "Option 3"],
+                        "created_by": 1,
+                        "allow_multiple": True,
+                    },
+                )
+            self.assertEqual(create_response.status_code, 201)
+            body = create_response.get_json()
+            self.assertTrue(body.get("success"))
+
+            list_response = self.client.get("/api/polls", headers={"X-Admin-Key": "test-key"})
+            data = list_response.get_json()
+            poll = next(p for p in data["polls"] if p["id"] == body["poll_id"])
+            self.assertTrue(poll["allow_multiple"])
+        finally:
+            main_routes.ADMIN_API_KEY = old
+
+    def test_create_poll_rejects_non_boolean_allow_multiple(self):
+        from app.web.routes import main_routes
+
+        old = main_routes.ADMIN_API_KEY
+        main_routes.ADMIN_API_KEY = "test-key"
+        try:
+            response = self.client.post(
+                "/api/polls",
+                headers={"X-Admin-Key": "test-key"},
+                json={
+                    "question": "Bad allow_multiple value",
+                    "options": ["Option 1", "Option 2"],
+                    "created_by": 1,
+                    "allow_multiple": "maybe",
+                },
+            )
+        finally:
+            main_routes.ADMIN_API_KEY = old
+        self.assertEqual(response.status_code, 400)
+        self.assertEqual(response.get_json()["error"]["code"], "invalid_allow_multiple")
+
 
 class TestApiVotingSettings(unittest.TestCase):
     @classmethod
@@ -2509,6 +2585,51 @@ class TestPollsFunctionality(unittest.TestCase):
 
         self.assertEqual(row["total"], 1)
         self.assertEqual(row["option_index"], 2)
+
+    def test_multi_select_poll_records_and_toggles_each_checked_option(self):
+        conn = budget_app.get_db()
+        conn.execute(
+            "INSERT INTO polls (question, options_json, created_by, status, allow_multiple) VALUES (?, ?, ?, 'open', 1)",
+            ("Toppings?", '["Cheese","Pepperoni","Mushroom"]', 1),
+        )
+        conn.commit()
+        conn.close()
+        poll_id = self._latest_poll_id()
+
+        self.client.post(
+            "/polls",
+            data={"poll_id": poll_id, "option_index": ["0", "2"], "csrf_token": ""},
+            follow_redirects=True,
+        )
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute(
+            "SELECT option_index FROM poll_votes WHERE poll_id = ? AND member_id = 1 ORDER BY option_index", (poll_id,)
+        )
+        rows = c.fetchall()
+        conn.close()
+        self.assertEqual([r["option_index"] for r in rows], [0, 2])
+
+        # Re-submitting with just option 0 checked toggles it off and leaves option 2 checked
+        # via the other selection remaining untouched, matching checkbox semantics per option.
+        self.client.post(
+            "/polls",
+            data={"poll_id": poll_id, "option_index": ["0"], "csrf_token": ""},
+            follow_redirects=True,
+        )
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute(
+            "SELECT option_index FROM poll_votes WHERE poll_id = ? AND member_id = 1 ORDER BY option_index", (poll_id,)
+        )
+        rows = c.fetchall()
+        conn.close()
+        self.assertEqual([r["option_index"] for r in rows], [2])
+
+        response = self.client.get("/polls")
+        html = response.data.decode("utf-8")
+        self.assertIn("Multi-select", html)
+        self.assertIn('type="checkbox" name="option_index"', html)
 
     def test_closed_poll_rejects_votes(self):
         poll_id = self._latest_poll_id()

@@ -189,6 +189,7 @@ POLL_VOTE_REASON_MESSAGES = {
     "poll_closed": "❌ Poll is closed.",
     "poll_not_found": "❌ Poll not found.",
     "invalid_option": "❌ Invalid option number.",
+    "multiple_options_not_allowed": "❌ This poll only allows one option; provide a single number.",
 }
 
 

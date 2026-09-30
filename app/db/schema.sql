@@ -91,7 +91,8 @@ CREATE TABLE IF NOT EXISTS polls (
     created_by INTEGER NOT NULL,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     status TEXT DEFAULT 'open',
-    closes_at TEXT
+    closes_at TEXT,
+    allow_multiple INTEGER NOT NULL DEFAULT 0
 );
 CREATE TABLE IF NOT EXISTS poll_votes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -99,7 +100,7 @@ CREATE TABLE IF NOT EXISTS poll_votes (
     member_id INTEGER NOT NULL,
     option_index INTEGER NOT NULL,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-    UNIQUE(poll_id, member_id)
+    UNIQUE(poll_id, member_id, option_index)
 );
 CREATE TABLE IF NOT EXISTS group_purchases (
     id INTEGER PRIMARY KEY AUTOINCREMENT,

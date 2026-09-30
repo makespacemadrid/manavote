@@ -414,6 +414,10 @@ document.addEventListener('DOMContentLoaded', function() {
         <textarea name="options" rows="4" required placeholder="{{ 'Option examples'|lang }}"></textarea>
         <label>Poll end date</label>
         <input type="datetime-local" name="closes_at" required>
+        <label style="display:flex; align-items:center; gap:8px; margin-top:10px;">
+            <input type="checkbox" name="allow_multiple" style="width:auto;">
+            {{ 'Allow selecting more than one option'|lang }}
+        </label>
         <small style="color:#888; display:block; margin-top:6px;">{{ 'Options format help'|lang }}</small>
         <button type="submit" class="btn">{{ 'Create Poll'|lang }}</button>
     </form>
@@ -426,7 +430,7 @@ document.addEventListener('DOMContentLoaded', function() {
             <tr>
                 <td>{{ poll.created_at|localtime("%Y-%m-%d %H:%M") }}</td>
                 <td>{{ poll.closes_at|localtime("%Y-%m-%d %H:%M") if poll.closes_at else '—' }}</td>
-                <td>{{ poll.question }}</td>
+                <td>{{ poll.question }}{% if poll.allow_multiple %} <span class="status" style="background:#9b59b622; color:#9b59b6;">{{ 'Multi-select'|lang }}</span>{% endif %}</td>
                 <td>{{ poll.status }}</td>
                 <td>{{ poll.creator|username }}</td>
                 <td>{{ poll.total_votes }}</td>

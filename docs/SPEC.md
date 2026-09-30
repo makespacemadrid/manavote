@@ -93,12 +93,15 @@ Primary modules and responsibilities:
 - `key`, `value`
 
 ### `polls`
-- `id`, `question`, `options_json`, `created_by`, `created_at`, `status`, `closes_at`
+- `id`, `question`, `options_json`, `created_by`, `created_at`, `status`, `closes_at`, `allow_multiple`
 - `status ∈ {open, closed}`
+- `allow_multiple` is fixed at creation time: `0` (default) is a single-select poll, `1` allows selecting more than one option
 
 ### `poll_votes`
 - `id`, `poll_id`, `member_id`, `option_index`, `created_at`
-- Unique pair: `(poll_id, member_id)` (latest vote replaces prior vote)
+- Unique triple: `(poll_id, member_id, option_index)`
+- Single-select polls (`allow_multiple = 0`): a new vote replaces the member's prior selection, so at most one row per `(poll_id, member_id)` exists in practice
+- Multi-select polls (`allow_multiple = 1`): each vote action toggles just that option on/off for the member, independent of their other selections on the same poll, so multiple rows per `(poll_id, member_id)` can exist
 
 ### Group purchases
 - `group_purchases`: title, description, creator, deadline, product URL, image, payment method, and lifecycle status (`open`, `ordered`, `received`).
@@ -216,6 +219,9 @@ Committed series behavior:
     announces it to the configured Telegram chat (with an inline "Vote" button),
     using the same message shared with the manual actions below
     (`poll_service.build_poll_announcement_message`),
+  - optionally allow multiple options per poll (`allow_multiple`, a checkbox on the
+    web form / `allow_multiple: true` on the REST and MCP creation calls), fixed for
+    the poll's lifetime — see "Multi-select polls" below,
   - close/reopen polls,
   - delete polls,
   - set poll voting mode (`both`, `web_only`, `telegram_only`),
@@ -237,6 +243,14 @@ Committed series behavior:
 - When a poll closes (manual close or automatic expiry), the app posts a Telegram results summary including per-option totals, percentages, and a text bar-graph.
 - Telegram poll/proposal announcement messages start with the poll question / proposal title as the first line.
 - Results are transparent by design (counts, horizontal bars, and voter-choice list are visible).
+
+#### Multi-select polls
+- A poll's `allow_multiple` flag is set once at creation and cannot be changed afterward.
+- Single-select polls behave as before: web renders radio buttons, and casting a new vote replaces the member's prior selection (a `Multi-select` badge is shown in the UI only for multi-select polls).
+- Multi-select polls render checkboxes on the web voting form; each option a member selects or clears toggles just that option, leaving their other selections on the same poll untouched.
+- Telegram: inline poll buttons still register a single tap as one toggle each. The text command accepts more than one option number — `/vote <poll_id> <option_number> [option_number...]` — but only when `poll_id` is given explicitly; the two-token shorthand `/vote <option_number>` (targeting the latest open poll) stays single-option only to avoid ambiguity with the explicit-poll_id form. Submitting more than one option number against a single-select poll is rejected with reason `multiple_options_not_allowed`.
+- There is no cap on how many options a member may select on a multi-select poll.
+- Percentages in both the web results bars and the Telegram closing summary are computed against the number of distinct voters (not the number of selections) for multi-select polls, since one voter can contribute multiple selections; single-select polls compute percentages against total votes as before. The Telegram closing summary reports "Total selections: *N* from *M* voter(s)" for multi-select polls and "Total votes: *N*" for single-select polls.
 
 ### Group purchases page (`/group-purchases`)
 - Any authenticated member can propose a shared purchase and add up to 30 option rows, each with its own name and unit price.

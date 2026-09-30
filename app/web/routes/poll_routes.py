@@ -24,7 +24,6 @@ def polls_page():
 
     if request.method == "POST":
         poll_id = request.form.get("poll_id", type=int)
-        option_index = request.form.get("option_index", type=int)
         if not legacy.is_web_poll_voting_enabled():
             poll_service.log_poll_vote_event(
                 legacy.app.logger,
@@ -38,11 +37,11 @@ def polls_page():
             flash("Web voting is disabled by admin", "error")
             conn.close()
             return redirect(url_for("polls.polls_page"))
-        if poll_id is None or option_index is None:
+        if poll_id is None:
             flash("Invalid vote", "error")
         else:
             try:
-                c.execute("SELECT options_json, status FROM polls WHERE id = ?", (poll_id,))
+                c.execute("SELECT options_json, status, allow_multiple FROM polls WHERE id = ?", (poll_id,))
                 poll_row = c.fetchone()
             except sqlite3.Error as exc:
                 poll_row = None
@@ -57,18 +56,27 @@ def polls_page():
                     options = json.loads(poll_row["options_json"] or "[]")
                 except (TypeError, json.JSONDecodeError):
                     options = []
+                allow_multiple = bool(poll_row["allow_multiple"])
+                if allow_multiple:
+                    raw_indexes = request.form.getlist("option_index")
+                else:
+                    single_index = request.form.get("option_index", type=int)
+                    raw_indexes = [] if single_index is None else [str(single_index)]
+                try:
+                    option_indexes = [int(v) for v in raw_indexes]
+                except ValueError:
+                    option_indexes = []
                 if poll_row["status"] != "open":
                     flash("Poll is closed", "error")
-                elif option_index < 0 or option_index >= len(options):
-                    flash("Invalid poll option", "error")
                 elif not options:
                     flash("Poll has invalid options", "error")
+                elif not option_indexes or any(i < 0 or i >= len(options) for i in option_indexes):
+                    flash("Invalid poll option", "error")
                 else:
-                    c.execute(
-                        "INSERT OR REPLACE INTO poll_votes (poll_id, member_id, option_index) VALUES (?, ?, ?)",
-                        (poll_id, session["member_id"], option_index),
-                    )
-                    conn.commit()
+                    for option_index in option_indexes:
+                        poll_service.record_poll_vote(
+                            conn, poll_id, session["member_id"], option_index, allow_multiple
+                        )
                     flash("Poll vote recorded!", "success")
 
     try:
@@ -128,10 +136,10 @@ def polls_page():
                 "SELECT option_index FROM poll_votes WHERE poll_id = ? AND member_id = ?",
                 (poll["id"], session["member_id"]),
             )
-            own = c.fetchone()
+            own_rows = c.fetchall()
         except sqlite3.Error as exc:
             votes = []
-            own = None
+            own_rows = []
             legacy.app.logger.warning(
                 "polls_page_failure reason_code=poll_votes_load_failed poll_id=%s error=%s",
                 poll["id"],
@@ -144,7 +152,19 @@ def polls_page():
         poll["options"] = options
         poll["votes"] = votes
         poll["counts"] = counts
-        poll["user_vote"] = own["option_index"] if own else None
+        poll["allow_multiple"] = bool(poll["allow_multiple"])
+        poll["user_votes"] = [row["option_index"] for row in own_rows]
+        if poll["allow_multiple"]:
+            try:
+                c.execute(
+                    "SELECT COUNT(DISTINCT member_id) FROM poll_votes WHERE poll_id = ?",
+                    (poll["id"],),
+                )
+                poll["total_voters"] = c.fetchone()[0]
+            except sqlite3.Error:
+                poll["total_voters"] = sum(counts)
+        else:
+            poll["total_voters"] = sum(counts)
         polls.append(poll)
 
     conn.close()
