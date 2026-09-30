@@ -917,6 +917,30 @@ class TestPollTelegramActions(unittest.TestCase):
         self.assertTrue(mock_send.called)
         self.assertIn("Poll sent to Telegram!", response.data.decode("utf-8"))
 
+    def test_create_poll_announces_to_telegram_automatically(self):
+        from unittest.mock import patch
+        from app.web.routes import main_routes
+        with patch.object(main_routes, "send_telegram_message", return_value=True) as mock_send:
+            response = self.client.post(
+                "/admin",
+                data={
+                    "action": "create_poll",
+                    "question": "Should we auto-announce polls?",
+                    "options": "Yes\nNo",
+                    "closes_at": (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%dT%H:%M"),
+                    "csrf_token": "",
+                },
+                follow_redirects=True,
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Poll created!", response.data.decode("utf-8"))
+        mock_send.assert_called_once()
+        sent_message, sent_poll_id, sent_options = mock_send.call_args[0]
+        self.assertIn("Should we auto-announce polls?", sent_message)
+        self.assertEqual(sent_poll_id, self._latest_poll_id())
+        self.assertEqual(sent_options, ["Yes", "No"])
+
     def test_admin_can_enable_linked_telegram_vote_requirement(self):
         response = self.client.post(
             "/admin",
@@ -2207,19 +2231,25 @@ class TestApiPolls(unittest.TestCase):
         old = main_routes.ADMIN_API_KEY
         main_routes.ADMIN_API_KEY = "test-key"
         try:
-            create_response = self.client.post(
-                "/api/polls",
-                headers={"X-Admin-Key": "test-key"},
-                json={
-                    "question": "API poll question",
-                    "options": ["Option 1", "Option 2"],
-                    "created_by": 1,
-                },
-            )
+            with patch.object(main_routes.TelegramClient, "send_poll_message", return_value=True) as mock_send:
+                create_response = self.client.post(
+                    "/api/polls",
+                    headers={"X-Admin-Key": "test-key"},
+                    json={
+                        "question": "API poll question",
+                        "options": ["Option 1", "Option 2"],
+                        "created_by": 1,
+                    },
+                )
             self.assertEqual(create_response.status_code, 201)
             body = create_response.get_json()
             self.assertTrue(body.get("success"))
             self.assertIsNotNone(body.get("poll_id"))
+            mock_send.assert_called_once()
+            sent_message, sent_poll_id, sent_options = mock_send.call_args[0]
+            self.assertIn("API poll question", sent_message)
+            self.assertEqual(sent_poll_id, body["poll_id"])
+            self.assertEqual(sent_options, ["Option 1", "Option 2"])
 
             list_response = self.client.get("/api/polls", headers={"X-Admin-Key": "test-key"})
             self.assertEqual(list_response.status_code, 200)

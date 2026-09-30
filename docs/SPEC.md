@@ -212,12 +212,15 @@ Committed series behavior:
 - **Polls tab**:
   - create polls (question 5..200 characters, 2..12 options each ≤120 characters,
     enforced identically by the web form, `POST /api/polls`, and the `create_poll`
-    MCP tool),
+    MCP tool) — creating a poll through any of these three paths automatically
+    announces it to the configured Telegram chat (with an inline "Vote" button),
+    using the same message shared with the manual actions below
+    (`poll_service.build_poll_announcement_message`),
   - close/reopen polls,
   - delete polls,
   - set poll voting mode (`both`, `web_only`, `telegram_only`),
-  - send poll announcement to Telegram chat,
-  - send poll test announcement to `TELEGRAM_ADMIN_ID`.
+  - re-send the poll announcement to the Telegram chat (e.g. as a reminder),
+  - send a poll test announcement to `TELEGRAM_ADMIN_ID` only.
 
 ### Polls page (`/polls`)
 - Members vote in Telegram with inline poll buttons (or `/vote <poll_id> <option_number>` fallback).
@@ -348,7 +351,8 @@ process and is not yet shared across workers.
     `basic_supplies`/`image`; `image` accepts base64 or a base64 data URL, directly or
     as `{data, mime_type}`, and persists signature-validated PNG/JPEG content up to
     10 MiB under `static/uploads/`)
-  - `create_poll` (`question`, `options`, `created_by`)
+  - `create_poll` (`question`, `options`, `created_by`) — announces to the configured
+    Telegram chat on success, same as the web form and REST (see §7's Polls tab)
 
 ## 9) Security notes
 

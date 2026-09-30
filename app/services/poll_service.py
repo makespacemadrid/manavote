@@ -40,6 +40,25 @@ def close_expired_polls(conn):
     return expired_poll_ids
 
 
+def build_poll_announcement_message(question, options, closes_at=None):
+    """Announcement text for a newly created poll, shared by every creation path
+    (web admin form, REST, MCP) and the admin panel's manual (re)send actions, so the
+    wording can't drift between them."""
+    lines = [f"*{question}*", "", "📊 New poll", ""]
+    for idx, option in enumerate(options, 1):
+        lines.append(f"{idx}. {option}")
+    lines.append("")
+    if closes_at:
+        try:
+            closes_display = datetime.fromisoformat(closes_at).strftime("%Y-%m-%d %H:%M")
+        except (TypeError, ValueError):
+            closes_display = closes_at
+        lines.append(f"⏰ Closes: {closes_display}")
+        lines.append("")
+    lines.append("Tap a button below to vote.")
+    return "\n".join(lines)
+
+
 def build_poll_results_message(conn, poll_id):
     c = conn.cursor()
     c.execute("SELECT id, question, closes_at FROM polls WHERE id = ?", (poll_id,))

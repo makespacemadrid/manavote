@@ -611,6 +611,10 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
     local `image_filename` (or `null` when no image was supplied)
 - `create_poll`
   - required args: `question` (5..200 characters), `options` (2..12 items), `created_by` (existing member id)
+  - on success, announces the poll to the configured Telegram chat (inline "Vote"
+    button) using the same message the web form and `POST /api/polls` send; the
+    announcement always uses `TELEGRAM_BOT_TOKEN`/`TELEGRAM_CHAT_ID`/
+    `TELEGRAM_THREAD_ID` from the environment, independent of the MCP caller
 
 Natural-language Telegram members (non-administrators) receive the read-only tools:
 `list_proposals`, `list_polls`, `list_group_purchases`, `current_budget`, and

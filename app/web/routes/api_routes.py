@@ -9,7 +9,7 @@ from app.domain.enums import ProposalStatus
 from app.extensions import csrf, limiter
 from app.repositories.poll_repo import PollRepository
 from app.repositories.proposal_repo import ProposalRepository
-from app.services import feedback_service, voting_settings_service
+from app.services import feedback_service, poll_service, voting_settings_service
 from app.services.pagination_service import REASON_MESSAGES, parse_limit_offset
 from app.services.telegram_link_diagnostics import LINKED_CONDITION_SQL, link_state_case_sql
 from app.services.user_statistics import user_statistics_query, user_statistics_rows, user_statistics_total_query
@@ -541,4 +541,7 @@ def api_create_poll():
         return api_error("poll_create_failed", "Failed to create poll", 500)
     finally:
         conn.close()
+    legacy.send_telegram_message(
+        poll_service.build_poll_announcement_message(question, options), poll_id, options
+    )
     return jsonify({"success": True, "message": "Poll created", "poll_id": poll_id}), 201

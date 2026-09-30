@@ -865,6 +865,36 @@ def test_tools_call_create_poll(monkeypatch):
     assert payload["poll_id"] == 13
 
 
+def test_tools_call_create_poll_announces_to_telegram(monkeypatch):
+    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"id": 1}])
+    monkeypatch.setattr(mcp_server.PollRepository, "create", lambda self, *_args, **_kwargs: 13)
+    calls = []
+    monkeypatch.setattr(
+        mcp_server.telegram_messaging_service,
+        "send_telegram_message",
+        lambda *args, **kwargs: calls.append((args, kwargs)),
+    )
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=7,
+            params={
+                "name": "create_poll",
+                "arguments": {"question": "Where meet?", "options": ["A", "B"], "created_by": 1},
+            },
+        )
+    )
+    payload = json.loads(response["result"]["content"][0]["text"])
+    assert payload["success"] is True
+    assert len(calls) == 1
+    args, _kwargs = calls[0]
+    telegram_client_cls, bot_token, chat_id, thread_id, message, poll_id, options = args
+    assert telegram_client_cls is mcp_server.TelegramClient
+    assert poll_id == 13
+    assert options == ["A", "B"]
+    assert "Where meet?" in message
+
+
 def test_tools_call_accepts_tool_name_alias_for_name(monkeypatch):
     monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"id": 1}])
     monkeypatch.setattr(mcp_server.PollRepository, "create", lambda self, *_args, **_kwargs: 21)

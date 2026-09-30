@@ -7,7 +7,7 @@ from flask import Blueprint, flash, redirect, render_template, request, send_fil
 from werkzeug.security import generate_password_hash
 
 from app.extensions import limiter
-from app.services import backup_service, feedback_service
+from app.services import backup_service, feedback_service, poll_service
 from app.services.settings_service import normalize_public_base_url
 from app.services.telegram_link_service import unlink_member_telegram
 from app.web.routes.helpers.admin_audit_helpers import log_admin_backup_event, log_telegram_link_event
@@ -363,6 +363,9 @@ def admin():
                     (question, json.dumps(options), session["member_id"], closes_at_iso),
                 )
                 conn.commit()
+                poll_id = c.lastrowid
+                message = poll_service.build_poll_announcement_message(question, options, closes_at_iso)
+                send_telegram_message(message, poll_id, options)
                 flash("Poll created!", "success")
 
 
@@ -414,27 +417,18 @@ def admin():
                         options = []
                 except (TypeError, json.JSONDecodeError):
                     options = []
-                lines = [f"*{poll['question']}*", "", "📊 New poll", ""]
-                for idx, option in enumerate(options, 1):
-                    lines.append(f"{idx}. {option}")
-                lines.append("")
-                if poll["closes_at"]:
-                    try:
-                        closes_at_display = datetime.fromisoformat(poll["closes_at"]).strftime("%Y-%m-%d %H:%M")
-                    except (TypeError, ValueError):
-                        closes_at_display = poll["closes_at"]
-                    lines.append(f"⏰ Closes: {closes_at_display}")
-                    lines.append("")
-                lines.append("Tap a button below to vote.")
+                message = poll_service.build_poll_announcement_message(
+                    poll["question"], options, poll["closes_at"]
+                )
 
                 if action == "send_poll_telegram_test":
                     if not TELEGRAM_ADMIN_ID:
                         flash("TELEGRAM_ADMIN_ID is not configured", "error")
                     else:
-                        sent = send_telegram_admin_test_message("\n".join(lines), poll["id"], options)
+                        sent = send_telegram_admin_test_message(message, poll["id"], options)
                         flash("Poll test sent to TELEGRAM_ADMIN_ID!" if sent else "Failed to send poll test message", "success" if sent else "error")
                 else:
-                    sent = send_telegram_message("\n".join(lines), poll["id"], options)
+                    sent = send_telegram_message(message, poll["id"], options)
                     flash("Poll sent to Telegram!" if sent else "Failed to send poll to Telegram", "success" if sent else "error")
 
         elif action == "update_feedback_status":
