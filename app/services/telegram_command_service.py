@@ -28,7 +28,7 @@ def process_telegram_vote_command(
         return False, "telegram_disabled"
     command = (command_text or "").strip()
     parts = command.split()
-    if len(parts) not in (2, 3):
+    if len(parts) < 2:
         return False, "invalid_format"
 
     command_name = parts[0].lower()
@@ -36,11 +36,11 @@ def process_telegram_vote_command(
         return False, "invalid_format"
 
     try:
-        if len(parts) == 3:
+        if len(parts) >= 3:
             poll_id = int(parts[1])
-            option_number = int(parts[2])
+            option_numbers = [int(token) for token in parts[2:]]
         else:
-            option_number = int(parts[1])
+            option_numbers = [int(parts[1])]
             poll_id = None
     except ValueError:
         return False, "invalid_numbers"
@@ -89,32 +89,36 @@ def process_telegram_vote_command(
             return False, "unknown_member"
 
         if poll_id is None:
-            c.execute("SELECT id, options_json, status FROM polls WHERE status = 'open' ORDER BY id DESC LIMIT 1")
+            c.execute(
+                "SELECT id, options_json, status, allow_multiple FROM polls "
+                "WHERE status = 'open' ORDER BY id DESC LIMIT 1"
+            )
             poll = c.fetchone()
             if not poll:
                 return False, "poll_not_found"
             poll_id = poll["id"]
         else:
-            c.execute("SELECT id, options_json, status FROM polls WHERE id = ?", (poll_id,))
+            c.execute("SELECT id, options_json, status, allow_multiple FROM polls WHERE id = ?", (poll_id,))
             poll = c.fetchone()
         if not poll:
             return False, "poll_not_found"
         if poll["status"] != "open":
             return False, "poll_closed"
 
+        allow_multiple = bool(poll["allow_multiple"])
+        if len(option_numbers) > 1 and not allow_multiple:
+            return False, "multiple_options_not_allowed"
+
         try:
             options = json.loads(poll["options_json"] or "[]")
         except (TypeError, json.JSONDecodeError):
             options = []
-        option_index = option_number - 1
-        if option_index < 0 or option_index >= len(options):
+        option_indexes = [n - 1 for n in option_numbers]
+        if any(index < 0 or index >= len(options) for index in option_indexes):
             return False, "invalid_option"
 
-        c.execute(
-            "INSERT OR REPLACE INTO poll_votes (poll_id, member_id, option_index) VALUES (?, ?, ?)",
-            (poll_id, voter_member_id, option_index),
-        )
-        conn.commit()
+        for option_index in option_indexes:
+            poll_service.record_poll_vote(conn, poll_id, voter_member_id, option_index, allow_multiple)
         return True, "ok"
     finally:
         conn.close()

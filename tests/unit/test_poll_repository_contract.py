@@ -12,7 +12,8 @@ def _setup_polls_table(conn):
             question TEXT NOT NULL,
             options_json TEXT NOT NULL,
             created_by INTEGER NOT NULL,
-            status TEXT DEFAULT 'open'
+            status TEXT DEFAULT 'open',
+            allow_multiple INTEGER NOT NULL DEFAULT 0
         )
         """
     )

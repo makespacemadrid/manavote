@@ -502,7 +502,7 @@ def test_tools_call_list_polls_returns_creator_options_and_votes(monkeypatch):
         return [{
             "id": 4, "question": "Choose", "options_json": '["A", "B"]',
             "status": "closed", "created_at": "2026-01-01", "closes_at": None,
-            "created_by": 2, "username": "alice", "total_votes": 7,
+            "created_by": 2, "allow_multiple": 0, "username": "alice", "total_votes": 7,
         }]
 
     monkeypatch.setattr(mcp_server, "_db_rows", fake_db_rows)
@@ -893,6 +893,64 @@ def test_tools_call_create_poll_announces_to_telegram(monkeypatch):
     assert poll_id == 13
     assert options == ["A", "B"]
     assert "Where meet?" in message
+
+
+def test_tools_call_create_poll_forwards_allow_multiple(monkeypatch):
+    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"id": 1}])
+    create_calls = []
+
+    def fake_create(self, question, options, created_by, allow_multiple=False):
+        create_calls.append((question, options, created_by, allow_multiple))
+        return 13
+
+    monkeypatch.setattr(mcp_server.PollRepository, "create", fake_create)
+    announce_calls = []
+    monkeypatch.setattr(
+        mcp_server.telegram_messaging_service,
+        "send_telegram_message",
+        lambda *args, **kwargs: announce_calls.append(args),
+    )
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=7,
+            params={
+                "name": "create_poll",
+                "arguments": {
+                    "question": "Where meet?",
+                    "options": ["A", "B"],
+                    "created_by": 1,
+                    "allow_multiple": True,
+                },
+            },
+        )
+    )
+    payload = json.loads(response["result"]["content"][0]["text"])
+    assert payload["success"] is True
+    assert payload["allow_multiple"] is True
+    assert create_calls == [("Where meet?", ["A", "B"], 1, True)]
+    message = announce_calls[0][4]
+    assert "You may select more than one option." in message
+
+
+def test_tools_call_create_poll_rejects_non_boolean_allow_multiple(monkeypatch):
+    monkeypatch.setattr(mcp_server, "_db_rows", lambda *_args, **_kwargs: [{"id": 1}])
+    response = mcp_server.handle_request(
+        _req(
+            "tools/call",
+            req_id=7,
+            params={
+                "name": "create_poll",
+                "arguments": {
+                    "question": "Where meet?",
+                    "options": ["A", "B"],
+                    "created_by": 1,
+                    "allow_multiple": "maybe",
+                },
+            },
+        )
+    )
+    assert response["error"]["code"] == -32602
 
 
 def test_tools_call_accepts_tool_name_alias_for_name(monkeypatch):

@@ -10,7 +10,8 @@
     margin: 6px 0;
     font-size: 0.9em;
 }
-.web-vote-form input[type="radio"] {
+.web-vote-form input[type="radio"],
+.web-vote-form input[type="checkbox"] {
     width: auto;
     margin: 0;
     flex-shrink: 0;
@@ -42,10 +43,9 @@
     {% if polls %}
         {% for p in polls %}
         <div style="border:1px solid #333;padding:12px;margin-bottom:16px;border-radius:8px;">
-            <h3 style="margin-top:0;">{{ p.question }} {% if p.status == "closed" %}<span class="status" style="background:#444;">{{ 'Closed'|lang }}</span>{% endif %}</h3>
+            <h3 style="margin-top:0;">{{ p.question }} {% if p.status == "closed" %}<span class="status" style="background:#444;">{{ 'Closed'|lang }}</span>{% endif %} {% if p.allow_multiple %}<span class="status" style="background:#9b59b622; color:#9b59b6;">{{ 'Multi-select'|lang }}</span>{% endif %}</h3>
             <p style="color:#888;">{{ 'By'|lang }} {{ p.creator|username }} · {{ p.created_at|localtime("%Y-%m-%d %H:%M") }}</p>
-            {% set total_votes = p.counts|sum %}
-            
+
             {# Put the member's primary action first, followed by results and details. #}
             <div class="poll-card-grid">
                 {# Card 1: Vote via web #}
@@ -56,7 +56,7 @@
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="poll_id" value="{{ p.id }}">
                             {% for option in p.options %}
-                                <label><input type="radio" name="option_index" value="{{ loop.index0 }}" {{ 'checked' if p.user_vote == loop.index0 else '' }}><span class="option-text">{{ option }} <span style="color:#888;">({{ p.counts[loop.index0] }})</span></span></label>
+                                <label><input type="{{ 'checkbox' if p.allow_multiple else 'radio' }}" name="option_index" value="{{ loop.index0 }}" {{ 'checked' if loop.index0 in p.user_votes else '' }}><span class="option-text">{{ option }} <span style="color:#888;">({{ p.counts[loop.index0] }})</span></span></label>
                             {% endfor %}
                             {% if p.status == "open" %}<button class="vote-btn approve poll-vote-submit" type="submit">{{ 'Vote'|lang }}</button>
                             {% else %}<button class="vote-btn poll-vote-submit" type="button" disabled>{{ 'Voting closed'|lang }}</button>{% endif %}
@@ -69,11 +69,11 @@
                     <h4 style="margin:0 0 8px 0;font-size:0.95em;">📊 {{ 'Votes so far'|lang }} ({{ p.counts|sum }})</h4>
                     {% for option in p.options %}
                         {% set option_votes = p.counts[loop.index0] %}
-                        {% set pct = ((option_votes * 100.0) / total_votes) if total_votes > 0 else 0 %}
+                        {% set pct = ((option_votes * 100.0) / p.total_voters) if p.total_voters > 0 else 0 %}
                         <div style="margin:8px 0;">
                             <div style="display:flex;justify-content:space-between;font-size:0.85em;color:#bbb;">
                                 <span>{{ option }}</span>
-                                <span>{{ option_votes }}{% if total_votes > 0 %} ({{ '%.1f'|format(pct) }}%){% endif %}</span>
+                                <span>{{ option_votes }}{% if p.total_voters > 0 %} ({{ '%.1f'|format(pct) }}%){% endif %}</span>
                             </div>
                             <div style="width:100%;height:12px;background:#0d1117;border-radius:999px;overflow:hidden;">
                                 <div class="poll-result-fill color-{{ (loop.index0 % 5) + 1 }}" style="width: {{ '%.2f'|format(pct) }}%;"></div>

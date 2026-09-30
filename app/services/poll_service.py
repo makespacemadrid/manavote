@@ -40,7 +40,51 @@ def close_expired_polls(conn):
     return expired_poll_ids
 
 
-def build_poll_announcement_message(question, options, closes_at=None):
+def record_poll_vote(conn, poll_id, member_id, option_index, allow_multiple):
+    """Record a member's selection for one poll option.
+
+    Single-select polls (`allow_multiple=False`) replace any prior selection with
+    this one, matching a radio button. Multi-select polls toggle just this option,
+    matching a checkbox -- selecting it if it wasn't already, removing it if it was
+    -- leaving the member's other selections on this poll untouched.
+
+    Returns True if `option_index` is selected for this member after the call,
+    False if this call just removed it (multi-select only; single-select always
+    returns True).
+    """
+    c = conn.cursor()
+    if not allow_multiple:
+        c.execute(
+            "DELETE FROM poll_votes WHERE poll_id = ? AND member_id = ? AND option_index != ?",
+            (poll_id, member_id, option_index),
+        )
+        c.execute(
+            "INSERT OR IGNORE INTO poll_votes (poll_id, member_id, option_index) VALUES (?, ?, ?)",
+            (poll_id, member_id, option_index),
+        )
+        conn.commit()
+        return True
+
+    c.execute(
+        "SELECT 1 FROM poll_votes WHERE poll_id = ? AND member_id = ? AND option_index = ?",
+        (poll_id, member_id, option_index),
+    )
+    already_selected = c.fetchone() is not None
+    if already_selected:
+        c.execute(
+            "DELETE FROM poll_votes WHERE poll_id = ? AND member_id = ? AND option_index = ?",
+            (poll_id, member_id, option_index),
+        )
+    else:
+        c.execute(
+            "INSERT INTO poll_votes (poll_id, member_id, option_index) VALUES (?, ?, ?)",
+            (poll_id, member_id, option_index),
+        )
+    conn.commit()
+    return not already_selected
+
+
+def build_poll_announcement_message(question, options, closes_at=None, allow_multiple=False):
     """Announcement text for a newly created poll, shared by every creation path
     (web admin form, REST, MCP) and the admin panel's manual (re)send actions, so the
     wording can't drift between them."""
@@ -55,13 +99,16 @@ def build_poll_announcement_message(question, options, closes_at=None):
             closes_display = closes_at
         lines.append(f"⏰ Closes: {closes_display}")
         lines.append("")
-    lines.append("Tap a button below to vote.")
+    if allow_multiple:
+        lines.append("You may select more than one option. Tap a button below to vote.")
+    else:
+        lines.append("Tap a button below to vote.")
     return "\n".join(lines)
 
 
 def build_poll_results_message(conn, poll_id):
     c = conn.cursor()
-    c.execute("SELECT id, question, closes_at FROM polls WHERE id = ?", (poll_id,))
+    c.execute("SELECT id, question, closes_at, allow_multiple FROM polls WHERE id = ?", (poll_id,))
     poll = c.fetchone()
     if not poll:
         return None
@@ -93,6 +140,11 @@ def build_poll_results_message(conn, poll_id):
         options = []
 
     total_votes = sum(counts.values())
+    if poll["allow_multiple"]:
+        c.execute("SELECT COUNT(DISTINCT member_id) FROM poll_votes WHERE poll_id = ?", (poll_id,))
+        percentage_base = c.fetchone()[0]
+    else:
+        percentage_base = total_votes
     lines = [f"📊 *Poll closed: #{poll['id']}*", f"*{poll['question']}*", f"⏰ Closed: {closes_display}", ""]
     if not options:
         lines.append("No valid poll options were found.")
@@ -101,13 +153,16 @@ def build_poll_results_message(conn, poll_id):
     max_count = max([counts.get(idx, 0) for idx in range(len(options))] + [1])
     for idx, option in enumerate(options):
         count = counts.get(idx, 0)
-        pct = (count / total_votes * 100.0) if total_votes else 0.0
+        pct = (count / percentage_base * 100.0) if percentage_base else 0.0
         bar_len = int(round((count / max_count) * 12)) if max_count else 0
         bar = "█" * bar_len + "░" * (12 - bar_len)
         lines.append(f"{idx + 1}. {option}")
         lines.append(f"`{bar}` {count} vote(s) ({pct:.1f}%)")
     lines.append("")
-    lines.append(f"Total votes: *{total_votes}*")
+    if poll["allow_multiple"]:
+        lines.append(f"Total selections: *{total_votes}* from *{percentage_base}* voter(s)")
+    else:
+        lines.append(f"Total votes: *{total_votes}*")
     return "\n".join(lines)
 
 
