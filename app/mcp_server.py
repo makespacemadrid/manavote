@@ -20,10 +20,12 @@ from urllib.parse import quote
 from werkzeug.security import generate_password_hash
 
 from app.domain.enums import ProposalStatus
+from app.integrations.telegram_client import TelegramClient
 from app.repositories.poll_repo import PollRepository
 from app.repositories.proposal_repo import ProposalRepository
-from app.services import feedback_service, pagination_service, voting_settings_service
+from app.services import feedback_service, pagination_service, poll_service, voting_settings_service
 from app.services import mcp_application
+from app.services import telegram_messaging_service
 from app.services.creation_validation_service import normalize_poll_options
 from app.services.telegram_link_diagnostics import LINKED_CONDITION_SQL, link_state_case_sql
 from app.services.user_statistics import user_statistics_query, user_statistics_rows, user_statistics_total_query
@@ -34,6 +36,9 @@ UPLOAD_FOLDER = os.getenv(
     "UPLOAD_FOLDER", os.path.join(os.path.dirname(os.path.dirname(__file__)), "static", "uploads")
 )
 MCP_API_KEY = os.getenv("MCP_API_KEY", "")
+TELEGRAM_BOT_TOKEN = os.getenv("TELEGRAM_BOT_TOKEN", "")
+TELEGRAM_CHAT_ID = os.getenv("TELEGRAM_CHAT_ID", "")
+TELEGRAM_THREAD_ID = os.getenv("TELEGRAM_THREAD_ID", "")
 MAX_PROPOSAL_IMAGE_BYTES = 10 * 1024 * 1024
 VALID_PROPOSAL_STATUSES = {status.value for status in ProposalStatus}
 VALID_GROUP_PURCHASE_STATUSES = {"open", "ordered", "received"}
@@ -393,7 +398,7 @@ def tool_definitions() -> list[dict[str, Any]]:
         },
         {
             "name": "create_poll",
-            "description": "Create a poll (admin-only action).",
+            "description": "Create a poll and announce it to the configured Telegram chat (admin-only action).",
             "inputSchema": {
                 "type": "object",
                 "required": ["question", "options", "created_by"],
@@ -872,6 +877,15 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
             poll_id = PollRepository(conn).create(question, cleaned, created_by_val)
         finally:
             conn.close()
+        telegram_messaging_service.send_telegram_message(
+            TelegramClient,
+            TELEGRAM_BOT_TOKEN,
+            TELEGRAM_CHAT_ID,
+            TELEGRAM_THREAD_ID,
+            poll_service.build_poll_announcement_message(question, cleaned),
+            poll_id,
+            cleaned,
+        )
         return _tool_text(req_id, {"success": True, "poll_id": poll_id})
 
     return _error(req_id, -32601, f"Unknown tool: {tool_name}")

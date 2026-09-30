@@ -110,3 +110,29 @@ def test_log_poll_vote_event_defaults_poll_and_member_to_none(caplog):
     assert [record.message for record in caplog.records] == [
         "event=poll_vote_rejected source=telegram mode=both poll_id=None member_id=None reason_code=channel_disabled"
     ]
+
+
+def test_build_poll_announcement_message_includes_question_and_numbered_options():
+    message = poll_service.build_poll_announcement_message("Where should we meet?", ["Office", "Cafe"])
+
+    assert "Where should we meet?" in message
+    assert "1. Office" in message
+    assert "2. Cafe" in message
+    assert "Tap a button below to vote." in message
+    assert "Closes" not in message
+
+
+def test_build_poll_announcement_message_includes_closing_time_when_given():
+    message = poll_service.build_poll_announcement_message(
+        "Where should we meet?", ["Office", "Cafe"], closes_at="2026-12-01T10:00:00"
+    )
+
+    assert "⏰ Closes: 2026-12-01 10:00" in message
+
+
+def test_build_poll_announcement_message_falls_back_to_raw_closes_at_on_bad_format():
+    message = poll_service.build_poll_announcement_message(
+        "Where should we meet?", ["Office", "Cafe"], closes_at="not-a-date"
+    )
+
+    assert "⏰ Closes: not-a-date" in message
