@@ -190,6 +190,43 @@ def test_record_poll_vote_multi_select_toggles_independently():
     assert [r["option_index"] for r in c.fetchall()] == [2]
 
 
+def test_record_poll_vote_additive_never_removes_existing_selections():
+    conn = _make_conn()
+    c = conn.cursor()
+    c.execute("INSERT INTO polls (question, options_json, status) VALUES ('Q', '[\"a\",\"b\",\"c\"]', 'open')")
+    poll_id = c.lastrowid
+    conn.commit()
+
+    poll_service.record_poll_vote_additive(conn, poll_id, member_id=1, option_index=0)
+    poll_service.record_poll_vote_additive(conn, poll_id, member_id=1, option_index=2)
+    # Resubmitting an already-selected option (as a checkbox form would on every
+    # save) must be a no-op, not a removal.
+    poll_service.record_poll_vote_additive(conn, poll_id, member_id=1, option_index=0)
+
+    c.execute(
+        "SELECT option_index FROM poll_votes WHERE poll_id = ? AND member_id = ? ORDER BY option_index",
+        (poll_id, 1),
+    )
+    assert [r["option_index"] for r in c.fetchall()] == [0, 2]
+
+
+def test_clear_poll_votes_removes_only_that_members_selections():
+    conn = _make_conn()
+    c = conn.cursor()
+    c.execute("INSERT INTO polls (question, options_json, status) VALUES ('Q', '[\"a\",\"b\"]', 'open')")
+    poll_id = c.lastrowid
+    conn.commit()
+    poll_service.record_poll_vote_additive(conn, poll_id, member_id=1, option_index=0)
+    poll_service.record_poll_vote_additive(conn, poll_id, member_id=1, option_index=1)
+    poll_service.record_poll_vote_additive(conn, poll_id, member_id=2, option_index=0)
+
+    poll_service.clear_poll_votes(conn, poll_id, member_id=1)
+
+    c.execute("SELECT member_id, option_index FROM poll_votes WHERE poll_id = ?", (poll_id,))
+    rows = [(r["member_id"], r["option_index"]) for r in c.fetchall()]
+    assert rows == [(2, 0)]
+
+
 def test_build_poll_results_message_uses_distinct_voter_denominator_for_multi_select():
     conn = _make_conn()
     c = conn.cursor()
