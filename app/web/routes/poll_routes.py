@@ -24,6 +24,7 @@ def polls_page():
 
     if request.method == "POST":
         poll_id = request.form.get("poll_id", type=int)
+        clear_vote = request.form.get("clear_vote") == "1"
         if not legacy.is_web_poll_voting_enabled():
             poll_service.log_poll_vote_event(
                 legacy.app.logger,
@@ -57,27 +58,41 @@ def polls_page():
                 except (TypeError, json.JSONDecodeError):
                     options = []
                 allow_multiple = bool(poll_row["allow_multiple"])
-                if allow_multiple:
-                    raw_indexes = request.form.getlist("option_index")
-                else:
-                    single_index = request.form.get("option_index", type=int)
-                    raw_indexes = [] if single_index is None else [str(single_index)]
-                try:
-                    option_indexes = [int(v) for v in raw_indexes]
-                except ValueError:
-                    option_indexes = []
                 if poll_row["status"] != "open":
                     flash("Poll is closed", "error")
                 elif not options:
                     flash("Poll has invalid options", "error")
-                elif not option_indexes or any(i < 0 or i >= len(options) for i in option_indexes):
-                    flash("Invalid poll option", "error")
+                elif clear_vote:
+                    if allow_multiple:
+                        poll_service.clear_poll_votes(conn, poll_id, session["member_id"])
+                        flash("Your votes were cleared", "success")
+                    else:
+                        flash("Invalid vote", "error")
                 else:
-                    for option_index in option_indexes:
+                    if allow_multiple:
+                        raw_indexes = request.form.getlist("option_index")
+                    else:
+                        single_index = request.form.get("option_index", type=int)
+                        raw_indexes = [] if single_index is None else [str(single_index)]
+                    try:
+                        option_indexes = [int(v) for v in raw_indexes]
+                    except ValueError:
+                        option_indexes = None
+                    if not option_indexes or any(i < 0 or i >= len(options) for i in option_indexes):
+                        flash("Invalid poll option", "error")
+                    elif allow_multiple:
+                        # Checking a box only adds a selection (OR'd with the member's
+                        # prior votes); it never removes one, since this POST resubmits
+                        # the browser's whole checkbox state, not a single click. Use
+                        # "clear my votes" to remove selections.
+                        for option_index in option_indexes:
+                            poll_service.record_poll_vote_additive(conn, poll_id, session["member_id"], option_index)
+                        flash("Poll vote recorded!", "success")
+                    else:
                         poll_service.record_poll_vote(
-                            conn, poll_id, session["member_id"], option_index, allow_multiple
+                            conn, poll_id, session["member_id"], option_indexes[0], False
                         )
-                    flash("Poll vote recorded!", "success")
+                        flash("Poll vote recorded!", "success")
 
     try:
         c.execute(

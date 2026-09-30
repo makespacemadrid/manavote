@@ -2586,7 +2586,7 @@ class TestPollsFunctionality(unittest.TestCase):
         self.assertEqual(row["total"], 1)
         self.assertEqual(row["option_index"], 2)
 
-    def test_multi_select_poll_records_and_toggles_each_checked_option(self):
+    def test_multi_select_poll_web_votes_are_additive_not_toggled(self):
         conn = budget_app.get_db()
         conn.execute(
             "INSERT INTO polls (question, options_json, created_by, status, allow_multiple) VALUES (?, ?, ?, 'open', 1)",
@@ -2610,8 +2610,12 @@ class TestPollsFunctionality(unittest.TestCase):
         conn.close()
         self.assertEqual([r["option_index"] for r in rows], [0, 2])
 
-        # Re-submitting with just option 0 checked toggles it off and leaves option 2 checked
-        # via the other selection remaining untouched, matching checkbox semantics per option.
+        # Re-submitting with only options already selected re-checked (as the browser
+        # would, reflecting the member's prior vote) must NOT remove them -- the web
+        # form always resubmits the whole checkbox state, so each click is a set-union
+        # (OR) with the member's prior selections, never a per-option toggle. This is
+        # the fix for the real-world report: voting with nothing changed was wiping
+        # every existing selection.
         self.client.post(
             "/polls",
             data={"poll_id": poll_id, "option_index": ["0"], "csrf_token": ""},
@@ -2624,12 +2628,73 @@ class TestPollsFunctionality(unittest.TestCase):
         )
         rows = c.fetchall()
         conn.close()
-        self.assertEqual([r["option_index"] for r in rows], [2])
+        self.assertEqual([r["option_index"] for r in rows], [0, 2])
+
+        # Adding a third option keeps the earlier two.
+        self.client.post(
+            "/polls",
+            data={"poll_id": poll_id, "option_index": ["0", "1", "2"], "csrf_token": ""},
+            follow_redirects=True,
+        )
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute(
+            "SELECT option_index FROM poll_votes WHERE poll_id = ? AND member_id = 1 ORDER BY option_index", (poll_id,)
+        )
+        rows = c.fetchall()
+        conn.close()
+        self.assertEqual([r["option_index"] for r in rows], [0, 1, 2])
 
         response = self.client.get("/polls")
         html = response.data.decode("utf-8")
         self.assertIn("Multi-select", html)
         self.assertIn('type="checkbox" name="option_index"', html)
+        self.assertIn("Clear my votes", html)
+
+    def test_multi_select_poll_clear_votes_removes_all_selections(self):
+        conn = budget_app.get_db()
+        conn.execute(
+            "INSERT INTO polls (question, options_json, created_by, status, allow_multiple) VALUES (?, ?, ?, 'open', 1)",
+            ("Toppings?", '["Cheese","Pepperoni","Mushroom"]', 1),
+        )
+        conn.commit()
+        conn.close()
+        poll_id = self._latest_poll_id()
+
+        self.client.post(
+            "/polls",
+            data={"poll_id": poll_id, "option_index": ["0", "2"], "csrf_token": ""},
+            follow_redirects=True,
+        )
+        response = self.client.post(
+            "/polls",
+            data={"poll_id": poll_id, "clear_vote": "1", "csrf_token": ""},
+            follow_redirects=True,
+        )
+
+        self.assertIn("Your votes were cleared", response.data.decode("utf-8"))
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) as total FROM poll_votes WHERE poll_id = ? AND member_id = 1", (poll_id,))
+        self.assertEqual(c.fetchone()["total"], 0)
+        conn.close()
+
+    def test_clear_vote_rejected_for_single_select_poll(self):
+        poll_id = self._latest_poll_id()
+        self.client.post("/polls", data={"poll_id": poll_id, "option_index": 0, "csrf_token": ""}, follow_redirects=True)
+
+        response = self.client.post(
+            "/polls",
+            data={"poll_id": poll_id, "clear_vote": "1", "csrf_token": ""},
+            follow_redirects=True,
+        )
+
+        self.assertIn("Invalid vote", response.data.decode("utf-8"))
+        conn = budget_app.get_db()
+        c = conn.cursor()
+        c.execute("SELECT COUNT(*) as total FROM poll_votes WHERE poll_id = ? AND member_id = 1", (poll_id,))
+        self.assertEqual(c.fetchone()["total"], 1)
+        conn.close()
 
     def test_closed_poll_rejects_votes(self):
         poll_id = self._latest_poll_id()

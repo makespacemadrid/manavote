@@ -84,6 +84,33 @@ def record_poll_vote(conn, poll_id, member_id, option_index, allow_multiple):
     return not already_selected
 
 
+def record_poll_vote_additive(conn, poll_id, member_id, option_index):
+    """Add one option to a member's multi-select poll selections without touching
+    their other selections or removing anything.
+
+    Unlike `record_poll_vote`'s toggle, this never turns a selection off -- it's for
+    the web checkbox form, where a single POST resubmits the browser's entire
+    checkbox state (including options the member already selected on a prior visit)
+    rather than one discrete user action. Toggling every submitted option there would
+    flip already-selected options back off on a no-op resubmit; this call only ever
+    adds, matching a checkbox's "select" affordance. Use `clear_poll_votes` for
+    explicit removal.
+    """
+    c = conn.cursor()
+    c.execute(
+        "INSERT OR IGNORE INTO poll_votes (poll_id, member_id, option_index) VALUES (?, ?, ?)",
+        (poll_id, member_id, option_index),
+    )
+    conn.commit()
+
+
+def clear_poll_votes(conn, poll_id, member_id):
+    """Remove all of a member's selections on one poll (multi-select "clear my votes")."""
+    c = conn.cursor()
+    c.execute("DELETE FROM poll_votes WHERE poll_id = ? AND member_id = ?", (poll_id, member_id))
+    conn.commit()
+
+
 def build_poll_announcement_message(question, options, closes_at=None, allow_multiple=False):
     """Announcement text for a newly created poll, shared by every creation path
     (web admin form, REST, MCP) and the admin panel's manual (re)send actions, so the

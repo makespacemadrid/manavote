@@ -95,6 +95,7 @@ TRANSLATIONS = {
         "Allow selecting more than one option": "Allow selecting more than one option",
         "Multi-select": "Multi-select",
         "Select one or more options": "Select one or more options",
+        "Clear my votes": "Clear my votes",
         "Send test to admin after create": "Send test to admin after create",
         "Admin": "Admin",
         "About": "About",
@@ -467,6 +468,7 @@ TRANSLATIONS = {
         "Allow selecting more than one option": "Permitir seleccionar más de una opción",
         "Multi-select": "Multi-selección",
         "Select one or more options": "Selecciona una o más opciones",
+        "Clear my votes": "Borrar mis votos",
         "Send test to admin after create": "Enviar prueba al admin al crear",
         "Admin": "Admin",
         "About": "Acerca de",
@@ -842,6 +844,7 @@ _FLASH_TRANSLATIONS_ES = {
     "You can't change your own admin role": "No puedes cambiar tu propio rol de administrador",
     "You can't remove yourself": "No puedes eliminarte a ti mismo",
     "Your email address cannot be changed once it has been added.": "Tu correo electrónico no se puede cambiar después de añadirlo.",
+    "Your votes were cleared": "Tus votos han sido eliminados",
 }
 
 for _message, _spanish in _FLASH_TRANSLATIONS_ES.items():

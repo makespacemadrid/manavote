@@ -61,6 +61,14 @@
                             {% if p.status == "open" %}<button class="vote-btn approve poll-vote-submit" type="submit">{{ 'Vote'|lang }}</button>
                             {% else %}<button class="vote-btn poll-vote-submit" type="button" disabled>{{ 'Voting closed'|lang }}</button>{% endif %}
                         </form>
+                        {% if p.allow_multiple and p.status == "open" and p.user_votes %}
+                            <form method="POST" style="margin-top:6px;">
+                                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                                <input type="hidden" name="poll_id" value="{{ p.id }}">
+                                <input type="hidden" name="clear_vote" value="1">
+                                <button class="vote-btn poll-vote-submit" type="submit" style="background:#444;">{{ 'Clear my votes'|lang }}</button>
+                            </form>
+                        {% endif %}
                     {% else %}<div style="margin-top:8px;padding:8px;background:#dc262633;border:1px solid #dc2626;border-radius:6px;font-size:0.85em;color:#ff9999;">{{ 'Web voting is disabled'|lang }}</div>{% endif %}
                 </div>
 
