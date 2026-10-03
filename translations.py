@@ -895,7 +895,7 @@ _COIN_TRANSLATIONS_ES = {
     "Coins QR labels": "Etiquetas QR de monedas",
     "Print labels": "Imprimir etiquetas",
     "Taking one can debits 1 ManaVote coin from your ledger.": "Coger una lata resta 1 moneda ManaVote de tu cuenta.",
-    "Pay later": "Pagar después",
+    "Debit from my account": "Restar de mi crédito",
     "Adding a can credits 1 ManaVote coin to your ledger.": "Añadir una lata suma 1 moneda ManaVote a tu cuenta.",
     "Scan, sign in, and confirm.": "Escanea, inicia sesión y confirma.",
     "Print QR labels with item names and ManaVote ledger instructions.": "Imprime etiquetas QR con nombres e instrucciones de la cuenta ManaVote.",

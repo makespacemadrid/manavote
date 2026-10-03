@@ -108,7 +108,8 @@ def test_admin_printable_qr_labels_and_png(coin_client):
     assert response.status_code == 200
     assert response.data.count(b'class="qr-label"') == 3
     assert b"debits 1 ManaVote coin" in response.data
-    assert response.data.count(b"Pay later") == 3
+    assert response.data.count(b"Debit from my account") == 3
+    assert b"Pay later" not in response.data
     assert b">Consume</h2>" not in response.data
     assert b">Replenish</h2>" not in response.data
     assert b"/coins/scan/" not in response.data
@@ -118,6 +119,11 @@ def test_admin_printable_qr_labels_and_png(coin_client):
     assert png.status_code == 200
     assert png.mimetype == "image/png"
     assert png.data.startswith(b"\x89PNG")
+
+    with client.session_transaction() as user_session:
+        user_session["lang"] = "es"
+    spanish_response = client.get("/admin/coins/qr-labels")
+    assert spanish_response.data.count("Restar de mi crédito".encode()) == 3
 
 
 def test_qr_uses_configured_public_base_url(coin_client):
@@ -195,6 +201,9 @@ def test_admin_coins_section_has_item_creation_and_printable_qrs(coin_client):
     assert b"Edit coin items" in page.data
     assert b"Default purchase amount" in page.data
     assert b'action="/admin/coins/items/1"' in page.data
+    assert b'class="coin-admin-items"' in page.data
+    assert b'class="coin-admin-edit-form"' in page.data
+    assert b'class="coin-admin-delete-form"' in page.data
 
     response = client.post(
         "/admin/coins/items",

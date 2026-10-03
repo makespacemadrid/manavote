@@ -120,6 +120,20 @@
 .coin-custom { margin-top:12px; }
 .coin-custom summary { color:#ffff00; cursor:pointer; margin-bottom:10px; }
 .coin-ranking .current-member { background:rgba(255,255,0,.1); font-weight:700; }
+.coin-admin-intro { color:#c4c4c4; margin-bottom:12px; }
+.coin-admin-header-actions { display:flex; flex-wrap:wrap; margin-bottom:24px; }
+.coin-admin-section { border-top:1px solid #3a3a3a; padding-top:20px; margin-top:20px; }
+.coin-admin-section h4 { font-size:1.05rem; margin-bottom:6px; }
+.coin-admin-help { color:#aaa; margin-bottom:14px; }
+.coin-admin-create-form, .coin-admin-edit-form { display:grid; grid-template-columns:minmax(220px, 1fr) minmax(180px, .4fr) auto; gap:12px; align-items:end; }
+.coin-admin-field { min-width:0; }
+.coin-admin-field label { min-height:1.2em; }
+.coin-admin-field input { margin-bottom:0; }
+.coin-admin-submit, .coin-admin-edit-form > .btn { min-height:39px; white-space:nowrap; }
+.coin-admin-items { display:grid; gap:12px; margin-top:14px; }
+.coin-admin-item { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:10px; align-items:end; padding:16px; background:#252525; border:1px solid #414141; border-radius:6px; }
+.coin-admin-delete-form { display:flex; margin:0; }
+.coin-admin-delete-form .btn { min-height:39px; white-space:nowrap; }
 .table-scroll { overflow-x:auto; }
 .coin-scan { max-width:520px; margin:40px auto; }
 .qr-label-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
@@ -130,6 +144,7 @@
 .qr-label small { overflow-wrap:anywhere; }
 .qr-ledger-copy { font-size:1.05rem; font-weight:700; margin:10px 0; }
 @media print { body { background:#fff; } .container { max-width:none; padding:0; } .no-print { display:none !important; } .qr-label-grid { grid-template-columns:repeat(2,1fr); gap:8mm; } .qr-label { min-height:125mm; display:flex; flex-direction:column; align-items:center; justify-content:center; } }
+@media (max-width:700px) { .coin-admin-create-form, .coin-admin-edit-form, .coin-admin-item { grid-template-columns:1fr; } .coin-admin-delete-form .btn, .coin-admin-edit-form > .btn, .coin-admin-submit { width:100%; } }
 @media (max-width:600px) { .coins-header { display:block; } .coin-account-actions { align-items:flex-start; margin-top:10px; } .qr-label-grid { grid-template-columns:1fr; } }
 .table-sort-button {
   appearance: none;
