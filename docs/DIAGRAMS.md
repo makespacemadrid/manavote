@@ -12,6 +12,7 @@ the code wins — update the diagram in the same PR that changes the shape it de
 
 - [Process overview](#process-overview)
 - [Request path: web page load](#request-path-web-page-load)
+- [Admin coin correction flow](#admin-coin-correction-flow)
 - [Telegram webhook: message routing](#telegram-webhook-message-routing)
 - [Telegram assistant: mutation confirm flow](#telegram-assistant-mutation-confirm-flow)
 - [MCP and REST: shared service layer](#mcp-and-rest-shared-service-layer)
@@ -34,7 +35,7 @@ flowchart TB
 
     subgraph flaskapp["Flask app internals"]
         legacy["main_routes.py\n(legacy routes + shared\nhelper functions, shrinking)"]
-        bps["7 blueprints:\nauth, api, proposals,\npolls, admin,\ngroup_purchases, telegram"]
+        bps["8 blueprints:\nauth, api, proposals, polls,\nadmin, coins, group_purchases, telegram"]
         services["app/services/*\n(business logic,\nDI-parameter style)"]
         repos["app/repositories/*\n(query composition)"]
     end
@@ -81,6 +82,35 @@ sequenceDiagram
     Repo-->>Service: domain objects
     Service-->>Blueprint: view model
     Blueprint-->>Browser: render_template("proposals.html", ...)
+```
+
+## Admin coin correction flow
+
+Member, QR, and MCP coin actions append movements through the shared coin service. An
+administrator can use the explicit correction path for an existing row; the route is
+protected by login, admin-role, and CSRF checks. The service validates references and
+quantity, derives signed deltas from the selected movement kind, preserves the row's
+identity and timestamp, and marks the corrected source as `admin`.
+
+```mermaid
+sequenceDiagram
+    participant Admin
+    participant Route as coin_routes.edit_movement
+    participant Service as coin_service.update_movement
+    participant DB as SQLite
+    participant Log as Application log
+
+    Admin->>Route: POST /admin/coins/movements/:id
+    Route->>Route: login + admin + CSRF checks
+    Route->>Service: item, member, kind, quantity, note
+    Service->>DB: validate active item, member, movement
+    Service->>Service: derive inventory_delta + coin_delta
+    Service->>DB: UPDATE row, source = admin<br/>preserve id, key, created_at
+    DB-->>Service: commit
+    Service->>Log: coin_movement_updated
+    Service-->>Route: movement_id
+    Route->>Log: coin_movement_updated_by_admin
+    Route-->>Admin: redirect /admin?tab=coins
 ```
 
 ## Telegram webhook: message routing
@@ -200,7 +230,7 @@ flowchart TD
 
 ## Core data model
 
-Simplified to the tables that carry the app's core voting/budget domain — omits
+Simplified to the tables that carry the app's core voting, budget, and coin domains — omits
 `telegram_update_dedup`, `telegram_pending_actions`, and the `group_purchase_*` family
 (five tables on their own; see `SPEC.md` for the full group-purchases model).
 
@@ -211,9 +241,12 @@ erDiagram
     MEMBERS ||--o{ POLLS : creates
     MEMBERS ||--o{ POLL_VOTES : casts
     MEMBERS ||--o{ COMMENTS : writes
+    MEMBERS ||--o{ COIN_MOVEMENTS : records
     PROPOSALS ||--o{ VOTES : receives
     PROPOSALS ||--o{ COMMENTS : has
     POLLS ||--o{ POLL_VOTES : receives
+    COIN_ITEMS ||--o{ COIN_MOVEMENTS : categorizes
+    COIN_ITEMS ||--o| COIN_QR_TOKENS : identifies
 
     MEMBERS {
         int id PK
@@ -254,6 +287,30 @@ erDiagram
         int proposal_id FK
         int member_id FK
         text content
+    }
+    COIN_ITEMS {
+        int id PK
+        text name
+        int pack_size
+        int active
+    }
+    COIN_MOVEMENTS {
+        int id PK
+        int item_id FK
+        int member_id FK
+        int inventory_delta
+        int coin_delta
+        text kind
+        text source
+        text idempotency_key
+        text created_at
+    }
+    COIN_QR_TOKENS {
+        int id PK
+        int item_id FK
+        text token
+        text action
+        int active
     }
     SETTINGS {
         text key PK

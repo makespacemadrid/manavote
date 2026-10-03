@@ -179,6 +179,47 @@ def adjust_inventory(connection, *, item, member_id, inventory_delta, note=None,
     return result
 
 
+def update_movement(connection, *, movement_id, item, member_id, kind, quantity, note=None):
+    """Correct an existing ledger entry while retaining its identity and timestamp."""
+    try:
+        movement_id = int(movement_id)
+        member_id = int(member_id)
+        quantity = int(quantity)
+    except (TypeError, ValueError) as exc:
+        raise CoinValidationError("Movement, member, and quantity are required") from exc
+    if quantity == 0 or abs(quantity) > MAX_QUANTITY:
+        raise CoinValidationError(f"Quantity must be between -{MAX_QUANTITY} and {MAX_QUANTITY}, excluding zero")
+    if kind not in {"consume", "replenish", "adjustment"}:
+        raise CoinValidationError("Unknown coin action")
+    note = str(note or "").strip() or None
+    if note is not None and len(note) > 250:
+        raise CoinValidationError("Note must be 250 characters or fewer")
+
+    repo = CoinRepository(connection)
+    item_row = repo.find_item(item)
+    if item_row is None:
+        raise CoinNotFoundError("Coin item not found")
+    if connection.execute("SELECT 1 FROM members WHERE id = ?", (member_id,)).fetchone() is None:
+        raise CoinNotFoundError("Member not found")
+    if connection.execute("SELECT 1 FROM coin_movements WHERE id = ?", (movement_id,)).fetchone() is None:
+        raise CoinNotFoundError("Coin movement not found")
+
+    if kind == "consume":
+        inventory_delta = coin_delta = -abs(quantity)
+    elif kind == "replenish":
+        inventory_delta = coin_delta = abs(quantity)
+    else:
+        inventory_delta, coin_delta = quantity, 0
+    connection.execute(
+        """UPDATE coin_movements SET item_id = ?, member_id = ?, inventory_delta = ?,
+           coin_delta = ?, kind = ?, source = 'admin', note = ? WHERE id = ?""",
+        (item_row["id"], member_id, inventory_delta, coin_delta, kind, note, movement_id),
+    )
+    connection.commit()
+    logger.info("coin_movement_updated movement_id=%s item_id=%s member_id=%s kind=%s quantity=%s", movement_id, item_row["id"], member_id, kind, quantity)
+    return {"movement_id": movement_id}
+
+
 def _result(repo, item_row, member_id, movement, replayed):
     return {
         "movement_id": int(movement["id"]),

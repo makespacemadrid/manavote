@@ -716,12 +716,15 @@ pytest -q tests/test_mcp_server.py
 
 ## Telegram bot commands
 
-- `/link <app_username> <app_password>` — link Telegram identity to a member account.
-  It is accepted only in a private bot chat; the bot attempts to delete the credential-bearing command immediately after receipt.
+- `/link` — begin passwordless Telegram account linking in a private bot chat. The bot
+  returns a signed browser link that expires after 15 minutes. After signing in to
+  ManaVote, the member explicitly confirms the Telegram identity. Legacy credential
+  arguments are still accepted for compatibility and their message is deleted when
+  possible, but the browser flow is the documented path.
 - `/vote <poll_id> <option_number> [option_number...]` or `/vote <option_number>` — vote in polls (subject to `poll_vote_mode`).
   Multiple option numbers are only accepted with the explicit `poll_id` form; the two-token shorthand `/vote <option_number>` (targeting the latest open poll) stays single-option only. Submitting more than one option number against a poll that doesn't allow multiple selections is rejected with reason `multiple_options_not_allowed`.
 - `/pvote <proposal_id> <yes|no>` — vote on proposals (subject to `proposal_vote_mode`).
-- If `telegram_require_linked_vote=true`, Telegram vote commands only work for linked accounts; unlinked users are told to run `/link <app_username> <app_password>`.
+- If `telegram_require_linked_vote=true`, Telegram vote commands only work for linked accounts; unlinked users are told to send `/link` in a private bot chat.
 - Proposal inline callback payload: `pvote:<proposal_id>:yes|no` (same policy path as `/pvote`).
 - Without the optional natural-language configuration, non-command Telegram messages receive a configuration hint and have no poll/proposal vote side effects.
 

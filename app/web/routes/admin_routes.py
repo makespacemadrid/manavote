@@ -681,6 +681,10 @@ def admin():
 
     c.execute("SELECT id, name, pack_size FROM coin_items WHERE active = 1 ORDER BY position, id")
     coin_items = [dict(row) for row in c.fetchall()]
+    c.execute("""SELECT cm.*, ci.name AS item_name, m.username
+                 FROM coin_movements cm JOIN coin_items ci ON ci.id = cm.item_id
+                 JOIN members m ON m.id = cm.member_id ORDER BY cm.id DESC LIMIT 100""")
+    coin_movements = [dict(row) for row in c.fetchall()]
 
     c.execute("SELECT value FROM settings WHERE key = 'timezone'")
     tz_row = c.fetchone()
@@ -713,6 +717,7 @@ def admin():
         group_purchases=group_purchases,
         feedback_items=feedback_items,
         coin_items=coin_items,
+        coin_movements=coin_movements,
         active_admin_tab=active_admin_tab,
     )
 

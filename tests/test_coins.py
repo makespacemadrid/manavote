@@ -100,6 +100,35 @@ def test_coin_item_cards_show_lifetime_consumed_and_purchased_totals(coin_client
 
     assert b"In stock" not in page.data
     assert b"Total consumed: <strong>3</strong>, Total purchased: <strong>8</strong>" in page.data
+    assert b"Consumption by item" in page.data
+    summary = page.data.split(b"Consumption by item", 1)[1].split(b"Coin ranking", 1)[0]
+    assert b"Coke" in summary
+    assert b">3</td>" in summary
+
+
+def test_admin_can_edit_coin_ledger_entry(coin_client):
+    client, db_path = coin_client
+    with sqlite3.connect(db_path) as connection:
+        connection.row_factory = sqlite3.Row
+        movement_id = record_movement(connection, item="Coke", member_id=1, action="consume", quantity=2)["movement_id"]
+
+    page = client.get("/admin?tab=coins")
+    assert b"Edit coin ledger" in page.data
+    assert page.data.count(b'<span aria-hidden="true">') == 7
+    assert f'action="/admin/coins/movements/{movement_id}"'.encode() in page.data
+
+    response = client.post(
+        f"/admin/coins/movements/{movement_id}",
+        data={"item_id": 2, "member_id": 1, "kind": "replenish", "quantity": 5, "note": "Corrected receipt"},
+        follow_redirects=True,
+    )
+    assert b"Coin movement updated" in response.data
+    with sqlite3.connect(db_path) as connection:
+        movement = connection.execute(
+            "SELECT item_id, inventory_delta, coin_delta, kind, source, note FROM coin_movements WHERE id = ?",
+            (movement_id,),
+        ).fetchone()
+    assert movement == (2, 5, 5, "replenish", "admin", "Corrected receipt")
 
 
 def test_admin_printable_qr_labels_and_png(coin_client):
@@ -152,6 +181,7 @@ def test_non_admin_cannot_print_or_manage_qr_labels(coin_client):
     assert client.post("/admin/coins/items", data={"name": "Icecream", "pack_size": 8}).status_code == 302
     assert client.post("/admin/coins/items/1", data={"name": "Cola", "pack_size": 6}).status_code == 302
     assert client.post("/admin/coins/items/1/delete").status_code == 302
+    assert client.post("/admin/coins/movements/1", data={}).status_code == 302
 
 
 def test_admin_can_adjust_stock_without_changing_balance(coin_client):

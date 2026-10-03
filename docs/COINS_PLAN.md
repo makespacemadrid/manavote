@@ -23,17 +23,20 @@ Coins represent units contributed versus consumed, not euros or a cash payment m
   linked member. No anonymous stock changes are accepted.
 - **Consumption defaults to one.** The common action is one tap; a member may instead
   choose a positive integer quantity.
-- **Replenishment requires a quantity.** The UI suggests common quantities but never
-  assumes a crate size.
+- **Replenishment requires a quantity.** Each catalogue row has an administrator-set
+  pack size for its quick purchase button, and the custom form accepts another positive
+  integer quantity.
 - **The starting cans use a 12-pack shortcut.** Coke, Coke Zero, and Other Can each show
   an **I bought 12** button that records a replenishment of 12 and credits 12 coins.
 - **A member balance is explicit.** Consumption reduces it and replenishment increases
   it. A negative balance is a debt in coins; a positive balance is a contribution.
-- **History is append-only.** Corrections are compensating entries rather than edits or
-  deletes, preserving an audit trail.
-- **Stock may go below zero.** A negative stock count is a useful discrepancy signal and
-  must be visible, not silently rejected. Admins can reconcile it with an adjustment;
-  this is distinct from a member's coin balance.
+- **Member-created history is append-only.** Normal member, QR, and MCP flows only add
+  movements. Administrators may correct an existing entry's item, member, type,
+  quantity, and note from the Coins admin tab. A correction preserves the movement ID
+  and creation timestamp, marks its source as `admin`, and emits an admin-edit log.
+- **Stock may go below zero.** A negative stock count is valid ledger state rather than
+  a rejected movement. Admins can reconcile it with an adjustment; this is distinct
+  from a member's coin balance.
 - **All three channels share one service.** Web forms, QR landing flows, and MCP call
   the same validation and transaction boundary.
 - **The catalogue is seeded, not hard-coded into transactions.** The three starting
@@ -46,26 +49,25 @@ Coins represent units contributed versus consumed, not euros or a cash payment m
 
 ### Coins page (`GET /coins`)
 
-Display three item cards in the seeded order. Each card includes:
+Display active item cards in catalogue order. The page header shows the signed-in
+member's aggregate balance. Each card includes:
 
-- item name and current quantity;
-- the signed-in member's coin balance, with debt and credit explained in plain language;
+- item name plus lifetime consumed and purchased totals;
 - a prominent **Consume 1** action;
-- a **Replenish** action with quantity input;
-- a prominent **I bought 12** action for each of the three initial items;
-- a compact quantity selector for consuming more than one; and
-- links/buttons to the item's consume and replenish QR codes.
+- a prominent **I bought _pack size_** replenishment action; and
+- a compact custom quantity form for either consuming or replenishing.
 
-Below the cards, show the signed-in member's latest movements with item, action, quantity,
-source, and timestamp. Named global history is admin-only. The member view should not
-expose transport secrets or raw QR tokens.
+Below the cards, show the signed-in member's latest movements with item, signed coin
+change, source, and timestamp. Named global history and QR management are admin-only.
+The member view does not expose transport secrets or raw QR tokens.
 Use Post/Redirect/Get so refreshing the success page cannot repeat a movement.
 
-Accessibility requirements: real form labels, keyboard-operable actions, status text in
-addition to colour, focus returned to the affected card, and a live success message such
-as “Consumed 1 Coke — 11 remaining; your balance is -2 coins.” Replenishment should say
-both how many units were added and how many coins were credited. Add all copy to both
-existing language catalogues (English and Spanish).
+The page also includes a sortable **Consumption by item** table. It shows each active
+catalogue item and its lifetime consumed quantity, derived from `consume` movements.
+
+Accessibility requirements include real form labels, keyboard-operable actions, and
+status text in addition to colour. User-visible copy is present in both existing
+language catalogues (English and Spanish).
 
 The page must explain the ledger before the first action: consuming one item deducts one
 ManaVote coin; replenishing one item adds one coin. The **I bought 12** shortcut is a real
@@ -74,8 +76,9 @@ the member 12 coins in the same transaction.
 
 ### QR flow
 
-Provide **two QR codes per item**, one for consume and one for replenish. A QR encodes a
-stable application URL, not an MCP API key and not a direct mutation:
+Provide **one consume QR code per active item**. Replenishment stays on the authenticated
+Coins page so a printed label cannot accidentally be used to credit stock. A QR encodes
+a stable application URL, not an MCP API key and not a direct mutation:
 
 ```text
 /coins/scan/<opaque-random-token>
@@ -84,10 +87,8 @@ stable application URL, not an MCP API key and not a direct mutation:
 After scanning:
 
 1. An unauthenticated visitor is sent through login and returned to the scan URL.
-2. The landing page identifies the item and action.
-3. Consume presents a one-tap confirmation defaulting to 1; replenish asks for quantity
-   and offers **I bought 12** for the three seeded items.
-4. A CSRF-protected `POST` records the movement and shows the new balance.
+2. The landing page identifies the item and explains that confirming debits one coin.
+3. A CSRF-protected `POST` records one consumed item and shows the new balance.
 
 Tokens map server-side to `{item_id, action, active}` and can be rotated or disabled.
 They are locators, not bearer authorization: a valid login and explicit POST remain
@@ -96,15 +97,12 @@ the database to prevent double taps, retries, and browser resubmission.
 
 ### Printable QR labels in Admin
 
-Add a **Coins QR labels** section to Admin. It shows print-ready labels for every active
-item/action pair and a **Print labels** control. Each label must contain:
+Add a **Coins QR labels** section to Admin. It shows one print-ready consume label for
+every active item and a **Print labels** control. Each label contains:
 
 - the item name in large, high-contrast type (the dominant text on the label);
-- an unambiguous **Consume** or **Replenish** heading;
-- the QR code and a short fallback URL/code;
-- a plain-language explanation of the ledger effect; for example, **“Taking one Coke
-  debits 1 ManaVote coin from your ledger”** or **“Adding Coke credits 1 ManaVote coin
-  per can”**; and
+- the QR code;
+- a plain-language explanation that taking one item debits one ManaVote coin; and
 - a reminder that the member will sign in and confirm before anything is recorded.
 
 Use a dedicated printable route (`GET /admin/coins/qr-labels`) and print stylesheet that
@@ -113,8 +111,22 @@ label across pages, and supports common A4 label/card layouts. The printable vie
 render server-side and remain usable without JavaScript. Admins can preview, print,
 disable and rotate tokens. The opaque token is persisted because printable labels must
 be reproducible; it is a locator and never authorizes a mutation by itself. Add an
-automated rendering test and manually scan a printed consume and replenish label before
-release.
+automated rendering test and manually scan a printed consume label before release.
+
+### Coins administration
+
+The Admin navigation labels use decorative emoji icons (hidden from assistive
+technology) to make the tabs easier to scan. The **Coins** tab includes catalogue
+management and the 100 most recent ledger movements. Each movement has a CSRF-protected
+edit form for correcting its item, member, type, quantity, or note. Only administrators
+may submit corrections. The service validates referenced members and active items,
+rejects zero or out-of-range quantities, derives signed deltas from the selected type,
+and limits notes to 250 characters.
+
+Editing a consumption or replenishment movement updates both `inventory_delta` and
+`coin_delta`; editing an inventory adjustment keeps `coin_delta` at zero. The entry's
+ID, idempotency key, and `created_at` value remain unchanged, while `source` becomes
+`admin` so corrected rows are identifiable.
 
 ### Telegram bot through MCP
 
@@ -138,8 +150,9 @@ guessing unknown items. Example phrases to cover in tests include “I took a Co
 
 ## 4. Data model
 
-Use an immutable movement ledger. Derive stock with `SUM(inventory_delta)` and each
-member's coin balance with `SUM(coin_delta)`:
+Use a movement ledger that is append-only for member-facing workflows, with the explicit
+admin correction exception described above. Derive stock with `SUM(inventory_delta)` and
+each member's coin balance with `SUM(coin_delta)`:
 
 ```sql
 CREATE TABLE coin_items (
@@ -253,13 +266,13 @@ props, fallback markup expectations, and tests together.
 
 ### Slice 3 — QR workflows
 
-1. Generate opaque consume/replenish token mappings and render downloadable QR images.
+1. Generate opaque consume token mappings and render downloadable QR images.
 2. Add authenticated landing and confirmation flows with return-after-login behavior.
-3. Add the Admin preview/print route with large item names, ledger explanations, fallback
-   text, and print CSS.
+3. Add the Admin preview/print route with large item names, ledger explanations, and
+   print CSS.
 4. Test invalid/disabled tokens, CSRF, double submission, authorization, label rendering,
-   and token rotation. Manually verify both codes from paper with a physical phone before
-   release.
+   and token rotation. Manually verify a printed consume code with a physical phone
+   before release.
 
 ### Slice 4 — MCP and Telegram
 
@@ -274,34 +287,38 @@ props, fallback markup expectations, and tests together.
 - Coins appears directly before Group purchases for signed-in members.
 - Coke, Coke Zero, and Other Can exist exactly once after both fresh initialization and
   repeated migrations.
-- A member can consume or replenish from the page, from each action-specific QR flow,
-  and through the linked Telegram bot/MCP path.
+- A member can consume or replenish from the page and through the linked Telegram
+  bot/MCP path; printed QR labels provide a consume-only shortcut.
 - Each initial item has an **I bought 12** action that atomically adds 12 units and credits
   the acting member 12 coins.
-- Every successful action creates exactly one attributable immutable movement and all
-  channels report the same resulting stock and member coin balance.
-- Admin can print action-specific QR labels whose largest text is the item name and whose
-  copy clearly states whether scanning ultimately debits or credits the ManaVote ledger.
+- Every successful member action creates exactly one attributable movement and all
+  channels report the same resulting stock and member coin balance. Only administrators
+  can subsequently correct a movement through the dedicated admin route.
+- The Coins page shows a sortable lifetime consumption total for each active item.
+- Admin can print consume QR labels whose largest text is the item name and whose copy
+  clearly states that confirming debits the ManaVote ledger.
 - Admin can create a new item category with a pack size; it appears on the member page
-  and receives consume/replenish QR labels without a deployment or schema change.
+  and receives a consume QR label without a deployment or schema change.
 - Refreshes, duplicate Telegram updates, and retrying an idempotency key do not change
   stock twice.
 - Unauthenticated QR visitors must log in; unlinked Telegram users cannot write; one
   member cannot select another member as actor.
 - Invalid quantities, inactive/unknown items, disabled tokens, missing CSRF, and missing
   MCP authentication fail without a movement.
-- Negative stock is displayed clearly and logged, not rejected or hidden.
+- Negative stock remains valid ledger state and can be corrected with an admin inventory
+  adjustment; it is not silently rejected.
 - English and Spanish copy, relevant API/MCP docs, migrations, structured logs, and the
   full regression suite are complete.
 
-## 9. Decisions to confirm before implementation
+## 9. Implemented decisions and future considerations
 
-The MVP uses a global balance across item types: replenishing any item can offset a debt
-from another item. The remaining decisions do not block the ledger-first architecture,
-but should be settled before UI polish:
+The implementation uses a global balance across item types: replenishing any item can
+offset a debt from another item. Every authenticated member may replenish, `Other Can`
+remains a pooled category, and printed labels contain one consume QR code. Potential
+future product decisions are:
 
-1. Who may replenish: every linked member, or admins/stewards only?
-2. Should `Other Can` remain one pooled item, or should the replenishment flow capture an
-   optional can description?
-3. Where will QR labels be mounted, and should one label contain two codes or should each
-   action have its own label?
+1. Whether replenishment should become restricted to administrators or stewards.
+2. Whether `Other Can` should capture an optional description or split into more
+   administrator-managed categories.
+3. Where consume labels should be mounted and whether their physical layout needs more
+   formats than the current A4 print view.

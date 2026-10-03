@@ -206,8 +206,15 @@ Committed series behavior:
 - Includes governance link to the public repository for proposing feature changes.
 
 ### Admin panel
+- Admin section buttons include decorative emoji icons; their text labels remain the
+  accessible names.
 - **Members tab**: Add/remove members, toggle admin role, change passwords, and view linked Telegram username/ID when available (including partial links where only one value exists).
 - **Budget tab**: Trigger monthly top-up (€50, description: "Monthly top-up"), add custom budget entries.
+- **Coins tab**: Create, rename, and deactivate coin items; open printable QR labels;
+  and edit the 100 most recent ledger movements. Ledger edits may change item, member,
+  type, quantity, and note while retaining the movement ID, idempotency key, and creation
+  timestamp. Corrected rows use `source = admin`. Consume/replenish edits update stock
+  and balance together; adjustment edits affect stock only.
 - **Settings tab**: Registration toggle, timezone selector (UTC, Europe/London, Europe/Paris, Europe/Madrid, America/New_York, America/Chicago, America/Los_Angeles, Asia/Tokyo, Asia/Shanghai, Australia/Sydney).
 - **Timezone tab**: Configure display timezone for all datetime fields.
 - **Backup tab**: Manual backup, list existing backups.
@@ -231,7 +238,8 @@ Committed series behavior:
 ### Polls page (`/polls`)
 - Members vote in Telegram with inline poll buttons (or `/vote <poll_id> <option_number>` fallback).
 - "Who voted what" displays linked Telegram usernames when available (from `/link`), and falls back to app usernames for unlinked accounts.
-- If the current member is not linked to Telegram, page shows a `/link <app_username> <app_password>` reminder.
+- If the current member is not linked to Telegram, the page tells them to send `/link`
+  to the bot and complete the browser confirmation.
 
 - Poll message interaction flow:
   1. Poll announcement shows a `Vote` button with callback `showvote:<poll_id>`.
@@ -251,6 +259,15 @@ Committed series behavior:
 - Telegram: inline poll buttons and the text command's explicit-poll_id form both register one option number as one discrete toggle (on if it was off, off if it was on) — this is safe there because each Telegram request represents exactly one user action, unlike a web form resubmission. The text command accepts more than one option number in a single message — `/vote <poll_id> <option_number> [option_number...]` — but only when `poll_id` is given explicitly; the two-token shorthand `/vote <option_number>` (targeting the latest open poll) stays single-option only to avoid ambiguity with the explicit-poll_id form. Submitting more than one option number against a single-select poll is rejected with reason `multiple_options_not_allowed`.
 - There is no cap on how many options a member may select on a multi-select poll.
 - Percentages in both the web results bars and the Telegram closing summary are computed against the number of distinct voters (not the number of selections) for multi-select polls, since one voter can contribute multiple selections; single-select polls compute percentages against total votes as before. The Telegram closing summary reports "Total selections: *N* from *M* voter(s)" for multi-select polls and "Total votes: *N*" for single-select polls.
+
+### Coins page (`/coins`)
+- Each active item provides quick consume and replenish actions plus a custom quantity
+  form. Consumption debits the member's coin balance; replenishment credits it.
+- Item cards show lifetime consumed and purchased totals.
+- A sortable **Consumption by item** table lists every active item and its lifetime
+  consumed quantity.
+- The ranking table shows every member's balance and lifetime consume/purchase totals.
+- Recent movement history is restricted to the signed-in member.
 
 ### Group purchases page (`/group-purchases`)
 - Any authenticated member can propose a shared purchase and add up to 30 option rows, each with its own name and unit price.
@@ -287,7 +304,9 @@ Committed series behavior:
 - `GET|POST /change-password`
 - `GET|POST /telegram-settings`
   - `telegram_username` and `telegram_user_id` are read-only in UI.
-  - Both fields are linked only from Telegram via `/link <app_username> <app_password>`.
+  - Sending `/link` to the bot in a private chat creates a signed, 15-minute browser
+    link. The authenticated member confirms the identity at `GET|POST
+    /telegram/link/<token>`.
 - `GET|POST /proposal/new`
 - `GET|POST /proposal/<proposal_id>`
 - `GET|POST /proposal/<proposal_id>/edit`
@@ -300,16 +319,18 @@ Committed series behavior:
 - `POST /unpurchase/<proposal_id>`
 
 ### Telegram integration
-- `POST /telegram/webhook/<secret>` receives Telegram updates and processes `/vote`, `/pvote`, `/link <app_username> <app_password>`, `/help`, and `/reset`, inline-button callbacks, and optional natural-language messages.
+- `POST /telegram/webhook/<secret>` receives Telegram updates and processes `/vote`, `/pvote`, passwordless `/link`, `/help`, and `/reset`, inline-button callbacks, and optional natural-language messages.
 - Poll inline callbacks:
   - `showvote:<poll_id>` expands message keyboard to option buttons.
   - `pollvote:<poll_id>:<option_index>` records vote.
 - Webhook security requires `TELEGRAM_WEBHOOK_SECRET` to match `<secret>`.
 - Vote-to-member mapping prefers `members.telegram_user_id`, then falls back to username matching against `members.username` and `members.telegram_username` (`username` or `@username`, case-insensitive).
 - If no linked member is found but Telegram provides numeric user id, vote is stored under a deterministic negative `member_id` placeholder (`-telegram_user_id`) so one Telegram user still maps to one vote.
-- Optional strict mode: when `telegram_require_linked_vote=true`, Telegram votes require a linked account match and unlinked users are instructed to run `/link <app_username> <app_password>`.
+- Optional strict mode: when `telegram_require_linked_vote=true`, Telegram votes require a linked account match and unlinked users are instructed to send `/link` privately.
 - Telegram client calls are considered successful only when HTTP status is `200` and Telegram API responds with `"ok": true` (when JSON is returned).
-- Recent numeric Telegram `update_id` values are retained in a bounded, thread-safe cache; retries are acknowledged without repeating commands, votes, model calls, or MCP actions.
+- Recent numeric Telegram `update_id` values are retained in SQLite with bounded
+  retention; retries are acknowledged across workers and restarts without repeating
+  commands, votes, model calls, or MCP actions.
 
 #### Natural-language assistant flow
 
@@ -337,6 +358,9 @@ process and is not yet shared across workers.
 
 ### Admin web actions
 - `GET|POST /admin` (includes timezone selector, member management, budget controls, and poll actions)
+- `POST /admin/coins/movements/<movement_id>` (admin-only correction of an existing coin
+  ledger row; validates active item, member, movement type, non-zero quantity up to
+  1,000 units, and an optional note up to 250 characters)
 - `GET /undo/<proposal_id>` (undo approval, restore budget, clear timestamps)
 - `GET /check-overbudget`
 

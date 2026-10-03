@@ -97,6 +97,22 @@ pytest -q tests/test_backup_service.py tests/test_app_startup.py
   the right `backup_type` (`db` vs `images`), and only writes the `.last_backup` marker
   on full success.
 
+## Coins and ledger-administration checks
+
+```bash
+pytest -q tests/test_coins.py tests/test_translation_coverage.py
+```
+
+This pack covers seeded and administrator-created items, member ledger movements,
+idempotency, balances and rankings, per-item consumption totals, QR labels and token
+controls, inventory adjustments, and MCP coin actions. It also verifies that:
+
+- the Coins page renders the sortable lifetime **Consumption by item** table;
+- the admin Coins tab renders the recent-movement editor and emoji navigation labels;
+- an administrator can correct a movement's item, member, type, quantity, and note;
+- corrected deltas and `source = admin` are persisted; and
+- non-administrators cannot use any coin-management endpoint, including ledger edits.
+
 ## MCP-focused checks
 
 ```bash
