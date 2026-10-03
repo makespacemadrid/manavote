@@ -1,17 +1,17 @@
 {% set nav_links = [
-    {'href': url_for('proposals'), 'label': 'Proposals'|lang},
-    {'href': url_for('polls.polls_page'), 'label': 'Polls'|lang},
-    {'href': url_for('coins.coins_page'), 'label': 'Coins'|lang},
-    {'href': url_for('group_purchases.group_purchases_page'), 'label': 'Group purchases'|lang},
-    {'href': url_for('budget'), 'label': 'Budget'|lang}
+    {'href': url_for('proposals'), 'label': '📋 ' ~ ('Proposals'|lang)},
+    {'href': url_for('polls.polls_page'), 'label': '📊 ' ~ ('Polls'|lang)},
+    {'href': url_for('coins.coins_page'), 'label': '🪙 ' ~ ('Coins'|lang)},
+    {'href': url_for('group_purchases.group_purchases_page'), 'label': '🛒 ' ~ ('Group purchases'|lang)},
+    {'href': url_for('budget'), 'label': '💰 ' ~ ('Budget'|lang)}
 ] %}
 {% if session.is_admin %}
-    {% set nav_links = nav_links + [{'href': url_for('admin.admin'), 'label': 'Admin'|lang}] %}
+    {% set nav_links = nav_links + [{'href': url_for('admin.admin'), 'label': '🛠️ ' ~ ('Admin'|lang)}] %}
 {% endif %}
 {% set nav_links = nav_links + [
-    {'href': url_for('about'), 'label': 'About'|lang},
-    {'href': url_for('settings_page'), 'label': 'Settings'|lang},
-    {'action': 'feedback', 'label': 'Feedback'|lang}
+    {'href': url_for('about'), 'label': 'ℹ️ ' ~ ('About'|lang)},
+    {'href': url_for('settings_page'), 'label': '⚙️ ' ~ ('Settings'|lang)},
+    {'action': 'feedback', 'label': '💬 ' ~ ('Feedback'|lang)}
 ] %}
 {% set nav_props = {
     'username': {

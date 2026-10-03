@@ -584,7 +584,7 @@ class TestNavigation(unittest.TestCase):
         _set_member_session(self.client)
         response = self.client.get("/proposals")
         html = response.data.decode("utf-8")
-        self.assertIn('<a href="/budget">Budget</a>', html)
+        self.assertIn('<a href="/budget">💰 Budget</a>', html)
 
     def test_budget_route_replaces_calendar_route(self):
         """The budget view is served at /budget, not the former /calendar URL."""
@@ -848,7 +848,7 @@ class TestPasswordChange(unittest.TestCase):
         """Settings link appears in top navigation"""
         response = self.client.get("/proposals")
         html = response.data.decode("utf-8")
-        self.assertIn(">Settings<", html)
+        self.assertIn("⚙️ Settings", html)
 
 
 class TestPollTelegramActions(unittest.TestCase):
