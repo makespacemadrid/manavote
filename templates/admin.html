@@ -7,7 +7,7 @@
 <h2>{{ 'Admin'|lang }}</h2>
 
 <div class="admin-toolbar">
-    {% for section, label in [('members', 'Members'), ('budget', 'Budget'), ('polls', 'Polls'), ('group_purchases', 'Group purchases'), ('coins', 'Coins'), ('feedback', 'Feedback'), ('settings', 'Settings')] %}
+    {% for section, label in [('members', 'Members'), ('budget', 'Budget'), ('polls', 'Polls'), ('coins', 'Coins'), ('group_purchases', 'Group purchases'), ('feedback', 'Feedback'), ('settings', 'Settings')] %}
     <a href="{{ url_for('admin.admin', tab=section) }}" class="btn btn-secondary admin-tab-btn{% if active_admin_tab == section %} active{% endif %}" data-section="{{ section }}" onclick="showSection('{{ section }}', this); return false;">{{ label|lang }}</a>
     {% endfor %}
 </div>

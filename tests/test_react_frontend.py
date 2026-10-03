@@ -92,6 +92,15 @@ def test_react_navigation_reports_successful_hydration_for_browser_diagnostics()
     assert "data-react-hydrated" in component
 
 
+def test_coin_ranking_table_has_client_side_sorting():
+    template = (ROOT / "templates" / "coins.html").read_text()
+    script = (ROOT / "frontend" / "src" / "main.jsx").read_text()
+
+    assert "data-sortable-table" in template
+    assert "aria-sort" in script
+    assert "sortableValue" in script
+
+
 def test_navigation_only_exposes_admin_link_to_admin_sessions():
     member_links = _navigation_props(_render_navigation(is_admin=False))["links"]
     admin_links = _navigation_props(_render_navigation(is_admin=True))["links"]

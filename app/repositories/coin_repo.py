@@ -28,7 +28,11 @@ class CoinRepository:
     def list_items(self, member_id=None):
         return self.connection.execute(
             """SELECT i.*, COALESCE(SUM(m.inventory_delta), 0) AS stock,
-                      COALESCE(SUM(CASE WHEN m.member_id = ? THEN m.coin_delta ELSE 0 END), 0) AS member_balance
+                      COALESCE(SUM(CASE WHEN m.member_id = ? THEN m.coin_delta ELSE 0 END), 0) AS member_balance,
+                      COALESCE(SUM(CASE WHEN m.kind = 'consume'
+                                        THEN -m.inventory_delta ELSE 0 END), 0) AS total_consumed,
+                      COALESCE(SUM(CASE WHEN m.kind = 'replenish'
+                                        THEN m.inventory_delta ELSE 0 END), 0) AS total_purchased
                FROM coin_items i LEFT JOIN coin_movements m ON m.item_id = i.id
                WHERE i.active = 1 GROUP BY i.id ORDER BY i.position, i.id""",
             (member_id,),
