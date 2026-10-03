@@ -522,6 +522,15 @@ document.addEventListener('DOMContentLoaded', function() {
         <label for="admin-coin-pack-size">{{ 'Purchase pack size'|lang }}</label><input id="admin-coin-pack-size" name="pack_size" type="number" min="1" max="1000" value="8" required>
         <button class="btn" type="submit">{{ 'Create coin item'|lang }}</button>
     </form>
+    <h4>{{ 'Edit coin items'|lang }}</h4>
+    {% for item in coin_items %}
+    <form method="post" action="{{ url_for('coins.edit_coin_item', item_id=item.id) }}" class="button-row">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <label for="admin-coin-item-name-{{ item.id }}">{{ 'Item name'|lang }}</label><input id="admin-coin-item-name-{{ item.id }}" name="name" maxlength="100" value="{{ item.name }}" required>
+        <label for="admin-coin-pack-size-{{ item.id }}">{{ 'Default purchase amount'|lang }}</label><input id="admin-coin-pack-size-{{ item.id }}" name="pack_size" type="number" min="1" max="1000" value="{{ item.pack_size }}" required>
+        <button class="btn btn-secondary" type="submit">{{ 'Save item'|lang }}</button>
+    </form>
+    {% endfor %}
 </div>
 
 <div id="feedback" class="card">

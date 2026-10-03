@@ -7,7 +7,7 @@ import qrcode
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_file, session, url_for
 
 from app.repositories.coin_repo import CoinRepository
-from app.services.coin_service import CoinNotFoundError, CoinValidationError, adjust_inventory, create_item, record_movement
+from app.services.coin_service import CoinNotFoundError, CoinValidationError, adjust_inventory, create_item, record_movement, update_item
 from app.web.decorators import admin_required, login_required
 from app.web.routes import main_routes as legacy
 
@@ -16,11 +16,11 @@ coin_bp = Blueprint("coins", __name__)
 
 def _ensure_tokens(connection):
     for item in CoinRepository(connection).list_items():
-        for action in ("consume", "replenish"):
-            connection.execute(
-                "INSERT OR IGNORE INTO coin_qr_tokens (token, item_id, action) VALUES (?, ?, ?)",
-                (secrets.token_urlsafe(24), item["id"], action),
-            )
+        connection.execute(
+            "INSERT OR IGNORE INTO coin_qr_tokens (token, item_id, action) VALUES (?, ?, 'consume')",
+            (secrets.token_urlsafe(24), item["id"]),
+        )
+    connection.execute("DELETE FROM coin_qr_tokens WHERE action = 'replenish'")
     connection.commit()
 
 
@@ -28,7 +28,7 @@ def _token_row(connection, token):
     return connection.execute(
         """SELECT qt.*, ci.name AS item_name, ci.pack_size FROM coin_qr_tokens qt
            JOIN coin_items ci ON ci.id = qt.item_id
-           WHERE qt.token = ? AND qt.active = 1 AND ci.active = 1""",
+           WHERE qt.token = ? AND qt.action = 'consume' AND qt.active = 1 AND ci.active = 1""",
         (token,),
     ).fetchone()
 
@@ -119,7 +119,7 @@ def qr_labels():
     tokens = connection.execute(
         """SELECT qt.token, qt.action, ci.name AS item_name FROM coin_qr_tokens qt
            JOIN coin_items ci ON ci.id = qt.item_id
-           WHERE ci.active = 1 ORDER BY ci.position, qt.action"""
+           WHERE ci.active = 1 AND qt.action = 'consume' ORDER BY ci.position"""
     ).fetchall()
     labels = []
     for label in tokens:
@@ -127,7 +127,6 @@ def qr_labels():
         state = connection.execute("SELECT active, item_id FROM coin_qr_tokens WHERE token = ?", (label["token"],)).fetchone()
         item["active"] = state["active"]
         item["item_id"] = state["item_id"]
-        item["scan_url"] = _public_scan_url(connection, label["token"])
         labels.append(item)
     repo = CoinRepository(connection)
     items = repo.list_items()
@@ -140,7 +139,7 @@ def qr_labels():
 @login_required
 @admin_required
 def update_qr_token(item_id, action):
-    if action not in {"consume", "replenish"}:
+    if action != "consume":
         abort(404)
     operation = request.form.get("operation")
     connection = legacy.get_db()
@@ -217,3 +216,28 @@ def create_coin_item():
     if request.form.get("return_to") == "admin":
         return redirect(url_for("admin.admin", tab="coins"))
     return redirect(url_for("coins.qr_labels"))
+
+
+@coin_bp.post("/admin/coins/items/<int:item_id>")
+@login_required
+@admin_required
+def edit_coin_item(item_id):
+    connection = legacy.get_db()
+    try:
+        item = update_item(
+            connection,
+            item_id=item_id,
+            name=request.form.get("name"),
+            pack_size=request.form.get("pack_size"),
+        )
+        current_app.logger.info(
+            "coin_item_updated_by_admin item_id=%s member_id=%s",
+            item["item_id"],
+            session["member_id"],
+        )
+        flash("Coin item updated", "success")
+    except (CoinValidationError, CoinNotFoundError) as exc:
+        flash(str(exc), "error")
+    finally:
+        connection.close()
+    return redirect(url_for("admin.admin", tab="coins"))

@@ -1,0 +1,14 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "_top_nav.html" %}
+<div class="card">
+    <h2>📱 {{ 'Connect Telegram account'|lang }}</h2>
+    <p>{{ 'Connect this Telegram identity to your signed-in ManaVote account?'|lang }}</p>
+    <p><strong>{% if telegram_username %}@{{ telegram_username }}{% else %}Telegram ID {{ telegram_user_id }}{% endif %}</strong></p>
+    <form method="post">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn" type="submit">{{ 'Connect Telegram'|lang }}</button>
+        <a class="btn btn-secondary" href="{{ url_for('auth.telegram_settings') }}">{{ 'Cancel'|lang }}</a>
+    </form>
+</div>
+{% endblock %}

@@ -679,6 +679,9 @@ def admin():
 
     feedback_items = feedback_service.list_feedback(conn, limit=100)
 
+    c.execute("SELECT id, name, pack_size FROM coin_items WHERE active = 1 ORDER BY position, id")
+    coin_items = [dict(row) for row in c.fetchall()]
+
     c.execute("SELECT value FROM settings WHERE key = 'timezone'")
     tz_row = c.fetchone()
     current_timezone = tz_row["value"] if tz_row else "Europe/Madrid"
@@ -709,6 +712,7 @@ def admin():
         polls=polls,
         group_purchases=group_purchases,
         feedback_items=feedback_items,
+        coin_items=coin_items,
         active_admin_tab=active_admin_tab,
     )
 

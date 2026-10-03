@@ -120,25 +120,21 @@ def _telegram_entity_text(text: str, offset, length) -> str:
 def classify_message_addressing(message_ctx, bot_username: str = "") -> str:
     """Classify why (or whether) this message is addressed to the assistant.
 
-    Returns one of ``private``, ``reply_to_bot``, ``mentioned``, or ``unaddressed``.
-    Deliberately does not consider forum-topic routing -- a configured assistant forum
-    topic overrides ``unaddressed`` at the call site (see ``is_configured_forum_topic``),
-    since that's a routing decision distinct from how this single message is addressed.
+    Private messages are inherently addressed. Group and supergroup messages,
+    including forum topics, require an explicit ``@bot`` mention and return either
+    ``mentioned`` or ``unaddressed``.
     """
     if message_ctx.get("chat_type") in {None, "", "private"}:
         return "private"
     text = message_ctx.get("text") or ""
     normalized_username = bot_username.lstrip("@").casefold()
     expected_mention = f"@{normalized_username}" if normalized_username else ""
-    if message_ctx.get("reply_to_bot"):
-        reply_username = str(message_ctx.get("reply_to_bot_username") or "").lstrip("@").casefold()
-        if not normalized_username or reply_username == normalized_username:
-            return "reply_to_bot"
-
     for entity in message_ctx.get("entities") or []:
         if entity.get("type") not in {"mention", "bot_command"}:
             continue
         value = _telegram_entity_text(text, entity.get("offset"), entity.get("length"))
+        if entity.get("type") == "bot_command" and "@" not in value:
+            continue
         # With Telegram privacy mode, an otherwise unidentified mention delivered
         # to the bot is addressed to it. A configured username permits an exact check.
         if not expected_mention or expected_mention in value.casefold():
@@ -185,7 +181,7 @@ def classify_message_command(text: str) -> str:
 POLL_VOTE_REASON_MESSAGES = {
     "telegram_disabled": "❌ Telegram voting is disabled by admin.",
     "unknown_member": "❌ Your Telegram username is not linked to a member account.",
-    "link_required": "❌ Your account must be linked first. Use /link <app_username> <app_password> and try again.",
+    "link_required": "❌ Your account must be linked first. Send /link to this bot in a private chat and try again.",
     "poll_closed": "❌ Poll is closed.",
     "poll_not_found": "❌ Poll not found.",
     "invalid_option": "❌ Invalid option number.",
@@ -223,6 +219,12 @@ def poll_vote_response_text(success, reason):
 def link_response_text(success, reason):
     if success:
         return "✅ Your Telegram account is now linked."
+    if reason.startswith("browser_link:"):
+        link_url = reason.removeprefix("browser_link:")
+        return (
+            "🔗 Open this private link to sign in to ManaVote and connect your "
+            f"Telegram account (valid for 15 minutes):\n{link_url}"
+        )
     mapping = {
         "invalid_format": "❌ Usage: /link <app_username> <app_password>",
         "unknown_member": "❌ No member account has that app username.",
@@ -291,7 +293,7 @@ def dispatch_message(
             "text": (
                 "👋 ManaVote bot is running.\n\n"
                 "Link your account in a private chat with:\n"
-                "/link <app_username> <app_password>\n\n"
+                "/link\n\n"
                 "Once linked, you can ask questions in natural language when the assistant is configured.\n"
                 "Use /reset to clear your assistant conversation."
             ),

@@ -1,5 +1,58 @@
 from datetime import datetime
 
+from itsdangerous import BadSignature, SignatureExpired, URLSafeTimedSerializer
+
+TELEGRAM_LINK_SALT = "telegram-browser-link-v1"
+TELEGRAM_LINK_MAX_AGE_SECONDS = 15 * 60
+
+
+def create_browser_link_token(secret_key, telegram_username, telegram_user_id):
+    """Create a short-lived signed token carrying a Telegram identity."""
+    return URLSafeTimedSerializer(secret_key, salt=TELEGRAM_LINK_SALT).dumps(
+        {
+            "telegram_username": (telegram_username or "").strip(),
+            "telegram_user_id": int(telegram_user_id),
+        }
+    )
+
+
+def read_browser_link_token(secret_key, token, max_age=TELEGRAM_LINK_MAX_AGE_SECONDS):
+    """Validate a browser-link token and return its Telegram identity."""
+    try:
+        payload = URLSafeTimedSerializer(secret_key, salt=TELEGRAM_LINK_SALT).loads(
+            token, max_age=max_age
+        )
+        telegram_user_id = int(payload["telegram_user_id"])
+    except (BadSignature, SignatureExpired, KeyError, TypeError, ValueError):
+        return None
+    return {
+        "telegram_username": str(payload.get("telegram_username") or "").strip(),
+        "telegram_user_id": telegram_user_id,
+    }
+
+
+def link_member_telegram(get_db, member_id, telegram_username, telegram_user_id):
+    """Link a verified Telegram identity to the authenticated ManaVote member."""
+    conn = get_db()
+    try:
+        occupied = conn.execute(
+            "SELECT id FROM members WHERE telegram_user_id = ? AND id != ?",
+            (int(telegram_user_id), int(member_id)),
+        ).fetchone()
+        if occupied:
+            return False, "already_linked"
+        normalized_username = (telegram_username or "").strip() or None
+        cursor = conn.execute(
+            "UPDATE members SET telegram_username = ?, telegram_user_id = ?, last_linked_at = ? WHERE id = ?",
+            (normalized_username, int(telegram_user_id), datetime.now().isoformat(), int(member_id)),
+        )
+        if cursor.rowcount != 1:
+            return False, "unknown_member"
+        conn.commit()
+        return True, "ok"
+    finally:
+        conn.close()
+
 
 def unlink_member_telegram(get_db, member_id: int) -> None:
     conn = get_db()
