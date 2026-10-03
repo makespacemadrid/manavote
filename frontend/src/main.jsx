@@ -19,3 +19,7 @@ for (const root of document.querySelectorAll('[data-react-nav]')) {
     });
   }
 }
+
+for (const button of document.querySelectorAll('[data-print-page]')) {
+  button.addEventListener('click', () => window.print());
+}

@@ -506,6 +506,12 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
+<div class="card">
+    <h3>🪙 {{ 'Coins'|lang }}</h3>
+    <p>{{ 'Print QR labels with item names and ManaVote ledger instructions.'|lang }}</p>
+    <a class="btn" href="{{ url_for('coins.qr_labels') }}">{{ 'Coins QR labels'|lang }}</a>
+</div>
+
 <div id="feedback" class="card">
     <h3>{{ 'Feedback'|lang }}</h3>
     {% if feedback_items %}

@@ -141,3 +141,41 @@ CREATE TABLE IF NOT EXISTS group_purchase_shared_costs (
     amount REAL NOT NULL,
     position INTEGER NOT NULL DEFAULT 0
 );
+CREATE TABLE IF NOT EXISTS coin_items (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL COLLATE NOCASE UNIQUE,
+    position INTEGER NOT NULL DEFAULT 0,
+    pack_size INTEGER,
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+CREATE TABLE IF NOT EXISTS coin_movements (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    item_id INTEGER NOT NULL,
+    member_id INTEGER NOT NULL,
+    inventory_delta INTEGER NOT NULL,
+    coin_delta INTEGER NOT NULL,
+    kind TEXT NOT NULL CHECK (kind IN ('consume', 'replenish', 'adjustment')),
+    source TEXT NOT NULL CHECK (source IN ('web', 'qr', 'mcp', 'admin')),
+    idempotency_key TEXT NOT NULL UNIQUE,
+    note TEXT,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (item_id) REFERENCES coin_items(id),
+    FOREIGN KEY (member_id) REFERENCES members(id),
+    CHECK (inventory_delta <> 0 OR coin_delta <> 0),
+    CHECK (kind = 'adjustment' OR inventory_delta = coin_delta)
+);
+CREATE INDEX IF NOT EXISTS idx_coin_movements_item_created
+    ON coin_movements(item_id, created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_coin_movements_member_created
+    ON coin_movements(member_id, created_at DESC);
+CREATE TABLE IF NOT EXISTS coin_qr_tokens (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    token TEXT NOT NULL UNIQUE,
+    item_id INTEGER NOT NULL,
+    action TEXT NOT NULL CHECK (action IN ('consume', 'replenish')),
+    active INTEGER NOT NULL DEFAULT 1,
+    created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    FOREIGN KEY (item_id) REFERENCES coin_items(id),
+    UNIQUE(item_id, action)
+);

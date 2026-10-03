@@ -8,3 +8,4 @@ pytest==8.3.5
 markdown
 APScheduler
 packaging<25
+qrcode[pil]==8.2

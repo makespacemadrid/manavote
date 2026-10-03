@@ -21,9 +21,13 @@ TELEGRAM_POLICIES = {
     "list_group_purchases": TelegramPolicy.MEMBER_READ,
     "current_budget": TelegramPolicy.MEMBER_READ,
     "get_voting_settings": TelegramPolicy.MEMBER_READ,
+    "list_coin_items": TelegramPolicy.MEMBER_READ,
+    "list_coin_movements": TelegramPolicy.MEMBER_READ,
     "list_member_telegram_links": TelegramPolicy.ADMIN_READ,
     "list_user_statistics": TelegramPolicy.ADMIN_READ,
     "create_feedback": TelegramPolicy.MEMBER_WRITE,
+    "consume_coin_item": TelegramPolicy.MEMBER_WRITE,
+    "replenish_coin_item": TelegramPolicy.MEMBER_WRITE,
     "create_proposal": TelegramPolicy.CONFIRMED_ADMIN_WRITE,
     "create_poll": TelegramPolicy.CONFIRMED_ADMIN_WRITE,
     "update_voting_settings": TelegramPolicy.CONFIRMED_ADMIN_WRITE,
@@ -46,12 +50,12 @@ def telegram_tool_definitions(definitions, *, is_admin, actor_member_id=None):
             continue
         item = deepcopy(original)
         item["telegram_policy"] = policy.value
-        if actor_member_id is not None and item["name"] in {"create_proposal", "create_poll", "create_feedback"}:
-            field = "member_id" if item["name"] == "create_feedback" else "created_by"
+        if actor_member_id is not None and item["name"] in {"create_proposal", "create_poll", "create_feedback", "consume_coin_item", "replenish_coin_item", "list_coin_items", "list_coin_movements"}:
+            field = "member_id" if item["name"] in {"create_feedback", "consume_coin_item", "replenish_coin_item", "list_coin_items", "list_coin_movements"} else "created_by"
             schema = item["inputSchema"]
             schema["properties"].pop(field, None)
             schema["required"] = [name for name in schema.get("required", []) if name != field]
-            if item["name"] == "create_feedback":
+            if item["name"] in {"create_feedback", "consume_coin_item", "replenish_coin_item", "list_coin_items", "list_coin_movements"}:
                 item["description"] += " The member is taken from the linked Telegram account."
             else:
                 item["description"] += " The creator is the linked Telegram member."

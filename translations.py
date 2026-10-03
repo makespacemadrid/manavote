@@ -852,3 +852,57 @@ for _message, _spanish in _FLASH_TRANSLATIONS_ES.items():
     TRANSLATIONS["es"].setdefault(_message, _spanish)
 
 del _message, _spanish
+
+_COIN_TRANSLATIONS_ES = {
+    "Coins": "Monedas",
+    "Consuming one can debits one ManaVote coin. Replenishing one can credits one coin.": "Consumir una lata resta una moneda ManaVote. Reponer una lata suma una moneda.",
+    "Your coin balance": "Tu saldo de monedas",
+    "In stock": "En existencias",
+    "I consumed 1": "He consumido 1",
+    "I bought 12": "He comprado 12",
+    "I bought": "He comprado",
+    "Recent coin movements": "Movimientos recientes de monedas",
+    "Item": "Artículo",
+    "Change": "Cambio",
+    "Source": "Origen",
+    "No coin movements yet": "Todavía no hay movimientos de monedas",
+    "This will debit one ManaVote coin from your ledger.": "Esto restará una moneda ManaVote de tu cuenta.",
+    "Each can you add credits one ManaVote coin to your ledger.": "Cada lata que añadas suma una moneda ManaVote a tu cuenta.",
+    "Quantity": "Cantidad",
+    "Confirm consume 1": "Confirmar consumo de 1",
+    "Coins QR labels": "Etiquetas QR de monedas",
+    "Print labels": "Imprimir etiquetas",
+    "Taking one can debits 1 ManaVote coin from your ledger.": "Coger una lata resta 1 moneda ManaVote de tu cuenta.",
+    "Adding a can credits 1 ManaVote coin to your ledger.": "Añadir una lata suma 1 moneda ManaVote a tu cuenta.",
+    "Scan, sign in, and confirm.": "Escanea, inicia sesión y confirma.",
+    "Print QR labels with item names and ManaVote ledger instructions.": "Imprime etiquetas QR con nombres e instrucciones de la cuenta ManaVote.",
+    "Other quantity": "Otra cantidad",
+    "Consume quantity": "Consumir cantidad",
+    "Replenish quantity": "Reponer cantidad",
+    "Print active labels": "Imprimir etiquetas activas",
+    "Inventory adjustment": "Ajuste de inventario",
+    "Correct physical stock without changing a member coin balance.": "Corrige el inventario físico sin cambiar el saldo de monedas de un miembro.",
+    "Stock change": "Cambio de existencias",
+    "Reason": "Motivo",
+    "Adjust inventory": "Ajustar inventario",
+    "QR token controls": "Controles de tokens QR",
+    "Controls": "Controles",
+    "Active": "Activo",
+    "Disabled": "Desactivado",
+    "Disable": "Desactivar",
+    "Enable": "Activar",
+    "Rotate": "Rotar",
+    "QR token rotated. Previously printed labels no longer work.": "Token QR rotado. Las etiquetas impresas anteriormente ya no funcionan.",
+    "QR token updated": "Token QR actualizado",
+    "Coin inventory adjusted": "Inventario de monedas ajustado",
+    "All coin movements": "Todos los movimientos de monedas",
+    "Create coin item": "Crear artículo de monedas",
+    "Add a consumable category and the pack size used by its quick purchase button.": "Añade una categoría consumible y el tamaño de paquete usado por su botón de compra rápida.",
+    "Item name": "Nombre del artículo",
+    "Purchase pack size": "Tamaño del paquete de compra",
+    "Coin item created": "Artículo de monedas creado",
+}
+for _message, _spanish in _COIN_TRANSLATIONS_ES.items():
+    TRANSLATIONS["en"].setdefault(_message, _message)
+    TRANSLATIONS["es"].setdefault(_message, _spanish)
+del _message, _spanish

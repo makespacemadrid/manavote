@@ -1,0 +1,32 @@
+{% extends "base.html" %}
+{% block content %}
+{% include "_top_nav.html" %}
+<header class="coins-header">
+    <div><h1>🪙 {{ 'Coins'|lang }}</h1><p>{{ 'Consuming one can debits one ManaVote coin. Replenishing one can credits one coin.'|lang }}</p></div>
+    <div class="coin-balance {{ 'amount-negative' if balance < 0 else 'amount-positive' }}">{{ 'Your coin balance'|lang }}: {{ balance }}</div>
+</header>
+<div class="coin-grid">
+{% for item in items %}
+<article class="card coin-card" id="coin-item-{{ item.id }}">
+    <h2>{{ item.name }}</h2>
+    <p class="coin-stock">{{ 'In stock'|lang }}: <strong>{{ item.stock }}</strong></p>
+    <form method="post" action="{{ url_for('coins.move') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="item_id" value="{{ item.id }}"><input type="hidden" name="action" value="consume"><input type="hidden" name="quantity" value="1"><input type="hidden" name="idempotency_key" value="{{ range(1000000000, 9999999999)|random }}">
+        <button class="btn btn-danger" type="submit">{{ 'I consumed 1'|lang }}</button>
+    </form>
+    <form method="post" action="{{ url_for('coins.move') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="item_id" value="{{ item.id }}"><input type="hidden" name="action" value="replenish"><input type="hidden" name="quantity" value="{{ item.pack_size or 12 }}"><input type="hidden" name="idempotency_key" value="{{ range(1000000000, 9999999999)|random }}">
+        <button class="btn btn-success" type="submit">{{ 'I bought'|lang }} {{ item.pack_size }}</button>
+    </form>
+    <details class="coin-custom"><summary>{{ 'Other quantity'|lang }}</summary>
+        <form method="post" action="{{ url_for('coins.move') }}">
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="item_id" value="{{ item.id }}"><input type="hidden" name="idempotency_key" value="{{ range(1000000000, 9999999999)|random }}">
+            <label for="coin-quantity-{{ item.id }}">{{ 'Quantity'|lang }}</label><input id="coin-quantity-{{ item.id }}" type="number" name="quantity" min="1" max="1000" value="1" required>
+            <div class="button-row"><button class="btn btn-danger" name="action" value="consume">{{ 'Consume quantity'|lang }}</button><button class="btn btn-success" name="action" value="replenish">{{ 'Replenish quantity'|lang }}</button></div>
+        </form>
+    </details>
+</article>
+{% endfor %}
+</div>
+<section class="card"><h2>{{ 'Recent coin movements'|lang }}</h2><div class="table-scroll"><table><thead><tr><th>{{ 'Date'|lang }}</th><th>{{ 'Member'|lang }}</th><th>{{ 'Item'|lang }}</th><th>{{ 'Change'|lang }}</th><th>{{ 'Source'|lang }}</th></tr></thead><tbody>{% for movement in movements %}<tr><td>{{ movement.created_at|localtime }}</td><td>{{ movement.username|username }}</td><td>{{ movement.item_name }}</td><td class="{{ 'amount-positive' if movement.coin_delta > 0 else 'amount-negative' }}">{{ '%+d'|format(movement.coin_delta) }}</td><td>{{ movement.source }}</td></tr>{% else %}<tr><td colspan="5">{{ 'No coin movements yet'|lang }}</td></tr>{% endfor %}</tbody></table></div></section>
+{% endblock %}
