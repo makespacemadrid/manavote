@@ -7,7 +7,7 @@
 <h2>{{ 'Admin'|lang }}</h2>
 
 <div class="admin-toolbar">
-    {% for section, label in [('members', 'Members'), ('budget', 'Budget'), ('polls', 'Polls'), ('group_purchases', 'Group purchases'), ('feedback', 'Feedback'), ('settings', 'Settings')] %}
+    {% for section, label in [('members', 'Members'), ('budget', 'Budget'), ('polls', 'Polls'), ('group_purchases', 'Group purchases'), ('coins', 'Coins'), ('feedback', 'Feedback'), ('settings', 'Settings')] %}
     <a href="{{ url_for('admin.admin', tab=section) }}" class="btn btn-secondary admin-tab-btn{% if active_admin_tab == section %} active{% endif %}" data-section="{{ section }}" onclick="showSection('{{ section }}', this); return false;">{{ label|lang }}</a>
     {% endfor %}
 </div>
@@ -91,6 +91,7 @@ function showSection(sectionId, buttonEl) {
         budget: ['thresholds', 'budget', 'budget-history', 'proposal-history'],
         polls: ['polls'],
         group_purchases: ['group-purchases'],
+        coins: ['coins'],
         feedback: ['feedback'],
         settings: ['settings', 'timezone', 'backup', 'telegram']
     };
@@ -506,10 +507,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 
-<div class="card">
+<div id="coins" class="card">
     <h3>🪙 {{ 'Coins'|lang }}</h3>
     <p>{{ 'Print QR labels with item names and ManaVote ledger instructions.'|lang }}</p>
-    <a class="btn" href="{{ url_for('coins.qr_labels') }}">{{ 'Coins QR labels'|lang }}</a>
+    <div class="button-row">
+        <a class="btn" href="{{ url_for('coins.qr_labels') }}">{{ 'View and print QR labels'|lang }}</a>
+    </div>
+    <h4>{{ 'Create coin item'|lang }}</h4>
+    <p>{{ 'Add a consumable category and the pack size used by its quick purchase button.'|lang }}</p>
+    <form method="post" action="{{ url_for('coins.create_coin_item') }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="return_to" value="admin">
+        <label for="admin-coin-item-name">{{ 'Item name'|lang }}</label><input id="admin-coin-item-name" name="name" maxlength="100" placeholder="Icecream Minis mix" required>
+        <label for="admin-coin-pack-size">{{ 'Purchase pack size'|lang }}</label><input id="admin-coin-pack-size" name="pack_size" type="number" min="1" max="1000" value="8" required>
+        <button class="btn" type="submit">{{ 'Create coin item'|lang }}</button>
+    </form>
 </div>
 
 <div id="feedback" class="card">

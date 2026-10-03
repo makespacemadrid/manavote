@@ -41,6 +41,21 @@ class CoinRepository:
         ).fetchone()
         return int(row["balance"])
 
+    def member_rankings(self):
+        """Return every member's coin balance and lifetime purchase/consumption totals."""
+        return self.connection.execute(
+            """SELECT m.id, m.username,
+                      COALESCE(SUM(cm.coin_delta), 0) AS balance,
+                      COALESCE(SUM(CASE WHEN cm.kind = 'consume'
+                                        THEN -cm.coin_delta ELSE 0 END), 0) AS total_consumed,
+                      COALESCE(SUM(CASE WHEN cm.kind = 'replenish'
+                                        THEN cm.coin_delta ELSE 0 END), 0) AS total_bought
+               FROM members m
+               LEFT JOIN coin_movements cm ON cm.member_id = m.id
+               GROUP BY m.id
+               ORDER BY balance DESC, m.username COLLATE NOCASE, m.id"""
+        ).fetchall()
+
     def recent_movements(self, limit=30, offset=0, *, member_id=None, item_id=None):
         conditions = []
         params = []
