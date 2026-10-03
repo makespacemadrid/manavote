@@ -64,7 +64,7 @@ class CoinRepository:
                FROM members m
                LEFT JOIN coin_movements cm ON cm.member_id = m.id
                GROUP BY m.id
-               ORDER BY balance DESC, m.username COLLATE NOCASE, m.id"""
+               ORDER BY ABS(balance) DESC, m.username COLLATE NOCASE, m.id"""
         ).fetchall()
 
     def recent_movements(self, limit=30, offset=0, *, member_id=None, item_id=None):
