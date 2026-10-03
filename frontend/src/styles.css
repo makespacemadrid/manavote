@@ -111,6 +111,7 @@
     font-weight: 700;
 }
 .coins-header { display:flex; justify-content:space-between; align-items:center; gap:20px; margin-bottom:20px; }
+.coin-account-actions { display:flex; flex-direction:column; align-items:flex-end; gap:10px; }
 .coin-balance { font-size:1.25rem; font-weight:700; white-space:nowrap; }
 .coin-grid { display:grid; grid-template-columns:repeat(auto-fit,minmax(210px,1fr)); gap:16px; }
 .coin-card form { display:inline-block; margin:8px 5px 0 0; }
@@ -118,6 +119,7 @@
 .coin-stock { font-size:1.1rem; margin-bottom:10px; }
 .coin-custom { margin-top:12px; }
 .coin-custom summary { color:#ffff00; cursor:pointer; margin-bottom:10px; }
+.coin-ranking .current-member { background:rgba(255,255,0,.1); font-weight:700; }
 .table-scroll { overflow-x:auto; }
 .coin-scan { max-width:520px; margin:40px auto; }
 .qr-label-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
@@ -128,4 +130,4 @@
 .qr-label small { overflow-wrap:anywhere; }
 .qr-ledger-copy { font-size:1.05rem; font-weight:700; margin:10px 0; }
 @media print { body { background:#fff; } .container { max-width:none; padding:0; } .no-print { display:none !important; } .qr-label-grid { grid-template-columns:repeat(2,1fr); gap:8mm; } .qr-label { min-height:125mm; display:flex; flex-direction:column; align-items:center; justify-content:center; } }
-@media (max-width:600px) { .coins-header { display:block; } .coin-balance { margin-top:10px; } .qr-label-grid { grid-template-columns:1fr; } }
+@media (max-width:600px) { .coins-header { display:block; } .coin-account-actions { align-items:flex-start; margin-top:10px; } .qr-label-grid { grid-template-columns:1fr; } }

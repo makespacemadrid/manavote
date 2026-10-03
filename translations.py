@@ -901,6 +901,15 @@ _COIN_TRANSLATIONS_ES = {
     "Item name": "Nombre del artículo",
     "Purchase pack size": "Tamaño del paquete de compra",
     "Coin item created": "Artículo de monedas creado",
+    "Coin ranking": "Clasificación de monedas",
+    "Balances above zero are credits; balances below zero are debts.": "Los saldos por encima de cero son créditos; los saldos por debajo de cero son deudas.",
+    "Rank": "Posición",
+    "Balance": "Saldo",
+    "Total consumed": "Total consumido",
+    "Total bought": "Total comprado",
+    "No members yet": "Todavía no hay miembros",
+    "Manage coin items": "Gestionar artículos de monedas",
+    "View and print QR labels": "Ver e imprimir etiquetas QR",
 }
 for _message, _spanish in _COIN_TRANSLATIONS_ES.items():
     TRANSLATIONS["en"].setdefault(_message, _message)

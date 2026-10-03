@@ -47,9 +47,12 @@ def coins_page():
     repo = CoinRepository(connection)
     items = repo.list_items(session["member_id"])
     balance = repo.member_balance(session["member_id"])
+    rankings = repo.member_rankings()
     movements = repo.recent_movements(member_id=session["member_id"])
     connection.close()
-    return render_template("coins.html", items=items, balance=balance, movements=movements)
+    return render_template(
+        "coins.html", items=items, balance=balance, rankings=rankings, movements=movements
+    )
 
 
 @coin_bp.post("/coins/move")
@@ -211,4 +214,6 @@ def create_coin_item():
         flash(str(exc), "error")
     finally:
         connection.close()
+    if request.form.get("return_to") == "admin":
+        return redirect(url_for("admin.admin", tab="coins"))
     return redirect(url_for("coins.qr_labels"))

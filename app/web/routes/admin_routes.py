@@ -21,7 +21,9 @@ admin_bp = Blueprint("admin", __name__)
 
 def _admin_redirect_with_tab():
     tab = request.values.get("tab", "members")
-    allowed_tabs = {"members", "budget", "polls", "group_purchases", "feedback", "settings"}
+    allowed_tabs = {
+        "members", "budget", "polls", "group_purchases", "coins", "feedback", "settings"
+    }
     safe_tab = tab if tab in allowed_tabs else "members"
     return redirect(url_for("admin.admin", tab=safe_tab))
 
@@ -682,7 +684,9 @@ def admin():
     current_timezone = tz_row["value"] if tz_row else "Europe/Madrid"
 
     requested_tab = request.values.get("tab", "all")
-    allowed_tabs = {"all", "members", "budget", "polls", "group_purchases", "feedback", "settings"}
+    allowed_tabs = {
+        "all", "members", "budget", "polls", "group_purchases", "coins", "feedback", "settings"
+    }
     active_admin_tab = requested_tab if requested_tab in allowed_tabs else "all"
 
     conn.close()
