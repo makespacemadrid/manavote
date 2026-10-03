@@ -16,11 +16,11 @@
         <strong>{{ 'How to link your Telegram account'|lang }}</strong>
         <ol style="margin: 8px 0 0 20px; color: #c4c4c4;">
             <li>{{ 'Open the project Telegram bot.'|lang }}</li>
-            <li>{{ 'Send this command (replace with your app credentials):'|lang }} <code>/link &lt;app_username&gt; &lt;app_password&gt;</code></li>
-            <li>{{ 'Wait for the bot confirmation message.'|lang }}</li>
+            <li>{{ 'Send this command in a private chat:'|lang }} <code>/link</code></li>
+            <li>{{ 'Open the secure link from the bot and log in to ManaVote if asked.'|lang }}</li>
+            <li>{{ 'Confirm that you want to connect your Telegram account.'|lang }}</li>
             <li>{{ 'Refresh this page to verify your Telegram username and ID are shown below.'|lang }}</li>
         </ol>
-        <small style="color:#9aa3b2; display:block; margin-top:8px;">{{ 'Tip: if your app password has changed, run /link again with the new password.'|lang }}</small>
     </div>
 
     <label>{{ 'Telegram Username (auto-linked from Telegram)'|lang }}</label>
@@ -29,7 +29,7 @@
     <label>{{ 'Telegram User ID (auto-linked from Telegram)'|lang }}</label>
     <input type="text" value="{{ telegram_user_id or '' }}" placeholder="{{ 'Use /link in Telegram to set this'|lang }}" readonly disabled>
 
-    <small style="color:#888; display:block; margin-top:8px;">{{ 'Telegram command hint'|lang }} <code>/link &lt;app_username&gt; &lt;app_password&gt;</code> {{ 'Telegram command hint suffix'|lang }}</small>
+    <small style="color:#888; display:block; margin-top:8px;">{{ 'Telegram command hint'|lang }} <code>/link</code> {{ 'Telegram command hint suffix'|lang }}</small>
     {% if missing_public_username %}
     <div style="margin-top:10px; padding:10px; border:1px solid #f59e0b; border-radius:8px; background:#f59e0b22; color:#fef3c7;">
         <strong>{{ 'Telegram username missing title'|lang }}</strong>

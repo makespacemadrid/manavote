@@ -1,7 +1,13 @@
 import sqlite3
 import tempfile
 
-from app.services.telegram_link_service import process_link_command, unlink_member_telegram
+from app.services.telegram_link_service import (
+    create_browser_link_token,
+    link_member_telegram,
+    process_link_command,
+    read_browser_link_token,
+    unlink_member_telegram,
+)
 
 
 def _init_db(db_path):
@@ -35,6 +41,37 @@ def test_unlink_member_telegram_clears_fields():
         assert row["telegram_username"] is None
         assert row["telegram_user_id"] is None
         assert row["last_unlinked_at"] is not None
+
+
+def test_browser_link_token_round_trip_and_rejects_tampering():
+    token = create_browser_link_token("secret", "alice_tg", 9001)
+
+    assert read_browser_link_token("secret", token) == {
+        "telegram_username": "alice_tg",
+        "telegram_user_id": 9001,
+    }
+    assert read_browser_link_token("different-secret", token) is None
+    assert read_browser_link_token("secret", token + "tampered") is None
+
+
+def test_link_member_telegram_uses_authenticated_member(tmp_path):
+    db_path = tmp_path / "link.db"
+    _init_db(db_path)
+
+    def get_db():
+        conn = sqlite3.connect(db_path)
+        conn.row_factory = sqlite3.Row
+        return conn
+
+    assert link_member_telegram(get_db, 1, "browser_user", 456) == (True, "ok")
+    conn = get_db()
+    row = conn.execute(
+        "SELECT telegram_username, telegram_user_id, last_linked_at FROM members WHERE id = 1"
+    ).fetchone()
+    conn.close()
+    assert row["telegram_username"] == "browser_user"
+    assert row["telegram_user_id"] == 456
+    assert row["last_linked_at"] is not None
 
 
 def test_process_link_command_rejects_invalid_format():

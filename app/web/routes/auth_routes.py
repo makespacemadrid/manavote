@@ -13,13 +13,60 @@ from werkzeug.security import generate_password_hash
 from app.extensions import limiter, oauth
 from app.services.auth_service import verify_and_migrate_password
 from app.services import feedback_service
-from app.services.telegram_link_service import unlink_member_telegram
+from app.services.telegram_link_service import (
+    link_member_telegram,
+    read_browser_link_token,
+    unlink_member_telegram,
+)
 from app.web.routes.helpers.admin_audit_helpers import log_telegram_link_event
 from app.web.decorators import login_required
 from app.web.routes import main_routes as legacy
 
 auth_bp = Blueprint("auth", __name__)
 logger = logging.getLogger(__name__)
+
+
+@auth_bp.route("/telegram/link/<token>", methods=["GET", "POST"], endpoint="telegram_link")
+def telegram_link(token):
+    identity = read_browser_link_token(current_app.secret_key, token)
+    if identity is None:
+        flash("This Telegram link is invalid or has expired. Send /link to the bot again.", "error")
+        destination = "auth.telegram_settings" if "member_id" in session else "auth.login"
+        return redirect(url_for(destination))
+    if "member_id" not in session:
+        session["login_next"] = request.path
+        flash("Log in to ManaVote to connect your Telegram account.", "info")
+        return redirect(url_for("auth.login"))
+    if request.method == "POST":
+        success, reason = link_member_telegram(
+            legacy.get_db,
+            session["member_id"],
+            identity["telegram_username"],
+            identity["telegram_user_id"],
+        )
+        if success:
+            log_telegram_link_event(
+                logger,
+                event="telegram_link_updated",
+                actor_id=session["member_id"],
+                target_member_id=session["member_id"],
+                source="browser_link",
+                reason_code="ok",
+                status="success",
+            )
+            flash("Telegram account linked.", "success")
+        elif reason == "already_linked":
+            flash("This Telegram account is already linked to another member.", "error")
+        else:
+            flash("Could not link this Telegram account.", "error")
+        return redirect(url_for("auth.telegram_settings"))
+    return render_template(
+        "telegram_link_confirm.html",
+        token=token,
+        telegram_username=identity["telegram_username"],
+        telegram_user_id=identity["telegram_user_id"],
+        session_lang=session.get("lang", "en"),
+    )
 
 
 @auth_bp.route("/", endpoint="index")
@@ -288,7 +335,7 @@ def telegram_settings():
             )
             flash("Telegram account unlinked.", "success")
         else:
-            flash("Telegram account fields are read-only here. Use /link <app_username> <app_password> in Telegram.", "info")
+            flash("Telegram account fields are read-only here. Send /link to the bot in a private chat.", "info")
         conn.close()
         return redirect(url_for("auth.telegram_settings"))
 

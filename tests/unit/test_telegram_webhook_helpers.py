@@ -113,7 +113,7 @@ def test_natural_language_group_message_requires_bot_to_be_addressed():
     assert is_natural_language_message(
         {**ordinary, "reply_to_bot": True, "reply_to_bot_username": "ManaVoteBot"},
         "ManaVoteBot",
-    ) is True
+    ) is False
 
 
 def test_natural_language_group_address_uses_utf16_offsets_and_ignores_other_bots():
@@ -135,6 +135,22 @@ def test_natural_language_group_address_uses_utf16_offsets_and_ignores_other_bot
 
     assert is_natural_language_message(mentioned, "ManaVoteBot") is True
     assert is_natural_language_message(other_bot_reply, "ManaVoteBot") is False
+
+
+def test_group_command_requires_at_bot_suffix():
+    command = {
+        "text": "/help",
+        "chat_type": "supergroup",
+        "entities": [{"type": "bot_command", "offset": 0, "length": 5}],
+    }
+    addressed_command = {
+        **command,
+        "text": "/help@ManaVoteBot",
+        "entities": [{"type": "bot_command", "offset": 0, "length": 17}],
+    }
+
+    assert classify_message_addressing(command, "ManaVoteBot") == "unaddressed"
+    assert classify_message_addressing(addressed_command, "ManaVoteBot") == "mentioned"
 
 
 def test_classify_message_addressing_reason_codes():
@@ -160,7 +176,7 @@ def test_classify_message_addressing_reason_codes():
     assert classify_message_addressing({}, "ManaVoteBot") == "private"
     assert classify_message_addressing(ordinary_group, "ManaVoteBot") == "unaddressed"
     assert classify_message_addressing(mentioned_group, "ManaVoteBot") == "mentioned"
-    assert classify_message_addressing(reply_to_bot_group, "ManaVoteBot") == "reply_to_bot"
+    assert classify_message_addressing(reply_to_bot_group, "ManaVoteBot") == "unaddressed"
 
 
 def test_extract_message_context_detects_group_reply_and_topic():
@@ -266,7 +282,8 @@ def test_dispatch_message_answers_start_as_bot_health_check():
 
     assert result["kind"] == "send_message"
     assert "ManaVote bot is running" in result["text"]
-    assert "/link <app_username> <app_password>" in result["text"]
+    assert "/link" in result["text"]
+    assert "app_password" not in result["text"]
 
 
 def test_dispatch_message_resets_natural_language_conversation():
@@ -369,6 +386,19 @@ def test_dispatch_message_routes_link_and_noop():
         process_poll_vote_command=lambda *_: (True, "ok"),
     )
     assert noop_result == {"kind": "noop"}
+
+
+def test_dispatch_message_returns_browser_link_for_passwordless_link_command():
+    result = dispatch_message(
+        {"text": "/link", "telegram_username": "alice", "telegram_user_id": 5, "chat_id": 1},
+        process_link_command=lambda *_: (False, "browser_link:https://vote.example/telegram/link/signed"),
+        process_proposal_vote_command=lambda *_: (False, "unused"),
+        process_poll_vote_command=lambda *_: (False, "unused"),
+    )
+
+    assert result["kind"] == "send_message"
+    assert "valid for 15 minutes" in result["text"]
+    assert "https://vote.example/telegram/link/signed" in result["text"]
 
 
 def test_dispatch_message_does_not_call_poll_handler_for_non_command_text():

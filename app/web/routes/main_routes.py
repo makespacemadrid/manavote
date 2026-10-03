@@ -38,7 +38,7 @@ from app.services import (
     telegram_messaging_service,
     voting_mode_service,
 )
-from app.services.telegram_link_service import process_link_command
+from app.services.telegram_link_service import create_browser_link_token, process_link_command
 from app.web.app_setup import app, BASE_DIR, is_production
 from app.web.decorators import login_required, admin_required
 from app.web.routes.helpers.main_helpers import (
@@ -414,6 +414,9 @@ def process_telegram_link_command(telegram_username, telegram_user_id, command_t
         telegram_user_id=telegram_user_id,
         command_text=command_text,
     )
+    if reason == "invalid_format" and len((command_text or "").strip().split()) == 1:
+        token = create_browser_link_token(app.secret_key, telegram_username, telegram_user_id)
+        return False, f"browser_link:{get_base_url().rstrip('/')}/telegram/link/{token}"
     if success and linked_member_id is not None:
         log_telegram_link_event(
             app.logger,

@@ -104,8 +104,12 @@ def test_admin_printable_qr_labels_and_png(coin_client):
     client, _ = coin_client
     response = client.get("/admin/coins/qr-labels")
     assert response.status_code == 200
-    assert response.data.count(b'class="qr-label"') == 6
+    assert response.data.count(b'class="qr-label"') == 3
     assert b"debits 1 ManaVote coin" in response.data
+    assert response.data.count(b"Pay later") == 3
+    assert b">Consume</h2>" not in response.data
+    assert b">Replenish</h2>" not in response.data
+    assert b"/coins/scan/" not in response.data
     assert b"Coke Zero" in response.data
     token_path = response.data.split(b'/coins/qr/', 1)[1].split(b'.png', 1)[0].decode()
     png = client.get(f"/coins/qr/{token_path}.png")
@@ -120,7 +124,7 @@ def test_qr_uses_configured_public_base_url(coin_client):
         connection.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('url', 'https://vote.example')")
         connection.commit()
     response = client.get("/admin/coins/qr-labels")
-    assert b"https://vote.example/coins/scan/" in response.data
+    assert b"https://vote.example/coins/scan/" not in response.data
     token = response.data.split(b'/coins/qr/', 1)[1].split(b'.png', 1)[0].decode()
     # Inspect the URL helper directly; PNG generation itself is covered above.
     from app.web.routes.coin_routes import _public_scan_url
@@ -138,6 +142,7 @@ def test_non_admin_cannot_print_or_manage_qr_labels(coin_client):
     assert client.get("/admin/coins/qr-labels").status_code == 302
     assert client.post("/admin/coins/adjust", data={"item_id": 1, "inventory_delta": 1}).status_code == 302
     assert client.post("/admin/coins/items", data={"name": "Icecream", "pack_size": 8}).status_code == 302
+    assert client.post("/admin/coins/items/1", data={"name": "Cola", "pack_size": 6}).status_code == 302
 
 
 def test_admin_can_adjust_stock_without_changing_balance(coin_client):
@@ -157,7 +162,7 @@ def test_admin_can_create_item_with_custom_pack_size(coin_client):
     )
     assert response.status_code == 200
     assert b"Coin item created" in response.data
-    assert response.data.count(b'class="qr-label"') == 8
+    assert response.data.count(b'class="qr-label"') == 4
     page = client.get("/coins")
     assert b"Icecream Minis mix" in page.data
     assert b"I bought 8" in page.data
@@ -169,7 +174,7 @@ def test_admin_can_create_item_with_custom_pack_size(coin_client):
             "SELECT COUNT(*) FROM coin_qr_tokens qt JOIN coin_items ci ON ci.id = qt.item_id WHERE ci.name = 'Icecream Minis mix'"
         ).fetchone()[0]
     assert row == (8, 3)
-    assert token_count == 2
+    assert token_count == 1
 
 
 def test_admin_coins_section_has_item_creation_and_printable_qrs(coin_client):
@@ -184,6 +189,9 @@ def test_admin_coins_section_has_item_creation_and_printable_qrs(coin_client):
     assert b'action="/admin/coins/items"' in page.data
     assert page.data.index(b'data-section="coins"') < page.data.index(b'data-section="group_purchases"')
     assert b'name="pack_size"' in page.data
+    assert b"Edit coin items" in page.data
+    assert b"Default purchase amount" in page.data
+    assert b'action="/admin/coins/items/1"' in page.data
 
     response = client.post(
         "/admin/coins/items",
@@ -211,6 +219,48 @@ def test_admin_item_creation_rejects_duplicates_and_bad_pack_sizes(coin_client):
         assert connection.execute("SELECT COUNT(*) FROM coin_items").fetchone()[0] == 3
 
 
+def test_admin_can_edit_item_name_and_default_purchase_amount(coin_client):
+    client, db_path = coin_client
+
+    response = client.post(
+        "/admin/coins/items/1",
+        data={"name": "Club Cola", "pack_size": 6},
+        follow_redirects=True,
+    )
+
+    assert response.status_code == 200
+    assert b"Coin item updated" in response.data
+    with sqlite3.connect(db_path) as connection:
+        assert connection.execute(
+            "SELECT name, pack_size FROM coin_items WHERE id = 1"
+        ).fetchone() == ("Club Cola", 6)
+    page = client.get("/coins")
+    assert b"Club Cola" in page.data
+    assert b"I bought 6" in page.data
+
+
+def test_admin_item_edit_rejects_duplicate_name_and_invalid_amount(coin_client):
+    client, db_path = coin_client
+
+    duplicate = client.post(
+        "/admin/coins/items/1",
+        data={"name": "Coke Zero", "pack_size": 6},
+        follow_redirects=True,
+    )
+    invalid = client.post(
+        "/admin/coins/items/1",
+        data={"name": "Club Cola", "pack_size": 0},
+        follow_redirects=True,
+    )
+
+    assert b"An item with that name already exists" in duplicate.data
+    assert b"Pack size must be between 1 and 1000" in invalid.data
+    with sqlite3.connect(db_path) as connection:
+        assert connection.execute(
+            "SELECT name, pack_size FROM coin_items WHERE id = 1"
+        ).fetchone() == ("Coke", 12)
+
+
 def test_admin_can_disable_and_rotate_qr_token(coin_client):
     client, db_path = coin_client
     client.get("/admin/coins/qr-labels")
@@ -223,6 +273,25 @@ def test_admin_can_disable_and_rotate_qr_token(coin_client):
         new_token, active = connection.execute("SELECT token, active FROM coin_qr_tokens WHERE item_id = ? AND action = ?", (item_id, action)).fetchone()
     assert new_token != old_token
     assert active == 1
+
+
+def test_replenish_qr_tokens_are_removed_and_rejected(coin_client):
+    client, db_path = coin_client
+    with sqlite3.connect(db_path) as connection:
+        connection.execute(
+            "INSERT INTO coin_qr_tokens (token, item_id, action) VALUES ('old-replenish', 1, 'replenish')"
+        )
+        connection.commit()
+
+    response = client.get("/admin/coins/qr-labels")
+
+    assert b"old-replenish" not in response.data
+    with sqlite3.connect(db_path) as connection:
+        assert connection.execute(
+            "SELECT COUNT(*) FROM coin_qr_tokens WHERE action = 'replenish'"
+        ).fetchone()[0] == 0
+    assert client.get("/coins/scan/old-replenish").status_code == 404
+    assert client.post("/admin/coins/qr-tokens/1/replenish", data={"operation": "rotate"}).status_code == 404
 
 
 def test_scan_requires_login_then_returns_after_login(coin_client):

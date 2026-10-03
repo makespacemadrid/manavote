@@ -25,6 +25,13 @@ class CoinRepository:
         )
         return cursor.lastrowid
 
+    def update_item(self, item_id, name, pack_size):
+        cursor = self.connection.execute(
+            "UPDATE coin_items SET name = ?, pack_size = ? WHERE id = ? AND active = 1",
+            (name, pack_size, item_id),
+        )
+        return cursor.rowcount
+
     def list_items(self, member_id=None):
         return self.connection.execute(
             """SELECT i.*, COALESCE(SUM(m.inventory_delta), 0) AS stock,

@@ -47,6 +47,41 @@ def create_item(connection, *, name, pack_size):
     return {"item_id": int(item_id), "name": name, "pack_size": pack_size}
 
 
+def update_item(connection, *, item_id, name, pack_size):
+    """Update an active item's display name and default purchase amount."""
+    try:
+        item_id = int(item_id)
+    except (TypeError, ValueError) as exc:
+        raise CoinValidationError("Coin item is required") from exc
+    name = str(name or "").strip()
+    if not name or len(name) > 100:
+        raise CoinValidationError("Item name must be between 1 and 100 characters")
+    if isinstance(pack_size, bool):
+        raise CoinValidationError("Pack size must be a positive integer")
+    try:
+        pack_size = int(pack_size)
+    except (TypeError, ValueError) as exc:
+        raise CoinValidationError("Pack size must be a positive integer") from exc
+    if pack_size < 1 or pack_size > MAX_QUANTITY:
+        raise CoinValidationError(f"Pack size must be between 1 and {MAX_QUANTITY}")
+    duplicate = connection.execute(
+        "SELECT 1 FROM coin_items WHERE name = ? COLLATE NOCASE AND id <> ?",
+        (name, item_id),
+    ).fetchone()
+    if duplicate:
+        raise CoinValidationError("An item with that name already exists")
+    try:
+        updated = CoinRepository(connection).update_item(item_id, name, pack_size)
+        if not updated:
+            raise CoinNotFoundError("Coin item not found")
+        connection.commit()
+    except sqlite3.IntegrityError as exc:
+        connection.rollback()
+        raise CoinValidationError("An item with that name already exists") from exc
+    logger.info("coin_item_updated item_id=%s name=%s pack_size=%s", item_id, name, pack_size)
+    return {"item_id": item_id, "name": name, "pack_size": pack_size}
+
+
 def record_movement(connection, *, item, member_id, action, quantity=1, source="web", idempotency_key=None):
     if action not in VALID_ACTIONS:
         raise CoinValidationError("Unknown coin action")

@@ -16,7 +16,6 @@ from app.integrations.telegram_webhook import (
     dispatch_message,
     extract_callback_context,
     extract_message_context,
-    is_configured_forum_topic,
 )
 from app.services.telegram_access_service import get_telegram_principal
 from app.web.routes import main_routes as legacy
@@ -109,9 +108,20 @@ def telegram_webhook(secret):
     if not message_ctx["text"]:
         return {"ok": True}, 200
 
-    # /link contains an application password. Remove the command message as soon
-    # as possible (when Telegram permissions allow it), regardless of whether
-    # credentials are valid. Linking itself is restricted to private chats below.
+    addressing_reason = classify_message_addressing(message_ctx, TELEGRAM_BOT_USERNAME)
+    if (
+        message_ctx.get("chat_type") not in {None, "", "private"}
+        and addressing_reason == "unaddressed"
+    ):
+        # Group chats and forum topics can contain conversations that are not
+        # intended for the assistant. Require an explicit @bot mention for every
+        # message there; replying to the bot or posting in its configured topic is
+        # not sufficient.
+        return {"ok": True}, 200
+
+    # Legacy /link commands may contain an application password. Remove the command
+    # message as soon as possible (when Telegram permissions allow it), regardless
+    # of whether credentials are valid. Linking is restricted to private chats below.
     if (
         classify_message_command(message_ctx["text"]) == "link"
         and TELEGRAM_BOT_TOKEN
@@ -127,7 +137,7 @@ def telegram_webhook(secret):
             return "Natural-language assistance is not configured. Use /help for available commands."
         principal = principal or get_telegram_principal(get_db, ctx["telegram_user_id"])
         if principal is None:
-            return "❌ Link your account first with /link <app_username> <app_password>."
+            return "❌ Link your account first by sending /link to this bot in a private chat."
 
         def _notify_created_proposal(proposal_id, arguments):
             conn = get_db()
@@ -171,18 +181,8 @@ def telegram_webhook(secret):
     # several seconds (and may perform multiple MCP rounds), so configured
     # natural-language work is completed outside the request thread.
     is_command = classify_message_command(message_ctx["text"]) == "other"
-    addressing_reason = classify_message_addressing(message_ctx, TELEGRAM_BOT_USERNAME)
-    if addressing_reason == "unaddressed" and is_configured_forum_topic(
-        message_ctx, TELEGRAM_CHAT_ID, TELEGRAM_THREAD_ID
-    ):
-        # A configured forum topic is a dedicated assistant conversation.
-        # Telegram does not attach a mention entity to ordinary messages in
-        # that topic, so requiring an @mention makes it appear unresponsive.
-        addressing_reason = "forum_topic"
-    # Private-chat addressing is never ambiguous (always "private", always routed) --
-    # only group/supergroup messages are worth this record, including the
-    # "unaddressed" outcome, which is exactly the "why did the bot stay silent here"
-    # case this is for.
+    # Private-chat addressing is never ambiguous (always "private", always routed),
+    # so routing diagnostics are only useful for addressed group messages here.
     if is_command and message_ctx.get("chat_type") not in {None, "", "private"}:
         app.logger.info(
             "telegram_routing_decision reason_code=%s chat_id=%s chat_type=%s addressed=%s",

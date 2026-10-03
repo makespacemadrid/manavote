@@ -1764,30 +1764,66 @@ class TestPollTelegramActions(unittest.TestCase):
 
         old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
         old_token = main_routes.TELEGRAM_BOT_TOKEN
+        old_username = main_routes.TELEGRAM_BOT_USERNAME
         main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
         main_routes.TELEGRAM_BOT_TOKEN = "bot-token"
+        main_routes.TELEGRAM_BOT_USERNAME = "manavote_bot"
         try:
             with patch.object(main_routes.TelegramClient, "send_message", new=_fake_send_message):
                 response = self.client.post(
                     "/telegram/webhook/hook-secret",
                     json={
                         "message": {
-                            "text": "/help",
+                            "text": "/help@manavote_bot",
                             "message_id": 91,
                             "from": {"username": "admin"},
                             "chat": {"id": -100123, "type": "supergroup"},
                             "message_thread_id": 42,
+                            "entities": [{"type": "bot_command", "offset": 0, "length": 18}],
                         }
                     },
                 )
         finally:
             main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
             main_routes.TELEGRAM_BOT_TOKEN = old_token
+            main_routes.TELEGRAM_BOT_USERNAME = old_username
 
         self.assertEqual(response.status_code, 200)
         self.assertEqual(len(clients), 1)
         self.assertEqual(clients[0][:3], ("-100123", "42", 91))
         self.assertIn("ManaVote bot is running", clients[0][3])
+
+    def test_telegram_webhook_ignores_unmentioned_forum_topic_command(self):
+        from app.web.routes import main_routes
+
+        old_secret = main_routes.TELEGRAM_WEBHOOK_SECRET
+        old_token = main_routes.TELEGRAM_BOT_TOKEN
+        old_username = main_routes.TELEGRAM_BOT_USERNAME
+        main_routes.TELEGRAM_WEBHOOK_SECRET = "hook-secret"
+        main_routes.TELEGRAM_BOT_TOKEN = "bot-token"
+        main_routes.TELEGRAM_BOT_USERNAME = "manavote_bot"
+        try:
+            with patch.object(main_routes.TelegramClient, "send_message") as send_message:
+                response = self.client.post(
+                    "/telegram/webhook/hook-secret",
+                    json={
+                        "message": {
+                            "text": "/help",
+                            "message_id": 92,
+                            "from": {"username": "admin"},
+                            "chat": {"id": -100123, "type": "supergroup"},
+                            "message_thread_id": 42,
+                            "entities": [{"type": "bot_command", "offset": 0, "length": 5}],
+                        }
+                    },
+                )
+        finally:
+            main_routes.TELEGRAM_WEBHOOK_SECRET = old_secret
+            main_routes.TELEGRAM_BOT_TOKEN = old_token
+            main_routes.TELEGRAM_BOT_USERNAME = old_username
+
+        self.assertEqual(response.status_code, 200)
+        send_message.assert_not_called()
 
     def test_telegram_webhook_supports_edited_message_payload(self):
         poll_id = self._latest_poll_id()
@@ -2054,6 +2090,49 @@ class TestTelegramSettingsPage(unittest.TestCase):
         response = self.client.get("/telegram-settings")
         self.assertEqual(response.status_code, 200)
         self.assertIn("Telegram Settings", response.data.decode("utf-8"))
+
+    def test_passwordless_telegram_link_prompts_then_links_logged_in_member(self):
+        from app.services.telegram_link_service import create_browser_link_token
+
+        conn = budget_app.get_db()
+        conn.execute(
+            "UPDATE members SET telegram_username = NULL, telegram_user_id = NULL WHERE id = 1"
+        )
+        conn.commit()
+        conn.close()
+        token = create_browser_link_token(
+            budget_app.app.secret_key, "passwordless_tg", 778899
+        )
+
+        confirmation = self.client.get(f"/telegram/link/{token}")
+        self.assertEqual(confirmation.status_code, 200)
+        self.assertIn("@passwordless_tg", confirmation.data.decode("utf-8"))
+        response = self.client.post(
+            f"/telegram/link/{token}", data={"csrf_token": ""}, follow_redirects=True
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Telegram account linked.", response.data.decode("utf-8"))
+        conn = budget_app.get_db()
+        row = conn.execute(
+            "SELECT telegram_username, telegram_user_id FROM members WHERE id = 1"
+        ).fetchone()
+        conn.close()
+        self.assertEqual((row["telegram_username"], row["telegram_user_id"]), ("passwordless_tg", 778899))
+
+    def test_passwordless_telegram_link_asks_logged_out_member_to_sign_in(self):
+        from app.services.telegram_link_service import create_browser_link_token
+
+        token = create_browser_link_token(budget_app.app.secret_key, "login_first", 998877)
+        with self.client.session_transaction() as user_session:
+            user_session.clear()
+
+        response = self.client.get(f"/telegram/link/{token}", follow_redirects=True)
+
+        self.assertEqual(response.status_code, 200)
+        self.assertIn("Log in to ManaVote", response.data.decode("utf-8"))
+        with self.client.session_transaction() as user_session:
+            self.assertEqual(user_session["login_next"], f"/telegram/link/{token}")
 
     def test_telegram_settings_post_does_not_change_linked_values(self):
         conn = budget_app.get_db()
