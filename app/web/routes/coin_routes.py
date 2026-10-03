@@ -7,7 +7,7 @@ import qrcode
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_file, session, url_for
 
 from app.repositories.coin_repo import CoinRepository
-from app.services.coin_service import CoinNotFoundError, CoinValidationError, adjust_inventory, create_item, delete_item, record_movement, update_item
+from app.services.coin_service import CoinNotFoundError, CoinValidationError, adjust_inventory, create_item, delete_item, record_movement, update_item, update_movement
 from app.web.decorators import admin_required, login_required
 from app.web.routes import main_routes as legacy
 
@@ -190,6 +190,26 @@ def adjust():
     finally:
         connection.close()
     return redirect(url_for("coins.qr_labels"))
+
+
+@coin_bp.post("/admin/coins/movements/<int:movement_id>")
+@login_required
+@admin_required
+def edit_movement(movement_id):
+    connection = legacy.get_db()
+    try:
+        update_movement(
+            connection, movement_id=movement_id, item=request.form.get("item_id"),
+            member_id=request.form.get("member_id"), kind=request.form.get("kind"),
+            quantity=request.form.get("quantity"), note=request.form.get("note"),
+        )
+        flash("Coin movement updated", "success")
+        current_app.logger.info("coin_movement_updated_by_admin movement_id=%s member_id=%s", movement_id, session["member_id"])
+    except (CoinValidationError, CoinNotFoundError) as exc:
+        flash(str(exc), "error")
+    finally:
+        connection.close()
+    return redirect(url_for("admin.admin", tab="coins"))
 
 
 @coin_bp.post("/admin/coins/items")

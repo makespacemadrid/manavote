@@ -134,6 +134,8 @@
 .coin-admin-item { display:grid; grid-template-columns:minmax(0, 1fr) auto; gap:10px; align-items:end; padding:16px; background:#252525; border:1px solid #414141; border-radius:6px; }
 .coin-admin-delete-form { display:flex; margin:0; }
 .coin-admin-delete-form .btn { min-height:39px; white-space:nowrap; }
+.coin-ledger-edit-form { display:grid; grid-template-columns:minmax(140px,1fr) minmax(130px,1fr) minmax(120px,.7fr) 90px minmax(140px,1fr) auto; gap:8px; align-items:center; }
+.coin-ledger-edit-form input, .coin-ledger-edit-form select { margin:0; }
 .table-scroll { overflow-x:auto; }
 .coin-scan { max-width:520px; margin:40px auto; }
 .qr-label-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px; }
@@ -144,7 +146,7 @@
 .qr-label small { overflow-wrap:anywhere; }
 .qr-ledger-copy { font-size:1.05rem; font-weight:700; margin:10px 0; }
 @media print { body { background:#fff; } .container { max-width:none; padding:0; } .no-print { display:none !important; } .qr-label-grid { grid-template-columns:repeat(2,1fr); gap:8mm; } .qr-label { min-height:125mm; display:flex; flex-direction:column; align-items:center; justify-content:center; } }
-@media (max-width:700px) { .coin-admin-create-form, .coin-admin-edit-form, .coin-admin-item { grid-template-columns:1fr; } .coin-admin-delete-form .btn, .coin-admin-edit-form > .btn, .coin-admin-submit { width:100%; } }
+@media (max-width:700px) { .coin-admin-create-form, .coin-admin-edit-form, .coin-admin-item, .coin-ledger-edit-form { grid-template-columns:1fr; } .coin-admin-delete-form .btn, .coin-admin-edit-form > .btn, .coin-admin-submit { width:100%; } }
 @media (max-width:600px) { .coins-header { display:block; } .coin-account-actions { align-items:flex-start; margin-top:10px; } .qr-label-grid { grid-template-columns:1fr; } }
 .table-sort-button {
   appearance: none;

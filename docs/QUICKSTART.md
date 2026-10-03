@@ -128,9 +128,10 @@ message, so account links, unlinks, and administrator-role changes apply immedia
    ordinary, unmentioned group messages to privacy-enabled bots, so the application
    cannot respond to messages it never receives. Privacy mode can remain enabled if
    members will always mention the bot or reply to one of its messages.
-5. Link a member by sending `/link <app_username> <app_password>` in a private chat.
-   Never send credentials in a group. ManaVote rejects group-chat link attempts and
-   asks Telegram to delete every credential-bearing `/link` message after receipt.
+5. Link a member by sending `/link` in a private chat. Open the signed browser link the
+   bot returns, sign in to ManaVote if prompted, and confirm the Telegram identity
+   within 15 minutes. Never send credentials in a group. Legacy credential-bearing
+   commands are accepted only for compatibility and are deleted when possible.
 6. Ask a question such as `What is our current budget?`. The bot displays a temporary
    thinking message and replaces it with the completed response. In a group, mention
    the bot or reply to one of its messages. If group privacy mode is disabled, set

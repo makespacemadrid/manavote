@@ -1,6 +1,6 @@
 # SPRINTS — Implementation Planning and Progress Tracking
 
-Last updated: 2026-08-28
+Last updated: 2026-10-03
 
 This document tracks implementation sequencing, active sprint scope, and completion status.
 Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
@@ -21,6 +21,22 @@ the public MCP application boundary: JSON-RPC and Telegram now share a transport
 execution layer with explicit actor policy. Sprint 9 completed reliable proposal-resource discovery and sharing through Telegram
 natural chat, including missing-Base-URL operator diagnostics. Forward-looking work is
 tracked in [`IDEAS.md`](IDEAS.md) until the next sprint is scoped.
+
+### Subsequent shipped increments (September–October 2026)
+
+- Member feedback shipped across the web overlay, REST, and member-scoped Telegram MCP,
+  with an Admin triage tab and structured events.
+- Proposal MCP results gained voter details plus URL/image attachment support; Telegram
+  sends proposal images as photos when available.
+- Poll creation now announces consistently from web, REST, and MCP, and multi-select
+  polls are supported across web and Telegram without destructive form resubmission.
+- Telegram linking now defaults to a passwordless, signed browser-confirmation flow;
+  group assistant routing recognizes exact mentions, bot replies, and configured forum
+  topics.
+- Coins shipped with configurable/deactivatable categories, QR debit labels, member
+  balances and rankings, lifetime per-item consumption, and administrator ledger
+  corrections.
+- Navigation gained emoji labels, and the desktop layout was widened for large screens.
 
 ---
 

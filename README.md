@@ -19,7 +19,14 @@ A Flask + SQLite application for managing budget proposals in a hackerspace.
 - **Proposals**: weighted vote thresholds, creator auto-vote, edit/delete by owner/admin, approval undo, purchase tracking.
 - **Polls**: 2..12 options, transparent results, close/reopen/delete, web/Telegram vote modes.
 - **Group purchases**: shared orders with individually priced options, proportional shipping/tax costs, per-member quantities, deadlines, payment tracking, fulfillment states, and Telegram lifecycle notifications.
-- **Telegram integration**: `/link`, `/vote`, `/pvote`, inline callbacks, and an optional Ocabra-compatible natural-language assistant with MCP tools, DB-backed access, confirmed admin mutations, retry deduplication, and bounded background work.
+- **Coins**: member consumption/replenishment ledger with QR actions, balances and rankings,
+  per-item lifetime totals, printable labels, and administrator catalogue and ledger
+  correction tools.
+- **Feedback**: categorized member feedback from the web overlay, REST, or Telegram MCP,
+  with administrator review and resolution states.
+- **Telegram integration**: passwordless `/link`, `/vote`, `/pvote`, inline callbacks,
+  and an optional Ocabra-compatible natural-language assistant with MCP tools, DB-backed
+  access, confirmed admin mutations, retry deduplication, and bounded background work.
 - **Budget lifecycle**: approval when threshold+budget are met, over-budget queue with auto-approval later.
 - **Timezone-aware UI**: all timestamps are rendered in configured timezone.
 

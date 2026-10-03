@@ -31,6 +31,13 @@
 {% endfor %}
 </div>
 <section class="card">
+    <h2>📊 {{ 'Consumption by item'|lang }}</h2>
+    <div class="table-scroll"><table class="coin-consumption-table" data-sortable-table>
+        <thead><tr><th>{{ 'Item'|lang }}</th><th data-sort-type="number" aria-sort="descending">{{ 'Total consumed'|lang }}</th></tr></thead>
+        <tbody>{% for item in items %}<tr><td>{{ item.name }}</td><td>{{ item.total_consumed }}</td></tr>{% else %}<tr><td colspan="2">{{ 'No coin items yet'|lang }}</td></tr>{% endfor %}</tbody>
+    </table></div>
+</section>
+<section class="card">
     <h2>{{ 'Coin ranking'|lang }}</h2>
     <p>{{ 'Balances above zero are credits; balances below zero are debts.'|lang }}</p>
     <div class="table-scroll"><table class="coin-ranking" data-sortable-table>

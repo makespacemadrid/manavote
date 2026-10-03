@@ -941,6 +941,17 @@ _COIN_TRANSLATIONS_ES = {
     "No members yet": "Todavía no hay miembros",
     "Manage coin items": "Gestionar artículos de monedas",
     "View and print QR labels": "Ver e imprimir etiquetas QR",
+    "Consumption by item": "Consumo por artículo",
+    "No coin items yet": "Todavía no hay artículos de monedas",
+    "Edit coin ledger": "Editar el registro de monedas",
+    "Correct the item, member, type, or quantity of a ledger entry.": "Corrige el artículo, miembro, tipo o cantidad de un movimiento.",
+    "Ledger entry": "Movimiento del registro",
+    "Consume": "Consumir",
+    "Replenish": "Reponer",
+    "Adjustment": "Ajuste",
+    "Note": "Nota",
+    "Save movement": "Guardar movimiento",
+    "Coin movement updated": "Movimiento de monedas actualizado",
 }
 for _message, _spanish in _COIN_TRANSLATIONS_ES.items():
     TRANSLATIONS["en"].setdefault(_message, _message)
