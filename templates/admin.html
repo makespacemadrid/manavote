@@ -509,34 +509,40 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <div id="coins" class="card">
     <h3>🪙 {{ 'Coins'|lang }}</h3>
-    <p>{{ 'Print QR labels with item names and ManaVote ledger instructions.'|lang }}</p>
-    <div class="button-row">
+    <p class="coin-admin-intro">{{ 'Print QR labels with item names and ManaVote ledger instructions.'|lang }}</p>
+    <div class="coin-admin-header-actions">
         <a class="btn" href="{{ url_for('coins.qr_labels') }}">{{ 'View and print QR labels'|lang }}</a>
     </div>
-    <h4>{{ 'Create coin item'|lang }}</h4>
-    <p>{{ 'Add a consumable category and the pack size used by its quick purchase button.'|lang }}</p>
-    <form method="post" action="{{ url_for('coins.create_coin_item') }}">
+    <section class="coin-admin-section" aria-labelledby="coin-create-heading">
+    <h4 id="coin-create-heading">{{ 'Create coin item'|lang }}</h4>
+    <p class="coin-admin-help">{{ 'Add a consumable category and the pack size used by its quick purchase button.'|lang }}</p>
+    <form method="post" action="{{ url_for('coins.create_coin_item') }}" class="coin-admin-create-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="return_to" value="admin">
-        <label for="admin-coin-item-name">{{ 'Item name'|lang }}</label><input id="admin-coin-item-name" name="name" maxlength="100" placeholder="Icecream Minis mix" required>
-        <label for="admin-coin-pack-size">{{ 'Purchase pack size'|lang }}</label><input id="admin-coin-pack-size" name="pack_size" type="number" min="1" max="1000" value="8" required>
-        <button class="btn" type="submit">{{ 'Create coin item'|lang }}</button>
+        <div class="coin-admin-field coin-admin-name-field"><label for="admin-coin-item-name">{{ 'Item name'|lang }}</label><input id="admin-coin-item-name" name="name" maxlength="100" placeholder="Icecream Minis mix" required></div>
+        <div class="coin-admin-field"><label for="admin-coin-pack-size">{{ 'Purchase pack size'|lang }}</label><input id="admin-coin-pack-size" name="pack_size" type="number" min="1" max="1000" value="8" required></div>
+        <button class="btn coin-admin-submit" type="submit">{{ 'Create coin item'|lang }}</button>
     </form>
-    <h4>{{ 'Edit coin items'|lang }}</h4>
+    </section>
+    <section class="coin-admin-section" aria-labelledby="coin-edit-heading">
+    <h4 id="coin-edit-heading">{{ 'Edit coin items'|lang }}</h4>
+    <div class="coin-admin-items">
     {% for item in coin_items %}
-    <div class="button-row">
-    <form method="post" action="{{ url_for('coins.edit_coin_item', item_id=item.id) }}" class="button-row">
+    <article class="coin-admin-item">
+    <form method="post" action="{{ url_for('coins.edit_coin_item', item_id=item.id) }}" class="coin-admin-edit-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-        <label for="admin-coin-item-name-{{ item.id }}">{{ 'Item name'|lang }}</label><input id="admin-coin-item-name-{{ item.id }}" name="name" maxlength="100" value="{{ item.name }}" required>
-        <label for="admin-coin-pack-size-{{ item.id }}">{{ 'Default purchase amount'|lang }}</label><input id="admin-coin-pack-size-{{ item.id }}" name="pack_size" type="number" min="1" max="1000" value="{{ item.pack_size }}" required>
+        <div class="coin-admin-field coin-admin-name-field"><label for="admin-coin-item-name-{{ item.id }}">{{ 'Item name'|lang }}</label><input id="admin-coin-item-name-{{ item.id }}" name="name" maxlength="100" value="{{ item.name }}" required></div>
+        <div class="coin-admin-field"><label for="admin-coin-pack-size-{{ item.id }}">{{ 'Default purchase amount'|lang }}</label><input id="admin-coin-pack-size-{{ item.id }}" name="pack_size" type="number" min="1" max="1000" value="{{ item.pack_size }}" required></div>
         <button class="btn btn-secondary" type="submit">{{ 'Save item'|lang }}</button>
     </form>
-    <form method="post" action="{{ url_for('coins.delete_coin_item', item_id=item.id) }}" onsubmit="return confirmDangerAction(this, {{ 'Delete this coin item? Its movement history will be preserved.'|lang|tojson }});">
+    <form class="coin-admin-delete-form" method="post" action="{{ url_for('coins.delete_coin_item', item_id=item.id) }}" onsubmit="return confirmDangerAction(this, {{ 'Delete this coin item? Its movement history will be preserved.'|lang|tojson }});">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn btn-danger" type="submit">{{ 'Delete item'|lang }}</button>
     </form>
-    </div>
+    </article>
     {% endfor %}
+    </div>
+    </section>
 </div>
 
 <div id="feedback" class="card">
