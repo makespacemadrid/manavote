@@ -82,6 +82,21 @@ def update_item(connection, *, item_id, name, pack_size):
     return {"item_id": item_id, "name": name, "pack_size": pack_size}
 
 
+def delete_item(connection, *, item_id):
+    """Deactivate a category and its QR tokens without deleting ledger history."""
+    try:
+        item_id = int(item_id)
+    except (TypeError, ValueError) as exc:
+        raise CoinValidationError("Coin item is required") from exc
+    repo = CoinRepository(connection)
+    if not repo.deactivate_item(item_id):
+        raise CoinNotFoundError("Coin item not found")
+    connection.execute("UPDATE coin_qr_tokens SET active = 0 WHERE item_id = ?", (item_id,))
+    connection.commit()
+    logger.info("coin_item_deleted item_id=%s", item_id)
+    return {"item_id": item_id}
+
+
 def record_movement(connection, *, item, member_id, action, quantity=1, source="web", idempotency_key=None):
     if action not in VALID_ACTIONS:
         raise CoinValidationError("Unknown coin action")

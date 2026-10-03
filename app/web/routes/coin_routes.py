@@ -7,7 +7,7 @@ import qrcode
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_file, session, url_for
 
 from app.repositories.coin_repo import CoinRepository
-from app.services.coin_service import CoinNotFoundError, CoinValidationError, adjust_inventory, create_item, record_movement, update_item
+from app.services.coin_service import CoinNotFoundError, CoinValidationError, adjust_inventory, create_item, delete_item, record_movement, update_item
 from app.web.decorators import admin_required, login_required
 from app.web.routes import main_routes as legacy
 
@@ -236,6 +236,26 @@ def edit_coin_item(item_id):
             session["member_id"],
         )
         flash("Coin item updated", "success")
+    except (CoinValidationError, CoinNotFoundError) as exc:
+        flash(str(exc), "error")
+    finally:
+        connection.close()
+    return redirect(url_for("admin.admin", tab="coins"))
+
+
+@coin_bp.post("/admin/coins/items/<int:item_id>/delete")
+@login_required
+@admin_required
+def delete_coin_item(item_id):
+    connection = legacy.get_db()
+    try:
+        delete_item(connection, item_id=item_id)
+        current_app.logger.info(
+            "coin_item_deleted_by_admin item_id=%s member_id=%s",
+            item_id,
+            session["member_id"],
+        )
+        flash("Coin item deleted", "success")
     except (CoinValidationError, CoinNotFoundError) as exc:
         flash(str(exc), "error")
     finally:

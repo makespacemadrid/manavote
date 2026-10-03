@@ -95,7 +95,7 @@ def test_extract_message_context_prefers_edited_message_when_message_missing():
     assert ctx["message_id"] == 88
 
 
-def test_natural_language_group_message_requires_bot_to_be_addressed():
+def test_natural_language_group_message_accepts_mentions_and_replies_to_bot():
     ordinary = {
         "text": "hello team",
         "chat_type": "supergroup",
@@ -113,7 +113,7 @@ def test_natural_language_group_message_requires_bot_to_be_addressed():
     assert is_natural_language_message(
         {**ordinary, "reply_to_bot": True, "reply_to_bot_username": "ManaVoteBot"},
         "ManaVoteBot",
-    ) is False
+    ) is True
 
 
 def test_natural_language_group_address_uses_utf16_offsets_and_ignores_other_bots():
@@ -176,7 +176,19 @@ def test_classify_message_addressing_reason_codes():
     assert classify_message_addressing({}, "ManaVoteBot") == "private"
     assert classify_message_addressing(ordinary_group, "ManaVoteBot") == "unaddressed"
     assert classify_message_addressing(mentioned_group, "ManaVoteBot") == "mentioned"
-    assert classify_message_addressing(reply_to_bot_group, "ManaVoteBot") == "unaddressed"
+    assert classify_message_addressing(reply_to_bot_group, "ManaVoteBot") == "replied"
+
+
+def test_reply_to_bot_without_optional_username_is_still_addressed():
+    reply = {
+        "text": "How do you know that?",
+        "chat_type": "supergroup",
+        "entities": [],
+        "reply_to_bot": True,
+        "reply_to_bot_username": "",
+    }
+
+    assert classify_message_addressing(reply, "ManaVoteBot") == "replied"
 
 
 def test_extract_message_context_detects_group_reply_and_topic():

@@ -261,8 +261,9 @@ def tool_definitions() -> list[dict[str, Any]]:
         {
             "name": "list_user_statistics",
             "description": (
-                "List per-user proposal, poll, vote, comment, and proposal-budget statistics. "
+                "List per-user participation, budget, coin-usage, and beverage-consumption statistics. "
                 "Budget fields include the total proposed amount, approved amount, and approved percentage; "
+                "coin fields include balance, earned/spent totals, and per-beverage consumption; "
                 "use username for one user or sort_by to rank users."
             ),
             "inputSchema": {
@@ -286,6 +287,10 @@ def tool_definitions() -> list[dict[str, Any]]:
                             "group_purchase_count",
                             "created_group_purchase_order_value",
                             "created_group_purchase_participant_count",
+                            "coin_balance",
+                            "coins_spent",
+                            "beverages_consumed",
+                            "beverages_replenished",
                             "username",
                         ],
                     },
@@ -618,6 +623,7 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
             "approved_budget_percentage", "poll_count", "created_poll_vote_count",
             "average_votes_per_created_poll", "group_purchase_count",
             "created_group_purchase_order_value", "created_group_purchase_participant_count", "username",
+            "coin_balance", "coins_spent", "beverages_consumed", "beverages_replenished",
         }:
             return _error(req_id, -32602, "Invalid params: unknown sort_by value")
         if sort_direction not in {"asc", "desc"}:

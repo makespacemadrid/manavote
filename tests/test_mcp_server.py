@@ -386,6 +386,14 @@ def test_tools_call_list_user_statistics(monkeypatch):
         "open_group_purchase_count": 1,
         "created_group_purchase_order_value": 125,
         "created_group_purchase_participant_count": 4,
+        "coin_balance": -2,
+        "coins_earned": 10,
+        "coins_spent": 12,
+        "beverages_consumed": 12,
+        "beverages_replenished": 10,
+        "beverage_consumption_json": (
+            '[{"item_id":1,"item_name":"Coke","consumed":12,"replenished":10}]'
+        ),
     }
     monkeypatch.setattr(
         mcp_server,
@@ -398,7 +406,10 @@ def test_tools_call_list_user_statistics(monkeypatch):
     )
     payload = json.loads(response["result"]["content"][0]["text"])
 
-    expected_row = {key: value for key, value in row.items() if key != "email"}
+    expected_row = {key: value for key, value in row.items() if key not in {"email", "beverage_consumption_json"}}
+    expected_row["beverage_consumption"] = [
+        {"item_id": 1, "item_name": "Coke", "consumed": 12, "replenished": 10}
+    ]
     assert payload == {"count": 1, "total": 1, "limit": 25, "offset": 0, "users": [expected_row]}
 
 

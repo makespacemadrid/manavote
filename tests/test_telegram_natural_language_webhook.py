@@ -236,6 +236,43 @@ class TestTelegramNaturalLanguageWebhook(unittest.TestCase):
         self.assertIn('"tool_name": "current_budget"', job_logs)
         self.assertIn('"reason_code": "completed"', job_logs)
 
+    def test_linked_group_sender_can_address_bot_by_replying_to_its_message(self):
+        telegram_user_id = _unique_id()
+        self._link_member(1, telegram_user_id)
+        main_routes.TELEGRAM_BOT_USERNAME = "manavote_bot"
+        model_response = FakeModelResponse(
+            {"role": "assistant", "content": "Because I checked the current records."}
+        )
+
+        with patch.object(telegram_agent.requests, "post", return_value=model_response):
+            response = self.client.post(
+                "/telegram/webhook/nl-hook-secret",
+                json={
+                    "update_id": _unique_id(),
+                    "message": {
+                        "message_id": 73,
+                        "text": "How do you know that?",
+                        "from": {"id": telegram_user_id},
+                        "chat": {"id": -100123, "type": "supergroup"},
+                        "reply_to_message": {
+                            "message_id": 72,
+                            "from": {
+                                "id": 999,
+                                "is_bot": True,
+                                "username": "manavote_bot",
+                            },
+                        },
+                    },
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(main_routes._telegram_agent_executor.submitted, 1)
+        client = RecordingTelegramClient.instances[0]
+        self.assertEqual(client.chat_id, "-100123")
+        self.assertEqual(client.reply_to_message_id, 73)
+        self.assertIn("Because I checked", client.long_messages[0])
+
     def test_specific_proposal_request_returns_public_detail_and_image_urls(self):
         telegram_user_id = _unique_id()
         self._link_member(1, telegram_user_id)

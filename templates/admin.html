@@ -524,12 +524,18 @@ document.addEventListener('DOMContentLoaded', function() {
     </form>
     <h4>{{ 'Edit coin items'|lang }}</h4>
     {% for item in coin_items %}
+    <div class="button-row">
     <form method="post" action="{{ url_for('coins.edit_coin_item', item_id=item.id) }}" class="button-row">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="admin-coin-item-name-{{ item.id }}">{{ 'Item name'|lang }}</label><input id="admin-coin-item-name-{{ item.id }}" name="name" maxlength="100" value="{{ item.name }}" required>
         <label for="admin-coin-pack-size-{{ item.id }}">{{ 'Default purchase amount'|lang }}</label><input id="admin-coin-pack-size-{{ item.id }}" name="pack_size" type="number" min="1" max="1000" value="{{ item.pack_size }}" required>
         <button class="btn btn-secondary" type="submit">{{ 'Save item'|lang }}</button>
     </form>
+    <form method="post" action="{{ url_for('coins.delete_coin_item', item_id=item.id) }}" onsubmit="return confirmDangerAction(this, {{ 'Delete this coin item? Its movement history will be preserved.'|lang|tojson }});">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <button class="btn btn-danger" type="submit">{{ 'Delete item'|lang }}</button>
+    </form>
+    </div>
     {% endfor %}
 </div>
 
