@@ -59,7 +59,7 @@ class TestLanguageSwitch(unittest.TestCase):
 
         response = self.client.get("/proposals")
         self.assertIn(b"Propuestas", response.data)
-        self.assertIn(b'<a href="/budget">Presupuesto</a>', response.data)
+        self.assertIn('<a href="/budget">💰 Presupuesto</a>'.encode(), response.data)
 
         response = self.client.get("/budget")
         self.assertIn(b"Calendario de Actividad", response.data)

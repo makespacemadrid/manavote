@@ -71,13 +71,13 @@ def test_navigation_serializes_hydration_props_and_current_page_markup():
     assert props["currentPath"] == "/proposals"
     assert props["username"]["value"] == "test-member"
     assert props["username"]["navigationLabel"] == "Primary navigation"
-    assert any(link == {"href": "/proposals", "label": "Proposals"} for link in props["links"])
+    assert any(link == {"href": "/proposals", "label": "📋 Proposals"} for link in props["links"])
     assert props["links"][:5] == [
-        {"href": "/proposals", "label": "Proposals"},
-        {"href": "/polls", "label": "Polls"},
-        {"href": "/coins", "label": "Coins"},
-        {"href": "/group-purchases", "label": "Group purchases"},
-        {"href": "/budget", "label": "Budget"},
+        {"href": "/proposals", "label": "📋 Proposals"},
+        {"href": "/polls", "label": "📊 Polls"},
+        {"href": "/coins", "label": "🪙 Coins"},
+        {"href": "/group-purchases", "label": "🛒 Group purchases"},
+        {"href": "/budget", "label": "💰 Budget"},
     ]
     assert '<nav class="nav"' in markup
     assert 'href="/proposals" aria-current="page"' in markup
@@ -105,5 +105,5 @@ def test_navigation_only_exposes_admin_link_to_admin_sessions():
     member_links = _navigation_props(_render_navigation(is_admin=False))["links"]
     admin_links = _navigation_props(_render_navigation(is_admin=True))["links"]
 
-    assert "Admin" not in {link["label"] for link in member_links}
-    assert "Admin" in {link["label"] for link in admin_links}
+    assert "🛠️ Admin" not in {link["label"] for link in member_links}
+    assert "🛠️ Admin" in {link["label"] for link in admin_links}
