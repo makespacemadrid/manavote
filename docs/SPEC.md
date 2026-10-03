@@ -349,7 +349,7 @@ process and is not yet shared across workers.
 - `GET /api/polls`
 - `POST /api/polls`
 - `GET /api/members/telegram` (supports `include_unlinked`, `limit`, `offset`)
-- `GET /api/members/statistics` (lifetime per-user participation and financial statistics; includes page `count` and matching `total`; email requires `include_email=true`)
+- `GET /api/members/statistics` (lifetime per-user participation, financial, coin-usage, and per-beverage consumption statistics; includes page `count` and matching `total`; email requires `include_email=true`)
 - `GET /api/settings/voting`
 - `PUT|PATCH /api/settings/voting`
 
@@ -358,7 +358,7 @@ process and is not yet shared across workers.
   - `list_proposals` (optional `status`, `age=recent|old`, `limit`, `offset`; age filters select active proposals around the 30-day boundary; results include `url` and `image_filename`)
   - `current_budget`
   - `list_member_telegram_links` (optional `include_unlinked`, `limit`, `offset`)
-  - `list_user_statistics` (optional `limit`, `offset`, `username`, sorting, and opt-in `include_email`; includes matching `total`)
+  - `list_user_statistics` (optional `limit`, `offset`, `username`, sorting including coin/beverage fields, and opt-in `include_email`; includes matching `total` and per-beverage consumption)
 - Create tools:
   - `create_member` (`username`, `password`, optional `is_admin`)
   - `create_proposal` (`title`, `amount`, `created_by`, optional `description`/`url`/

@@ -32,6 +32,13 @@ class CoinRepository:
         )
         return cursor.rowcount
 
+    def deactivate_item(self, item_id):
+        """Hide an item while retaining its ledger history."""
+        cursor = self.connection.execute(
+            "UPDATE coin_items SET active = 0 WHERE id = ? AND active = 1", (item_id,)
+        )
+        return cursor.rowcount
+
     def list_items(self, member_id=None):
         return self.connection.execute(
             """SELECT i.*, COALESCE(SUM(m.inventory_delta), 0) AS stock,

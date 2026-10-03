@@ -97,11 +97,14 @@ def run_migrations(cursor):
         UNIQUE(item_id, action)
     )
     """)
-    for position, name in enumerate(("Coke", "Coke Zero", "Other Can")):
-        cursor.execute(
-            "INSERT OR IGNORE INTO coin_items (name, position, pack_size) VALUES (?, ?, 12)",
-            (name, position),
-        )
+    # Seed defaults only when Coins is first initialized. Seeding each name on every
+    # startup would recreate a default category after an administrator renamed it.
+    if cursor.execute("SELECT COUNT(*) FROM coin_items").fetchone()[0] == 0:
+        for position, name in enumerate(("Coke", "Coke Zero", "Other Can")):
+            cursor.execute(
+                "INSERT INTO coin_items (name, position, pack_size) VALUES (?, ?, 12)",
+                (name, position),
+            )
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS feedback (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

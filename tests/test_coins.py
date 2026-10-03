@@ -145,6 +145,7 @@ def test_non_admin_cannot_print_or_manage_qr_labels(coin_client):
     assert client.post("/admin/coins/adjust", data={"item_id": 1, "inventory_delta": 1}).status_code == 302
     assert client.post("/admin/coins/items", data={"name": "Icecream", "pack_size": 8}).status_code == 302
     assert client.post("/admin/coins/items/1", data={"name": "Cola", "pack_size": 6}).status_code == 302
+    assert client.post("/admin/coins/items/1/delete").status_code == 302
 
 
 def test_admin_can_adjust_stock_without_changing_balance(coin_client):
@@ -241,6 +242,51 @@ def test_admin_can_edit_item_name_and_default_purchase_amount(coin_client):
     assert b"I bought 6" in page.data
 
 
+def test_renamed_default_item_is_not_recreated_on_restart(coin_client):
+    client, db_path = coin_client
+    response = client.post(
+        "/admin/coins/items/1",
+        data={"name": "Club Cola", "pack_size": 6},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+
+    # Running migrations models the next application startup.
+    main_routes.init_db()
+
+    with sqlite3.connect(db_path) as connection:
+        names = [row[0] for row in connection.execute("SELECT name FROM coin_items ORDER BY id")]
+    assert names == ["Club Cola", "Coke Zero", "Other Can"]
+
+
+def test_admin_can_delete_item_without_losing_movement_history(coin_client):
+    client, db_path = coin_client
+    client.get("/admin/coins/qr-labels")
+    with sqlite3.connect(db_path) as connection:
+        connection.row_factory = sqlite3.Row
+        record_movement(connection, item="Coke", member_id=1, action="consume", quantity=2)
+
+    response = client.post("/admin/coins/items/1/delete", follow_redirects=True)
+
+    assert response.status_code == 200
+    assert b"Coin item deleted" in response.data
+    assert b'action="/admin/coins/items/1"' not in response.data
+    assert b'action="/admin/coins/items/1/delete"' not in response.data
+    assert b"Coke Zero" in response.data
+    assert b'id="coin-item-1"' not in client.get("/coins").data
+    with sqlite3.connect(db_path) as connection:
+        active, movement_count = connection.execute(
+            """SELECT ci.active, COUNT(cm.id)
+               FROM coin_items ci LEFT JOIN coin_movements cm ON cm.item_id = ci.id
+               WHERE ci.id = 1 GROUP BY ci.id"""
+        ).fetchone()
+        token_states = connection.execute(
+            "SELECT DISTINCT active FROM coin_qr_tokens WHERE item_id = 1"
+        ).fetchall()
+    assert (active, movement_count) == (0, 1)
+    assert token_states == [(0,)]
+
+
 def test_admin_item_edit_rejects_duplicate_name_and_invalid_amount(coin_client):
     client, db_path = coin_client
 
@@ -328,6 +374,42 @@ def test_mcp_lists_and_records_coin_actions(coin_client, monkeypatch):
     assert history_payload["movements"][0]["item_name"] == "Coke Zero"
     invalid = mcp_server.execute_tool_command("list_coin_movements", {"member_id": "1"})
     assert invalid["error"]["code"] == -32602
+
+
+def test_api_and_mcp_user_statistics_include_detailed_coin_usage(coin_client, monkeypatch):
+    client, db_path = coin_client
+    with sqlite3.connect(db_path) as connection:
+        connection.row_factory = sqlite3.Row
+        record_movement(connection, item="Coke", member_id=1, action="replenish", quantity=12)
+        record_movement(connection, item="Coke", member_id=1, action="consume", quantity=2)
+        record_movement(connection, item="Coke Zero", member_id=1, action="consume", quantity=3)
+
+    monkeypatch.setattr(main_routes, "ADMIN_API_KEY", "statistics-key")
+    monkeypatch.setattr(mcp_server, "DB_PATH", str(db_path))
+    api_response = client.get(
+        "/api/members/statistics",
+        headers={"X-Admin-Key": "statistics-key"},
+    )
+    mcp_response = mcp_server.execute_tool_command(
+        "list_user_statistics", {"username": "admin"}
+    )
+
+    assert api_response.status_code == 200
+    api_user = next(user for user in api_response.get_json()["users"] if user["id"] == 1)
+    mcp_user = json.loads(mcp_response["result"]["content"][0]["text"])["users"][0]
+    expected_coin_usage = {
+        "coin_balance": 7,
+        "coins_earned": 12,
+        "coins_spent": 5,
+        "beverages_consumed": 5,
+        "beverages_replenished": 12,
+        "beverage_consumption": [
+            {"item_id": 1, "item_name": "Coke", "consumed": 2, "replenished": 12},
+            {"item_id": 2, "item_name": "Coke Zero", "consumed": 3, "replenished": 0},
+        ],
+    }
+    assert {key: api_user[key] for key in expected_coin_usage} == expected_coin_usage
+    assert {key: mcp_user[key] for key in expected_coin_usage} == expected_coin_usage
 
 
 def test_member_history_is_private_and_return_redirect_is_local(coin_client):

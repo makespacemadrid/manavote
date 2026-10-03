@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 from typing import Any
 
 
@@ -52,7 +53,30 @@ USER_STATISTICS_SELECT_SQL = """
           JOIN group_purchase_components c ON c.group_purchase_id = gp.id
           JOIN group_purchase_quantities q ON q.component_id = c.id
           WHERE gp.created_by = m.id AND q.quantity > 0
-        ) AS created_group_purchase_participant_count
+        ) AS created_group_purchase_participant_count,
+        COALESCE((SELECT SUM(cm.coin_delta) FROM coin_movements cm WHERE cm.member_id = m.id), 0) AS coin_balance,
+        COALESCE((SELECT SUM(cm.coin_delta) FROM coin_movements cm WHERE cm.member_id = m.id AND cm.kind = 'replenish'), 0) AS coins_earned,
+        COALESCE((SELECT SUM(-cm.coin_delta) FROM coin_movements cm WHERE cm.member_id = m.id AND cm.kind = 'consume'), 0) AS coins_spent,
+        COALESCE((SELECT SUM(-cm.inventory_delta) FROM coin_movements cm WHERE cm.member_id = m.id AND cm.kind = 'consume'), 0) AS beverages_consumed,
+        COALESCE((SELECT SUM(cm.inventory_delta) FROM coin_movements cm WHERE cm.member_id = m.id AND cm.kind = 'replenish'), 0) AS beverages_replenished,
+        (
+            SELECT COALESCE(json_group_array(json_object(
+                'item_id', usage.item_id,
+                'item_name', usage.item_name,
+                'consumed', usage.consumed,
+                'replenished', usage.replenished
+            )), '[]')
+            FROM (
+                SELECT ci.id AS item_id, ci.name AS item_name,
+                       SUM(CASE WHEN cm.kind = 'consume' THEN -cm.inventory_delta ELSE 0 END) AS consumed,
+                       SUM(CASE WHEN cm.kind = 'replenish' THEN cm.inventory_delta ELSE 0 END) AS replenished
+                FROM coin_movements cm
+                JOIN coin_items ci ON ci.id = cm.item_id
+                WHERE cm.member_id = m.id AND cm.kind IN ('consume', 'replenish')
+                GROUP BY ci.id, ci.name, ci.position
+                ORDER BY ci.position, ci.id
+            ) AS usage
+        ) AS beverage_consumption_json
     FROM members m
 """
 
@@ -68,6 +92,10 @@ USER_STATISTICS_ORDER_SQL = {
     "group_purchase_count": "group_purchase_count {direction}, m.username ASC",
     "created_group_purchase_order_value": "created_group_purchase_order_value {direction}, m.username ASC",
     "created_group_purchase_participant_count": "created_group_purchase_participant_count {direction}, m.username ASC",
+    "coin_balance": "coin_balance {direction}, m.username ASC",
+    "coins_spent": "coins_spent {direction}, m.username ASC",
+    "beverages_consumed": "beverages_consumed {direction}, m.username ASC",
+    "beverages_replenished": "beverages_replenished {direction}, m.username ASC",
     "username": "m.username {direction}",
 }
 
@@ -111,7 +139,12 @@ def user_statistics_rows(rows: list[Any], *, include_email: bool = False) -> lis
     """Shape statistics rows and keep member email opt-in at every transport."""
 
     shaped = [dict(row) for row in rows]
-    if not include_email:
-        for row in shaped:
+    for row in shaped:
+        raw_consumption = row.pop("beverage_consumption_json", "[]")
+        try:
+            row["beverage_consumption"] = json.loads(raw_consumption or "[]")
+        except (TypeError, json.JSONDecodeError):
+            row["beverage_consumption"] = []
+        if not include_email:
             row.pop("email", None)
     return shaped

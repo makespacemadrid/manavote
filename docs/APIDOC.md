@@ -482,7 +482,8 @@ Although not part of the REST API surface, the `/budget` page renders a mixed Ch
 
 **Endpoint**: `GET /api/members/statistics`
 
-Returns lifetime participation, proposal-budget, poll, and group-purchase statistics.
+Returns lifetime participation, proposal-budget, poll, group-purchase, coin-usage, and
+beverage-consumption statistics.
 Results support `limit` (default `100`, maximum `500`) and `offset` (default `0`).
 `count` is the number of users in the current page; `total` is the number of matching
 members before pagination. Email addresses are omitted unless the administrator passes
@@ -504,6 +505,8 @@ fields are rounded to two decimal places.
 | Proposal budgets | `proposed_budget`, `approved_proposal_budget`, `approved_budget_percentage` |
 | Polls | `poll_vote_count`, `poll_count`, `open_poll_count`, `closed_poll_count`, `created_poll_vote_count`, `average_votes_per_created_poll` |
 | Group purchases | `group_purchase_count`, `open_group_purchase_count`, `created_group_purchase_order_value`, `created_group_purchase_participant_count` |
+| Coins | `coin_balance`, `coins_earned`, `coins_spent` |
+| Beverages | `beverages_consumed`, `beverages_replenished`, `beverage_consumption` (per-item `item_id`, `item_name`, `consumed`, and `replenished`) |
 
 ```json
 {
@@ -522,7 +525,16 @@ fields are rounded to two decimal places.
       "approved_proposal_count": 2,
       "comment_count": 5,
       "poll_vote_count": 4,
-      "poll_count": 1
+      "poll_count": 1,
+      "coin_balance": -3,
+      "coins_earned": 12,
+      "coins_spent": 15,
+      "beverages_consumed": 15,
+      "beverages_replenished": 12,
+      "beverage_consumption": [
+        {"item_id": 1, "item_name": "Coke", "consumed": 10, "replenished": 12},
+        {"item_id": 2, "item_name": "Coke Zero", "consumed": 5, "replenished": 0}
+      ]
     }
   ]
 }

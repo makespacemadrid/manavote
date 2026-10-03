@@ -121,11 +121,18 @@ def classify_message_addressing(message_ctx, bot_username: str = "") -> str:
     """Classify why (or whether) this message is addressed to the assistant.
 
     Private messages are inherently addressed. Group and supergroup messages,
-    including forum topics, require an explicit ``@bot`` mention and return either
-    ``mentioned`` or ``unaddressed``.
+    including forum topics, are addressed by either an explicit ``@bot`` mention
+    or a reply to one of the bot's messages.
     """
     if message_ctx.get("chat_type") in {None, "", "private"}:
         return "private"
+    if message_ctx.get("reply_to_bot"):
+        reply_username = str(message_ctx.get("reply_to_bot_username") or "").lstrip("@").casefold()
+        normalized_username = bot_username.lstrip("@").casefold()
+        # User.username is optional in Telegram's User object. When it is present,
+        # verify that the replied-to bot is this bot rather than another group bot.
+        if not reply_username or not normalized_username or reply_username == normalized_username:
+            return "replied"
     text = message_ctx.get("text") or ""
     normalized_username = bot_username.lstrip("@").casefold()
     expected_mention = f"@{normalized_username}" if normalized_username else ""

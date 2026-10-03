@@ -114,9 +114,9 @@ def telegram_webhook(secret):
         and addressing_reason == "unaddressed"
     ):
         # Group chats and forum topics can contain conversations that are not
-        # intended for the assistant. Require an explicit @bot mention for every
-        # message there; replying to the bot or posting in its configured topic is
-        # not sufficient.
+        # intended for the assistant. Require an explicit @bot mention or a direct
+        # reply to one of the bot's messages; merely posting in its configured topic
+        # is not sufficient.
         return {"ok": True}, 200
 
     # Legacy /link commands may contain an application password. Remove the command
