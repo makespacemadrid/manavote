@@ -906,6 +906,7 @@ _COIN_TRANSLATIONS_ES = {
     "Rank": "Posición",
     "Balance": "Saldo",
     "Total consumed": "Total consumido",
+    "Total purchased": "Total comprado",
     "Total bought": "Total comprado",
     "No members yet": "Todavía no hay miembros",
     "Manage coin items": "Gestionar artículos de monedas",

@@ -5,14 +5,13 @@
     <div><h1>🪙 {{ 'Coins'|lang }}</h1><p>{{ 'Consuming one can debits one ManaVote coin. Replenishing one can credits one coin.'|lang }}</p></div>
     <div class="coin-account-actions">
         <div class="coin-balance {{ 'amount-negative' if balance < 0 else 'amount-positive' }}">{{ 'Your coin balance'|lang }}: {{ balance }}</div>
-        {% if session.is_admin %}<a class="btn btn-secondary" href="{{ url_for('coins.qr_labels') }}">{{ 'Manage coin items'|lang }}</a>{% endif %}
     </div>
 </header>
 <div class="coin-grid">
 {% for item in items %}
 <article class="card coin-card" id="coin-item-{{ item.id }}">
     <h2>{{ item.name }}</h2>
-    <p class="coin-stock">{{ 'In stock'|lang }}: <strong>{{ item.stock }}</strong></p>
+    <p class="coin-stock">{{ 'Total consumed'|lang }}: <strong>{{ item.total_consumed }}</strong>, {{ 'Total purchased'|lang }}: <strong>{{ item.total_purchased }}</strong></p>
     <form method="post" action="{{ url_for('coins.move') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="item_id" value="{{ item.id }}"><input type="hidden" name="action" value="consume"><input type="hidden" name="quantity" value="1"><input type="hidden" name="idempotency_key" value="{{ range(1000000000, 9999999999)|random }}">
         <button class="btn btn-danger" type="submit">{{ 'I consumed 1'|lang }}</button>
@@ -34,8 +33,8 @@
 <section class="card">
     <h2>{{ 'Coin ranking'|lang }}</h2>
     <p>{{ 'Balances above zero are credits; balances below zero are debts.'|lang }}</p>
-    <div class="table-scroll"><table class="coin-ranking">
-        <thead><tr><th>{{ 'Rank'|lang }}</th><th>{{ 'Member'|lang }}</th><th>{{ 'Balance'|lang }}</th><th>{{ 'Total consumed'|lang }}</th><th>{{ 'Total bought'|lang }}</th></tr></thead>
+    <div class="table-scroll"><table class="coin-ranking" data-sortable-table>
+        <thead><tr><th data-sort-type="number">{{ 'Rank'|lang }}</th><th>{{ 'Member'|lang }}</th><th data-sort-type="number">{{ 'Balance'|lang }}</th><th data-sort-type="number">{{ 'Total consumed'|lang }}</th><th data-sort-type="number">{{ 'Total purchased'|lang }}</th></tr></thead>
         <tbody>{% for member in rankings %}<tr{% if member.id == session.member_id %} class="current-member"{% endif %}><td>{{ loop.index }}</td><td>{{ member.username|username }}</td><td class="{{ 'amount-negative' if member.balance < 0 else 'amount-positive' }}">{{ '%+d'|format(member.balance) }}</td><td>{{ member.total_consumed }}</td><td>{{ member.total_bought }}</td></tr>{% else %}<tr><td colspan="5">{{ 'No members yet'|lang }}</td></tr>{% endfor %}</tbody>
     </table></div>
 </section>

@@ -33,8 +33,8 @@ def test_seeded_items_and_web_ledger_actions(coin_client):
     assert response.status_code == 200
     assert b"Coke Zero" in response.data
     assert b"I bought 12" in response.data
-    assert b"Manage coin items" in response.data
-    assert b'href="/admin/coins/qr-labels"' in response.data
+    assert b"Manage coin items" not in response.data
+    assert b'href="/admin/coins/qr-labels"' not in response.data
 
     with sqlite3.connect(db_path) as connection:
         coke_id = connection.execute("SELECT id FROM coin_items WHERE name = 'Coke'").fetchone()[0]
@@ -80,10 +80,24 @@ def test_coins_page_ranks_balances_and_shows_lifetime_totals(coin_client):
     assert page.status_code == 200
     assert b"Coin ranking" in page.data
     assert b"Total consumed" in page.data
-    assert b"Total bought" in page.data
+    assert b"Total purchased" in page.data
+    assert b"data-sortable-table" in page.data
     assert page.data.index(b">admin<") < page.data.index(b">debtor<")
     assert b'<td class="amount-positive">+5</td><td>3</td><td>8</td>' in page.data
     assert b'<td class="amount-negative">-2</td><td>2</td><td>0</td>' in page.data
+
+
+def test_coin_item_cards_show_lifetime_consumed_and_purchased_totals(coin_client):
+    client, db_path = coin_client
+    with sqlite3.connect(db_path) as connection:
+        connection.row_factory = sqlite3.Row
+        record_movement(connection, item="Coke", member_id=1, action="replenish", quantity=8)
+        record_movement(connection, item="Coke", member_id=1, action="consume", quantity=3)
+
+    page = client.get("/coins")
+
+    assert b"In stock" not in page.data
+    assert b"Total consumed: <strong>3</strong>, Total purchased: <strong>8</strong>" in page.data
 
 
 def test_admin_printable_qr_labels_and_png(coin_client):
@@ -168,6 +182,7 @@ def test_admin_coins_section_has_item_creation_and_printable_qrs(coin_client):
     assert b"View and print QR labels" in page.data
     assert b'href="/admin/coins/qr-labels"' in page.data
     assert b'action="/admin/coins/items"' in page.data
+    assert page.data.index(b'data-section="coins"') < page.data.index(b'data-section="group_purchases"')
     assert b'name="pack_size"' in page.data
 
     response = client.post(
