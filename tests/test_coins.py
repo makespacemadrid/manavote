@@ -74,7 +74,7 @@ def test_coins_page_ranks_balances_and_shows_lifetime_totals(coin_client):
         connection.row_factory = sqlite3.Row
         record_movement(connection, item="Coke", member_id=1, action="replenish", quantity=8)
         record_movement(connection, item="Coke", member_id=1, action="consume", quantity=3)
-        record_movement(connection, item="Coke Zero", member_id=debtor_id, action="consume", quantity=2)
+        record_movement(connection, item="Coke Zero", member_id=debtor_id, action="consume", quantity=7)
 
     page = client.get("/coins")
     assert page.status_code == 200
@@ -82,9 +82,11 @@ def test_coins_page_ranks_balances_and_shows_lifetime_totals(coin_client):
     assert b"Total consumed" in page.data
     assert b"Total purchased" in page.data
     assert b"data-sortable-table" in page.data
-    assert page.data.index(b">admin<") < page.data.index(b">debtor<")
-    assert b'<td class="amount-positive">+5</td><td>3</td><td>8</td>' in page.data
-    assert b'<td class="amount-negative">-2</td><td>2</td><td>0</td>' in page.data
+    ranking_html = page.data[page.data.index(b"Coin ranking") :]
+    assert ranking_html.index(b">debtor<") < ranking_html.index(b">admin<")
+    assert b'data-sort-type="number" aria-sort="descending">Balance' in page.data
+    assert b'data-sort-value="5" class="amount-positive">+5</td><td>3</td><td>8</td>' in page.data
+    assert b'data-sort-value="7" class="amount-negative">-7</td><td>7</td><td>0</td>' in page.data
 
 
 def test_coin_item_cards_show_lifetime_consumed_and_purchased_totals(coin_client):
