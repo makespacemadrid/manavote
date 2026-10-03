@@ -72,9 +72,10 @@ def test_navigation_serializes_hydration_props_and_current_page_markup():
     assert props["username"]["value"] == "test-member"
     assert props["username"]["navigationLabel"] == "Primary navigation"
     assert any(link == {"href": "/proposals", "label": "Proposals"} for link in props["links"])
-    assert props["links"][:4] == [
+    assert props["links"][:5] == [
         {"href": "/proposals", "label": "Proposals"},
         {"href": "/polls", "label": "Polls"},
+        {"href": "/coins", "label": "Coins"},
         {"href": "/group-purchases", "label": "Group purchases"},
         {"href": "/budget", "label": "Budget"},
     ]

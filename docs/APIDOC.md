@@ -584,6 +584,23 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
   - optional args: `status`, `username`, `limit`, `offset`
   - returns components, shared costs, and per-participant amounts owed/paid
 - `current_budget`
+- `list_coin_items`
+  - optional `member_id`; returns Coke, Coke Zero, and Other Can with current stock and
+    the member's aggregate ManaVote coin balance when a member is supplied
+- `list_coin_movements`
+  - optional `item`, `member_id`, `limit` (1..200), and `offset`; returns newest ledger
+    movements first
+  - Telegram always binds `member_id` to the linked sender, so members only retrieve
+    their own movement history through the bot
+- `consume_coin_item`
+  - required `item` (case-insensitive name or positive ID) and `member_id`; optional
+    `quantity` (defaults to 1) and `idempotency_key`
+  - removes stock and debits one ManaVote coin per can
+- `replenish_coin_item`
+  - required `item`, `member_id`, and `quantity`; optional `idempotency_key`
+  - adds stock and credits one ManaVote coin per can
+  - Telegram binds `member_id` to the linked sender for both write tools, so the model
+    cannot record a movement for another member
 - `list_user_statistics` (optional `limit` from 1..500, `offset` >= 0, `username`, sorting fields, and `include_email`)
   - returns the same per-user participation fields as `GET /api/members/statistics`
   - returns page `count` and matching `total`; email is opt-in and defaults to omitted

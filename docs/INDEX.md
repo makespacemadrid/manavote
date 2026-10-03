@@ -10,6 +10,7 @@ Use this page as the entry point for project documentation.
 - **Testing commands and coverage map**: [`TESTING.md`](TESTING.md)
 - **Operations, logs, and troubleshooting**: [`OPERATIONS.md`](OPERATIONS.md)
 - **Architecture diagrams**: [`DIAGRAMS.md`](DIAGRAMS.md)
+- **Coins feature plan**: [`COINS_PLAN.md`](COINS_PLAN.md)
 
 ## Engineering process
 

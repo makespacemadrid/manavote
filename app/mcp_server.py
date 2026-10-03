@@ -23,7 +23,8 @@ from app.domain.enums import ProposalStatus
 from app.integrations.telegram_client import TelegramClient
 from app.repositories.poll_repo import PollRepository
 from app.repositories.proposal_repo import ProposalRepository
-from app.services import feedback_service, pagination_service, poll_service, voting_settings_service
+from app.repositories.coin_repo import CoinRepository
+from app.services import coin_service, feedback_service, pagination_service, poll_service, voting_settings_service
 from app.services import mcp_application
 from app.services import telegram_messaging_service
 from app.services.creation_validation_service import normalize_poll_options
@@ -312,6 +313,26 @@ def tool_definitions() -> list[dict[str, Any]]:
             "name": "current_budget",
             "description": "Get configured current budget setting.",
             "inputSchema": {"type": "object", "properties": {}},
+        },
+        {
+            "name": "list_coin_items",
+            "description": "List Coins items with current stock and the member's aggregate coin balance.",
+            "inputSchema": {"type": "object", "properties": {"member_id": {"type": "integer", "minimum": 1}}},
+        },
+        {
+            "name": "list_coin_movements",
+            "description": "List recent Coins ledger movements, optionally filtered by item or member.",
+            "inputSchema": {"type": "object", "properties": {"item": {"oneOf": [{"type": "string"}, {"type": "integer", "minimum": 1}]}, "member_id": {"type": "integer", "minimum": 1}, **_pagination_properties(200)}},
+        },
+        {
+            "name": "consume_coin_item",
+            "description": "Record cans consumed by a member, debiting one ManaVote coin per can.",
+            "inputSchema": {"type": "object", "required": ["item", "member_id"], "properties": {"item": {"oneOf": [{"type": "string"}, {"type": "integer", "minimum": 1}]}, "quantity": {"type": "integer", "minimum": 1, "maximum": 1000}, "member_id": {"type": "integer", "minimum": 1}, "idempotency_key": {"type": "string"}}},
+        },
+        {
+            "name": "replenish_coin_item",
+            "description": "Record cans bought by a member, crediting one ManaVote coin per can.",
+            "inputSchema": {"type": "object", "required": ["item", "quantity", "member_id"], "properties": {"item": {"oneOf": [{"type": "string"}, {"type": "integer", "minimum": 1}]}, "quantity": {"type": "integer", "minimum": 1, "maximum": 1000}, "member_id": {"type": "integer", "minimum": 1}, "idempotency_key": {"type": "string"}}},
         },
         {
             "name": "list_member_telegram_links",
@@ -713,6 +734,65 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
         rows = _db_rows("SELECT value FROM settings WHERE key='current_budget' LIMIT 1")
         value = rows[0]["value"] if rows else None
         return _tool_text(req_id, {"current_budget": value})
+
+    if normalized_name == "list_coin_items":
+        member_id = arguments.get("member_id")
+        if member_id is not None and (isinstance(member_id, bool) or not isinstance(member_id, int) or member_id < 1):
+            return _error(req_id, -32602, "Invalid params: member_id must be a positive integer")
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            repo = CoinRepository(conn)
+            items = [dict(row) for row in repo.list_items(member_id)]
+            balance = None
+            if member_id is not None:
+                balance = repo.member_balance(member_id)
+            return _tool_text(req_id, {"count": len(items), "items": items, "coin_balance": balance})
+        finally:
+            conn.close()
+
+    if normalized_name == "list_coin_movements":
+        member_id = arguments.get("member_id")
+        if member_id is not None and (isinstance(member_id, bool) or not isinstance(member_id, int) or member_id < 1):
+            return _error(req_id, -32602, "Invalid params: member_id must be a positive integer")
+        limit, offset, pagination_error = _paginate(req_id, arguments, default_limit=20, max_limit=200)
+        if pagination_error:
+            return pagination_error
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            repo = CoinRepository(conn)
+            item_id = None
+            if arguments.get("item") is not None:
+                item = repo.find_item(arguments["item"])
+                if item is None:
+                    return _error(req_id, -32004, "Coin item not found")
+                item_id = item["id"]
+            rows = [dict(row) for row in repo.recent_movements(limit, offset, member_id=member_id, item_id=item_id)]
+            return _tool_text(req_id, {"count": len(rows), "limit": limit, "offset": offset, "movements": rows})
+        finally:
+            conn.close()
+
+    if normalized_name in {"consume_coin_item", "replenish_coin_item"}:
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            result = coin_service.record_movement(
+                conn,
+                item=arguments.get("item"),
+                member_id=arguments.get("member_id"),
+                action="consume" if normalized_name == "consume_coin_item" else "replenish",
+                quantity=arguments.get("quantity", 1),
+                source="mcp",
+                idempotency_key=arguments.get("idempotency_key"),
+            )
+            return _tool_text(req_id, result)
+        except coin_service.CoinValidationError as exc:
+            return _error(req_id, -32602, f"Invalid params: {exc}")
+        except coin_service.CoinNotFoundError as exc:
+            return _error(req_id, -32004, str(exc))
+        finally:
+            conn.close()
 
 
     if normalized_name == "list_member_telegram_links":

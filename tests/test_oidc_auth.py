@@ -151,6 +151,25 @@ def test_oidc_callback_establishes_session_without_tokens(monkeypatch):
         assert "oidc_transient" not in session
 
 
+def test_oidc_callback_returns_to_pending_qr_scan(monkeypatch):
+    app = configure_app(monkeypatch, TESTING=True, OIDC_ENABLED=True, OIDC_REQUIRED_GROUP="")
+
+    class FakeClient:
+        def authorize_access_token(self):
+            return {"userinfo": {"sub": "subject"}}
+
+    monkeypatch.setattr(auth_routes.oauth, "keycloak", FakeClient())
+    monkeypatch.setattr(auth_routes, "_upsert_oidc_member", lambda claims: {"id": 42, "username": "alice", "is_admin": 0})
+    client = app.test_client()
+    with client.session_transaction() as session:
+        session["login_next"] = "/coins/scan/example"
+
+    response = client.get("/auth/callback/keycloak")
+
+    assert response.status_code == 302
+    assert response.headers["Location"].endswith("/coins/scan/example")
+
+
 def test_oidc_logout_clears_session_and_uses_configured_redirect(monkeypatch):
     app = configure_app(
         monkeypatch,

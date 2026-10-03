@@ -7,6 +7,7 @@ import requests
 from authlib.integrations.base_client.errors import OAuthError
 from authlib.jose.errors import JoseError
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
+from urllib.parse import urlparse
 from werkzeug.security import generate_password_hash
 
 from app.extensions import limiter, oauth
@@ -76,6 +77,9 @@ def login():
                 session["lang"] = "en"
             session.permanent = True
 
+            next_url = session.pop("login_next", None)
+            if next_url and not urlparse(next_url).netloc and next_url.startswith("/"):
+                return redirect(next_url)
             return redirect(url_for("proposals"))
 
         flash("Invalid credentials", "error")
@@ -132,6 +136,7 @@ def keycloak_callback():
         abort(403, description="An active Makespace membership is required")
 
     preferred_language = session.get("lang", "en")
+    next_url = session.get("login_next")
     member = _upsert_oidc_member(claims)
     session.clear()  # Prevent session fixation and discard OIDC transient values.
     session["member_id"] = member["id"]
@@ -140,6 +145,8 @@ def keycloak_callback():
     session["lang"] = preferred_language
     session["oidc_login"] = True
     session.permanent = True
+    if next_url and not urlparse(next_url).netloc and next_url.startswith("/"):
+        return redirect(next_url)
     return redirect(url_for("proposals"))
 
 

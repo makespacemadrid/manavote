@@ -32,6 +32,8 @@ def execute_tool(executor, tool_name, arguments, *, actor, req_id=1):
             if actor.member_id is None:
                 raise ToolAccessDenied("Linked member required")
             bound_arguments["member_id"] = actor.member_id
+        if tool_name in {"list_coin_items", "list_coin_movements"} and actor.member_id is not None:
+            bound_arguments["member_id"] = actor.member_id
         if policy == TelegramPolicy.CONFIRMED_ADMIN_WRITE and tool_name in {"create_proposal", "create_poll"}:
             if actor.member_id is None:
                 raise ToolAccessDenied("Linked administrator required")
