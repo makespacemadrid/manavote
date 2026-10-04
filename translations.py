@@ -931,7 +931,7 @@ _COIN_TRANSLATIONS_ES = {
     "Coin item deleted": "Artículo de monedas eliminado",
     "Delete item": "Eliminar artículo",
     "Delete this coin item? Its movement history will be preserved.": "¿Eliminar este artículo de monedas? Se conservará su historial de movimientos.",
-    "Coin ranking": "Clasificación de monedas",
+    "Coin credit & debts per member": "Crédito y deudas de monedas por miembro",
     "Balances above zero are credits; balances below zero are debts.": "Los saldos por encima de cero son créditos; los saldos por debajo de cero son deudas.",
     "Rank": "Posición",
     "Balance": "Saldo",

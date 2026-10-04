@@ -266,7 +266,8 @@ Committed series behavior:
 - Item cards show lifetime consumed and purchased totals.
 - A sortable **Consumption by item** table lists every active item and its lifetime
   consumed quantity.
-- The ranking table shows every member's balance and lifetime consume/purchase totals.
+- The **Coin credit & debts per member** table shows every member's balance and
+  lifetime consume/purchase totals.
 - Recent movement history is restricted to the signed-in member.
 
 ### Group purchases page (`/group-purchases`)

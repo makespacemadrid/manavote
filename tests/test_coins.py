@@ -78,11 +78,11 @@ def test_coins_page_ranks_balances_and_shows_lifetime_totals(coin_client):
 
     page = client.get("/coins")
     assert page.status_code == 200
-    assert b"Coin ranking" in page.data
+    assert b"Coin credit &amp; debts per member" in page.data
     assert b"Total consumed" in page.data
     assert b"Total purchased" in page.data
     assert b"data-sortable-table" in page.data
-    ranking_html = page.data[page.data.index(b"Coin ranking") :]
+    ranking_html = page.data[page.data.index(b"Coin credit &amp; debts per member") :]
     assert ranking_html.index(b">debtor<") < ranking_html.index(b">admin<")
     assert b'data-sort-type="number" aria-sort="descending">Balance' in page.data
     assert b'data-sort-value="5" class="amount-positive">+5</td><td>3</td><td>8</td>' in page.data
@@ -101,7 +101,7 @@ def test_coin_item_cards_show_lifetime_consumed_and_purchased_totals(coin_client
     assert b"In stock" not in page.data
     assert b"Total consumed: <strong>3</strong>, Total purchased: <strong>8</strong>" in page.data
     assert b"Consumption by item" in page.data
-    summary = page.data.split(b"Consumption by item", 1)[1].split(b"Coin ranking", 1)[0]
+    summary = page.data.split(b"Consumption by item", 1)[1].split(b"Coin credit &amp; debts per member", 1)[0]
     assert b"Coke" in summary
     assert b">3</td>" in summary
 
