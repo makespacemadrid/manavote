@@ -1,4 +1,8 @@
-# META — Retrospective: What I wish I'd known ~300 Commits Ago
+# META — Retrospective: What I Wish I'd Known Before Nearly 400 Commits
+
+> **Retrospective, not current-system documentation.** This file preserves lessons and
+> historical reconstruction. Use [`INDEX.md`](INDEX.md) to find the authoritative
+> setup, behavior, interface, testing, and operations references.
 
 > **TL;DR:** Almost every regression documented below follows one shape — a decision
 > made implicitly held up fine until something *second* arrived (a second surface, a
@@ -10,24 +14,27 @@
 > this one" for the tech-agnostic version and a single starter prompt for *any* new
 > project.
 
-This project is 348 commits old as of this writing (`git log --oneline origin/main | wc -l`,
-after unshallowing this session's clone to see the real, complete history back to the
-first commit). "300 commits ago" lands around commit **#47** — chronologically, right
-after the first withdraw-vote feature and before the first CSRF token, the first
-password-hash migration, and the first `app/services/` module existed. This document
-was first written from that vantage point; it has since been expanded from a full,
-commit-by-commit read of the entire history (not a sample), so later sections also cover
-things that only became visible from further out — how a second identity provider, a
-second chat surface, and a second frontend framework each interacted with decisions made
-long before they existed. Real, dated evidence throughout, not general advice.
+This project was **396 commits old** at the start of this update (`git rev-list --count
+HEAD`, measured on 2026-10-04 from a clone containing the complete history). The
+retrospective was first written at 348 commits, using commit **#47** as its "roughly 300
+commits ago" vantage
+point—chronologically, right after the first withdraw-vote feature and before the first
+CSRF token, password-hash migration, or `app/services/` module. Approaching 400 commits
+makes the broader framing more useful: these are lessons we wish had been explicit
+before the project began, not merely a snapshot of one 300-commit interval.
 
-Nearly all of this history — 317 of 348 commits — was authored by one person
-(`web@luisriverag.com`) driving a coding agent through one small, single-purpose PR at a
-time (branch names like `codex/fix-...`, `codex/add-...`); 29 more are this session's own
-work. That matters for the second half of this document: this genuinely is what it looks
-like to build a real, still-running app almost entirely through prompted AI-agent work,
-which makes "what should the prompts have said" a question with a concrete, evidence-backed
-answer rather than a hypothetical one.
+The evidence still comes from a full, commit-by-commit read of the history rather than
+a sample. Later sections cover things that only became visible from further out—how a
+second identity provider, a second chat surface, and a second frontend framework each
+interacted with decisions made long before they existed. The examples remain dated and
+repository-specific rather than general advice presented without evidence.
+
+Most of this history—350 of 396 commits—uses the author identity
+`web@luisriverag.com`; 42 use the Claude automation identity, two use the Codex identity,
+and two use another contributor identity. The repository's small, agent-assisted PRs
+(with branch names such as `codex/fix-...` and `codex/add-...`) make the second half of
+this document concrete: "what should the prompts have said?" can be answered from a
+real, still-running application rather than a hypothetical project.
 
 This is not a criticism of the pace or judgment that got the project here — a
 community-run budget-voting app iterating in public with real users is exactly the kind
@@ -57,7 +64,7 @@ Adding up just the findings below with an explicit, named commit count (1, 3, 4,
 11, 12, 13, 14, 15, 16, 19, 20, 21 — the eight findings without one, like "REST and MCP
 drifted" or "tests arrived late," represent real cost too, just not one expressible as
 a commit tally) comes to **at least 48 commits** spent specifically on rework whose root
-cause predates it, out of 348 total — call it one commit in seven. That's a lower bound,
+cause predates it, out of 396 total—roughly one commit in eight. That's a lower bound,
 not an estimate of total waste: it only counts commits this document cites by hash, not
 every smaller ripple those root causes caused elsewhere, and finding 19's four commits
 are deliberately counted separately from finding 11's eleven so nothing is counted
@@ -113,8 +120,8 @@ you've written it down.
 
 CSRF protection, real password hashing, non-debug mode, secure cookies, and upload
 MIME validation all landed together in a dedicated security pass —
-`a97fedf`/`be38c2f`/`8f8bc31`/`43bc4a9` — roughly **a third of the way** through the
-project's life (commit #109 of 348), not from the start. Two of these were
+`a97fedf`/`be38c2f`/`8f8bc31`/`43bc4a9` — just over **a quarter of the way** through the
+project's life (commit #109 of 396), not from the start. Two of these were
 particularly expensive to retrofit rather than start with:
 
 - **Password hashing started as raw SHA256** and required `8f8bc31` to add an
@@ -408,7 +415,7 @@ paying off are worth naming so they don't get lost in a list of regrets:
   (`app/db/migrations.py`, `app/db/schema.sql`), routes (620 lines), templates,
   translations, docs (`docs/SPEC.md`), and 256 lines of tests, all in the same PR — and,
   unlike polls or MCP, didn't need an immediate crash-fix cascade after merging. By the
-  time this feature was built (commit #274 of 348), the project had visibly internalized
+  time this feature was built (commit #274 of 396), the project had visibly internalized
   several of the lessons above.
 - **Finding 7's thesis got a live re-run while this document was being written.**
   `IDEAS.md`'s "Member feedback / bug reports / suggestions" entry specified a

@@ -1,6 +1,8 @@
 # STYLE — Engineering Principles, Dev Rules, and Delivery Guardrails
 
-This document defines how we implement changes in this repository.
+This document defines how we implement changes in this repository. It owns contributor
+policy and the definition of done, not product requirements or sprint scope; those live
+in [`SPEC.md`](SPEC.md) and [`SPRINTS.md`](SPRINTS.md).
 
 ## 1) Engineering Principles
 

@@ -1,5 +1,26 @@
 # Testing Guide
 
+This guide owns executable test commands and the map from suites to responsibilities.
+It does not redefine expected product or API behavior; failures should be interpreted
+against [`SPEC.md`](SPEC.md) and [`APIDOC.md`](APIDOC.md).
+
+## Contents
+
+- [Run everything](#run-everything)
+- [Documentation integrity](#documentation-integrity)
+- [Core and frontend regression packs](#targeted-regression-packs)
+- [REST API](#api-focused-checks)
+- [Admin backup observability](#admin-backup-observability-checks)
+- [Koins and ledger administration](#koins-and-ledger-administration-checks)
+- [MCP](#mcp-focused-checks)
+- [Voting settings REST/MCP parity](#voting-settings-restmcp-parity-checks)
+- [Telegram webhook voting](#telegram-webhook-vote-response-checks)
+- [Natural-language Telegram and MCP](#natural-language-telegram--mcp-checks)
+- [Poll auto-close and Telegram results](#poll-auto-close--telegram-result-message-checks)
+- [Telegram link lifecycle](#telegram-link-lifecycle-audit-checks)
+- [OpenID Connect](#openid-connect-regression-tests)
+- [Other regression packs](#other-regression-packs)
+
 ## Run everything
 
 ```bash
@@ -9,6 +30,17 @@ npm test
 
 Operator-facing meanings for the reason codes and structured events exercised below are
 documented in [`OPERATIONS.md`](OPERATIONS.md).
+
+## Documentation integrity
+
+```bash
+pytest -q tests/test_documentation.py
+```
+
+This check verifies that relative Markdown files and heading fragments resolve, every
+document is reachable from [`INDEX.md`](INDEX.md), and every variable in `sample.env`
+appears in the Quick Start configuration reference. Add new documentation beneath
+`docs/` to the map directly or link it from a document that is already reachable.
 
 ## Targeted regression packs
 

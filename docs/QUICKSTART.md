@@ -3,6 +3,17 @@
 For startup-health interpretation, structured reason codes, backup lifecycle events,
 and Telegram assistant diagnostics, see [`OPERATIONS.md`](OPERATIONS.md).
 
+## Contents
+
+- [Run ManaVote](#run-manavote)
+- [Initial administrator](#initial-admin-bootstrap)
+- [Configuration and Docker migration](#configuration)
+- [Backups](#backup)
+- [Smoke tests](#testing)
+- [Makespace SSO](#makespace-sso)
+
+## Run ManaVote
+
 ### Docker
 ```bash
 cp sample.env .env
@@ -181,11 +192,9 @@ npm test
 npm run build
 ```
 
-Focused regression slice for the ongoing route decomposition:
+For targeted suites and their coverage responsibilities, use the canonical
+[`TESTING.md`](TESTING.md) guide.
 
-```bash
-pytest -q tests/test_blueprint_registration.py tests/test_blueprint_endpoint_aliases.py tests/test_api_helpers.py tests/test_production_config.py
-```
 ## Makespace SSO
 
 Manavote supports OpenID Connect Authorization Code login with PKCE through the
