@@ -7,7 +7,7 @@
 <h2>{{ 'Admin'|lang }}</h2>
 
 <div class="admin-toolbar">
-    {% for section, icon, label in [('members', '👥', 'Members'), ('budget', '💶', 'Budget'), ('polls', '📊', 'Polls'), ('coins', '🪙', 'Coins'), ('group_purchases', '🛒', 'Group purchases'), ('feedback', '💬', 'Feedback'), ('settings', '⚙️', 'Settings')] %}
+    {% for section, icon, label in [('members', '👥', 'Members'), ('budget', '💶', 'Budget'), ('polls', '📊', 'Polls'), ('coins', '🪙', 'Koins'), ('group_purchases', '🛒', 'Group purchases'), ('feedback', '💬', 'Feedback'), ('settings', '⚙️', 'Settings')] %}
     <a href="{{ url_for('admin.admin', tab=section) }}" class="btn btn-secondary admin-tab-btn{% if active_admin_tab == section %} active{% endif %}" data-section="{{ section }}" onclick="showSection('{{ section }}', this); return false;"><span aria-hidden="true">{{ icon }}</span> {{ label|lang }}</a>
     {% endfor %}
 </div>
@@ -508,24 +508,24 @@ document.addEventListener('DOMContentLoaded', function() {
 
 
 <div id="coins" class="card">
-    <h3>🪙 {{ 'Coins'|lang }}</h3>
-    <p class="coin-admin-intro">{{ 'Print QR labels with item names and ManaVote ledger instructions.'|lang }}</p>
+    <h3>🪙 {{ 'Koins'|lang }}</h3>
+    <p class="coin-admin-intro">{{ 'Print QR labels with item names and koin ledger instructions.'|lang }}</p>
     <div class="coin-admin-header-actions">
         <a class="btn" href="{{ url_for('coins.qr_labels') }}">{{ 'View and print QR labels'|lang }}</a>
     </div>
     <section class="coin-admin-section" aria-labelledby="coin-create-heading">
-    <h4 id="coin-create-heading">{{ 'Create coin item'|lang }}</h4>
+    <h4 id="coin-create-heading">{{ 'Create koin item'|lang }}</h4>
     <p class="coin-admin-help">{{ 'Add a consumable category and the pack size used by its quick purchase button.'|lang }}</p>
     <form method="post" action="{{ url_for('coins.create_coin_item') }}" class="coin-admin-create-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="return_to" value="admin">
         <div class="coin-admin-field coin-admin-name-field"><label for="admin-coin-item-name">{{ 'Item name'|lang }}</label><input id="admin-coin-item-name" name="name" maxlength="100" placeholder="Icecream Minis mix" required></div>
         <div class="coin-admin-field"><label for="admin-coin-pack-size">{{ 'Purchase pack size'|lang }}</label><input id="admin-coin-pack-size" name="pack_size" type="number" min="1" max="1000" value="8" required></div>
-        <button class="btn coin-admin-submit" type="submit">{{ 'Create coin item'|lang }}</button>
+        <button class="btn coin-admin-submit" type="submit">{{ 'Create koin item'|lang }}</button>
     </form>
     </section>
     <section class="coin-admin-section" aria-labelledby="coin-edit-heading">
-    <h4 id="coin-edit-heading">{{ 'Edit coin items'|lang }}</h4>
+    <h4 id="coin-edit-heading">{{ 'Edit koin items'|lang }}</h4>
     <div class="coin-admin-items">
     {% for item in coin_items %}
     <article class="coin-admin-item">
@@ -535,7 +535,7 @@ document.addEventListener('DOMContentLoaded', function() {
         <div class="coin-admin-field"><label for="admin-coin-pack-size-{{ item.id }}">{{ 'Default purchase amount'|lang }}</label><input id="admin-coin-pack-size-{{ item.id }}" name="pack_size" type="number" min="1" max="1000" value="{{ item.pack_size }}" required></div>
         <button class="btn btn-secondary" type="submit">{{ 'Save item'|lang }}</button>
     </form>
-    <form class="coin-admin-delete-form" method="post" action="{{ url_for('coins.delete_coin_item', item_id=item.id) }}" onsubmit="return confirmDangerAction(this, {{ 'Delete this coin item? Its movement history will be preserved.'|lang|tojson }});">
+    <form class="coin-admin-delete-form" method="post" action="{{ url_for('coins.delete_coin_item', item_id=item.id) }}" onsubmit="return confirmDangerAction(this, {{ 'Delete this koin item? Its movement history will be preserved.'|lang|tojson }});">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn btn-danger" type="submit">{{ 'Delete item'|lang }}</button>
     </form>
@@ -544,7 +544,7 @@ document.addEventListener('DOMContentLoaded', function() {
     </div>
     </section>
     <section class="coin-admin-section" aria-labelledby="coin-ledger-heading">
-    <h4 id="coin-ledger-heading">✏️ {{ 'Edit coin ledger'|lang }}</h4>
+    <h4 id="coin-ledger-heading">✏️ {{ 'Edit koin ledger'|lang }}</h4>
     <p class="coin-admin-help">{{ 'Correct the item, member, type, or quantity of a ledger entry.'|lang }}</p>
     <div class="table-scroll"><table class="coin-ledger-table">
         <thead><tr><th>{{ 'Date'|lang }}</th><th colspan="6">{{ 'Ledger entry'|lang }}</th></tr></thead>
@@ -558,7 +558,7 @@ document.addEventListener('DOMContentLoaded', function() {
                 <input name="note" maxlength="250" value="{{ movement.note or '' }}" aria-label="{{ 'Note'|lang }}">
                 <button class="btn btn-secondary" type="submit">💾 {{ 'Save movement'|lang }}</button>
             </form>
-        </td></tr>{% else %}<tr><td colspan="7">{{ 'No coin movements yet'|lang }}</td></tr>{% endfor %}</tbody>
+        </td></tr>{% else %}<tr><td colspan="7">{{ 'No koin movements yet'|lang }}</td></tr>{% endfor %}</tbody>
     </table></div>
     </section>
 </div>

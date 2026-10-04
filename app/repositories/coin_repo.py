@@ -1,4 +1,4 @@
-"""Persistence for the Coins inventory and member ledger."""
+"""Persistence for the Koins inventory and member ledger."""
 
 
 class CoinRepository:
@@ -60,7 +60,7 @@ class CoinRepository:
         return int(row["balance"])
 
     def member_rankings(self):
-        """Return every member's coin balance and lifetime purchase/consumption totals."""
+        """Return every member's koin balance and lifetime purchase/consumption totals."""
         return self.connection.execute(
             """SELECT m.id, m.username,
                       COALESCE(SUM(cm.coin_delta), 0) AS balance,

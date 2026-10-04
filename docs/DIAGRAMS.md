@@ -12,7 +12,7 @@ the code wins — update the diagram in the same PR that changes the shape it de
 
 - [Process overview](#process-overview)
 - [Request path: web page load](#request-path-web-page-load)
-- [Admin coin correction flow](#admin-coin-correction-flow)
+- [Admin koin correction flow](#admin-koin-correction-flow)
 - [Telegram webhook: message routing](#telegram-webhook-message-routing)
 - [Telegram assistant: mutation confirm flow](#telegram-assistant-mutation-confirm-flow)
 - [MCP and REST: shared service layer](#mcp-and-rest-shared-service-layer)
@@ -35,7 +35,7 @@ flowchart TB
 
     subgraph flaskapp["Flask app internals"]
         legacy["main_routes.py\n(legacy routes + shared\nhelper functions, shrinking)"]
-        bps["8 blueprints:\nauth, api, proposals, polls,\nadmin, coins, group_purchases, telegram"]
+        bps["8 blueprints:\nauth, api, proposals, polls,\nadmin, koins, group_purchases, telegram"]
         services["app/services/*\n(business logic,\nDI-parameter style)"]
         repos["app/repositories/*\n(query composition)"]
     end
@@ -84,9 +84,9 @@ sequenceDiagram
     Blueprint-->>Browser: render_template("proposals.html", ...)
 ```
 
-## Admin coin correction flow
+## Admin koin correction flow
 
-Member, QR, and MCP coin actions append movements through the shared coin service. An
+Member, QR, and MCP koin actions append movements through the shared koin service. An
 administrator can use the explicit correction path for an existing row; the route is
 protected by login, admin-role, and CSRF checks. The service validates references and
 quantity, derives signed deltas from the selected movement kind, preserves the row's
@@ -100,7 +100,7 @@ sequenceDiagram
     participant DB as SQLite
     participant Log as Application log
 
-    Admin->>Route: POST /admin/coins/movements/:id
+    Admin->>Route: POST /admin/koins/movements/:id
     Route->>Route: login + admin + CSRF checks
     Route->>Service: item, member, kind, quantity, note
     Service->>DB: validate active item, member, movement
@@ -110,7 +110,7 @@ sequenceDiagram
     Service->>Log: coin_movement_updated
     Service-->>Route: movement_id
     Route->>Log: coin_movement_updated_by_admin
-    Route-->>Admin: redirect /admin?tab=coins
+    Route-->>Admin: redirect /admin?tab=koins
 ```
 
 ## Telegram webhook: message routing
@@ -230,7 +230,7 @@ flowchart TD
 
 ## Core data model
 
-Simplified to the tables that carry the app's core voting, budget, and coin domains — omits
+Simplified to the tables that carry the app's core voting, budget, and koin domains — omits
 `telegram_update_dedup`, `telegram_pending_actions`, and the `group_purchase_*` family
 (five tables on their own; see `SPEC.md` for the full group-purchases model).
 

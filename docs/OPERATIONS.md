@@ -133,13 +133,13 @@ channel-disabled check fires before either is resolved (the check runs before an
 poll/member lookup on some paths) — the record is still useful in aggregate ("N vote
 attempts blocked by policy") even without full identity.
 
-## Coin ledger corrections
+## Koin ledger corrections
 
-An administrator editing an existing coin movement emits two informational records:
+An administrator editing an existing koin movement emits two informational records:
 
 | Log prefix | Meaning |
 | --- | --- |
-| `coin_movement_updated` | The coin service validated and committed the correction. The record includes the movement, item, member, kind, and submitted quantity. |
+| `coin_movement_updated` | The koin service validated and committed the correction. The record includes the movement, item, member, kind, and submitted quantity. |
 | `coin_movement_updated_by_admin` | The protected web route completed the correction. `movement_id` identifies the corrected row and `member_id` identifies the administrator who submitted it. |
 
 The corrected database row retains its original `id`, `idempotency_key`, and

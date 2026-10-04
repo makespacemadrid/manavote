@@ -1,4 +1,4 @@
-"""Shared business rules for web, QR, MCP, and Telegram Coins actions."""
+"""Shared business rules for web, QR, MCP, and Telegram Koins actions."""
 
 import logging
 import secrets
@@ -52,7 +52,7 @@ def update_item(connection, *, item_id, name, pack_size):
     try:
         item_id = int(item_id)
     except (TypeError, ValueError) as exc:
-        raise CoinValidationError("Coin item is required") from exc
+        raise CoinValidationError("Koin item is required") from exc
     name = str(name or "").strip()
     if not name or len(name) > 100:
         raise CoinValidationError("Item name must be between 1 and 100 characters")
@@ -73,7 +73,7 @@ def update_item(connection, *, item_id, name, pack_size):
     try:
         updated = CoinRepository(connection).update_item(item_id, name, pack_size)
         if not updated:
-            raise CoinNotFoundError("Coin item not found")
+            raise CoinNotFoundError("Koin item not found")
         connection.commit()
     except sqlite3.IntegrityError as exc:
         connection.rollback()
@@ -87,10 +87,10 @@ def delete_item(connection, *, item_id):
     try:
         item_id = int(item_id)
     except (TypeError, ValueError) as exc:
-        raise CoinValidationError("Coin item is required") from exc
+        raise CoinValidationError("Koin item is required") from exc
     repo = CoinRepository(connection)
     if not repo.deactivate_item(item_id):
-        raise CoinNotFoundError("Coin item not found")
+        raise CoinNotFoundError("Koin item not found")
     connection.execute("UPDATE coin_qr_tokens SET active = 0 WHERE item_id = ?", (item_id,))
     connection.commit()
     logger.info("coin_item_deleted item_id=%s", item_id)
@@ -99,7 +99,7 @@ def delete_item(connection, *, item_id):
 
 def record_movement(connection, *, item, member_id, action, quantity=1, source="web", idempotency_key=None):
     if action not in VALID_ACTIONS:
-        raise CoinValidationError("Unknown coin action")
+        raise CoinValidationError("Unknown koin action")
     if isinstance(quantity, bool):
         raise CoinValidationError("Quantity must be a positive integer")
     try:
@@ -116,7 +116,7 @@ def record_movement(connection, *, item, member_id, action, quantity=1, source="
     repo = CoinRepository(connection)
     item_row = repo.find_item(item)
     if item_row is None:
-        raise CoinNotFoundError("Coin item not found")
+        raise CoinNotFoundError("Koin item not found")
     if connection.execute("SELECT 1 FROM members WHERE id = ?", (member_id,)).fetchone() is None:
         raise CoinNotFoundError("Member not found")
 
@@ -150,7 +150,7 @@ def record_movement(connection, *, item, member_id, action, quantity=1, source="
 
 
 def adjust_inventory(connection, *, item, member_id, inventory_delta, note=None, idempotency_key=None):
-    """Adjust physical stock without changing any member's coin balance."""
+    """Adjust physical stock without changing any member's koin balance."""
     try:
         inventory_delta = int(inventory_delta)
     except (TypeError, ValueError) as exc:
@@ -160,7 +160,7 @@ def adjust_inventory(connection, *, item, member_id, inventory_delta, note=None,
     repo = CoinRepository(connection)
     item_row = repo.find_item(item)
     if item_row is None:
-        raise CoinNotFoundError("Coin item not found")
+        raise CoinNotFoundError("Koin item not found")
     key = str(idempotency_key or secrets.token_urlsafe(24))
     existing = repo.movement_by_key(key)
     if existing is not None:
@@ -190,7 +190,7 @@ def update_movement(connection, *, movement_id, item, member_id, kind, quantity,
     if quantity == 0 or abs(quantity) > MAX_QUANTITY:
         raise CoinValidationError(f"Quantity must be between -{MAX_QUANTITY} and {MAX_QUANTITY}, excluding zero")
     if kind not in {"consume", "replenish", "adjustment"}:
-        raise CoinValidationError("Unknown coin action")
+        raise CoinValidationError("Unknown koin action")
     note = str(note or "").strip() or None
     if note is not None and len(note) > 250:
         raise CoinValidationError("Note must be 250 characters or fewer")
@@ -198,11 +198,11 @@ def update_movement(connection, *, movement_id, item, member_id, kind, quantity,
     repo = CoinRepository(connection)
     item_row = repo.find_item(item)
     if item_row is None:
-        raise CoinNotFoundError("Coin item not found")
+        raise CoinNotFoundError("Koin item not found")
     if connection.execute("SELECT 1 FROM members WHERE id = ?", (member_id,)).fetchone() is None:
         raise CoinNotFoundError("Member not found")
     if connection.execute("SELECT 1 FROM coin_movements WHERE id = ?", (movement_id,)).fetchone() is None:
-        raise CoinNotFoundError("Coin movement not found")
+        raise CoinNotFoundError("Koin movement not found")
 
     if kind == "consume":
         inventory_delta = coin_delta = -abs(quantity)

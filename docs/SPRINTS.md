@@ -33,7 +33,7 @@ tracked in [`IDEAS.md`](IDEAS.md) until the next sprint is scoped.
 - Telegram linking now defaults to a passwordless, signed browser-confirmation flow;
   group assistant routing recognizes exact mentions, bot replies, and configured forum
   topics.
-- Coins shipped with configurable/deactivatable categories, QR debit labels, member
+- Koins shipped with configurable/deactivatable categories, QR debit labels, member
   balances and rankings, lifetime per-item consumption, and administrator ledger
   corrections.
 - Navigation gained emoji labels, and the desktop layout was widened for large screens.
