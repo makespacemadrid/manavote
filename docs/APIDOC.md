@@ -482,7 +482,7 @@ Although not part of the REST API surface, the `/budget` page renders a mixed Ch
 
 **Endpoint**: `GET /api/members/statistics`
 
-Returns lifetime participation, proposal-budget, poll, group-purchase, coin-usage, and
+Returns lifetime participation, proposal-budget, poll, group-purchase, koin-usage, and
 beverage-consumption statistics.
 Results support `limit` (default `100`, maximum `500`) and `offset` (default `0`).
 `count` is the number of users in the current page; `total` is the number of matching
@@ -505,7 +505,7 @@ fields are rounded to two decimal places.
 | Proposal budgets | `proposed_budget`, `approved_proposal_budget`, `approved_budget_percentage` |
 | Polls | `poll_vote_count`, `poll_count`, `open_poll_count`, `closed_poll_count`, `created_poll_vote_count`, `average_votes_per_created_poll` |
 | Group purchases | `group_purchase_count`, `open_group_purchase_count`, `created_group_purchase_order_value`, `created_group_purchase_participant_count` |
-| Coins | `coin_balance`, `coins_earned`, `coins_spent` |
+| Koins | `coin_balance`, `coins_earned`, `coins_spent` |
 | Beverages | `beverages_consumed`, `beverages_replenished`, `beverage_consumption` (per-item `item_id`, `item_name`, `consumed`, and `replenished`) |
 
 ```json
@@ -598,7 +598,7 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
 - `current_budget`
 - `list_coin_items`
   - optional `member_id`; returns Coke, Coke Zero, and Other Can with current stock and
-    the member's aggregate ManaVote coin balance when a member is supplied
+    the member's aggregate ManaVote koin balance when a member is supplied
 - `list_coin_movements`
   - optional `item`, `member_id`, `limit` (1..200), and `offset`; returns newest ledger
     movements first
@@ -607,10 +607,10 @@ The HTTP endpoint supports JSON-RPC single and batch request payloads.
 - `consume_coin_item`
   - required `item` (case-insensitive name or positive ID) and `member_id`; optional
     `quantity` (defaults to 1) and `idempotency_key`
-  - removes stock and debits one ManaVote coin per can
+  - removes stock and debits one ManaVote koin per can
 - `replenish_coin_item`
   - required `item`, `member_id`, and `quantity`; optional `idempotency_key`
-  - adds stock and credits one ManaVote coin per can
+  - adds stock and credits one ManaVote koin per can
   - Telegram binds `member_id` to the linked sender for both write tools, so the model
     cannot record a movement for another member
 - `list_user_statistics` (optional `limit` from 1..500, `offset` >= 0, `username`, sorting fields, and `include_email`)

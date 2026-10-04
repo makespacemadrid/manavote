@@ -162,12 +162,12 @@ def test_oidc_callback_returns_to_pending_qr_scan(monkeypatch):
     monkeypatch.setattr(auth_routes, "_upsert_oidc_member", lambda claims: {"id": 42, "username": "alice", "is_admin": 0})
     client = app.test_client()
     with client.session_transaction() as session:
-        session["login_next"] = "/coins/scan/example"
+        session["login_next"] = "/koins/scan/example"
 
     response = client.get("/auth/callback/keycloak")
 
     assert response.status_code == 302
-    assert response.headers["Location"].endswith("/coins/scan/example")
+    assert response.headers["Location"].endswith("/koins/scan/example")
 
 
 def test_oidc_logout_clears_session_and_uses_configured_redirect(monkeypatch):

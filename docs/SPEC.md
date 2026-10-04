@@ -210,7 +210,7 @@ Committed series behavior:
   accessible names.
 - **Members tab**: Add/remove members, toggle admin role, change passwords, and view linked Telegram username/ID when available (including partial links where only one value exists).
 - **Budget tab**: Trigger monthly top-up (€50, description: "Monthly top-up"), add custom budget entries.
-- **Coins tab**: Create, rename, and deactivate coin items; open printable QR labels;
+- **Koins tab**: Create, rename, and deactivate koin items; open printable QR labels;
   and edit the 100 most recent ledger movements. Ledger edits may change item, member,
   type, quantity, and note while retaining the movement ID, idempotency key, and creation
   timestamp. Corrected rows use `source = admin`. Consume/replenish edits update stock
@@ -260,13 +260,14 @@ Committed series behavior:
 - There is no cap on how many options a member may select on a multi-select poll.
 - Percentages in both the web results bars and the Telegram closing summary are computed against the number of distinct voters (not the number of selections) for multi-select polls, since one voter can contribute multiple selections; single-select polls compute percentages against total votes as before. The Telegram closing summary reports "Total selections: *N* from *M* voter(s)" for multi-select polls and "Total votes: *N*" for single-select polls.
 
-### Coins page (`/coins`)
+### Koins page (`/koins`)
 - Each active item provides quick consume and replenish actions plus a custom quantity
-  form. Consumption debits the member's coin balance; replenishment credits it.
+  form. Consumption debits the member's koin balance; replenishment credits it.
 - Item cards show lifetime consumed and purchased totals.
 - A sortable **Consumption by item** table lists every active item and its lifetime
   consumed quantity.
-- The ranking table shows every member's balance and lifetime consume/purchase totals.
+- The **Koin credit & debts per member** table shows every member's balance and
+  lifetime consume/purchase totals.
 - Recent movement history is restricted to the signed-in member.
 
 ### Group purchases page (`/group-purchases`)
@@ -358,7 +359,7 @@ process and is not yet shared across workers.
 
 ### Admin web actions
 - `GET|POST /admin` (includes timezone selector, member management, budget controls, and poll actions)
-- `POST /admin/coins/movements/<movement_id>` (admin-only correction of an existing coin
+- `POST /admin/koins/movements/<movement_id>` (admin-only correction of an existing koin
   ledger row; validates active item, member, movement type, non-zero quantity up to
   1,000 units, and an optional note up to 250 characters)
 - `GET /undo/<proposal_id>` (undo approval, restore budget, clear timestamps)
@@ -373,7 +374,7 @@ process and is not yet shared across workers.
 - `GET /api/polls`
 - `POST /api/polls`
 - `GET /api/members/telegram` (supports `include_unlinked`, `limit`, `offset`)
-- `GET /api/members/statistics` (lifetime per-user participation, financial, coin-usage, and per-beverage consumption statistics; includes page `count` and matching `total`; email requires `include_email=true`)
+- `GET /api/members/statistics` (lifetime per-user participation, financial, koin-usage, and per-beverage consumption statistics; includes page `count` and matching `total`; email requires `include_email=true`)
 - `GET /api/settings/voting`
 - `PUT|PATCH /api/settings/voting`
 
@@ -382,7 +383,7 @@ process and is not yet shared across workers.
   - `list_proposals` (optional `status`, `age=recent|old`, `limit`, `offset`; age filters select active proposals around the 30-day boundary; results include `url` and `image_filename`)
   - `current_budget`
   - `list_member_telegram_links` (optional `include_unlinked`, `limit`, `offset`)
-  - `list_user_statistics` (optional `limit`, `offset`, `username`, sorting including coin/beverage fields, and opt-in `include_email`; includes matching `total` and per-beverage consumption)
+  - `list_user_statistics` (optional `limit`, `offset`, `username`, sorting including koin/beverage fields, and opt-in `include_email`; includes matching `total` and per-beverage consumption)
 - Create tools:
   - `create_member` (`username`, `password`, optional `is_admin`)
   - `create_proposal` (`title`, `amount`, `created_by`, optional `description`/`url`/

@@ -2,20 +2,20 @@
 {% block content %}
 <div class="no-print">
 {% include "_top_nav.html" %}
-<div class="button-row"><h1>{{ 'Coins QR labels'|lang }}</h1><button class="btn" type="button" data-print-page>{{ 'Print active labels'|lang }}</button></div>
+<div class="button-row"><h1>{{ 'Koins QR labels'|lang }}</h1><button class="btn" type="button" data-print-page>{{ 'Print active labels'|lang }}</button></div>
 <section class="card">
-    <h2>{{ 'Create coin item'|lang }}</h2>
+    <h2>{{ 'Create koin item'|lang }}</h2>
     <p>{{ 'Add a consumable category and the pack size used by its quick purchase button.'|lang }}</p>
     <form method="post" action="{{ url_for('coins.create_coin_item') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="coin-item-name">{{ 'Item name'|lang }}</label><input id="coin-item-name" name="name" maxlength="100" placeholder="Icecream Minis mix" required>
         <label for="coin-pack-size">{{ 'Purchase pack size'|lang }}</label><input id="coin-pack-size" name="pack_size" type="number" min="1" max="1000" value="8" required>
-        <button class="btn" type="submit">{{ 'Create coin item'|lang }}</button>
+        <button class="btn" type="submit">{{ 'Create koin item'|lang }}</button>
     </form>
 </section>
 <section class="card">
     <h2>{{ 'Inventory adjustment'|lang }}</h2>
-    <p>{{ 'Correct physical stock without changing a member coin balance.'|lang }}</p>
+    <p>{{ 'Correct physical stock without changing a member koin balance.'|lang }}</p>
     <form method="post" action="{{ url_for('coins.adjust') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ range(1000000000, 9999999999)|random }}">
         <label for="adjust-item">{{ 'Item'|lang }}</label><select id="adjust-item" name="item_id">{% for item in items %}<option value="{{ item.id }}">{{ item.name }} ({{ item.stock }})</option>{% endfor %}</select>
@@ -29,8 +29,8 @@
 <form method="post" action="{{ url_for('coins.update_qr_token', item_id=label.item_id, action=label.action) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-secondary" name="operation" value="{{ 'disable' if label.active else 'enable' }}">{{ 'Disable'|lang if label.active else 'Enable'|lang }}</button></form>
 <form method="post" action="{{ url_for('coins.update_qr_token', item_id=label.item_id, action=label.action) }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><button class="btn btn-danger" name="operation" value="rotate">{{ 'Rotate'|lang }}</button></form>
 </div></td></tr>{% endfor %}</tbody></table></div></section>
-<section class="card"><h2>{{ 'All coin movements'|lang }}</h2><div class="table-scroll"><table><thead><tr><th>{{ 'Date'|lang }}</th><th>{{ 'Member'|lang }}</th><th>{{ 'Item'|lang }}</th><th>{{ 'Change'|lang }}</th><th>{{ 'Source'|lang }}</th><th>{{ 'Reason'|lang }}</th></tr></thead><tbody>{% for movement in movements %}<tr><td>{{ movement.created_at|localtime }}</td><td>{{ movement.username|username }}</td><td>{{ movement.item_name }}</td><td>{{ '%+d'|format(movement.inventory_delta) }}</td><td>{{ movement.source }}</td><td>{{ movement.note or '—' }}</td></tr>{% else %}<tr><td colspan="6">{{ 'No coin movements yet'|lang }}</td></tr>{% endfor %}</tbody></table></div></section>
+<section class="card"><h2>{{ 'All koin movements'|lang }}</h2><div class="table-scroll"><table><thead><tr><th>{{ 'Date'|lang }}</th><th>{{ 'Member'|lang }}</th><th>{{ 'Item'|lang }}</th><th>{{ 'Change'|lang }}</th><th>{{ 'Source'|lang }}</th><th>{{ 'Reason'|lang }}</th></tr></thead><tbody>{% for movement in movements %}<tr><td>{{ movement.created_at|localtime }}</td><td>{{ movement.username|username }}</td><td>{{ movement.item_name }}</td><td>{{ '%+d'|format(movement.inventory_delta) }}</td><td>{{ movement.source }}</td><td>{{ movement.note or '—' }}</td></tr>{% else %}<tr><td colspan="6">{{ 'No koin movements yet'|lang }}</td></tr>{% endfor %}</tbody></table></div></section>
 </div>
 <main class="qr-label-grid">{% for label in labels if label.active %}<article class="qr-label"><h1>{{ label.item_name }}</h1><h2>{{ 'Debit from my account'|lang }}</h2><img src="{{ url_for('coins.qr_image', token=label.token) }}" alt="QR: {{ label.action }} {{ label.item_name }}">
-<p class="qr-ledger-copy">{{ 'Taking one can debits 1 ManaVote coin from your ledger.'|lang }}</p><p>{{ 'Scan, sign in, and confirm.'|lang }}</p></article>{% endfor %}</main>
+<p class="qr-ledger-copy">{{ 'Taking one can debits 1 koin from your ledger.'|lang }}</p><p>{{ 'Scan, sign in, and confirm.'|lang }}</p></article>{% endfor %}</main>
 {% endblock %}

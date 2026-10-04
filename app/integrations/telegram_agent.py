@@ -519,7 +519,7 @@ def answer(
                 "When users ask about proposals, use list_proposals. Include proposal_url and image_url when those "
                 "ManaVote links are available. If the user asks for the listed, external, vendor, product, or reference "
                 "link, include the separate url field too; label it clearly and never substitute one kind of link for another. "
-                "For administrators, use list_user_statistics for per-user proposal budget totals, coin usage, "
+                "For administrators, use list_user_statistics for per-user proposal budget totals, koin usage, "
                 "beverage consumption, and to rank "
                 "users by proposed budget, approved budget, or approved budget percentage. "
                 "Use list_polls for poll questions and list_user_statistics to compare who created polls or how "

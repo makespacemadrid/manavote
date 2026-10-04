@@ -1,11 +1,11 @@
-# Coins — Product and Implementation Plan
+# Koins — Product and Implementation Plan
 
 ## 1. Goal
 
-Add a signed-in member page named **Coins**, immediately before **Group purchases** in
+Add a signed-in member page named **Koins**, immediately before **Group purchases** in
 the primary navigation. Members use it to record stock leaving the space when they
 consume an item and stock entering the space when they replenish one. The same events
-debit or credit each member's ManaVote coin ledger, so members can see and balance what
+debit or credit each member's ManaVote koin ledger, so members can see and balance what
 they owe the space.
 
 The initial catalogue is:
@@ -14,8 +14,8 @@ The initial catalogue is:
 2. Coke Zero
 3. Other Can
 
-For the MVP, one consumed can debits one coin and one replenished can credits one coin.
-Coins represent units contributed versus consumed, not euros or a cash payment method.
+For the MVP, one consumed can debits one koin and one replenished can credits one koin.
+Koins represent units contributed versus consumed, not euros or a cash payment method.
 
 ## 2. Product decisions for the MVP
 
@@ -27,16 +27,16 @@ Coins represent units contributed versus consumed, not euros or a cash payment m
   pack size for its quick purchase button, and the custom form accepts another positive
   integer quantity.
 - **The starting cans use a 12-pack shortcut.** Coke, Coke Zero, and Other Can each show
-  an **I bought 12** button that records a replenishment of 12 and credits 12 coins.
+  an **I bought 12** button that records a replenishment of 12 and credits 12 koins.
 - **A member balance is explicit.** Consumption reduces it and replenishment increases
-  it. A negative balance is a debt in coins; a positive balance is a contribution.
+  it. A negative balance is a debt in koins; a positive balance is a contribution.
 - **Member-created history is append-only.** Normal member, QR, and MCP flows only add
   movements. Administrators may correct an existing entry's item, member, type,
-  quantity, and note from the Coins admin tab. A correction preserves the movement ID
+  quantity, and note from the Koins admin tab. A correction preserves the movement ID
   and creation timestamp, marks its source as `admin`, and emits an admin-edit log.
 - **Stock may go below zero.** A negative stock count is valid ledger state rather than
   a rejected movement. Admins can reconcile it with an adjustment; this is distinct
-  from a member's coin balance.
+  from a member's koin balance.
 - **All three channels share one service.** Web forms, QR landing flows, and MCP call
   the same validation and transaction boundary.
 - **The catalogue is seeded, not hard-coded into transactions.** The three starting
@@ -47,7 +47,7 @@ Coins represent units contributed versus consumed, not euros or a cash payment m
 
 ## 3. Member experience
 
-### Coins page (`GET /coins`)
+### Koins page (`GET /koins`)
 
 Display active item cards in catalogue order. The page header shows the signed-in
 member's aggregate balance. Each card includes:
@@ -57,7 +57,7 @@ member's aggregate balance. Each card includes:
 - a prominent **I bought _pack size_** replenishment action; and
 - a compact custom quantity form for either consuming or replenishing.
 
-Below the cards, show the signed-in member's latest movements with item, signed coin
+Below the cards, show the signed-in member's latest movements with item, signed koin
 change, source, and timestamp. Named global history and QR management are admin-only.
 The member view does not expose transport secrets or raw QR tokens.
 Use Post/Redirect/Get so refreshing the success page cannot repeat a movement.
@@ -70,24 +70,24 @@ status text in addition to colour. User-visible copy is present in both existing
 language catalogues (English and Spanish).
 
 The page must explain the ledger before the first action: consuming one item deducts one
-ManaVote coin; replenishing one item adds one coin. The **I bought 12** shortcut is a real
+ManaVote koin; replenishing one item adds one koin. The **I bought 12** shortcut is a real
 replenishment entry, not a debt-forgiveness control: it adds 12 cans to stock and credits
-the member 12 coins in the same transaction.
+the member 12 koins in the same transaction.
 
 ### QR flow
 
 Provide **one consume QR code per active item**. Replenishment stays on the authenticated
-Coins page so a printed label cannot accidentally be used to credit stock. A QR encodes
+Koins page so a printed label cannot accidentally be used to credit stock. A QR encodes
 a stable application URL, not an MCP API key and not a direct mutation:
 
 ```text
-/coins/scan/<opaque-random-token>
+/koins/scan/<opaque-random-token>
 ```
 
 After scanning:
 
 1. An unauthenticated visitor is sent through login and returned to the scan URL.
-2. The landing page identifies the item and explains that confirming debits one coin.
+2. The landing page identifies the item and explains that confirming debits one koin.
 3. A CSRF-protected `POST` records one consumed item and shows the new balance.
 
 Tokens map server-side to `{item_id, action, active}` and can be rotated or disabled.
@@ -97,15 +97,15 @@ the database to prevent double taps, retries, and browser resubmission.
 
 ### Printable QR labels in Admin
 
-Add a **Coins QR labels** section to Admin. It shows one print-ready consume label for
+Add a **Koins QR labels** section to Admin. It shows one print-ready consume label for
 every active item and a **Print labels** control. Each label contains:
 
 - the item name in large, high-contrast type (the dominant text on the label);
 - the QR code;
-- a plain-language explanation that taking one item debits one ManaVote coin; and
+- a plain-language explanation that taking one item debits one ManaVote koin; and
 - a reminder that the member will sign in and confirm before anything is recorded.
 
-Use a dedicated printable route (`GET /admin/coins/qr-labels`) and print stylesheet that
+Use a dedicated printable route (`GET /admin/koins/qr-labels`) and print stylesheet that
 hides navigation/actions, preserves QR contrast and quiet zones, avoids splitting a
 label across pages, and supports common A4 label/card layouts. The printable view must
 render server-side and remain usable without JavaScript. Admins can preview, print,
@@ -113,10 +113,10 @@ disable and rotate tokens. The opaque token is persisted because printable label
 be reproducible; it is a locator and never authorizes a mutation by itself. Add an
 automated rendering test and manually scan a printed consume label before release.
 
-### Coins administration
+### Koins administration
 
 The Admin navigation labels use decorative emoji icons (hidden from assistive
-technology) to make the tabs easier to scan. The **Coins** tab includes catalogue
+technology) to make the tabs easier to scan. The **Koins** tab includes catalogue
 management and the 100 most recent ledger movements. Each movement has a CSRF-protected
 edit form for correcting its item, member, type, quantity, or note. Only administrators
 may submit corrections. The service validates referenced members and active items,
@@ -140,7 +140,7 @@ Expose these tools to linked members under the existing `MEMBER_WRITE` policy:
 The Telegram adapter must remove `member_id` from the model-visible schema and bind the
 actor to the linked Telegram account, as it already does for member feedback. These
 ordinary member writes do not require the admin `/confirm` flow. Tool results should
-contain the item, inventory delta, coin delta, resulting stock, resulting member coin
+contain the item, inventory delta, koin delta, resulting stock, resulting member koin
 balance, movement ID, actor, and timestamp so the bot can give a deterministic
 acknowledgement.
 
@@ -152,7 +152,7 @@ guessing unknown items. Example phrases to cover in tests include “I took a Co
 
 Use a movement ledger that is append-only for member-facing workflows, with the explicit
 admin correction exception described above. Derive stock with `SUM(inventory_delta)` and
-each member's coin balance with `SUM(coin_delta)`:
+each member's koin balance with `SUM(coin_delta)`:
 
 ```sql
 CREATE TABLE coin_items (
@@ -210,13 +210,13 @@ with `pack_size = 12`; future items may leave it null or choose another shortcut
 Follow the repository's thin-route and shared-business-rule conventions:
 
 - `app/repositories/coin_repo.py`: item lookup, atomic movement insert, inventory and
-  per-member coin balance/history queries, token lookup, and catalogue reads.
+  per-member koin balance/history queries, token lookup, and catalogue reads.
 - `app/services/coin_service.py`: normalize item names, validate action/quantity,
   generate idempotency keys, bind actors, record structured outcomes, and translate
   duplicate keys into a stable replay response.
 - `app/web/routes/coin_routes.py`: authenticated page, normal form POST, scan landing,
   scan POST, printable labels, and admin-only token rotation/adjustment endpoints.
-- `templates/coins.html` and `templates/coin_scan.html`: progressively enhanced server
+- `templates/koins.html` and `templates/coin_scan.html`: progressively enhanced server
   forms; JavaScript must not be necessary to record a movement.
 - `app/mcp_server.py`: definitions and dispatch for the four tools, delegating writes to
   the same service.
@@ -225,7 +225,7 @@ Follow the repository's thin-route and shared-business-rule conventions:
 - `app/db/schema.sql` and `app/db/migrations.py`: fresh and existing database paths.
 - `translations.py`: English and Spanish UI/result/error strings.
 
-Register the Coins blueprint and insert its navigation entry immediately before Group
+Register the Koins blueprint and insert its navigation entry immediately before Group
 purchases. Preserve the server-rendered/React hydration contract by changing navigation
 props, fallback markup expectations, and tests together.
 
@@ -236,7 +236,7 @@ props, fallback markup expectations, and tests together.
 - Keep CSRF enabled on web/QR POSTs. MCP continues to use its transport authentication
   plus application-layer actor policy.
 - Never put an MCP key, member identity, quantity, or mutation instruction in a QR code.
-- Insert a movement and calculate its resulting stock and member coin balance in one
+- Insert a movement and calculate its resulting stock and member koin balance in one
   database transaction.
 - Treat a repeated idempotency key as the original success, not as a second movement.
 - Rate-limit scan submissions and MCP writes without making normal multi-can entry
@@ -252,15 +252,15 @@ props, fallback markup expectations, and tests together.
 ### Slice 1 — Ledger and service
 
 1. Add idempotent schema/migration and seed the three items.
-2. Implement repository and service with consume, replenish, stock, per-member coin
+2. Implement repository and service with consume, replenish, stock, per-member koin
    balance, and history.
 3. Add unit tests for validation, signed deltas, negative stock, concurrency transaction
    behavior, idempotent replay, item matching, and missing/inactive items.
 
-### Slice 2 — Coins page
+### Slice 2 — Koins page
 
-1. Add blueprint registration and `GET /coins` plus CSRF-protected mutation POST.
-2. Add translated templates, the seeded **I bought 12** shortcuts, and place Coins before
+1. Add blueprint registration and `GET /koins` plus CSRF-protected mutation POST.
+2. Add translated templates, the seeded **I bought 12** shortcuts, and place Koins before
    Group purchases in navigation.
 3. Add route, template, translation-coverage, hydration, and authorization tests.
 
@@ -284,17 +284,17 @@ props, fallback markup expectations, and tests together.
 
 ## 8. Acceptance criteria
 
-- Coins appears directly before Group purchases for signed-in members.
+- Koins appears directly before Group purchases for signed-in members.
 - Coke, Coke Zero, and Other Can exist exactly once after both fresh initialization and
   repeated migrations.
 - A member can consume or replenish from the page and through the linked Telegram
   bot/MCP path; printed QR labels provide a consume-only shortcut.
 - Each initial item has an **I bought 12** action that atomically adds 12 units and credits
-  the acting member 12 coins.
+  the acting member 12 koins.
 - Every successful member action creates exactly one attributable movement and all
-  channels report the same resulting stock and member coin balance. Only administrators
+  channels report the same resulting stock and member koin balance. Only administrators
   can subsequently correct a movement through the dedicated admin route.
-- The Coins page shows a sortable lifetime consumption total for each active item.
+- The Koins page shows a sortable lifetime consumption total for each active item.
 - Admin can print consume QR labels whose largest text is the item name and whose copy
   clearly states that confirming debits the ManaVote ledger.
 - Admin can create a new item category with a pack size; it appears on the member page

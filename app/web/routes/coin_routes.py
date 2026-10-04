@@ -1,4 +1,4 @@
-"""Member Coins ledger, QR scan, and printable-label routes."""
+"""Member Koins ledger, QR scan, and printable-label routes."""
 
 import io
 import secrets
@@ -40,7 +40,7 @@ def _public_scan_url(connection, token):
     return f"{base_url}{path}" if base_url else url_for("coins.scan", token=token, _external=True)
 
 
-@coin_bp.get("/coins")
+@coin_bp.get("/koins")
 @login_required
 def coins_page():
     connection = legacy.get_db()
@@ -55,7 +55,7 @@ def coins_page():
     )
 
 
-@coin_bp.post("/coins/move")
+@coin_bp.post("/koins/move")
 @login_required
 def move():
     connection = legacy.get_db()
@@ -69,7 +69,7 @@ def move():
             source=request.form.get("source", "web") if request.form.get("source") in {"web", "qr"} else "web",
             idempotency_key=request.form.get("idempotency_key"),
         )
-        flash(f"{result['item']}: {result['coin_delta']:+d} coins; balance {result['resulting_coin_balance']}", "success")
+        flash(f"{result['item']}: {result['coin_delta']:+d} koins; balance {result['resulting_coin_balance']}", "success")
     except (CoinValidationError, CoinNotFoundError) as exc:
         flash(str(exc), "error")
     finally:
@@ -80,7 +80,7 @@ def move():
     return redirect(return_to)
 
 
-@coin_bp.get("/coins/scan/<token>")
+@coin_bp.get("/koins/scan/<token>")
 def scan(token):
     if "member_id" not in session:
         session["login_next"] = request.path
@@ -93,7 +93,7 @@ def scan(token):
     return render_template("coin_scan.html", token=token, qr=row, idempotency_key=secrets.token_urlsafe(24))
 
 
-@coin_bp.get("/coins/qr/<token>.png")
+@coin_bp.get("/koins/qr/<token>.png")
 @login_required
 def qr_image(token):
     connection = legacy.get_db()
@@ -110,7 +110,7 @@ def qr_image(token):
     return send_file(output, mimetype="image/png", max_age=0)
 
 
-@coin_bp.get("/admin/coins/qr-labels")
+@coin_bp.get("/admin/koins/qr-labels")
 @login_required
 @admin_required
 def qr_labels():
@@ -135,7 +135,7 @@ def qr_labels():
     return render_template("coin_qr_labels.html", labels=labels, items=items, movements=movements)
 
 
-@coin_bp.post("/admin/coins/qr-tokens/<int:item_id>/<action>")
+@coin_bp.post("/admin/koins/qr-tokens/<int:item_id>/<action>")
 @login_required
 @admin_required
 def update_qr_token(item_id, action):
@@ -170,7 +170,7 @@ def update_qr_token(item_id, action):
     return redirect(url_for("coins.qr_labels"))
 
 
-@coin_bp.post("/admin/coins/adjust")
+@coin_bp.post("/admin/koins/adjust")
 @login_required
 @admin_required
 def adjust():
@@ -184,7 +184,7 @@ def adjust():
             note=request.form.get("note", "").strip() or None,
             idempotency_key=request.form.get("idempotency_key"),
         )
-        flash("Coin inventory adjusted", "success")
+        flash("Koin inventory adjusted", "success")
     except (CoinValidationError, CoinNotFoundError) as exc:
         flash(str(exc), "error")
     finally:
@@ -192,7 +192,7 @@ def adjust():
     return redirect(url_for("coins.qr_labels"))
 
 
-@coin_bp.post("/admin/coins/movements/<int:movement_id>")
+@coin_bp.post("/admin/koins/movements/<int:movement_id>")
 @login_required
 @admin_required
 def edit_movement(movement_id):
@@ -203,7 +203,7 @@ def edit_movement(movement_id):
             member_id=request.form.get("member_id"), kind=request.form.get("kind"),
             quantity=request.form.get("quantity"), note=request.form.get("note"),
         )
-        flash("Coin movement updated", "success")
+        flash("Koin movement updated", "success")
         current_app.logger.info("coin_movement_updated_by_admin movement_id=%s member_id=%s", movement_id, session["member_id"])
     except (CoinValidationError, CoinNotFoundError) as exc:
         flash(str(exc), "error")
@@ -212,7 +212,7 @@ def edit_movement(movement_id):
     return redirect(url_for("admin.admin", tab="coins"))
 
 
-@coin_bp.post("/admin/coins/items")
+@coin_bp.post("/admin/koins/items")
 @login_required
 @admin_required
 def create_coin_item():
@@ -228,7 +228,7 @@ def create_coin_item():
             item["item_id"],
             session["member_id"],
         )
-        flash("Coin item created", "success")
+        flash("Koin item created", "success")
     except CoinValidationError as exc:
         flash(str(exc), "error")
     finally:
@@ -238,7 +238,7 @@ def create_coin_item():
     return redirect(url_for("coins.qr_labels"))
 
 
-@coin_bp.post("/admin/coins/items/<int:item_id>")
+@coin_bp.post("/admin/koins/items/<int:item_id>")
 @login_required
 @admin_required
 def edit_coin_item(item_id):
@@ -255,7 +255,7 @@ def edit_coin_item(item_id):
             item["item_id"],
             session["member_id"],
         )
-        flash("Coin item updated", "success")
+        flash("Koin item updated", "success")
     except (CoinValidationError, CoinNotFoundError) as exc:
         flash(str(exc), "error")
     finally:
@@ -263,7 +263,7 @@ def edit_coin_item(item_id):
     return redirect(url_for("admin.admin", tab="coins"))
 
 
-@coin_bp.post("/admin/coins/items/<int:item_id>/delete")
+@coin_bp.post("/admin/koins/items/<int:item_id>/delete")
 @login_required
 @admin_required
 def delete_coin_item(item_id):
@@ -275,7 +275,7 @@ def delete_coin_item(item_id):
             item_id,
             session["member_id"],
         )
-        flash("Coin item deleted", "success")
+        flash("Koin item deleted", "success")
     except (CoinValidationError, CoinNotFoundError) as exc:
         flash(str(exc), "error")
     finally:

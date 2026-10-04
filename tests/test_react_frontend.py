@@ -75,7 +75,7 @@ def test_navigation_serializes_hydration_props_and_current_page_markup():
     assert props["links"][:5] == [
         {"href": "/proposals", "label": "📋 Proposals"},
         {"href": "/polls", "label": "📊 Polls"},
-        {"href": "/coins", "label": "🪙 Coins"},
+        {"href": "/koins", "label": "🪙 Koins"},
         {"href": "/group-purchases", "label": "🛒 Group purchases"},
         {"href": "/budget", "label": "💰 Budget"},
     ]

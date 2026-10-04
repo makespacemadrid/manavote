@@ -97,7 +97,7 @@ def run_migrations(cursor):
         UNIQUE(item_id, action)
     )
     """)
-    # Seed defaults only when Coins is first initialized. Seeding each name on every
+    # Seed defaults only when Koins is first initialized. Seeding each name on every
     # startup would recreate a default category after an administrator renamed it.
     if cursor.execute("SELECT COUNT(*) FROM coin_items").fetchone()[0] == 0:
         for position, name in enumerate(("Coke", "Coke Zero", "Other Can")):

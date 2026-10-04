@@ -2,9 +2,9 @@
 {% block content %}
 {% include "_top_nav.html" %}
 <header class="coins-header">
-    <div><h1>🪙 {{ 'Coins'|lang }}</h1><p>{{ 'Consuming one can debits one ManaVote coin. Replenishing one can credits one coin.'|lang }}</p></div>
+    <div><h1>🪙 {{ 'Koins'|lang }}</h1><p>{{ 'Consuming one can debits one koin. Replenishing one can credits one koin.'|lang }}</p></div>
     <div class="coin-account-actions">
-        <div class="coin-balance {{ 'amount-negative' if balance < 0 else 'amount-positive' }}">{{ 'Your coin balance'|lang }}: {{ balance }}</div>
+        <div class="coin-balance {{ 'amount-negative' if balance < 0 else 'amount-positive' }}">{{ 'Your koin balance'|lang }}: {{ balance }}</div>
     </div>
 </header>
 <div class="coin-grid">
@@ -34,16 +34,16 @@
     <h2>📊 {{ 'Consumption by item'|lang }}</h2>
     <div class="table-scroll"><table class="coin-consumption-table" data-sortable-table>
         <thead><tr><th>{{ 'Item'|lang }}</th><th data-sort-type="number" aria-sort="descending">{{ 'Total consumed'|lang }}</th></tr></thead>
-        <tbody>{% for item in items %}<tr><td>{{ item.name }}</td><td>{{ item.total_consumed }}</td></tr>{% else %}<tr><td colspan="2">{{ 'No coin items yet'|lang }}</td></tr>{% endfor %}</tbody>
+        <tbody>{% for item in items %}<tr><td>{{ item.name }}</td><td>{{ item.total_consumed }}</td></tr>{% else %}<tr><td colspan="2">{{ 'No koin items yet'|lang }}</td></tr>{% endfor %}</tbody>
     </table></div>
 </section>
 <section class="card">
-    <h2>{{ 'Coin ranking'|lang }}</h2>
+    <h2>{{ 'Koin credit & debts per member'|lang }}</h2>
     <p>{{ 'Balances above zero are credits; balances below zero are debts.'|lang }}</p>
     <div class="table-scroll"><table class="coin-ranking" data-sortable-table>
         <thead><tr><th data-sort-type="number">{{ 'Rank'|lang }}</th><th>{{ 'Member'|lang }}</th><th data-sort-type="number" aria-sort="descending">{{ 'Balance'|lang }}</th><th data-sort-type="number">{{ 'Total consumed'|lang }}</th><th data-sort-type="number">{{ 'Total purchased'|lang }}</th></tr></thead>
         <tbody>{% for member in rankings %}<tr{% if member.id == session.member_id %} class="current-member"{% endif %}><td>{{ loop.index }}</td><td>{{ member.username|username }}</td><td data-sort-value="{{ member.balance|abs }}" class="{{ 'amount-negative' if member.balance < 0 else 'amount-positive' }}">{{ '%+d'|format(member.balance) }}</td><td>{{ member.total_consumed }}</td><td>{{ member.total_bought }}</td></tr>{% else %}<tr><td colspan="5">{{ 'No members yet'|lang }}</td></tr>{% endfor %}</tbody>
     </table></div>
 </section>
-<section class="card"><h2>{{ 'Recent coin movements'|lang }}</h2><div class="table-scroll"><table><thead><tr><th>{{ 'Date'|lang }}</th><th>{{ 'Member'|lang }}</th><th>{{ 'Item'|lang }}</th><th>{{ 'Change'|lang }}</th><th>{{ 'Source'|lang }}</th></tr></thead><tbody>{% for movement in movements %}<tr><td>{{ movement.created_at|localtime }}</td><td>{{ movement.username|username }}</td><td>{{ movement.item_name }}</td><td class="{{ 'amount-positive' if movement.coin_delta > 0 else 'amount-negative' }}">{{ '%+d'|format(movement.coin_delta) }}</td><td>{{ movement.source }}</td></tr>{% else %}<tr><td colspan="5">{{ 'No coin movements yet'|lang }}</td></tr>{% endfor %}</tbody></table></div></section>
+<section class="card"><h2>{{ 'Recent koin movements'|lang }}</h2><div class="table-scroll"><table><thead><tr><th>{{ 'Date'|lang }}</th><th>{{ 'Member'|lang }}</th><th>{{ 'Item'|lang }}</th><th>{{ 'Change'|lang }}</th><th>{{ 'Source'|lang }}</th></tr></thead><tbody>{% for movement in movements %}<tr><td>{{ movement.created_at|localtime }}</td><td>{{ movement.username|username }}</td><td>{{ movement.item_name }}</td><td class="{{ 'amount-positive' if movement.coin_delta > 0 else 'amount-negative' }}">{{ '%+d'|format(movement.coin_delta) }}</td><td>{{ movement.source }}</td></tr>{% else %}<tr><td colspan="5">{{ 'No koin movements yet'|lang }}</td></tr>{% endfor %}</tbody></table></div></section>
 {% endblock %}

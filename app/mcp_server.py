@@ -261,9 +261,9 @@ def tool_definitions() -> list[dict[str, Any]]:
         {
             "name": "list_user_statistics",
             "description": (
-                "List per-user participation, budget, coin-usage, and beverage-consumption statistics. "
+                "List per-user participation, budget, koin-usage, and beverage-consumption statistics. "
                 "Budget fields include the total proposed amount, approved amount, and approved percentage; "
-                "coin fields include balance, earned/spent totals, and per-beverage consumption; "
+                "koin fields include balance, earned/spent totals, and per-beverage consumption; "
                 "use username for one user or sort_by to rank users."
             ),
             "inputSchema": {
@@ -321,22 +321,22 @@ def tool_definitions() -> list[dict[str, Any]]:
         },
         {
             "name": "list_coin_items",
-            "description": "List Coins items with current stock and the member's aggregate coin balance.",
+            "description": "List Koins items with current stock and the member's aggregate koin balance.",
             "inputSchema": {"type": "object", "properties": {"member_id": {"type": "integer", "minimum": 1}}},
         },
         {
             "name": "list_coin_movements",
-            "description": "List recent Coins ledger movements, optionally filtered by item or member.",
+            "description": "List recent Koins ledger movements, optionally filtered by item or member.",
             "inputSchema": {"type": "object", "properties": {"item": {"oneOf": [{"type": "string"}, {"type": "integer", "minimum": 1}]}, "member_id": {"type": "integer", "minimum": 1}, **_pagination_properties(200)}},
         },
         {
             "name": "consume_coin_item",
-            "description": "Record cans consumed by a member, debiting one ManaVote coin per can.",
+            "description": "Record cans consumed by a member, debiting one koin per can.",
             "inputSchema": {"type": "object", "required": ["item", "member_id"], "properties": {"item": {"oneOf": [{"type": "string"}, {"type": "integer", "minimum": 1}]}, "quantity": {"type": "integer", "minimum": 1, "maximum": 1000}, "member_id": {"type": "integer", "minimum": 1}, "idempotency_key": {"type": "string"}}},
         },
         {
             "name": "replenish_coin_item",
-            "description": "Record cans bought by a member, crediting one ManaVote coin per can.",
+            "description": "Record cans bought by a member, crediting one koin per can.",
             "inputSchema": {"type": "object", "required": ["item", "quantity", "member_id"], "properties": {"item": {"oneOf": [{"type": "string"}, {"type": "integer", "minimum": 1}]}, "quantity": {"type": "integer", "minimum": 1, "maximum": 1000}, "member_id": {"type": "integer", "minimum": 1}, "idempotency_key": {"type": "string"}}},
         },
         {
@@ -772,7 +772,7 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
             if arguments.get("item") is not None:
                 item = repo.find_item(arguments["item"])
                 if item is None:
-                    return _error(req_id, -32004, "Coin item not found")
+                    return _error(req_id, -32004, "Koin item not found")
                 item_id = item["id"]
             rows = [dict(row) for row in repo.recent_movements(limit, offset, member_id=member_id, item_id=item_id)]
             return _tool_text(req_id, {"count": len(rows), "limit": limit, "offset": offset, "movements": rows})
