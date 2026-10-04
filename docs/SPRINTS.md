@@ -1,6 +1,6 @@
 # SPRINTS — Implementation Planning and Progress Tracking
 
-Last updated: 2026-10-03
+Last updated: 2026-10-04
 
 This document tracks implementation sequencing, active sprint scope, and completion status.
 Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
@@ -13,14 +13,62 @@ Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
 
 ---
 
-## Current implementation focus (Q3 2026)
+## Current implementation focus
+
+### Sprint 10 (Active 2026-10-04) — Architecture Boundary Closure
+
+#### Goal
+
+Finish the route/service ownership work without treating line-count reduction as the
+objective. Every remaining dependency on `main_routes` must be classified as an
+intentional compatibility adapter, a request-context adapter, or misplaced domain/query
+logic; only the last category moves.
+
+#### Scope
+
+1. Inventory `legacy.*` dependencies in every route blueprint and record the intended
+   owner for each shared function.
+2. Move remaining query composition into repositories and domain decisions into
+   services where an ownership violation still exists.
+3. Keep thin wrappers when they preserve endpoint compatibility, Flask request context,
+   or established patch points; document why they remain.
+4. Retarget tests to the owning service or repository while retaining route-level
+   coverage for authentication, redirects, flashes, and response shape.
+5. Update `DIAGRAMS.md`, `SPEC.md`, and the testing map only when their represented
+   boundary changes.
+
+#### Explicit non-goals
+
+- No feature work or UI redesign.
+- No compatibility-wrapper removal solely to make `main_routes.py` smaller.
+- No broad repository rewrite; changes must be independently reviewable slices.
+- No REST/MCP contract changes unless required to correct demonstrated drift.
+
+#### Exit criteria
+
+- Every `legacy.*` route dependency is classified and intentional.
+- Route modules contain request orchestration, not SQL or reusable domain policy.
+- Moved behavior has direct unit coverage plus relevant route regression coverage.
+- The full Python suite and frontend tests pass.
+- The architecture and testing documents match the resulting boundaries.
+
+#### Progress
+
+- ⬜ Inventory and classify remaining cross-blueprint dependencies.
+- ⬜ Select the first bounded extraction from evidence in that inventory.
+- ⬜ Complete extraction, compatibility review, tests, and documentation.
+
+---
+
+## Delivery history through 2026-10-03
 
 Sprints 3 through 8 are complete. Sprint 7 delivered the UX/UI, budget-visualization,
 and member-feedback work scoped from the dedicated UX audit. Sprint 8 then completed
 the public MCP application boundary: JSON-RPC and Telegram now share a transport-neutral
-execution layer with explicit actor policy. Sprint 9 completed reliable proposal-resource discovery and sharing through Telegram
-natural chat, including missing-Base-URL operator diagnostics. Forward-looking work is
-tracked in [`IDEAS.md`](IDEAS.md) until the next sprint is scoped.
+execution layer with explicit actor policy. Sprint 9 completed reliable
+proposal-resource discovery and sharing through Telegram natural chat, including
+missing-Base-URL operator diagnostics. Forward-looking work is tracked in
+[`IDEAS.md`](IDEAS.md) until the next sprint is scoped.
 
 ### Subsequent shipped increments (September–October 2026)
 
@@ -820,7 +868,7 @@ logic and denying new Telegram tools until their actor policy is explicit.
 
 ---
 
-## Sprint 9 (Active 2026-08-29) — Telegram Proposal Resource Sharing
+## Sprint 9 (Completed 2026-08-29) — Telegram Proposal Resource Sharing
 
 ### Goal
 Let linked members ask naturally for any proposal and receive usable, unambiguous links

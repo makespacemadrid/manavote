@@ -1,5 +1,25 @@
 # Hackerspace Budget Voting System — Specification
 
+This is the normative reference for current product behavior and domain rules. It does
+not own setup instructions, wire-level API examples, test commands, or incident
+runbooks; those live in [`QUICKSTART.md`](QUICKSTART.md), [`APIDOC.md`](APIDOC.md),
+[`TESTING.md`](TESTING.md), and [`OPERATIONS.md`](OPERATIONS.md), respectively.
+
+## Contents
+
+1. [Overview](#1-overview)
+2. [Technology](#2-technology)
+3. [Runtime behavior and codebase map](#3-runtime-behavior)
+4. [Data model](#4-data-model)
+5. [Authentication and sessions](#5-authentication-and-sessions)
+6. [Business rules](#6-business-rules)
+7. [UI and feature behavior](#7-uifeature-behavior)
+8. [HTTP routes and integrations](#8-http-routes)
+9. [Security notes](#9-security-notes)
+10. [Known implementation notes](#10-known-implementation-notes)
+11. [Backup behavior](#11-backup)
+12. [Proposal vote channels](#12-proposal-vote-channels-web--telegram--both)
+
 ## 1) Overview
 
 Hackerspace Budget Voting is a Flask web app that lets members propose purchases, vote, and track budget usage over time.
@@ -15,8 +35,7 @@ Primary goals:
 - React 19 + Vite (progressively hydrated application shell)
 - SQLite database
 - Chart.js for budget visualization
-- Optional Telegram notifications for proposal events
-- Optional Telegram notifications for proposals and poll announcements
+- Optional Telegram notifications for proposal events and poll announcements
 
 ## 3) Runtime behavior
 
@@ -424,34 +443,7 @@ that behavior without exposing prompts, credentials, or provider payloads.
 - Filename format: `{db_name}_{timestamp}.db` (e.g., `app_20260426_120000.db`).
 
 
-## 12) Testing
-
-Recommended commands:
-
-```bash
-pytest -q
-```
-
-Targeted startup/template guard checks:
-
-```bash
-pytest -q tests/test_production_config.py tests/test_template_guards.py
-
-# Startup architecture reliability checks
-pytest -q tests/test_app_startup.py tests/test_startup_policy.py tests/unit/test_settings_service.py tests/unit/test_vote_repository_contract.py
-```
-
-Coverage notes:
-- Production config tests validate fail-fast behavior for missing/unsafe `SECRET_KEY` and missing `ADMIN_BOOTSTRAP_PASSWORD` under `FLASK_ENV=production`.
-- Template guard tests validate top-nav partial usage and CSRF hidden input markup invariants in key templates.
-- Startup tests validate deterministic bootstrap sequencing and warning/fail-fast boundaries.
-- Startup policy tests validate env-specific runtime flags and production secret enforcement.
-- Settings helper tests validate normalized enum-setting reads and fallback behavior.
-- Vote repository contract tests validate upsert replacement and aggregate count invariants.
-- API contract tests validate helper-level request/auth parsing, standardized error envelopes, and `/api/*` behavior for proposal/poll operations.
-
-
-## 13) Proposal vote channels (Web / Telegram / Both)
+## 12) Proposal vote channels (Web / Telegram / Both)
 
 - Config key: `proposal_vote_mode` with allowed values: `both`, `web_only`, `telegram_only` (default `both`).
 - Config key: `telegram_require_linked_vote` with allowed values: `true`, `false` (default `false`).

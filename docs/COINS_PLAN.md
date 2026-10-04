@@ -1,5 +1,10 @@
 # Koins — Product and Implementation Plan
 
+> **Historical design record.** This file preserves the decisions and delivery plan
+> behind Koins. The current, normative Koins behavior is documented in
+> [`SPEC.md`](SPEC.md); future Koins work belongs in [`IDEAS.md`](IDEAS.md), and API
+> contracts belong in [`APIDOC.md`](APIDOC.md).
+
 ## 1. Goal
 
 Add a signed-in member page named **Koins**, immediately before **Group purchases** in

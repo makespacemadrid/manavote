@@ -54,8 +54,9 @@ See [`docs/QUICKSTART.md`](docs/QUICKSTART.md) for Docker/local setup, bootstrap
 
 ## Documentation
 
-- Main docs index: [`docs/INDEX.md`](docs/INDEX.md)
-- Direct links: [`docs/QUICKSTART.md`](docs/QUICKSTART.md), [`docs/APIDOC.md`](docs/APIDOC.md), [`docs/SPEC.md`](docs/SPEC.md), [`docs/OPERATIONS.md`](docs/OPERATIONS.md), [`docs/TESTING.md`](docs/TESTING.md), [`docs/DIAGRAMS.md`](docs/DIAGRAMS.md)
+- Start with the task-oriented [`documentation map`](docs/INDEX.md). It identifies one
+  canonical document for setup, behavior, interfaces, testing, operations, architecture,
+  and contribution rules, plus a separate section for plans and historical records.
 
 ## Acknowledgements
 

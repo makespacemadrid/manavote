@@ -5,6 +5,18 @@ backups, MCP failures, OIDC failures, and the Telegram assistant. Deployment and
 environment setup remain in [`QUICKSTART.md`](QUICKSTART.md); behavioral contracts
 remain in [`SPEC.md`](SPEC.md).
 
+## Contents
+
+- [Startup health](#startup-health)
+- [Backup lifecycle](#backup-lifecycle)
+- [Telegram assistant jobs](#telegram-assistant-jobs)
+- [Telegram assistant mutations](#telegram-assistant-mutations)
+- [Votes blocked by policy](#votes-blocked-by-policy)
+- [Koin ledger corrections](#koin-ledger-corrections)
+- [Forum-topic and mention routing](#forum-topic-and-mention-routing-decisions)
+- [MCP and OIDC failures](#mcp-and-oidc-failures)
+- [Useful diagnostic checks](#useful-checks)
+
 ## Startup health
 
 Every boot emits a `startup_summary` record with:
@@ -180,10 +192,10 @@ response bodies are not logged by this handler.
 
 ## Useful checks
 
-```bash
-# Complete automated regression suite
-pytest -q tests/
+These checks are for production diagnosis and operational boundaries. For the complete
+suite and feature-focused regression packs, see [`TESTING.md`](TESTING.md).
 
+```bash
 # Startup, backup, identity, MCP, and Telegram operational boundaries
 pytest -q \
   tests/test_app_startup.py \

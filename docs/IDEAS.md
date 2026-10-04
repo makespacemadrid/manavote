@@ -1,9 +1,25 @@
 # IDEAS — Forward Roadmap
 
-Last updated: 2026-08-27
+Last reviewed: 2026-10-04
 
 This document captures **forward-looking** product and engineering initiatives only.
 Execution sequencing and status tracking belong in [`SPRINTS.md`](SPRINTS.md).
+
+## Current backlog snapshot
+
+The October review separates unfinished work from historical audit detail below:
+
+| Priority | Workstream | Current disposition |
+|---|---|---|
+| P0 | A1 route decomposition | Complete; route handlers now live in focused blueprints |
+| P0 | A2 service/repository boundary | Active Sprint 10 scope; close remaining ownership and compatibility boundaries |
+| P0 | B startup reliability | Implemented baseline; retain as regression and observability work |
+| P1 | C API and domain consistency | Partially delivered; schema guarantees and lifecycle centralization remain candidates |
+| P2 | D security and operations | Ongoing hardening; schedule only bounded, evidence-backed slices |
+| P1–P3 | UX/UI outlook | Unscheduled; prioritize from current member feedback rather than the 2026-08 audit alone |
+
+Completed audit evidence remains below for decision history, but it is not an active
+checklist. [`SPRINTS.md`](SPRINTS.md) is authoritative once a backlog item is scheduled.
 
 ---
 
@@ -457,6 +473,9 @@ a silent doc fix:
 - Split route responsibilities into focused modules (`auth`, `proposal`, `poll`, `admin`, `api`).
 - Move shared orchestration helpers into route-helper or service layers.
 - Register route modules consistently through app setup.
+- **Disposition (2026-10-04): complete.** The remaining `main_routes.py` functions are
+  shared adapters and compatibility boundaries, not unassigned page handlers. Further
+  work belongs to A2 and must improve ownership rather than merely reduce line count.
 - Progress (2026-08-27): the `/admin` handler (627 lines), all 11 proposal-lifecycle
   handlers, `proposals()` (the main listing page, ~155 lines), and `telegram_webhook`
   (~180 lines, into a new `telegram_routes.py` blueprint) all moved out of
@@ -472,6 +491,11 @@ a silent doc fix:
 - Route handlers call service entry points only.
 - Repositories own query composition and persistence concerns.
 - Critical domain operations gain direct service-level test coverage.
+- **Disposition (2026-10-04): scheduled as Sprint 10.** Existing proposal-vote and
+  Telegram-messaging services already contain the domain/integration logic; the next
+  slice will inventory the remaining `legacy.*` dependencies, distinguish intentional
+  adapters from misplaced logic, and remove only dependencies with a clear owner and
+  regression coverage.
 - Progress (2026-08-27): extracted the poll/proposal vote-mode policy logic (7 functions —
   `get_poll_vote_mode`, `is_web_poll_voting_enabled`, `is_telegram_poll_voting_enabled`,
   `require_linked_telegram_for_votes`, `get_proposal_vote_mode`,
