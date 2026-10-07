@@ -623,3 +623,21 @@ def test_action_result_formats_mcp_errors_for_users():
     assert telegram_agent._action_result_text(action, '{"error":"database unavailable"}') == (
         "❌ create_poll failed: database unavailable"
     )
+
+
+@pytest.mark.parametrize("tool", ["admin_consume_coin_item", "admin_replenish_coin_item"])
+def test_admin_coin_actions_confirm_before_modifying_other_member(monkeypatch, tool):
+    arguments = {"item": "Coke", "quantity": 3, "member_id": 9}
+    response = FakeResponse({"role": "assistant", "content": None, "tool_calls": [
+        {"id": "koins", "type": "function", "function": {"name": tool, "arguments": json.dumps(arguments)}}
+    ]})
+    calls = []
+    monkeypatch.setenv("OCABRA_CHAT_URL", "https://ocabra.example/v1/chat/completions")
+    monkeypatch.setattr(telegram_agent.requests, "post", lambda *_a, **_kw: response)
+    monkeypatch.setattr(telegram_agent, "_call_mcp", lambda name, args, **_kw: calls.append((name, args)) or '{}')
+    telegram_agent.reset(970, 7)
+    reply = telegram_agent.answer(970, "Adjust another member's koins", telegram_user_id=7, actor_member_id=1, is_admin=True)
+    assert "/confirm" in reply
+    assert calls == []
+    telegram_agent.answer(970, "/confirm", telegram_user_id=7, actor_member_id=1, is_admin=True)
+    assert calls == [(tool, arguments)]

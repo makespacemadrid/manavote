@@ -31,3 +31,16 @@ transport, caller identity, and error model differ.
 Update only the surface file whose externally observable contract changed. If a change
 also alters product behavior, update `SPEC.md`; if it changes verification coverage,
 update `TESTING.md`.
+
+
+### Administrator Koins actions
+
+`admin_replenish_coin_item` credits a selected member's koins and records stock
+replenishment; `admin_consume_coin_item` debits their koins and records consumption.
+Both accept `item` (name or ID), `member_id` (target member), `quantity` (1..1000),
+and an optional `idempotency_key` for safe retries. Each unit changes both stock and
+balance by one. These are ledger actions, not balance-only adjustments.
+
+Telegram exposes these tools only to administrators and requires `/confirm` before
+execution. The target member is preserved; regular member tools remain bound to the
+caller's linked account. External MCP clients use the existing MCP API-key authentication.

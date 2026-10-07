@@ -37,3 +37,14 @@ def test_actor_attribution_is_removed_from_model_schema():
     assert "member_id" not in schema["properties"]
     assert "member_id" not in schema["required"]
     assert tools[0]["telegram_policy"] == TelegramPolicy.MEMBER_WRITE.value
+
+
+def test_admin_coin_tools_keep_target_in_schema_and_are_hidden_from_members():
+    definitions = [_definition(name, {"member_id": {"type": "integer"}})
+                   for name in ("admin_consume_coin_item", "admin_replenish_coin_item")]
+    assert telegram_tool_definitions(definitions, is_admin=False, actor_member_id=1) == []
+    tools = telegram_tool_definitions(definitions, is_admin=True, actor_member_id=1)
+    assert len(tools) == 2
+    for tool in tools:
+        assert "member_id" in tool["inputSchema"]["required"]
+        assert tool["telegram_policy"] == TelegramPolicy.CONFIRMED_ADMIN_WRITE.value

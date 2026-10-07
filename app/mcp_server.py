@@ -339,6 +339,26 @@ def tool_definitions() -> list[dict[str, Any]]:
             "description": "Record cans bought by a member, crediting one koin per can.",
             "inputSchema": {"type": "object", "required": ["item", "quantity", "member_id"], "properties": {"item": {"oneOf": [{"type": "string"}, {"type": "integer", "minimum": 1}]}, "quantity": {"type": "integer", "minimum": 1, "maximum": 1000}, "member_id": {"type": "integer", "minimum": 1}, "idempotency_key": {"type": "string"}}},
         },
+        *[
+            {
+                "name": name,
+                "description": description,
+                "inputSchema": {
+                    "type": "object",
+                    "required": ["item", "quantity", "member_id"],
+                    "properties": {
+                        "item": {"oneOf": [{"type": "string"}, {"type": "integer", "minimum": 1}]},
+                        "quantity": {"type": "integer", "minimum": 1, "maximum": 1000},
+                        "member_id": {"type": "integer", "minimum": 1},
+                        "idempotency_key": {"type": "string"},
+                    },
+                },
+            }
+            for name, description in (
+                ("admin_consume_coin_item", "Administrator action: record consumption for a selected member, removing one koin and one can from stock per quantity. Requires Telegram confirmation."),
+                ("admin_replenish_coin_item", "Administrator action: record replenishment for a selected member, adding one koin and one can to stock per quantity. Requires Telegram confirmation."),
+            )
+        ],
         {
             "name": "list_member_telegram_links",
             "description": "List members and Telegram link information.",
@@ -779,7 +799,12 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
         finally:
             conn.close()
 
-    if normalized_name in {"consume_coin_item", "replenish_coin_item"}:
+    if normalized_name in {"consume_coin_item", "replenish_coin_item", "admin_consume_coin_item", "admin_replenish_coin_item"}:
+        if normalized_name.startswith("admin_"):
+            for field in ("member_id", "quantity"):
+                value = arguments.get(field)
+                if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                    return _error(req_id, -32602, f"Invalid params: {field} must be a positive integer")
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         try:
@@ -787,7 +812,7 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
                 conn,
                 item=arguments.get("item"),
                 member_id=arguments.get("member_id"),
-                action="consume" if normalized_name == "consume_coin_item" else "replenish",
+                action="consume" if normalized_name in {"consume_coin_item", "admin_consume_coin_item"} else "replenish",
                 quantity=arguments.get("quantity", 1),
                 source="mcp",
                 idempotency_key=arguments.get("idempotency_key"),
