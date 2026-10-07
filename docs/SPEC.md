@@ -287,7 +287,7 @@ Committed series behavior:
   consumed quantity.
 - The **Koin credit & debts per member** table shows every member's balance and
   lifetime consume/purchase totals.
-- Recent movement history is restricted to the signed-in member.
+- Recent movement history shows the latest 30 movements from all members, newest first.
 
 ### Group purchases page (`/group-purchases`)
 - Any authenticated member can propose a shared purchase and add up to 30 option rows, each with its own name and unit price.

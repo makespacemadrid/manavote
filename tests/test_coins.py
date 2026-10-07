@@ -455,17 +455,23 @@ def test_api_and_mcp_user_statistics_include_detailed_coin_usage(coin_client, mo
     assert {key: mcp_user[key] for key in expected_coin_usage} == expected_coin_usage
 
 
-def test_member_history_is_private_and_return_redirect_is_local(coin_client):
+def test_recent_history_includes_all_members_and_return_redirect_is_local(coin_client):
     client, db_path = coin_client
     with sqlite3.connect(db_path) as connection:
         connection.execute("INSERT INTO members (username, password_hash) VALUES ('other', 'x')")
         other_id = connection.execute("SELECT id FROM members WHERE username = 'other'").fetchone()[0]
         connection.row_factory = sqlite3.Row
+        record_movement(connection, item="Coke", member_id=1, action="replenish", quantity=3)
         record_movement(connection, item="Coke", member_id=other_id, action="consume")
+    with client.session_transaction() as user_session:
+        user_session.update(member_id=other_id, username="other", is_admin=0)
     page = client.get("/koins")
     assert b">other<" in page.data  # Public aggregate ranking includes every member.
-    private_history = page.data.split(b"Recent koin movements", 1)[1]
-    assert b">other<" not in private_history
+    history = page.data.split(b"Recent koin movements", 1)[1]
+    assert b">other<" in history
+    assert b">admin<" in history
+    assert history.index(b">other<") < history.index(b">admin<")
+    assert b"Your koin balance: -1" in page.data
     response = client.post("/koins/move", data={"item_id": 1, "action": "consume", "quantity": 1, "return_to": "https://evil.example"})
     assert response.headers["Location"].endswith("/koins")
 

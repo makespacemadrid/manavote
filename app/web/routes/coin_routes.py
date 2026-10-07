@@ -48,7 +48,7 @@ def coins_page():
     items = repo.list_items(session["member_id"])
     balance = repo.member_balance(session["member_id"])
     rankings = repo.member_rankings()
-    movements = repo.recent_movements(member_id=session["member_id"])
+    movements = repo.recent_movements()
     connection.close()
     return render_template(
         "coins.html", items=items, balance=balance, rankings=rankings, movements=movements
