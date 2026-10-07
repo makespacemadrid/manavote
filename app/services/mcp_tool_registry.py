@@ -28,6 +28,8 @@ TELEGRAM_POLICIES = {
     "create_feedback": TelegramPolicy.MEMBER_WRITE,
     "consume_coin_item": TelegramPolicy.MEMBER_WRITE,
     "replenish_coin_item": TelegramPolicy.MEMBER_WRITE,
+    "admin_consume_coin_item": TelegramPolicy.CONFIRMED_ADMIN_WRITE,
+    "admin_replenish_coin_item": TelegramPolicy.CONFIRMED_ADMIN_WRITE,
     "create_proposal": TelegramPolicy.CONFIRMED_ADMIN_WRITE,
     "create_poll": TelegramPolicy.CONFIRMED_ADMIN_WRITE,
     "update_voting_settings": TelegramPolicy.CONFIRMED_ADMIN_WRITE,

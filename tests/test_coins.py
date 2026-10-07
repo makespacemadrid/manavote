@@ -468,3 +468,23 @@ def test_member_history_is_private_and_return_redirect_is_local(coin_client):
     assert b">other<" not in private_history
     response = client.post("/koins/move", data={"item_id": 1, "action": "consume", "quantity": 1, "return_to": "https://evil.example"})
     assert response.headers["Location"].endswith("/koins")
+
+
+def test_admin_mcp_coin_actions_target_another_member_and_replay_safely(coin_client, monkeypatch):
+    _, db_path = coin_client
+    monkeypatch.setattr(mcp_server, "DB_PATH", str(db_path))
+    with sqlite3.connect(db_path) as conn:
+        target = conn.execute("INSERT INTO members (username, password_hash) VALUES ('koin-target', 'unused')").lastrowid
+    for name, quantity, delta in [("admin_replenish_coin_item", 5, 5), ("admin_consume_coin_item", 2, -2)]:
+        arguments = {"item": "Coke", "member_id": target, "quantity": quantity, "idempotency_key": name}
+        result = mcp_server.execute_tool_command(name, arguments)
+        payload = json.loads(result["result"]["content"][0]["text"])
+        assert payload["coin_delta"] == delta
+        replay = mcp_server.execute_tool_command(name, arguments)
+        assert json.loads(replay["result"]["content"][0]["text"])["replayed"] is True
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT SUM(coin_delta), COUNT(*) FROM coin_movements WHERE member_id = ?", (target,)).fetchone() == (3, 2)
+        assert conn.execute("SELECT COUNT(*) FROM coin_movements WHERE member_id = 1").fetchone()[0] == 0
+    for invalid in ({"member_id": target}, {"member_id": True, "quantity": 1}, {"member_id": target, "quantity": 1.5}):
+        result = mcp_server.execute_tool_command("admin_consume_coin_item", {"item": "Coke", **invalid})
+        assert result["error"]["code"] == -32602

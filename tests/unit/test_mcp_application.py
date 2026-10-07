@@ -36,3 +36,17 @@ def test_application_binds_confirmed_write_creator_to_admin():
         actor=Actor("admin", 7),
     )
     assert result["arguments"]["created_by"] == 7
+
+
+@pytest.mark.parametrize("tool", ["admin_consume_coin_item", "admin_replenish_coin_item"])
+def test_admin_coin_actions_preserve_target_and_deny_members(tool):
+    arguments = {"member_id": 9, "item": "Coke", "quantity": 3}
+    result = execute_tool(_executor, tool, arguments, actor=Actor("admin", 1))
+    assert result["arguments"] == arguments
+    with pytest.raises(ToolAccessDenied, match="Administrator"):
+        execute_tool(_executor, tool, arguments, actor=Actor("member", 1))
+
+
+def test_member_coin_actions_still_bind_to_caller():
+    result = execute_tool(_executor, "consume_coin_item", {"member_id": 9}, actor=Actor("member", 1))
+    assert result["arguments"]["member_id"] == 1
