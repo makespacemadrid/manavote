@@ -1,6 +1,7 @@
 import unittest
 import sys
 import inspect
+import sqlite3
 from pathlib import Path
 
 sys.path.insert(0, ".")
@@ -8,6 +9,7 @@ sys.path.insert(0, ".")
 import app as budget_app
 from app.web.routes import main_routes, proposal_routes
 from app.web import app_setup
+from app.repositories.proposal_repo import ProposalRepository
 
 
 class TestLanguageSwitch(unittest.TestCase):
@@ -323,9 +325,17 @@ class TestCalendarBudgetData(unittest.TestCase):
 
     def test_calendar_approved_query_includes_all_approvals(self):
         """Calendar approved bars include all approved proposals, not only over-budget ones"""
-        source = inspect.getsource(proposal_routes.budget)
-        self.assertIn("status = 'approved' AND processed_at IS NOT NULL GROUP BY day", source)
-        self.assertIn("status = 'approved' AND processed_at IS NOT NULL AND over_budget_at IS NOT NULL GROUP BY day", source)
+        with sqlite3.connect(":memory:") as connection:
+            connection.execute(
+                "CREATE TABLE proposals (amount REAL, status TEXT, created_at TEXT, processed_at TEXT, over_budget_at TEXT)"
+            )
+            connection.executemany(
+                "INSERT INTO proposals VALUES (?, ?, '2026-10-01', '2026-10-02', ?)",
+                [(10, "approved", None), (20, "approved", "2026-10-01"), (90, "rejected", None)],
+            )
+            amounts = ProposalRepository(connection).amounts_by_day()
+        self.assertEqual(amounts["approved"], {"2026-10-02": 30})
+        self.assertEqual(amounts["approved_from_pending"], {"2026-10-02": 20})
 
     def test_calendar_approved_type_uses_purple_color(self):
         """Calendar template styles approved proposal type in purple"""

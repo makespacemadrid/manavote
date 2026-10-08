@@ -18,6 +18,8 @@ class BoundedExecutor:
             thread_name_prefix=thread_name_prefix,
         )
         self._capacity = threading.BoundedSemaphore(max_workers + max_pending)
+        self.max_workers = max_workers
+        self.max_pending = max_pending
 
     def submit(self, function: Callable, *args, **kwargs) -> Future | None:
         """Submit immediately, or return ``None`` when all slots are occupied."""
@@ -25,7 +27,7 @@ class BoundedExecutor:
             return None
         try:
             future = self._executor.submit(function, *args, **kwargs)
-        except RuntimeError:
+        except BaseException:
             self._capacity.release()
             raise
         future.add_done_callback(lambda _future: self._capacity.release())

@@ -92,7 +92,7 @@ was no shared button component to reach for yet — each attempt hand-rolled its
 markup and styling.
 
 The cost didn't stay contained to that one button: the 2026-08-27 UX/UI audit
-(`IDEAS.md`) still found a real design system in place (`.btn`, `.vote-btn`, `.status`)
+([archived audit](archive/ROADMAP_AUDITS.md#uxui-audit-2026-08-27)) still found a real design system in place (`.btn`, `.vote-btn`, `.status`)
 being routinely bypassed by one-off inline styles years later — the exact same failure
 mode, just distributed across more templates by then. **A repo-wide button/badge/modal
 component, established before the second form is written, is one of the cheapest
@@ -418,7 +418,7 @@ paying off are worth naming so they don't get lost in a list of regrets:
   time this feature was built (commit #274 of 396), the project had visibly internalized
   several of the lessons above.
 - **Finding 7's thesis got a live re-run while this document was being written.**
-  `IDEAS.md`'s "Member feedback / bug reports / suggestions" entry specified a
+  The [archived feedback plan](archive/ROADMAP_AUDITS.md#archived-member-feedback-scope) specified a
   `feedback_service.py` shape and flagged one open design question by name: mutating
   MCP tools were all admin-only so far, so a member-writable `create_feedback` tool
   would need a new tool-access category, suggested as `MEMBER_WRITABLE_TOOLS`, and it

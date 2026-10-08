@@ -8,7 +8,7 @@ import pytest
 from app import app
 from app.db.connection import set_db_path
 from app.db.migrations import run_migrations
-from app.web.routes.group_purchase_routes import (
+from app.services.group_purchase_service import (
     _component_names,
     _component_specs,
     _component_specs_from_fields,

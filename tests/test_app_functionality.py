@@ -303,7 +303,7 @@ class TestAdminFunctionality(unittest.TestCase):
         html = response.data.decode("utf-8")
         self.assertIn("dangerActionModal", html)
         self.assertIn("confirmDangerAction", html)
-        self.assertIn("submitDangerAction", html)
+        self.assertIn("data-danger-confirm", html)
 
     def test_admin_members_show_telegram_username_without_id(self):
         """Admin members table shows Telegram username even if ID is missing"""
@@ -378,7 +378,7 @@ class TestAdminFunctionality(unittest.TestCase):
         conn.commit()
         conn.close()
 
-        with patch("app.web.routes.admin_routes.log_telegram_link_event") as mock_log:
+        with patch("app.services.admin_actions_service.log_telegram_link_event") as mock_log:
             response = self.client.post(
                 "/admin",
                 data={"action": "unlink_telegram", "member_id": 1, "csrf_token": ""},
@@ -1966,9 +1966,12 @@ if __name__ == "__main__":
 class TestBootstrapSafety(unittest.TestCase):
     def test_init_db_requires_bootstrap_password_in_production(self):
         """Production mode enforces ADMIN_BOOTSTRAP_PASSWORD when creating first admin"""
-        source = pathlib.Path("app/web/routes/main_routes.py").read_text(encoding="utf-8")
-        self.assertIn("elif is_production:", source)
-        self.assertIn("ADMIN_BOOTSTRAP_PASSWORD must be set before first startup in production", source)
+        from app.db.initialization import initialize_database
+        from unittest.mock import Mock, patch
+        with tempfile.TemporaryDirectory() as directory, patch.dict(os.environ, {}, clear=True):
+            with self.assertRaisesRegex(RuntimeError, "ADMIN_BOOTSTRAP_PASSWORD must be set"):
+                initialize_database(str(pathlib.Path(directory) / "bootstrap.db"),
+                                    testing=False, production=True, logger=Mock())
 
 
 

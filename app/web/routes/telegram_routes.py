@@ -9,6 +9,8 @@ from flask import Blueprint, request
 
 from app.extensions import csrf
 from app.integrations import telegram_agent
+from app.integrations.member_admission import busy_response
+from app.integrations.assistant_jobs import cancellation_response
 from app.integrations.telegram_webhook import (
     classify_message_addressing,
     classify_message_command,
@@ -18,6 +20,8 @@ from app.integrations.telegram_webhook import (
     extract_message_context,
 )
 from app.services.telegram_access_service import get_telegram_principal
+from app.repositories.poll_repo import PollRepository
+from app.repositories.member_repo import MemberRepository
 from app.web.routes import main_routes as legacy
 
 telegram_bp = Blueprint("telegram", __name__)
@@ -56,6 +60,8 @@ def telegram_webhook(secret):
     app = legacy.app
     _telegram_update_deduplicator = legacy._telegram_update_deduplicator
     _telegram_agent_executor = legacy._telegram_agent_executor
+    _telegram_member_admission = legacy._telegram_member_admission
+    _telegram_jobs = legacy._telegram_jobs
 
     if not TELEGRAM_WEBHOOK_SECRET or not hmac.compare_digest(secret, TELEGRAM_WEBHOOK_SECRET):
         return {"ok": False}, 403
@@ -69,10 +75,10 @@ def telegram_webhook(secret):
     if callback_ctx:
         def _load_open_poll_options(poll_id):
             conn = get_db()
-            c = conn.cursor()
-            c.execute("SELECT options_json FROM polls WHERE id = ? AND status = 'open'", (poll_id,))
-            poll = c.fetchone()
-            conn.close()
+            try:
+                poll = PollRepository(conn).open_options(poll_id)
+            finally:
+                conn.close()
             if not poll:
                 return None
             try:
@@ -142,9 +148,7 @@ def telegram_webhook(secret):
         def _notify_created_proposal(proposal_id, arguments):
             conn = get_db()
             try:
-                row = conn.execute(
-                    "SELECT username FROM members WHERE id = ?", (principal.member_id,)
-                ).fetchone()
+                row = MemberRepository(conn).get_by_id(principal.member_id)
             finally:
                 conn.close()
             creator = row["username"].split("@")[0] if row else "Unknown member"
@@ -169,18 +173,33 @@ def telegram_webhook(secret):
                 telegram_user_id=principal.telegram_user_id,
                 actor_member_id=principal.member_id,
                 is_admin=principal.is_admin,
+                language_code=ctx.get("language_code"),
                 on_proposal_created=_notify_created_proposal,
                 on_images=lambda image_urls: all(client.send_photo(url) for url in image_urls),
                 on_event=on_event,
             )
         except (requests.RequestException, RuntimeError, KeyError, IndexError, ValueError) as exc:
-            app.logger.warning("Telegram natural-language request failed: %s", exc)
+            if on_event is not None:
+                on_event('reply_generation_failed', {})
+            app.logger.warning("Telegram natural-language request failed reason_code=assistant_failed error_type=%s", type(exc).__name__)
             return "❌ I couldn't contact the ManaVote assistant. Please try again later."
 
     # Telegram expects webhooks to acknowledge updates quickly. Ocabra may take
     # several seconds (and may perform multiple MCP rounds), so configured
     # natural-language work is completed outside the request thread.
     is_command = classify_message_command(message_ctx["text"]) == "other"
+    if (is_command and telegram_agent._normalized_confirmation_command(message_ctx['text']) in {'/cancel', 'cancel'}
+            and addressing_reason != 'unaddressed' and TELEGRAM_BOT_TOKEN and chat_id):
+        principal = get_telegram_principal(get_db, message_ctx['telegram_user_id'])
+        if principal is None:
+            return {'ok': True}, 200
+        cancelled, running = _telegram_jobs.cancel(principal.member_id, chat_id, principal.telegram_user_id)
+        pending = telegram_agent.cancel_pending_action(chat_id, principal.telegram_user_id, principal.member_id)
+        TelegramClient(TELEGRAM_BOT_TOKEN, str(chat_id), str(message_ctx.get('message_thread_id') or ''),
+                       message_ctx.get('message_id')).send_message(cancellation_response(cancelled, running, pending, message_ctx.get('language_code')))
+        app.logger.info('telegram_assistant_control reason_code=cancel_checked actor_member_id=%s chat_id=%s cancelled=%s running=%s pending=%s',
+                        principal.member_id, chat_id, cancelled, running, pending)
+        return {'ok': True}, 200
     # Private-chat addressing is never ambiguous (always "private", always routed),
     # so routing diagnostics are only useful for addressed group messages here.
     if is_command and message_ctx.get("chat_type") not in {None, "", "private"}:
@@ -207,13 +226,6 @@ def telegram_webhook(secret):
             # available through their deterministic command paths.
             return {"ok": True}, 200
 
-        client = TelegramClient(
-            TELEGRAM_BOT_TOKEN,
-            str(chat_id),
-            str(message_ctx.get("message_thread_id") or ""),
-            message_ctx.get("message_id"),
-        )
-        thinking_message_id = client.send_message_with_id("🤔 Thinking…")
         enqueued_at = time.monotonic()
 
         def _log_assistant_job(event, reason_code, **details):
@@ -232,6 +244,37 @@ def telegram_webhook(secret):
                 ),
             )
 
+        lease = _telegram_member_admission.try_acquire(principal.member_id)
+        if lease is None:
+            _telegram_jobs.reject('member_capacity_exceeded')
+            _log_assistant_job("rejected", "member_capacity_exceeded")
+            TelegramClient(
+                TELEGRAM_BOT_TOKEN, str(chat_id), str(message_ctx.get("message_thread_id") or ""),
+                message_ctx.get("message_id"),
+            ).send_message(busy_response(message_ctx.get("language_code"), member_busy=True))
+            return {"ok": True}, 200
+
+        job = _telegram_jobs.create(principal.member_id, chat_id, principal.telegram_user_id)
+        try:
+            client = TelegramClient(
+                TELEGRAM_BOT_TOKEN, str(chat_id), str(message_ctx.get("message_thread_id") or ""),
+                message_ctx.get("message_id"),
+            )
+            thinking_message_id = client.send_message_with_id("🤔 Thinking…")
+        except BaseException:
+            lease.release()
+            _telegram_jobs.finish(job, 'rejected', 'thinking_creation_failed')
+            _log_assistant_job("rejected", "thinking_creation_failed")
+            raise
+
+        def _cleanup_rejected_job():
+            try:
+                deleted = client.delete_message(thinking_message_id)
+                if thinking_message_id is not None and not deleted:
+                    app.logger.error('Telegram rejected-job cleanup failed reason_code=thinking_cleanup_failed')
+            except (requests.RequestException, TypeError, ValueError):
+                app.logger.error("Telegram rejected-job cleanup failed reason_code=thinking_cleanup_failed")
+
         def _answer_and_send(ctx):
             # This runs on a background thread via the bounded executor, outside the
             # request/response cycle -- nothing else observes an exception raised here
@@ -244,29 +287,38 @@ def telegram_webhook(secret):
             # (a bug in the tool-calling loop, an exception from on_proposal_created,
             # the outbound Telegram call itself failing).
             started_at = time.monotonic()
+            _telegram_jobs.start(job)
             _log_assistant_job(
                 "started",
                 "worker_started",
                 queue_wait_ms=round((started_at - enqueued_at) * 1000, 2),
             )
             outcome = "completed"
+            def _on_event(event, details):
+                _telegram_jobs.event(job, event, details)
+                _log_assistant_job(event, details.get('reason_code', event),
+                                   **{key: value for key, value in details.items() if key != 'reason_code'})
             try:
                 try:
-                    reply = _natural_language_reply(
-                        ctx,
-                        principal=principal,
-                        on_event=lambda event, details: _log_assistant_job(
-                            event, event, **details
-                        ),
-                    )
+                    current_principal = get_telegram_principal(get_db, principal.telegram_user_id)
+                    if current_principal is None or current_principal.member_id != principal.member_id:
+                        _telegram_jobs.event(job, 'reply_generation_failed', {})
+                        reply = telegram_agent.localized('The linked account changed. Please request the action again.', ctx.get('language_code'))
+                    else:
+                        reply = _natural_language_reply(
+                            ctx,
+                            principal=current_principal,
+                            on_event=_on_event,
+                        )
                 except TELEGRAM_JOB_FAILURES:
                     outcome = "reply_generation_failed"
-                    app.logger.exception(
+                    app.logger.error(
                         "Unhandled error generating Telegram assistant reply (chat_id=%s member_id=%s)",
                         ctx.get("chat_id"),
                         principal.member_id,
                     )
                     reply = "❌ Something went wrong answering that. Please try again."
+                delivery_started = time.monotonic()
                 try:
                     delivered = client.send_long_message(reply)
                     if not delivered:
@@ -279,11 +331,15 @@ def telegram_webhook(secret):
                         )
                 except (requests.RequestException, TypeError, ValueError):
                     outcome = "reply_delivery_failed"
-                    app.logger.exception(
+                    app.logger.error(
                         "Unhandled error delivering Telegram assistant reply (chat_id=%s member_id=%s)",
                         ctx.get("chat_id"),
                         principal.member_id,
                     )
+                finally:
+                    _telegram_jobs.observe('delivery', (time.monotonic() - delivery_started) * 1000)
+                    if outcome == 'reply_delivery_failed':
+                        _telegram_jobs.delivery_failed()
             finally:
                 try:
                     deleted = client.delete_message(thinking_message_id)
@@ -299,43 +355,54 @@ def telegram_webhook(secret):
                 except (requests.RequestException, TypeError, ValueError):
                     if outcome == "completed":
                         outcome = "thinking_cleanup_failed"
-                    app.logger.exception(
+                    app.logger.error(
                         "Failed to delete Telegram assistant thinking message (chat_id=%s member_id=%s)",
                         ctx.get("chat_id"),
                         principal.member_id,
                     )
+            _telegram_jobs.finish(job, 'completed' if outcome == 'completed' else 'failed', outcome)
             _log_assistant_job(
                 "completed",
-                outcome,
+                job.failure_reason or outcome,
                 job_duration_ms=round((time.monotonic() - started_at) * 1000, 2),
             )
 
-        future = _telegram_agent_executor.submit(_answer_and_send, dict(message_ctx))
+        try:
+            future = lease.submit(_telegram_agent_executor, _answer_and_send, dict(message_ctx))
+        except BaseException:
+            _telegram_jobs.finish(job, 'rejected', 'submission_failed')
+            _cleanup_rejected_job()
+            _log_assistant_job("rejected", "submission_failed")
+            raise
         if future is None:
+            _telegram_jobs.finish(job, 'rejected', 'queue_full')
             app.logger.warning("Telegram assistant queue is full; dropping natural-language update")
             _log_assistant_job(
                 "rejected",
                 "queue_full",
                 queue_wait_ms=round((time.monotonic() - enqueued_at) * 1000, 2),
             )
-            client.delete_message(thinking_message_id)
-            client.send_message("⏳ The assistant is busy right now. Please try again shortly.")
+            _cleanup_rejected_job()
+            client.send_message(busy_response(message_ctx.get("language_code")))
         elif hasattr(future, "add_done_callback"):
+            _telegram_jobs.attach(job, future)
 
             def _observe_worker_result(completed_future):
                 try:
                     error = completed_future.exception()
                 except CancelledError:
+                    _telegram_jobs.finish(job, 'cancelled', 'worker_cancelled')
+                    _cleanup_rejected_job()
                     _log_assistant_job("completed", "worker_cancelled")
                     return
                 if error is not None:
+                    _telegram_jobs.finish(job, 'failed', 'unexpected_worker_failure')
                     app.logger.error(
                         "telegram_assistant_job_unhandled reason_code=unexpected_worker_failure "
                         "update_id=%s chat_id=%s actor_member_id=%s",
                         payload.get("update_id"),
                         chat_id,
                         principal.member_id,
-                        exc_info=(type(error), error, error.__traceback__),
                     )
 
             future.add_done_callback(_observe_worker_result)

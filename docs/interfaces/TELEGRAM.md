@@ -101,3 +101,24 @@ Responses longer than Telegram's message limit are split into readable chunks.
 Commands such as `/link`, `/vote`, and `/pvote` continue to use their deterministic
 handlers rather than the model.
 Use `/reset` to clear only the requesting user's conversation and pending action.
+
+## Model input and credential boundaries
+
+Oversized questions and unfit context return localized feedback. `/reset` can remove
+old context; asking for fewer results can reduce tool payloads. A rejection after a
+tool call does not undo or retry the action. Configured secrets and conventionally
+sensitive fields must be removed from requests. Password-bearing member creation
+and unclassified tools remain excluded. Limits and the scope of secret recognition
+are documented in [OPERATIONS](../OPERATIONS.md#assistant-model-safeguards).
+
+## Queued cancellation
+
+`/cancel` (also `/cancel@botname`) bypasses assistant admission and does not call the
+model. It attempts to cancel the sender's queued jobs and clear their recorded pending
+action in the current chat/conversation, then reports both results in English/Spanish.
+It cannot cancel another linked member's work or work in another process. Running or
+starting requests may still reply and perform their already-authorized actions. A
+successful queued cancellation runs no model/tool work, removes the status message
+where Telegram permits, and releases capacity once. Webhook retries remain deduplicated.
+Queued execution rechecks live identity/role; `/confirm` retains admission and its
+actor/role/schema/digest/expiry checks. See [operator limits](../OPERATIONS.md#assistant-operator-health).

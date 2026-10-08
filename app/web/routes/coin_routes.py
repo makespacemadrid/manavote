@@ -7,6 +7,8 @@ import qrcode
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_file, session, url_for
 
 from app.repositories.coin_repo import CoinRepository
+from app.repositories.settings_repo import SettingsRepository
+from app.services import coin_service
 from app.services.coin_service import CoinNotFoundError, CoinValidationError, adjust_inventory, create_item, delete_item, record_movement, update_item, update_movement
 from app.web.decorators import admin_required, login_required
 from app.web.routes import main_routes as legacy
@@ -15,27 +17,15 @@ coin_bp = Blueprint("coins", __name__)
 
 
 def _ensure_tokens(connection):
-    for item in CoinRepository(connection).list_items():
-        connection.execute(
-            "INSERT OR IGNORE INTO coin_qr_tokens (token, item_id, action) VALUES (?, ?, 'consume')",
-            (secrets.token_urlsafe(24), item["id"]),
-        )
-    connection.execute("DELETE FROM coin_qr_tokens WHERE action = 'replenish'")
-    connection.commit()
+    return coin_service.ensure_qr_tokens(connection)
 
 
 def _token_row(connection, token):
-    return connection.execute(
-        """SELECT qt.*, ci.name AS item_name, ci.pack_size FROM coin_qr_tokens qt
-           JOIN coin_items ci ON ci.id = qt.item_id
-           WHERE qt.token = ? AND qt.action = 'consume' AND qt.active = 1 AND ci.active = 1""",
-        (token,),
-    ).fetchone()
+    return CoinRepository(connection).get_active_token(token)
 
 
 def _public_scan_url(connection, token):
-    row = connection.execute("SELECT value FROM settings WHERE key = 'url'").fetchone()
-    base_url = str(row["value"] if row else "").strip().rstrip("/")
+    base_url = str(SettingsRepository(connection).get_value("url", "")).strip().rstrip("/")
     path = url_for("coins.scan", token=token)
     return f"{base_url}{path}" if base_url else url_for("coins.scan", token=token, _external=True)
 
@@ -116,18 +106,7 @@ def qr_image(token):
 def qr_labels():
     connection = legacy.get_db()
     _ensure_tokens(connection)
-    tokens = connection.execute(
-        """SELECT qt.token, qt.action, ci.name AS item_name FROM coin_qr_tokens qt
-           JOIN coin_items ci ON ci.id = qt.item_id
-           WHERE ci.active = 1 AND qt.action = 'consume' ORDER BY ci.position"""
-    ).fetchall()
-    labels = []
-    for label in tokens:
-        item = dict(label)
-        state = connection.execute("SELECT active, item_id FROM coin_qr_tokens WHERE token = ?", (label["token"],)).fetchone()
-        item["active"] = state["active"]
-        item["item_id"] = state["item_id"]
-        labels.append(item)
+    labels = [dict(row) for row in CoinRepository(connection).list_consume_labels()]
     repo = CoinRepository(connection)
     items = repo.list_items()
     movements = repo.recent_movements(limit=100)
@@ -143,23 +122,16 @@ def update_qr_token(item_id, action):
         abort(404)
     operation = request.form.get("operation")
     connection = legacy.get_db()
-    if operation == "rotate":
-        connection.execute(
-            "UPDATE coin_qr_tokens SET token = ?, active = 1 WHERE item_id = ? AND action = ?",
-            (secrets.token_urlsafe(24), item_id, action),
-        )
-        flash("QR token rotated. Previously printed labels no longer work.", "success")
-    elif operation in {"enable", "disable"}:
-        connection.execute(
-            "UPDATE coin_qr_tokens SET active = ? WHERE item_id = ? AND action = ?",
-            (1 if operation == "enable" else 0, item_id, action),
-        )
-        flash("QR token updated", "success")
-    else:
-        connection.close()
+    try:
+        coin_service.update_qr_token(connection, item_id=item_id, action=action, operation=operation)
+    except CoinValidationError:
         abort(400)
-    connection.commit()
-    connection.close()
+    finally:
+        connection.close()
+    if operation == "rotate":
+        flash("QR token rotated. Previously printed labels no longer work.", "success")
+    else:
+        flash("QR token updated", "success")
     current_app.logger.info(
         "coin_qr_token_updated item_id=%s action=%s operation=%s member_id=%s",
         item_id,

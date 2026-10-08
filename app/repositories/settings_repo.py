@@ -21,3 +21,10 @@ class SettingsRepository:
             "over50": thresholds.get("threshold_over50", 20),
             "default": thresholds.get("threshold_default", 10),
         }
+
+    def upsert(self, key, value):
+        self.conn.execute('INSERT INTO settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value = excluded.value',
+                          (key, value))
+
+    def delete(self, key):
+        self.conn.execute('DELETE FROM settings WHERE key = ?', (key,))

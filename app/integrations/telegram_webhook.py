@@ -95,6 +95,7 @@ def extract_message_context(payload):
         "telegram_username": (from_user.get("username") or "").strip(),
         "telegram_user_id": from_user.get("id"),
         "chat_id": chat.get("id"),
+        "language_code": from_user.get("language_code") or "en",
         "chat_type": chat.get("type") or "",
         "message_id": message.get("message_id"),
         "message_thread_id": message_thread_id,

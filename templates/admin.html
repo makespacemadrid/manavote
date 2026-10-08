@@ -212,6 +212,8 @@ document.addEventListener('DOMContentLoaded', function() {
                     {% else %}
                         <span style="color: #666;">{{ 'Not linked'|lang }}</span>
                     {% endif %}
+                    <div class="link-timestamp"><strong>{{ 'Last linked'|lang }}:</strong> {% if m.last_linked_at %}<time datetime="{{ m.last_linked_at }}" title="{{ current_timezone }}">{{ m.last_linked_at|localtime }}</time>{% else %}{{ 'Not recorded'|lang }}{% endif %}</div>
+                    <div class="link-timestamp"><strong>{{ 'Last unlinked'|lang }}:</strong> {% if m.last_unlinked_at %}<time datetime="{{ m.last_unlinked_at }}" title="{{ current_timezone }}">{{ m.last_unlinked_at|localtime }}</time>{% else %}{{ 'Not recorded'|lang }}{% endif %}</div>
                 </td>
                 <td>
                     {% if m.id != session.member_id %}
@@ -236,7 +238,7 @@ document.addEventListener('DOMContentLoaded', function() {
                             <button type="submit" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" onclick="return confirmDangerAction(this.form, '{{ ('Unlink Telegram account for %s? They will need to run /link again.')|lang|replace('%s', m.username) }}')">{{ 'Unlink Telegram'|lang }}</button>
                         </form>
                         {% endif %}
-                        <button type="button" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" onclick="showChangePassword({{ m.id }}, '{{ m.username }}')">{{ 'Change Password'|lang }}</button>
+                        <button type="button" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" data-password-open data-member-id="{{ m.id }}" data-username="{{ m.username }}" aria-haspopup="dialog" aria-controls="changePasswordModal">{{ 'Change Password'|lang }}</button>
                     </div>
                     {% else %}
                     <span style="color: #666; font-size: 0.85em;">{{ '(you)'|lang }}</span>
@@ -377,7 +379,7 @@ document.addEventListener('DOMContentLoaded', function() {
 </div>
 
 <div id="proposal-history" class="card">
-    <h3>Full Proposal History</h3>
+    <h3>{{ 'Full Proposal History'|lang }}</h3>
     <table>
         <thead>
             <tr>
@@ -721,7 +723,7 @@ document.addEventListener('DOMContentLoaded', function() {
         </table>
     </div>
 
-    <h3 style="margin-top: 20px;">Backup Uploaded Images</h3>
+    <h3 style="margin-top: 20px;">{{ 'Backup Uploaded Images'|lang }}</h3>
     <p style="color: #888; margin-bottom: 15px;">
         Image backups are stored as zip files in <code>static/uploads_backups</code>.
     </p>
@@ -786,47 +788,29 @@ document.addEventListener('DOMContentLoaded', function() {
     </form>
 </div>
 
-<div id="changePasswordModal" style="display: none; position: fixed; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.7); z-index:1000; overflow-y: auto;">
-    <div style="max-width: 400px; margin: 50px auto; background: #1f1f1f; padding: 20px; border-radius: 8px; width: 90%;">
-        <h3 style="margin-top: 0;">{{ 'Change Password'|lang }}</h3>
-        <h3>{{ 'Change Password'|lang }}</h3>
+<div id="changePasswordModal" class="danger-modal" hidden role="dialog" aria-modal="true" aria-labelledby="changePasswordTitle" aria-describedby="changePasswordUser" data-changing-label="{{ 'Changing password for'|lang }}">
+    <div class="danger-modal-panel" tabindex="-1">
+        <h3 id="changePasswordTitle">{{ 'Change Password'|lang }}</h3>
         <p id="changePasswordUser" style="color: #888;"></p>
         <form method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="action" value="change_user_password">
             <input type="hidden" id="changePasswordMemberId" name="member_id" value="">
             <div style="margin-bottom: 10px;">
-                <label>{{ 'New Password'|lang }}</label>
-                <input type="password" name="new_password" id="newPassword" required autofocus>
+                <label for="newPassword">{{ 'New Password'|lang }}</label>
+                <input type="password" name="new_password" id="newPassword" required autocomplete="new-password">
             </div>
             <div style="margin-bottom: 15px;">
-                <label>{{ 'Confirm New Password'|lang }}</label>
-                <input type="password" name="confirm_password" id="confirmPassword" required>
+                <label for="confirmPassword">{{ 'Confirm New Password'|lang }}</label>
+                <input type="password" name="confirm_password" id="confirmPassword" required autocomplete="new-password">
             </div>
             <div style="display: flex; gap: 10px;">
                 <button type="submit" class="btn">{{ 'Change Password'|lang }}</button>
-                <button type="button" class="btn btn-secondary" onclick="hideChangePassword()">{{ 'Cancel'|lang }}</button>
+                <button type="button" class="btn btn-secondary" data-password-cancel>{{ 'Cancel'|lang }}</button>
             </div>
         </form>
     </div>
 </div>
 
-<script>
-function showChangePassword(memberId, username) {
-    document.getElementById('changePasswordMemberId').value = memberId;
-    document.getElementById('changePasswordUser').textContent = '{{ 'Changing password for'|lang }} ' + username;
-    document.getElementById('changePasswordModal').style.display = 'block';
-    document.getElementById('newPassword').focus();
-}
-
-function hideChangePassword() {
-    document.getElementById('changePasswordModal').style.display = 'none';
-}
-
-// Close modal on outside click
-document.getElementById('changePasswordModal').addEventListener('click', function(e) {
-    if (e.target === this) hideChangePassword();
-});
-</script>
 </div>
 {% endblock %}

@@ -7,6 +7,7 @@ from unittest.mock import MagicMock
 sys.path.insert(0, str(pathlib.Path(__file__).resolve().parents[1]))
 
 from app.services.proposal_service import ProposalService
+from app.services.proposal_actions_service import undo_approval
 
 
 class TestProposalService(unittest.TestCase):
@@ -208,17 +209,16 @@ class TestProposalService(unittest.TestCase):
         self._add_budget(100, "initial")
         self._insert_vote(proposal_id, 1, "in_favor")
         
-        # Simulate undo
+        self._add_budget(-50, "Approved: Test item")
         c = self.conn.cursor()
         c.execute("UPDATE proposals SET processed_at = '2026-04-29 12:00:00', purchased_at = '2026-04-29 13:00:00' WHERE id = ?", (proposal_id,))
         c.execute("UPDATE settings SET value = '50' WHERE key = 'current_budget'")
         self.conn.commit()
-        
-        # Call undo logic (simulated)
-        c.execute("UPDATE proposals SET status = 'active', processed_at = NULL, purchased_at = NULL WHERE id = ?", (proposal_id,))
-        c.execute("UPDATE settings SET value = ? WHERE key = 'current_budget'", (str(50 + 50),))
-        self.conn.commit()
-        
+        self.assertTrue(undo_approval(
+            self.conn, proposal_id=proposal_id, member_id=1, is_admin=True,
+            process_proposal=MagicMock(), check_over_budget_proposals=MagicMock(),
+        ))
+
         # Verify
         row = c.execute("SELECT status, processed_at, purchased_at FROM proposals WHERE id = ?", (proposal_id,)).fetchone()
         self.assertEqual(row[0], "active")
