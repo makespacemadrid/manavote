@@ -1,6 +1,9 @@
 import { hydrateRoot } from 'react-dom/client';
 import { Nav } from './Nav.jsx';
 import './styles.css';
+import { initializeDialogs } from './dialogs.js';
+
+initializeDialogs();
 
 function readProps(root) {
   try {

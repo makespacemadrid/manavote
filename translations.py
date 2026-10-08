@@ -1,5 +1,18 @@
 TRANSLATIONS = {
     "en": {
+        "Queued assistant request cancelled.": "Queued assistant request cancelled.",
+        "Your request is starting or already running. It may still complete; completed actions cannot be undone.": "Your request is starting or already running. It may still complete; completed actions cannot be undone.",
+        "No queued request could be cancelled. A running request may still reply.": "No queued request could be cancelled. A running request may still reply.",
+        "✅ Pending action cancelled.": "✅ Pending action cancelled.",
+        "The linked account changed. Please request the action again.": "The linked account changed. Please request the action again.",
+        "Full Proposal History": "Full Proposal History",
+        "Backup Uploaded Images": "Backup Uploaded Images",
+        "Last linked": "Last linked",
+        "Last unlinked": "Last unlinked",
+        "Not recorded": "Not recorded",
+        "That message is too large. Please send a shorter question.": "That message is too large. Please send a shorter question.",
+        "The assistant context is too large. Use /reset or request fewer results. Previous actions may already have completed.": "The assistant context is too large. Use /reset or request fewer results. Previous actions may already have completed.",
+        "Please remove credentials or sensitive fields from your request.": "Please remove credentials or sensitive fields from your request.",
         "active": "active",
         "approved": "approved",
         "rejected": "rejected",
@@ -384,6 +397,19 @@ TRANSLATIONS = {
         "Your email address cannot be changed once it has been added.": "Your email address cannot be changed once it has been added.",
     },
     "es": {
+        "Queued assistant request cancelled.": "Solicitud en cola cancelada.",
+        "Your request is starting or already running. It may still complete; completed actions cannot be undone.": "Tu solicitud está iniciándose o ya se está ejecutando. Puede completarse; las acciones realizadas no se pueden deshacer.",
+        "No queued request could be cancelled. A running request may still reply.": "No se pudo cancelar ninguna solicitud en cola. Una solicitud en ejecución todavía puede responder.",
+        "✅ Pending action cancelled.": "✅ Acción pendiente cancelada.",
+        "The linked account changed. Please request the action again.": "La cuenta vinculada ha cambiado. Solicita la acción de nuevo.",
+        "Full Proposal History": "Historial completo de propuestas",
+        "Backup Uploaded Images": "Copia de seguridad de imágenes subidas",
+        "Last linked": "Última vinculación",
+        "Last unlinked": "Última desvinculación",
+        "Not recorded": "Sin registro",
+        "That message is too large. Please send a shorter question.": "Ese mensaje es demasiado largo. Envía una pregunta más corta.",
+        "The assistant context is too large. Use /reset or request fewer results. Previous actions may already have completed.": "El contexto es demasiado grande. Usa /reset o pide menos resultados. Puede que las acciones anteriores ya se hayan completado.",
+        "Please remove credentials or sensitive fields from your request.": "Elimina las credenciales o los campos sensibles de tu solicitud.",
         "Proposal filters": "Filtros de propuestas",
         "Proposal actions": "Acciones de la propuesta",
         "Feedback": "Comentarios",
@@ -954,6 +980,17 @@ _COIN_TRANSLATIONS_ES = {
     "Koin movement updated": "Movimiento de koins actualizado",
 }
 for _message, _spanish in _COIN_TRANSLATIONS_ES.items():
+    TRANSLATIONS["en"].setdefault(_message, _message)
+    TRANSLATIONS["es"].setdefault(_message, _spanish)
+del _message, _spanish
+
+_ASSISTANT_ADMISSION_TRANSLATIONS_ES = {
+    "⏳ You already have an assistant request in progress. Wait for its reply, then try again.":
+        "⏳ Ya tienes una solicitud al asistente en curso. Espera su respuesta y vuelve a intentarlo.",
+    "⏳ The assistant is busy right now. Please try again shortly.":
+        "⏳ El asistente está ocupado ahora mismo. Vuelve a intentarlo en unos momentos.",
+}
+for _message, _spanish in _ASSISTANT_ADMISSION_TRANSLATIONS_ES.items():
     TRANSLATIONS["en"].setdefault(_message, _message)
     TRANSLATIONS["es"].setdefault(_message, _spanish)
 del _message, _spanish

@@ -96,6 +96,10 @@ visible.
 | `OCABRA_API_KEY` | _empty_ | Optional bearer token for the Ocabra endpoint |
 | `OCABRA_MODEL` | `ocabra` | Model used by the natural-language Telegram assistant |
 | `OCABRA_TIMEOUT_SECONDS` | `60` | Timeout for each model request |
+| `TELEGRAM_AGENT_CONTEXT_BUDGET` | `32768` | Positive context bound using serialized UTF-8 bytes as a conservative token estimate plus framing; includes output reserve; configure no higher than the model's verified context limit |
+| `TELEGRAM_AGENT_INPUT_BUDGET` | `4096` | Positive maximum UTF-8 bytes in a current question; input plus output reserve must be less than context budget |
+| `TELEGRAM_AGENT_OUTPUT_RESERVE` | `1024` | Positive response reserve, sent as OpenAI-compatible `max_tokens`; provider must support this field; invalid budget configuration fails startup |
+| `TELEGRAM_AGENT_MAX_JOBS_PER_MEMBER` | `1` | Positive integer maximum of queued + running assistant jobs per linked member, across chats in each process; invalid values fail startup; restart to apply |
 | `TELEGRAM_CONFIRM_TTL_SECONDS` | `300` | Seconds before a pending mutating MCP action expires |
 | `TELEGRAM_AGENT_SYSTEM_PROMPT` | built-in ManaVote assistant prompt | Overrides the natural-language assistant's system prompt |
 | `OIDC_CLIENT_SECRET` | _empty_ | Enables Makespace SSO; confidential value supplied by the Keycloak operator |
@@ -153,8 +157,16 @@ message, so account links, unlinks, and administrator-role changes apply immedia
    within the configured TTL, or `/cancel`. Use `/reset` to clear the conversation.
 
 If the bot answers that the assistant is not configured, verify both
-`OCABRA_CHAT_URL` and `MCP_API_KEY`. If it reports that it is busy, wait for queued
-model requests to finish and retry; webhook retries are deduplicated automatically.
+`OCABRA_CHAT_URL` and `MCP_API_KEY`. If it reports that your request is already in
+progress, wait for its reply and retry.
+
+`TELEGRAM_AGENT_MAX_JOBS_PER_MEMBER` defaults to one: all chats for a linked member
+share admission in one process. Busy messages use Telegram’s language code (English
+or Spanish, falling back to English). Raising the limit permits more overlapping work
+for that member; it is neither a per-minute rate limit nor a distributed limit. Each
+WSGI worker has its own accounting and four workers plus 32 pending slots, so multiple
+processes multiply both bounds. Restart the application after changing the variable.
+If it reports that it is busy, wait for queued model requests to finish and retry; webhook retries are deduplicated automatically.
 
 The app configures webhook URL as:
 `https://<base-url>/telegram/webhook/<TELEGRAM_WEBHOOK_SECRET>`
@@ -263,3 +275,13 @@ Restart Manavote after changing its environment. The SSO button is hidden until
 - **Token validation failure:** verify discovery/issuer settings, system clock,
   client ID, and client secret. Do not replace discovery/JWKS validation with the
   static realm public key.
+
+## Assistant queued cancellation and health
+
+`/cancel` can cancel owned queued work without a free admission slot. Running calls
+continue; it also clears the caller's recorded pending action in the current conversation.
+Controls and job counters are process-local, so multi-worker cancellation is best effort.
+Administrators can inspect `/admin/assistant-health` while signed into the web app;
+this uses session authorization, not API keys. See [OPERATIONS](OPERATIONS.md#assistant-operator-health)
+for queue/failure interpretation and cross-worker limits. No new environment variables
+are needed for the registry or aggregate metrics.

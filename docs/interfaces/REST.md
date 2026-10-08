@@ -545,3 +545,23 @@ Invalid pagination or boolean values return a standard API error with HTTP `400`
 - `PUT|PATCH /api/settings/voting` — updates one or more settings.
   - Allowed `poll_vote_mode` / `proposal_vote_mode`: `both`, `web_only`, `telegram_only`
   - Allowed `telegram_require_linked_vote`: boolean (`true`/`false`)
+
+## Proposal list compatibility guarantees
+
+`GET /api/proposals` retains `success`, page `count`, `limit`, `offset`, and `proposals`.
+Each row has integer `id`, `created_by`, `basic_supplies`, `yes_votes`, and `no_votes`;
+numeric `amount`; string `title`, `status`, and `created_at`; and nullable string
+`description`/`url`. Rows sort by descending creation date. The endpoint retains its
+admin-key authentication, status/age filters, pagination bounds, and nested error
+envelope. MCP's richer lifecycle/resource/vote/comment fields are a separate contract;
+this endpoint does not gain those fields or matching `total` implicitly.
+
+## Administrator web diagnostic endpoint
+
+`GET /admin/assistant-health` is a web-session diagnostic endpoint outside `/api/*`.
+It requires the same login/admin gate as the Admin page; `X-Admin-Key` alone does not
+authenticate it. Authorized requests return JSON with `scope`, `reset`, `queued`,
+`active`, `terminal`, `reasons`, `stage_failures`, `latency_ms`, `configuration`, and
+`status`; responses use `Cache-Control: no-store`. Anonymous/non-admin requests redirect.
+See [OPERATIONS](../OPERATIONS.md#assistant-operator-health) for exact meanings and
+process-local limitations. No new MCP tool or public health endpoint is introduced.

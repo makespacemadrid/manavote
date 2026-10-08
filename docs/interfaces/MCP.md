@@ -180,3 +180,16 @@ pytest -q tests/test_mcp_server.py
   }
 }
 ```
+
+## Proposal read compatibility guarantees
+
+`list_proposals` retains JSON-RPC transport authentication/error envelopes and a tool
+payload containing page `count`, `limit`, `offset`, and `proposals`. Shared identifiers,
+vote aggregates, and the basic-supplies flag are integers; amounts are numeric. Creator
+`username`, lifecycle dates (`processed_at`, `over_budget_at`, `purchased_at`),
+`image_filename`, `votes`, and `comments` remain available. Lifecycle/image fields may
+be null; votes/comments are arrays with member identity and creation timestamps. Original
+`url` remains separate from configured public `proposal_url` and `image_url`; unavailable
+public links are null. Keep status/age, exact proposal-ID/creator filtering, ordering,
+and pagination checks. REST's `success` field and smaller row shape are intentionally
+separate; no new matching `total` is implied.

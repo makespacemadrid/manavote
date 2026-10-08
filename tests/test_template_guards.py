@@ -86,11 +86,13 @@ def test_currency_filter_adds_thousands_separators():
 def test_shared_danger_modal_has_accessible_keyboard_behavior():
     modal = Path("templates/_danger_action_modal.html").read_text(encoding="utf-8")
     base = Path("templates/base.html").read_text(encoding="utf-8")
+    controller = Path("frontend/src/dialogs.js").read_text(encoding="utf-8")
 
     assert 'role="dialog"' in modal
     assert 'aria-modal="true"' in modal
-    assert "event.key === 'Escape'" in modal
-    assert "event.key !== 'Tab'" in modal
+    assert "event.key === 'Escape'" in controller
+    assert "event.key === 'Tab'" in controller
+    assert '<script>' not in modal
     assert "_danger_action_modal.html" in base
     assert "user-scalable=no" not in base
     assert "maximum-scale" not in base

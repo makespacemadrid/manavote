@@ -3,16 +3,15 @@ import sqlite3
 from datetime import datetime, timedelta, timezone
 
 from flask import Blueprint, current_app, jsonify, request, session
-from werkzeug.security import generate_password_hash
 
-from app.domain.enums import ProposalStatus
 from app.extensions import csrf, limiter
 from app.repositories.poll_repo import PollRepository
+from app.repositories.member_repo import MemberRepository
+from app.services import auth_service, poll_page_service, proposal_actions_service, proposal_page_service
 from app.repositories.proposal_repo import ProposalRepository
 from app.services import feedback_service, poll_service, voting_settings_service
 from app.services.pagination_service import REASON_MESSAGES, parse_limit_offset
-from app.services.telegram_link_diagnostics import LINKED_CONDITION_SQL, link_state_case_sql
-from app.services.user_statistics import user_statistics_query, user_statistics_rows, user_statistics_total_query
+from app.services.user_statistics import user_statistics_rows
 from app.services.voting_settings_service import VALID_VOTE_MODES
 from app.web.routes import main_routes as legacy
 from app.web.routes.helpers.api_helpers import (
@@ -131,28 +130,16 @@ def api_register():
     if not username or not password:
         return api_error("username_password_required", "username and password are required", 400)
 
-    password_hash = generate_password_hash(password)
-
     conn = legacy.get_db()
-    c = conn.cursor()
-
-    c.execute("SELECT id FROM members WHERE username = ?", (username,))
-    if c.fetchone():
-        conn.close()
-        return api_error("username_exists", "Username already exists", 409)
-
     try:
-        c.execute(
-            "INSERT INTO members (username, password_hash, is_admin) VALUES (?, ?, ?)",
-            (username, password_hash, 1 if is_admin else 0),
-        )
-        conn.commit()
-        member_id = c.lastrowid
-        conn.close()
+        member_id = auth_service.register_member(conn, username, password, is_admin)
+        if member_id is None:
+            return api_error("username_exists", "Username already exists", 409)
         return jsonify({"success": True, "message": f"User {username} created", "member_id": member_id}), 201
     except sqlite3.Error:
-        conn.close()
         return api_error("register_failed", "Failed to create user", 500)
+    finally:
+        conn.close()
 
 
 @api_bp.route("/api/proposals", methods=["POST"], endpoint="api_create_proposal")
@@ -184,9 +171,7 @@ def api_create_proposal():
     basic_supplies = 1 if basic_supplies_flag else 0
 
     conn = legacy.get_db()
-    c = conn.cursor()
-    c.execute("SELECT id FROM members WHERE id = ?", (created_by,))
-    if not c.fetchone():
+    if MemberRepository(conn).get_by_id(created_by) is None:
         conn.close()
         return api_error("creator_member_not_found", "Creator member not found", 404)
 
@@ -207,47 +192,19 @@ def api_list_proposals():
         return auth_error
     status = (request.args.get("status") or "").strip().lower()
     age = (request.args.get("age") or "").strip().lower()
-    valid_statuses = {proposal_status.value for proposal_status in ProposalStatus}
     limit, offset, pagination_error = parse_pagination_params(default_limit=50, max_limit=200)
     if pagination_error:
         return pagination_error
-    if age not in {"", "recent", "old"}:
-        return api_error("invalid_age_filter", "age must be one of: recent, old", 400)
-    if status and status not in valid_statuses:
-        return api_error("invalid_status_filter", "invalid status filter", 400)
-    if age and status and status != "active":
-        return api_error("incompatible_proposal_filters", "age can only be combined with status=active", 400)
+    filter_error = proposal_page_service.validate_api_filters(status, age)
+    if filter_error:
+        return api_error(*filter_error, 400)
 
-    params = []
-    query = """
-        SELECT p.id, p.title, p.description, p.amount, p.url, p.created_by, p.status, p.created_at, p.basic_supplies,
-               COALESCE(SUM(CASE WHEN v.vote = 'in_favor' THEN 1 ELSE 0 END), 0) AS yes_votes,
-               COALESCE(SUM(CASE WHEN v.vote = 'against' THEN 1 ELSE 0 END), 0) AS no_votes
-        FROM proposals p
-        LEFT JOIN votes v ON v.proposal_id = p.id
-    """
-    conditions = []
-    if status:
-        conditions.append("p.status = ?")
-        params.append(status)
-    if age:
-        if not status:
-            conditions.append("p.status = 'active'")
-        comparator = ">" if age == "recent" else "<="
-        conditions.append(f"datetime(p.created_at) {comparator} datetime(?)")
-        cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).replace(tzinfo=None).isoformat(sep=" ")
-        params.append(cutoff)
-    if conditions:
-        query += " WHERE " + " AND ".join(conditions)
-
-    query += " GROUP BY p.id ORDER BY p.created_at DESC LIMIT ? OFFSET ?"
-    params.extend([limit, offset])
-
+    cutoff = (datetime.now(timezone.utc) - timedelta(days=30)).replace(tzinfo=None).isoformat(sep=" ")
     conn = legacy.get_db()
-    c = conn.cursor()
-    c.execute(query, tuple(params))
-    rows = c.fetchall()
-    conn.close()
+    try:
+        rows = ProposalRepository(conn).list_for_api(status=status, age=age, cutoff=cutoff, limit=limit, offset=offset)
+    finally:
+        conn.close()
 
     return jsonify({"success": True, "count": len(rows), "limit": limit, "offset": offset, "proposals": [dict(r) for r in rows]})
 
@@ -259,12 +216,7 @@ def api_get_proposal(proposal_id):
     if auth_error:
         return auth_error
     conn = legacy.get_db()
-    c = conn.cursor()
-    c.execute(
-        "SELECT id, title, description, amount, url, created_by, status, created_at, basic_supplies FROM proposals WHERE id = ?",
-        (proposal_id,),
-    )
-    row = c.fetchone()
+    row = ProposalRepository(conn).api_details(proposal_id)
     conn.close()
     if not row:
         return api_error("proposal_not_found", "Proposal not found", 404)
@@ -279,14 +231,12 @@ def api_edit_proposal(proposal_id):
         return auth_error
 
     conn = legacy.get_db()
-    c = conn.cursor()
-    c.execute("SELECT * FROM proposals WHERE id = ?", (proposal_id,))
-    proposal = c.fetchone()
-    if not proposal:
+    try:
+        proposal = proposal_actions_service.get_proposal_for_api_edit(conn, proposal_id)
+    except proposal_actions_service.ProposalActionError as exc:
         conn.close()
-        return api_error("proposal_not_found", "Proposal not found", 404)
-    if proposal["status"] != "active":
-        conn.close()
+        if exc.code == "proposal_not_found":
+            return api_error("proposal_not_found", "Proposal not found", 404)
         return api_error("proposal_already_processed", "Cannot edit processed proposals", 400)
 
     data, json_error = require_json_body()
@@ -306,11 +256,10 @@ def api_edit_proposal(proposal_id):
         return api_error("amount_must_be_positive", "amount must be positive", 400)
 
     try:
-        c.execute(
-            "UPDATE proposals SET title = ?, description = ?, amount = ?, url = ?, basic_supplies = ? WHERE id = ?",
-            (title, description, amount, url, basic_supplies, proposal_id),
+        proposal_actions_service.update_api_proposal(
+            conn, proposal_id=proposal_id, title=title, description=description,
+            amount=amount, url=url, basic_supplies=basic_supplies,
         )
-        conn.commit()
         conn.close()
         return jsonify({"success": True, "message": "Proposal updated", "proposal_id": proposal_id})
     except sqlite3.Error as exc:
@@ -336,32 +285,7 @@ def api_list_member_telegram_links():
         return pagination_error
 
     conn = legacy.get_db()
-    c = conn.cursor()
-    if include_unlinked:
-        c.execute(
-            f"""
-            SELECT id, username, telegram_username, telegram_user_id, last_linked_at, last_unlinked_at,
-                   CASE WHEN {LINKED_CONDITION_SQL} THEN 1 ELSE 0 END AS linked,
-                   {link_state_case_sql()} AS link_state
-            FROM members
-            ORDER BY id ASC
-            LIMIT ? OFFSET ?
-            """,
-            (limit, offset),
-        )
-    else:
-        c.execute(
-            f"""
-            SELECT id, username, telegram_username, telegram_user_id, last_linked_at, last_unlinked_at,
-                   1 AS linked, 'linked' AS link_state
-            FROM members
-            WHERE {LINKED_CONDITION_SQL}
-            ORDER BY id ASC
-            LIMIT ? OFFSET ?
-            """,
-            (limit, offset),
-        )
-    rows = c.fetchall()
+    rows = MemberRepository(conn).list_telegram_links(include_unlinked, limit, offset)
     conn.close()
 
     return jsonify({"success": True, "count": len(rows), "limit": limit, "offset": offset, "members": [dict(r) for r in rows]})
@@ -383,12 +307,9 @@ def api_list_user_statistics():
         return api_error("invalid_include_email", "include_email must be boolean", 400)
     include_email = include_email_value in {"1", "true", "yes", "on"}
 
-    query, params = user_statistics_query(limit, offset)
-    total_query, total_params = user_statistics_total_query()
     conn = legacy.get_db()
     try:
-        rows = conn.execute(query, params).fetchall()
-        total = int(conn.execute(total_query, total_params).fetchone()["total"])
+        rows, total = MemberRepository(conn).statistics(limit, offset)
     finally:
         conn.close()
 
@@ -481,28 +402,10 @@ def api_list_polls():
         return pagination_error
 
     conn = legacy.get_db()
-    c = conn.cursor()
-    c.execute(
-        """
-        SELECT p.id, p.question, p.options_json, p.status, p.created_at, p.created_by, p.allow_multiple,
-               (SELECT COUNT(*) FROM poll_votes pv WHERE pv.poll_id = p.id) AS total_votes
-        FROM polls p
-        ORDER BY p.created_at DESC
-        LIMIT ? OFFSET ?
-        """,
-        (limit, offset),
-    )
-    rows = c.fetchall()
-    conn.close()
-    polls = []
-    for row in rows:
-        poll = dict(row)
-        try:
-            poll["options"] = json.loads(poll.pop("options_json") or "[]")
-        except (TypeError, json.JSONDecodeError):
-            poll["options"] = []
-        poll["allow_multiple"] = bool(poll["allow_multiple"])
-        polls.append(poll)
+    try:
+        polls = poll_page_service.list_api_polls(conn, limit, offset)
+    finally:
+        conn.close()
     return jsonify({"success": True, "count": len(polls), "limit": limit, "offset": offset, "polls": polls})
 
 
@@ -535,9 +438,7 @@ def api_create_poll():
         return api_error("created_by_required", "created_by is required", 400)
 
     conn = legacy.get_db()
-    c = conn.cursor()
-    c.execute("SELECT id FROM members WHERE id = ?", (created_by,))
-    if not c.fetchone():
+    if MemberRepository(conn).get_by_id(created_by) is None:
         conn.close()
         return api_error("creator_member_not_found", "Creator member not found", 404)
     try:

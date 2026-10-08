@@ -1,6 +1,5 @@
 import logging
-import secrets
-from datetime import datetime
+from contextlib import closing
 from urllib.parse import urlencode
 
 import requests
@@ -8,10 +7,10 @@ from authlib.integrations.base_client.errors import OAuthError
 from authlib.jose.errors import JoseError
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, session, url_for
 from urllib.parse import urlparse
-from werkzeug.security import generate_password_hash
 
 from app.extensions import limiter, oauth
-from app.services.auth_service import verify_and_migrate_password
+from app.services import auth_service
+from app.repositories.member_repo import MemberRepository
 from app.services import feedback_service
 from app.services.telegram_link_service import (
     link_member_telegram,
@@ -88,35 +87,10 @@ def login():
         username = request.form["username"].strip()
         password = request.form["password"]
 
-        conn = legacy.get_db()
-        c = conn.cursor()
-        c.execute(
-            """
-            SELECT * FROM members
-            WHERE username = ? OR (email IS NOT NULL AND lower(email) = lower(?))
-            ORDER BY CASE WHEN username = ? THEN 0 ELSE 1 END
-            LIMIT 1
-            """,
-            (username, username, username),
-        )
-        member = c.fetchone()
+        with closing(legacy.get_db()) as conn:
+            member = auth_service.authenticate(conn, username, password)
 
         if member:
-            stored_hash = member["password_hash"]
-
-            valid, migrated_hash = verify_and_migrate_password(stored_hash, password)
-            if migrated_hash:
-                c.execute(
-                    "UPDATE members SET password_hash = ? WHERE id = ?",
-                    (migrated_hash, member["id"]),
-                )
-                conn.commit()
-        else:
-            valid = False
-
-        conn.close()
-
-        if member and valid:
             session["member_id"] = member["id"]
             session["username"] = member["username"]
             session["is_admin"] = member["is_admin"]
@@ -198,58 +172,8 @@ def keycloak_callback():
 
 
 def _upsert_oidc_member(claims):
-    subject = str(claims["sub"])
-    preferred = (claims.get("preferred_username") or claims.get("email") or f"oidc-{subject[:12]}").strip()
-    email = (claims.get("email") or "").strip() or None
-    display_name = (claims.get("name") or "").strip() or None
-    telegram_username = (claims.get("telegram_handle") or "").strip().lstrip("@") or None
-    telegram_user_id = claims.get("telegram_id") or None
-    groups = claims.get("groups") if isinstance(claims.get("groups"), list) else []
-    is_admin = int("admins" in groups)
-
-    conn = legacy.get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT * FROM members WHERE oidc_sub = ?", (subject,))
-    member = cursor.fetchone()
-    if not member and email:
-        cursor.execute(
-            """
-            SELECT * FROM members
-            WHERE oidc_sub IS NULL AND email IS NOT NULL AND lower(email) = lower(?)
-            LIMIT 1
-            """,
-            (email,),
-        )
-        member = cursor.fetchone()
-    if member:
-        new_telegram_user_id = telegram_user_id if telegram_user_id is not None else member["telegram_user_id"]
-        linked_at = (
-            datetime.now().isoformat()
-            if new_telegram_user_id is not None and new_telegram_user_id != member["telegram_user_id"]
-            else None
-        )
-        cursor.execute(
-            "UPDATE members SET oidc_sub = ?, email = COALESCE(?, email), display_name = ?, is_admin = ?, telegram_username = COALESCE(?, telegram_username), telegram_user_id = COALESCE(?, telegram_user_id), last_linked_at = COALESCE(?, last_linked_at) WHERE id = ?",
-            (subject, email, display_name, is_admin, telegram_username, telegram_user_id, linked_at, member["id"]),
-        )
-        member_id = member["id"]
-    else:
-        username = preferred
-        suffix = 1
-        while cursor.execute("SELECT 1 FROM members WHERE username = ?", (username,)).fetchone():
-            suffix += 1
-            username = f"{preferred}-{suffix}"
-        linked_at = datetime.now().isoformat() if telegram_user_id is not None else None
-        cursor.execute(
-            "INSERT INTO members (username, password_hash, is_admin, telegram_username, telegram_user_id, last_linked_at, oidc_sub, email, display_name) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
-            (username, generate_password_hash(secrets.token_urlsafe(32)), is_admin, telegram_username, telegram_user_id, linked_at, subject, email, display_name),
-        )
-        member_id = cursor.lastrowid
-    conn.commit()
-    cursor.execute("SELECT id, username, is_admin FROM members WHERE id = ?", (member_id,))
-    result = cursor.fetchone()
-    conn.close()
-    return result
+    with closing(legacy.get_db()) as conn:
+        return auth_service.upsert_oidc_member(conn, claims)
 
 
 @auth_bp.route("/logout", endpoint="logout")
@@ -285,27 +209,11 @@ def change_password():
         new_password = request.form["new_password"]
         confirm_password = request.form["confirm_password"]
 
-        if not new_password or not confirm_password:
-            flash("All fields are required", "error")
+        with closing(legacy.get_db()) as conn:
+            error = auth_service.change_password(conn, session["member_id"], new_password, confirm_password)
+        if error:
+            flash(error, "error")
             return redirect(url_for("auth.change_password"))
-
-        if new_password != confirm_password:
-            flash("New passwords do not match", "error")
-            return redirect(url_for("auth.change_password"))
-
-        if len(new_password) < 4:
-            flash("Password must be at least 4 characters", "error")
-            return redirect(url_for("auth.change_password"))
-
-        new_hash = generate_password_hash(new_password)
-        conn = legacy.get_db()
-        c = conn.cursor()
-        c.execute(
-            "UPDATE members SET password_hash = ? WHERE id = ?",
-            (new_hash, session["member_id"]),
-        )
-        conn.commit()
-        conn.close()
 
         flash("Password changed successfully!", "success")
         return redirect(url_for("proposals"))
@@ -316,96 +224,68 @@ def change_password():
 @auth_bp.route("/telegram-settings", methods=["GET", "POST"], endpoint="telegram_settings")
 @login_required
 def telegram_settings():
-    conn = legacy.get_db()
-    c = conn.cursor()
+    with closing(legacy.get_db()) as conn:
 
-    if request.method == "POST":
-        action = request.form.get("action", "")
-        if action == "unlink_telegram":
-            target_member_id = int(session["member_id"])
-            unlink_member_telegram(legacy.get_db, target_member_id)
-            log_telegram_link_event(
-                logger,
-                event="member_telegram_unlink",
-                actor_id=target_member_id,
-                target_member_id=target_member_id,
-                source="member_settings",
-                reason_code="self_unlink",
-                status="success",
-            )
-            flash("Telegram account unlinked.", "success")
-        else:
-            flash("Telegram account fields are read-only here. Send /link to the bot in a private chat.", "info")
-        conn.close()
-        return redirect(url_for("auth.telegram_settings"))
+        if request.method == "POST":
+            action = request.form.get("action", "")
+            if action == "unlink_telegram":
+                target_member_id = int(session["member_id"])
+                unlink_member_telegram(legacy.get_db, target_member_id)
+                log_telegram_link_event(
+                    logger,
+                    event="member_telegram_unlink",
+                    actor_id=target_member_id,
+                    target_member_id=target_member_id,
+                    source="member_settings",
+                    reason_code="self_unlink",
+                    status="success",
+                )
+                flash("Telegram account unlinked.", "success")
+            else:
+                flash("Telegram account fields are read-only here. Send /link to the bot in a private chat.", "info")
+            return redirect(url_for("auth.telegram_settings"))
 
-    c.execute(
-        "SELECT telegram_username, telegram_user_id FROM members WHERE id = ?",
-        (session["member_id"],),
-    )
-    member = c.fetchone()
-    conn.close()
+        member = MemberRepository(conn).get_by_id(session["member_id"])
 
-    return render_template(
-        "telegram_settings.html",
-        telegram_username=(member["telegram_username"] if member else None),
-        telegram_user_id=(member["telegram_user_id"] if member else None),
-        missing_public_username=bool(member and member["telegram_user_id"] and not (member["telegram_username"] or "").strip()),
-        session_lang=session.get("lang", "en"),
-    )
+        return render_template(
+            "telegram_settings.html",
+            telegram_username=(member["telegram_username"] if member else None),
+            telegram_user_id=(member["telegram_user_id"] if member else None),
+            missing_public_username=bool(member and member["telegram_user_id"] and not (member["telegram_username"] or "").strip()),
+            session_lang=session.get("lang", "en"),
+        )
 
 
 @auth_bp.route("/settings", methods=["GET", "POST"], endpoint="settings_page")
 @login_required
 def settings_page():
-    conn = legacy.get_db()
-    cursor = conn.cursor()
-    cursor.execute("SELECT email FROM members WHERE id = ?", (session["member_id"],))
-    member = cursor.fetchone()
+    with closing(legacy.get_db()) as conn:
+        member = MemberRepository(conn).get_by_id(session["member_id"])
 
-    if request.method == "POST":
-        if request.form.get("action") == "submit_feedback":
-            try:
-                feedback_service.submit_feedback(
-                    conn, member_id=session["member_id"], source="web",
-                    category=request.form.get("category"), message=request.form.get("message"),
-                    section=request.form.get("section"),
-                    logger=current_app.logger,
-                )
-                flash("Feedback submitted. Thank you!", "success")
-            except feedback_service.FeedbackValidationError as exc:
-                flash(str(exc), "error")
-            conn.close()
-            return_to = request.form.get("return_to", "")
-            if not return_to.startswith("/") or return_to.startswith("//"):
-                return_to = url_for("auth.settings_page")
-            return redirect(return_to)
-        existing_email = (member["email"] or "").strip() if member else ""
-        email = request.form.get("email", "").strip().lower()
-        if existing_email:
-            flash("Your email address cannot be changed once it has been added.", "error")
-        elif not email or "@" not in email:
-            flash("Enter a valid email address.", "error")
-        elif cursor.execute(
-            "SELECT 1 FROM members WHERE lower(email) = lower(?) AND id != ?",
-            (email, session["member_id"]),
-        ).fetchone():
-            flash("That email address is already in use.", "error")
-        else:
-            cursor.execute(
-                "UPDATE members SET email = ? WHERE id = ? AND (email IS NULL OR trim(email) = '')",
-                (email, session["member_id"]),
-            )
-            conn.commit()
-            flash("Email address added.", "success")
-        conn.close()
-        return redirect(url_for("auth.settings_page"))
+        if request.method == "POST":
+            if request.form.get("action") == "submit_feedback":
+                try:
+                    feedback_service.submit_feedback(
+                        conn, member_id=session["member_id"], source="web",
+                        category=request.form.get("category"), message=request.form.get("message"),
+                        section=request.form.get("section"),
+                        logger=current_app.logger,
+                    )
+                    flash("Feedback submitted. Thank you!", "success")
+                except feedback_service.FeedbackValidationError as exc:
+                    flash(str(exc), "error")
+                return_to = request.form.get("return_to", "")
+                if not return_to.startswith("/") or return_to.startswith("//"):
+                    return_to = url_for("auth.settings_page")
+                return redirect(return_to)
+            error = auth_service.add_member_email(conn, session["member_id"], request.form.get("email", ""))
+            flash(error or "Email address added.", "error" if error else "success")
+            return redirect(url_for("auth.settings_page"))
 
-    email = (member["email"] or "").strip() if member else ""
-    conn.close()
-    return render_template(
-        "settings.html", email=email, session_lang=session.get("lang", "en")
-    )
+        email = (member["email"] or "").strip() if member else ""
+        return render_template(
+            "settings.html", email=email, session_lang=session.get("lang", "en")
+        )
 
 
 @auth_bp.route("/register", methods=["GET", "POST"], endpoint="register")
@@ -427,25 +307,11 @@ def register():
                 "register.html", session_lang=session.get("lang", "en")
             )
 
-        password_hash = generate_password_hash(password)
-
-        conn = legacy.get_db()
-        c = conn.cursor()
-
-        c.execute("SELECT id FROM members WHERE username = ?", (username,))
-        if c.fetchone():
+        with closing(legacy.get_db()) as conn:
+            member_id = auth_service.register_member(conn, username, password)
+        if member_id is None:
             flash("Username already exists", "error")
-            conn.close()
-            return render_template(
-                "register.html", session_lang=session.get("lang", "en")
-            )
-
-        c.execute(
-            "INSERT INTO members (username, password_hash, is_admin) VALUES (?, ?, 0)",
-            (username, password_hash),
-        )
-        conn.commit()
-        conn.close()
+            return render_template("register.html", session_lang=session.get("lang", "en"))
 
         flash("Registration successful! Please log in.", "success")
         return redirect(url_for("auth.login"))

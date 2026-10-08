@@ -19,6 +19,27 @@ class CoinNotFoundError(LookupError):
     pass
 
 
+def ensure_qr_tokens(connection):
+    repo = CoinRepository(connection)
+    for item in repo.list_items():
+        repo.insert_consume_token(item["id"], secrets.token_urlsafe(24))
+    repo.delete_replenish_tokens()
+    connection.commit()
+
+
+def update_qr_token(connection, *, item_id, action, operation):
+    if action != "consume":
+        raise CoinNotFoundError("QR action not found")
+    repo = CoinRepository(connection)
+    if operation == "rotate":
+        repo.rotate_token(item_id, action, secrets.token_urlsafe(24))
+    elif operation in {"enable", "disable"}:
+        repo.set_token_active(item_id, action, operation == "enable")
+    else:
+        raise CoinValidationError("Invalid QR operation")
+    connection.commit()
+
+
 def create_item(connection, *, name, pack_size):
     """Create a uniquely named active item category with a purchase shortcut size."""
     name = str(name or "").strip()

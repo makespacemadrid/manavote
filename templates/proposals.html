@@ -116,7 +116,7 @@
                         {% if session.is_admin %}
                         <form method="POST" action="{{ url_for('proposals.undo_approve', proposal_id=p.id) }}" onsubmit="return confirmDangerAction(this, '{{ 'Undo approval confirm'|lang }}');">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                            <button type="submit" class="btn btn-danger" style="padding: 4px 8px; font-size: 0.75em;">{{ 'undo'|lang }}</button>
+                            <button type="submit" class="btn btn-danger">{{ 'undo'|lang }}</button>
                         </form>
                         {% endif %}
                     </div>
@@ -128,8 +128,8 @@
                     <div style="margin-top: 8px; display: flex; gap: 5px; justify-content: flex-end;">
                         <form method="POST" action="{{ url_for('proposals.quick_vote', proposal_id=p.id) }}">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                            <button type="submit" name="vote" value="in_favor" class="vote-btn approve {{ 'active' if p.user_vote == 'in_favor' else '' }}" style="padding: 4px 8px; font-size: 0.75em; background: #00ff8822; color: #00ff88; border: 1px solid #00ff88;">✓ {{ 'In Favor'|lang }}</button>
-                            <button type="submit" name="vote" value="against" class="vote-btn reject {{ 'active' if p.user_vote == 'against' else '' }}" style="padding: 4px 8px; font-size: 0.75em;">✗ {{ 'Against'|lang }}</button>
+                            <button type="submit" name="vote" value="in_favor" class="vote-btn approve quick-vote-btn {{ 'active' if p.user_vote == 'in_favor' else '' }}">✓ {{ 'In Favor'|lang }}</button>
+                            <button type="submit" name="vote" value="against" class="vote-btn reject quick-vote-btn {{ 'active' if p.user_vote == 'against' else '' }}">✗ {{ 'Against'|lang }}</button>
                         </form>
                     </div>
                     {% endif %}
@@ -137,8 +137,8 @@
                     <div style="margin-top: 8px; display: flex; gap: 5px; justify-content: flex-end;">
                         <form method="POST" action="{{ url_for('proposals.quick_vote', proposal_id=p.id) }}">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                            <button type="submit" name="vote" value="in_favor" class="vote-btn approve" style="padding: 4px 8px; font-size: 0.75em; background: #00ff8822; color: #00ff88; border: 1px solid #00ff88;">✓ {{ 'In Favor'|lang }}</button>
-                            <button type="submit" name="vote" value="against" class="vote-btn reject" style="padding: 4px 8px; font-size: 0.75em;">✗ {{ 'Against'|lang }}</button>
+                            <button type="submit" name="vote" value="in_favor" class="vote-btn approve quick-vote-btn">✓ {{ 'In Favor'|lang }}</button>
+                            <button type="submit" name="vote" value="against" class="vote-btn reject quick-vote-btn">✗ {{ 'Against'|lang }}</button>
                         </form>
                     </div>
                     {% endif %}

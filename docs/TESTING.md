@@ -48,6 +48,38 @@ appears in the Quick Start configuration reference. Add new documentation beneat
 pytest -q tests/test_template_guards.py tests/test_production_config.py tests/test_app_startup.py tests/test_startup_policy.py tests/unit/test_settings_service.py tests/unit/test_vote_repository_contract.py
 ```
 
+### Sprint 10 read-path ownership
+
+```bash
+pytest -q tests/unit/test_page_read_services.py tests/test_budget_admin_refactor.py tests/test_language.py tests/test_app_functionality.py
+```
+
+- Direct service tests exercise real migrated SQLite repositories for every proposal-list filter, exact 30-day boundaries, member votes, thresholds, chip totals, and running balances.
+- Budget tests cover pending-release vs. all approval totals, cash signs, calendar sorting/pagination, and empty histories.
+- Flask checks retain authentication/rendering/vote-policy behavior and verify database cleanup when read services fail. The former approval SQL-source assertion now checks repository results.
+- [SPRINT_10_INVENTORY.md](SPRINT_10_INVENTORY.md) records retained adapters and delivered owners.
+
+### Sprint 10 proposal action ownership
+
+```bash
+pytest -q tests/test_proposal_actions.py tests/test_app_functionality.py tests/test_proposal_edit_route.py
+```
+
+- Direct/HTTP action tests cover approved-only purchase flags, active-only owner/admin proposal deletion, and admin-only comment editing/deletion.
+- Verify dependent vote/comment removal, atomic rollback on failed deletion, immutable comment identity/timestamps, blank-edit no-ops, unchanged budget, POST/login gates, redirects/flashes, and connection cleanup on service failures.
+- Purchase endpoints retain the existing signed-in-member access policy; this refactor does not add an owner/admin restriction. Successful action logs contain metadata without comment contents.
+
+### Sprint 10 remaining ownership and boundary guards
+
+```bash
+pytest -q tests/unit/test_sprint10_ownership.py tests/unit/test_auth_service.py tests/test_group_purchases.py tests/test_oidc_auth.py tests/test_email_accounts.py tests/test_coins.py
+```
+
+- AST guards prohibit SQL calls in every route module, Flask/web imports in extracted services, and service/web imports in repositories.
+- Direct use-case checks cover admin self-protection, session-change results, budget-sign reprocessing, atomic rollback, poll creation/delivery/lifecycle, group debt allocation, creator permissions, additive/clear votes, and proposal detail/edit behavior.
+- Withdrawal and undo tests use the real service, observe committed state before callbacks, and retain HTTP response/authorization checks; the former simulated undo test now invokes the owning service.
+- Test database setup runs before application import. Per-test database isolation updates both connection and legacy runtime paths.
+
 ### Frontend regression checks
 
 ```bash
@@ -335,3 +367,75 @@ Not part of a themed pack above, but each exercises real, otherwise-undocumented
   `tests/unit/test_admin_audit_helpers.py`, `tests/unit/test_services.py` — narrower unit
   and route-level coverage for their namesake area; run individually with
   `pytest -q <path>` or rely on the full `pytest -q` run at the top of this document.
+
+## Sprint 11 assistant member admission
+
+```bash
+pytest -q tests/unit/test_member_admission.py tests/unit/test_bounded_executor.py tests/test_telegram_natural_language_webhook.py tests/unit/test_telegram_agent.py
+```
+
+- Direct checks synchronize concurrent acquires, exercise configured limits and startup
+  rejection, and verify reusable admission after worker success/failure, global rejection,
+  submit errors, inline completion, and queued cancellation. Releasing an old lease twice
+  cannot release a newer reservation.
+- Flask tests cover concurrent webhook requests, same-member cross-chat rejection,
+  other-member capacity, update deduplication, English/Spanish responses without thinking
+  or model/MCP calls, cancellation cleanup, and every worker/delivery/submit failure path.
+- Busy `/confirm` and `/cancel` preserve pending mutations; retry cancellation bypasses
+  the model. Existing confirmation success, actor/role changes, and mutation audits remain covered.
+
+## Assistant safety regressions
+
+Run `pytest -q tests/unit/test_assistant_safety.py tests/unit/test_telegram_agent.py tests/test_telegram_natural_language_webhook.py` for UTF-8/context boundaries, complete
+history groups, configured credentials/sensitive fields, durable history, multi-round
+tool payloads, localized rejection, admission release, and safe failure logs. Provider
+and Telegram calls are mocked.
+
+## Proposal contracts and vote-policy matrix
+
+Run `pytest -q tests/test_proposal_contracts.py tests/test_proposal_service.py tests/test_proposal_actions.py tests/test_proposal_vote_mode.py` for public shapes/types/filters,
+rejection envelopes, concurrent approval/undo, ledger failure rollback, over-budget
+rechecks, reapproval semantics, and existing action permissions.
+
+| Mode | Proposal list/detail controls | Poll web controls | Telegram deterministic vote guidance |
+|---|---|---|---|
+| `both` | Enabled | Enabled | Accepted for eligible linked members |
+| `web_only` | Enabled | Enabled | Channel-disabled rejection |
+| `telegram_only` | Hidden; proposal banner | Hidden | Accepted for eligible linked members |
+
+The parameterized matrix in `tests/test_proposal_contracts.py` checks rendered controls
+and deterministic guidance. Existing `tests/test_app_functionality.py` checks webhook
+votes/callbacks and server-side channel rejection; `tests/test_proposal_actions.py`
+retains owner/admin/status action coverage. These are coverage references, not new
+Telegram vote tools or changed policy.
+
+## Shared dialog and responsive browser checks
+
+Run `pytest -q tests/test_admin_interface.py tests/test_language.py` for password form
+fields/labels, administrator access, escaped member identity, bilingual headings, and
+existing link/unlink timestamps in the configured local timezone.
+
+For native keyboard/layout checks with installed Chromium and Node 24:
+
+```bash
+npm test
+npm run build
+MANAVOTE_UI_CAPTURE_DIR=/tmp/manavote-ui pytest -q tests/test_admin_interface.py
+node scripts/check_dialogs.mjs /tmp/manavote-ui
+```
+
+The browser harness serves synthetic Flask test snapshots on localhost, checks password
+opening/Tab/Shift-Tab/Escape/focus return/password clearing, shared danger confirmation
+and feedback, cyan vote styling, and page overflow in both languages at 375/600/1280px.
+It closes its server/browser and removes the temporary browser profile. It requires
+localhost sockets; it never starts a production server or submits real domain changes.
+Set `CHROMIUM` only when the executable has a different name. Build refreshes the
+tracked frontend assets used by server-rendered pages.
+
+## Queued cancellation and operator health regressions
+
+Run `pytest -q tests/unit/test_assistant_jobs.py tests/unit/test_member_admission.py tests/unit/test_telegram_agent.py tests/test_telegram_natural_language_webhook.py tests/test_admin_interface.py` for owned futures, completion-before-attachment,
+start/cancel races, capacity release, queued cancellation without model/MCP work,
+webhook deduplication, pending-action ownership, relinking/role changes, running status,
+cleanup failures, model/MCP/delivery telemetry, bounded summaries, and administrator-only
+safe health responses. Network calls are mocked; concurrency uses real futures/SQLite.

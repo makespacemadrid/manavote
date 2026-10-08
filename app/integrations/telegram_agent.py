@@ -20,6 +20,7 @@ import requests
 
 from app import mcp_server
 from app.services import mcp_application, mcp_tool_registry
+from app.integrations.assistant_safety import ModelLimits, SafetyRejection, check_arguments, localized, scrub
 
 _logger = logging.getLogger(__name__)
 
@@ -44,6 +45,7 @@ _history_connection_factory: Callable[[], Any] | None = None
 _pending_actions: dict[ConversationKey, "PendingAction"] = {}
 _pending_connection_factory: Callable[[], Any] | None = None
 _state_lock = threading.RLock()
+_ANY_ACTOR = object()
 
 
 def configure_history_store(connection_factory: Callable[[], Any] | None) -> None:
@@ -55,7 +57,7 @@ def configure_history_store(connection_factory: Callable[[], Any] | None) -> Non
 def _get_history(key: ConversationKey) -> list[dict[str, Any]]:
     if _history_connection_factory is None:
         with _state_lock:
-            return list(_history[key])
+            return scrub(list(_history[key]))
     conn = _history_connection_factory()
     try:
         row = conn.execute(
@@ -63,13 +65,14 @@ def _get_history(key: ConversationKey) -> list[dict[str, Any]]:
             "WHERE chat_id = ? AND telegram_user_id = ?",
             key,
         ).fetchone()
-        return json.loads(row["messages_json"]) if row else []
+        return scrub(json.loads(row["messages_json"])) if row else []
     finally:
         conn.close()
 
 
 def _append_history(key: ConversationKey, messages: list[dict[str, Any]]) -> None:
     """Append messages, keeping only the most recent ``MAX_HISTORY_MESSAGES``."""
+    messages = scrub(messages)
     if _history_connection_factory is None:
         with _state_lock:
             _history[key].extend(messages)
@@ -165,6 +168,7 @@ def _get_pending(key: ConversationKey) -> PendingAction | None:
 
 
 def _put_pending(key: ConversationKey, action: PendingAction) -> None:
+    check_arguments(action.arguments)
     if _pending_connection_factory is None:
         with _state_lock:
             _pending_actions[key] = action
@@ -200,9 +204,12 @@ def _put_pending(key: ConversationKey, action: PendingAction) -> None:
         conn.close()
 
 
-def _pop_pending(key: ConversationKey) -> PendingAction | None:
+def _pop_pending(key: ConversationKey, *, actor_member_id=_ANY_ACTOR) -> PendingAction | None:
     if _pending_connection_factory is None:
         with _state_lock:
+            action = _pending_actions.get(key)
+            if actor_member_id is not _ANY_ACTOR and action is not None and action.actor_member_id != actor_member_id:
+                return None
             return _pending_actions.pop(key, None)
     conn = _pending_connection_factory()
     try:
@@ -213,6 +220,9 @@ def _pop_pending(key: ConversationKey) -> PendingAction | None:
             "FROM telegram_pending_actions WHERE chat_id = ? AND telegram_user_id = ?",
             key,
         ).fetchone()
+        if row and actor_member_id is not _ANY_ACTOR and row['actor_member_id'] != actor_member_id:
+            conn.commit()
+            return None
         if row:
             conn.execute(
                 "DELETE FROM telegram_pending_actions WHERE chat_id = ? AND telegram_user_id = ?",
@@ -222,6 +232,31 @@ def _pop_pending(key: ConversationKey) -> PendingAction | None:
         return _pending_from_row(row) if row else None
     finally:
         conn.close()
+
+
+def cancel_pending_action(chat_id, telegram_user_id, actor_member_id):
+    """Atomically cancel only the current linked member's pending action."""
+    action = _pop_pending(_conversation_key(chat_id, telegram_user_id), actor_member_id=actor_member_id)
+    if action is None:
+        return False
+    _log_mutation_event('cancelled', 'user_cancelled', tool_name=action.tool_name,
+                        actor_member_id=action.actor_member_id, chat_id=chat_id,
+                        telegram_user_id=telegram_user_id, arguments_digest=action.arguments_digest)
+    return True
+
+
+def _timed_mcp(tool_name, arguments, *, is_admin, on_event):
+    started = time.monotonic()
+    try:
+        result = _call_mcp(tool_name, arguments, is_admin=is_admin)
+    except mcp_server.MCP_APPLICATION_FAILURES:
+        if on_event is not None:
+            on_event('tool_request_failed', {'mcp_latency_ms': round((time.monotonic() - started) * 1000, 2)})
+        raise
+    if on_event is not None:
+        on_event('tool_request_failed' if _mcp_result_failed(result) else 'tool_request_completed',
+                 {'mcp_latency_ms': round((time.monotonic() - started) * 1000, 2)})
+    return result
 
 
 def _stable_digest(value: Any) -> str:
@@ -316,9 +351,9 @@ def _call_mcp(tool_name: str, arguments: dict[str, Any], *, is_admin: bool) -> s
     if not response:
         return json.dumps({"error": "MCP returned no response."})
     if "error" in response:
-        return json.dumps({"error": response["error"]["message"]})
+        return json.dumps({"error": scrub(response["error"]["message"])})
     content = response.get("result", {}).get("content", [])
-    return content[0].get("text", "{}") if content else "{}"
+    return scrub(content[0].get("text", "{}")) if content else "{}"
 
 
 def _known_tool_arguments(tool_name: str, arguments: dict[str, Any]) -> dict[str, Any]:
@@ -339,7 +374,7 @@ def _conversation_key(chat_id: int, telegram_user_id: int | None) -> Conversatio
 
 
 def _confirmation_text(action: PendingAction) -> str:
-    display_arguments = _redact_arguments(action.arguments)
+    display_arguments = scrub(_redact_arguments(action.arguments))
     return (
         f"⚠️ Please confirm MCP action {action.tool_name} with /confirm, "
         "or discard it with /cancel.\n"
@@ -399,7 +434,18 @@ def _normalized_confirmation_command(text: str) -> str:
     return normalized
 
 
-def answer(
+def answer(chat_id, text, *, language_code=None, on_event=None, **kwargs):
+    """Apply safe user feedback and output boundaries to every assistant path."""
+    try:
+        reply = _answer(chat_id, text, on_event=on_event, **kwargs)
+    except SafetyRejection as exc:
+        if on_event is not None:
+            on_event("safety_rejected", {"reason_code": exc.reason_code})
+        return localized(exc.message, language_code)
+    return scrub(reply)
+
+
+def _answer(
     chat_id: int,
     text: str,
     *,
@@ -432,6 +478,9 @@ def answer(
         )
         return "✅ Pending action cancelled."
     if normalized_text in {"/confirm", "confirm"}:
+        existing = _get_pending(key)
+        if existing is not None:
+            check_arguments(existing.arguments)
         # Claim before validation/execution so two workers can never run the
         # same mutation and a concurrent replacement cannot pass stale checks.
         pending = _pop_pending(key)
@@ -485,7 +534,7 @@ def answer(
         )
         if on_event is not None:
             on_event("tool_call_received", {"tool_name": pending.tool_name})
-        result = _call_mcp(pending.tool_name, pending.arguments, is_admin=True)
+        result = _timed_mcp(pending.tool_name, pending.arguments, is_admin=True, on_event=on_event)
         failed = _mcp_result_failed(result)
         _log_mutation_event(
             "failed" if failed else "completed",
@@ -509,6 +558,9 @@ def answer(
                     reply += "\n⚠️ The proposal was saved, but its group notification could not be sent."
         return reply
 
+    limits = ModelLimits.from_env()
+    limits.check_input(text)
+    check_arguments(text)
     history_snapshot = _get_history(key)
     messages: list[dict[str, Any]] = [
         {
@@ -535,25 +587,35 @@ def answer(
         {"role": "user", "content": text},
     ]
     tools = _openai_tools(is_admin=is_admin, actor_member_id=actor_member_id)
+    system = scrub(messages[0])
+    current_messages = [messages[-1]]
+    tools = scrub(tools)
     available_image_urls: set[str] = set()
 
     for round_number in range(1, MAX_TOOL_ROUNDS + 1):
+        messages = limits.fit(system, history_snapshot, current_messages, tools)
         model_started = time.monotonic()
-        response = requests.post(
-            url,
-            headers=_headers(),
-            json={
-                "model": os.getenv("OCABRA_MODEL", "ocabra"),
-                "messages": messages,
-                "tools": tools,
-                "tool_choice": "auto",
-                "temperature": 0.2,
-                "stream": False,
-            },
-            timeout=float(os.getenv("OCABRA_TIMEOUT_SECONDS", "60")),
-        )
-        response.raise_for_status()
-        assistant = response.json()["choices"][0]["message"]
+        try:
+            response = requests.post(
+                url,
+                headers=_headers(),
+                json={
+                    "model": os.getenv("OCABRA_MODEL", "ocabra"),
+                    "messages": messages,
+                    "tools": tools,
+                    "tool_choice": "auto",
+                    "temperature": 0.2,
+                    "stream": False,
+                    "max_tokens": limits.output,
+                },
+                timeout=float(os.getenv("OCABRA_TIMEOUT_SECONDS", "60")),
+            )
+            response.raise_for_status()
+            assistant = response.json()["choices"][0]["message"]
+        except (requests.RequestException, RuntimeError, KeyError, IndexError, TypeError, ValueError):
+            if on_event is not None:
+                on_event('model_request_failed', {'model_latency_ms': round((time.monotonic() - model_started) * 1000, 2)})
+            raise
         if on_event is not None:
             on_event(
                 "model_request_completed",
@@ -564,7 +626,7 @@ def answer(
             )
         tool_calls = assistant.get("tool_calls") or []
         if not tool_calls:
-            reply = (assistant.get("content") or "I couldn't produce a response.").strip()
+            reply = scrub((assistant.get("content") or "I couldn't produce a response.").strip())
             selected_images = sorted(url for url in available_image_urls if url in reply)
             if selected_images and on_images is not None:
                 on_images(selected_images)
@@ -573,13 +635,13 @@ def answer(
             )
             return reply
 
-        messages.append(assistant)
+        current_messages.append(scrub(assistant))
         for tool_call in tool_calls:
             function = tool_call.get("function") or {}
             if on_event is not None:
                 on_event(
                     "tool_call_received",
-                    {"tool_name": str(function.get("name") or "unknown")},
+                    {"tool_name": function.get("name") if function.get("name") in TELEGRAM_TOOLS else "unknown"},
                 )
             try:
                 arguments = json.loads(function.get("arguments") or "{}")
@@ -589,17 +651,19 @@ def answer(
                 result = json.dumps({"error": "Tool arguments must be a JSON object."})
             elif function.get("name") in MEMBER_WRITABLE_TOOLS:
                 arguments = _known_tool_arguments(function["name"], arguments)
+                check_arguments(arguments)
                 if actor_member_id is None:
                     result = json.dumps({"error": "A linked member is required."})
                 else:
                     arguments["member_id"] = actor_member_id
-                    result = _call_mcp(function["name"], arguments, is_admin=is_admin)
+                    result = _timed_mcp(function["name"], arguments, is_admin=is_admin, on_event=on_event)
             elif function.get("name") in MUTATING_TOOLS:
                 arguments = _known_tool_arguments(function["name"], arguments)
+                check_arguments(arguments)
                 if function["name"] in {"create_proposal", "create_poll"}:
                     if actor_member_id is None:
                         result = json.dumps({"error": "A linked member is required."})
-                        messages.append(
+                        current_messages.append(
                             {"role": "tool", "tool_call_id": tool_call.get("id", ""), "content": result}
                         )
                         continue
@@ -626,7 +690,8 @@ def answer(
                 # unnecessary second model round.
                 return _confirmation_text(action)
             else:
-                result = _call_mcp(function.get("name", ""), arguments, is_admin=is_admin)
+                check_arguments(arguments)
+                result = _timed_mcp(function.get("name", ""), arguments, is_admin=is_admin, on_event=on_event)
                 if function.get("name") == "list_proposals":
                     try:
                         proposal_payload = json.loads(result)
@@ -641,8 +706,8 @@ def answer(
                         image_url = proposal.get("image_url") if isinstance(proposal, dict) else None
                         if isinstance(image_url, str) and image_url:
                             available_image_urls.add(image_url)
-            messages.append(
-                {"role": "tool", "tool_call_id": tool_call.get("id", ""), "content": result}
+            current_messages.append(
+                {"role": "tool", "tool_call_id": tool_call.get("id", ""), "content": scrub(result)}
             )
 
     raise RuntimeError("The assistant exceeded the MCP tool-call limit.")

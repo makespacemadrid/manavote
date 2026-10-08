@@ -103,7 +103,6 @@
             .proposal-info > div:first-child { margin: 10px auto; text-align: center; }
             .proposal-item > div:last-child { margin-top: 10px; width: 100%; text-align: center; }
             table { display: block; overflow-x: auto; white-space: nowrap; }
-            div[style*="gap: 20px"][style*="margin-bottom: 15px"] { overflow-x: auto; white-space: nowrap; }
         }
 .nav a[aria-current="page"] {
     text-decoration: underline;
@@ -161,3 +160,5 @@
 
 th[aria-sort="ascending"] .table-sort-button::after { content: " \2191"; }
 th[aria-sort="descending"] .table-sort-button::after { content: " \2193"; }
+
+.quick-vote-btn { padding: 4px 8px; font-size: 0.75em; }

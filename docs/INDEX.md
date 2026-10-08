@@ -30,6 +30,9 @@ questions about future work or past decisions:
 | Question | Read | Document status |
 |---|---|---|
 | What might we build next? | [`IDEAS.md`](IDEAS.md) | Forward-looking backlog and audit findings |
+| What completed roadmap items and audit fixes shipped? | [`CHANGELOG.md`](CHANGELOG.md) | Concise shipped outcomes |
+| Where are detailed past audit findings and decisions? | [Roadmap audit archive](archive/ROADMAP_AUDITS.md) | Historical evidence; not active scope |
+| What remains to extract in Sprint 10? | [Route ownership inventory](SPRINT_10_INVENTORY.md) | Adapter classification, delivered slice, and remaining violations |
 | What was delivered in each iteration? | [`SPRINTS.md`](SPRINTS.md) | Chronological execution record |
 | What did the project teach us? | [`META.md`](META.md) | Retrospective and generalized lessons |
 | What is the Koins design history? | [`COINS_PLAN.md`](COINS_PLAN.md) | Feature-specific plan; implemented behavior belongs in `SPEC.md` |
@@ -52,7 +55,9 @@ Use this ownership table to prevent the same fact from drifting across files.
 | Diagrammed flows | `DIAGRAMS.md` | Keep prose normative; diagrams remain explanatory |
 | Coding and delivery policy | `STYLE.md` | Avoid restating it in plans |
 | Uncommitted future work | `IDEAS.md` | Move it to `SPRINTS.md` only when scheduled |
-| Iteration status and delivery history | `SPRINTS.md` | Keep it out of reference docs |
+| Shipped roadmap outcomes | `CHANGELOG.md` | Keep IDEAS focused on unfinished work |
+| Detailed historical audits and decisions | `archive/ROADMAP_AUDITS.md` | Link to specific evidence; do not treat it as active scope |
+| Iteration scope, status, and sprint history | `SPRINTS.md` | Link to CHANGELOG for completed backlog detail |
 
 ### Precedence when scopes touch
 
@@ -77,7 +82,8 @@ appear only in their respective owners.
 1. **Choose one owner** from the table above for the full explanation.
 2. **Update related links**, not duplicate prose, in other documents.
 3. **Keep time-bound content out of reference docs**: planned work goes in
-   `IDEAS.md`, and scheduled/completed work goes in `SPRINTS.md`.
+   `IDEAS.md`, scheduled work goes in `SPRINTS.md`, and completed backlog items move
+   to `CHANGELOG.md`.
 4. **Update diagrams with the code change** when routing, confirmation state,
    startup sequence, or the data model changes.
 5. **Update tests documentation with the test change** when a suite is added,
@@ -90,5 +96,5 @@ appear only in their respective owners.
 - A new environment flag: define it in `QUICKSTART.md`; describe operational failure
   signals in `OPERATIONS.md` only if operators can act on them.
 - A proposed feature: record it in `IDEAS.md`, not `SPEC.md`. Once implemented,
-  describe the resulting behavior in `SPEC.md` and preserve delivery history in
-  `SPRINTS.md`.
+  describe the resulting behavior in `SPEC.md`, move the idea to `CHANGELOG.md`,
+  and retain its sprint execution record in `SPRINTS.md`.

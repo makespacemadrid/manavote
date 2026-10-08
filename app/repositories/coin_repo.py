@@ -5,6 +5,41 @@ class CoinRepository:
     def __init__(self, connection):
         self.connection = connection
 
+    def insert_consume_token(self, item_id, token):
+        self.connection.execute(
+            "INSERT OR IGNORE INTO coin_qr_tokens (token, item_id, action) VALUES (?, ?, 'consume')",
+            (token, item_id),
+        )
+
+    def delete_replenish_tokens(self):
+        self.connection.execute("DELETE FROM coin_qr_tokens WHERE action = 'replenish'")
+
+    def get_active_token(self, token):
+        return self.connection.execute(
+            """SELECT qt.*, ci.name AS item_name, ci.pack_size FROM coin_qr_tokens qt
+               JOIN coin_items ci ON ci.id = qt.item_id
+               WHERE qt.token = ? AND qt.action = 'consume' AND qt.active = 1 AND ci.active = 1""",
+            (token,),
+        ).fetchone()
+
+    def list_consume_labels(self):
+        return self.connection.execute(
+            """SELECT qt.token, qt.action, qt.active, qt.item_id, ci.name AS item_name
+               FROM coin_qr_tokens qt JOIN coin_items ci ON ci.id = qt.item_id
+               WHERE ci.active = 1 AND qt.action = 'consume' ORDER BY ci.position"""
+        ).fetchall()
+
+    def rotate_token(self, item_id, action, token):
+        self.connection.execute(
+            "UPDATE coin_qr_tokens SET token = ?, active = 1 WHERE item_id = ? AND action = ?",
+            (token, item_id, action),
+        )
+
+    def set_token_active(self, item_id, action, active):
+        self.connection.execute(
+            "UPDATE coin_qr_tokens SET active = ? WHERE item_id = ? AND action = ?", (int(active), item_id, action)
+        )
+
     def find_item(self, item):
         if isinstance(item, str) and item.strip().isdigit():
             item = int(item.strip())
@@ -121,3 +156,13 @@ class CoinRepository:
             (item_id,),
         ).fetchone()
         return int(row["stock"])
+
+    def list_for_admin(self):
+        return self.connection.execute('SELECT id, name, pack_size FROM coin_items WHERE active = 1 ORDER BY position, id').fetchall()
+
+    def movements_for_admin(self):
+        return self.connection.execute("""
+            SELECT cm.*, ci.name AS item_name, m.username
+                         FROM coin_movements cm JOIN coin_items ci ON ci.id = cm.item_id
+                         JOIN members m ON m.id = cm.member_id ORDER BY cm.id DESC LIMIT 100
+        """).fetchall()

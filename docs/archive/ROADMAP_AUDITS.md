@@ -1,0 +1,815 @@
+# Roadmap Audit Archive
+
+Archived: 2026-10-08
+
+Detailed notes moved from [CHANGELOG.md](../CHANGELOG.md), originally recorded in
+[IDEAS.md](../IDEAS.md). These preserve historical findings, intermediate status,
+design decisions, and delivery evidence. They are not the current backlog or a
+current-system specification. Follow [SPEC.md](../SPEC.md) for behavior and
+[SPRINTS.md](../SPRINTS.md) for scheduled work.
+
+## Completed roadmap and audit record
+
+### Route exception granularity
+
+1. **Fixed: route exception granularity (P0)** — ✅ closed 2026-08-27.
+   - All 19 broad `except Exception` blocks identified by the audit have been removed.
+   - Database, backup, scheduler, OIDC, MCP transport, and Telegram worker boundaries now
+     catch explicit exception families and emit stable reason codes. MCP clients receive
+     a generic internal error while detailed exception data remains server-side.
+
+---
+
+### MCP extraction boundary
+
+2. **Fixed: MCP extraction boundary (P1)** — ✅ closed 2026-08-27 (see the three slices below).
+   - User statistics and Telegram link classification now have shared boundaries, but proposal listing, voting-setting writes, and create operations remain embedded in `app/mcp_server.py`.
+   - Extract one use case at a time behind service/repository interfaces shared with REST; avoid a broad rewrite.
+   - Progress (2026-08-27, Sprint 5 slice 1): before touching any single tool, compared
+     each MCP list tool against its REST counterpart to find what's genuinely safe to
+     converge. `list_proposals`/`list_polls` turned out to have meaningfully different
+     response shapes on purpose (REST's proposal listing includes vote counts but not
+     creator username; MCP's includes creator username for natural-language answers but
+     not votes) — forcing one shared query would mean growing or shrinking a response
+     shape neither transport asked for, which is a product decision, not a safe
+     refactor. What *is* shared and safe across every list tool is the limit/offset
+     validation itself — extracted into `app/services/pagination_service.py`
+     (`parse_limit_offset`, transport-agnostic: returns normalized values or a reason
+     code, no Flask/JSON-RPC coupling). REST's `parse_pagination_params` and all 5 of
+     MCP's duplicated try/except pagination blocks (`list_proposals`, `list_polls`,
+     `list_user_statistics`, `list_group_purchases`, `list_member_telegram_links`) now
+     delegate to it — this is exactly the class of bug that already bit this project
+     twice (the polls-pagination gap, the `basic_supplies`/`created_by` drifts), so
+     collapsing 5 near-identical copies into one tested function closes that risk for
+     every list endpoint at once, not just the one that happened to get audited.
+   - Progress (2026-08-27, Sprint 5 slice 2): voting settings' *write* path was
+     genuinely duplicated (both REST's `PUT /api/settings/voting` and MCP's
+     `update_voting_settings` ran the identical three `INSERT OR REPLACE INTO settings`
+     statements with the identical boolean-to-string convention) — extracted into
+     `app/services/voting_settings_service.py` (`apply_voting_settings(conn, ...)`,
+     validated by the caller, three independently-optional keys). Also deduplicated the
+     `{"both", "web_only", "telegram_only"}` mode-validation set, which was defined
+     three separate times (REST inline, MCP's own `VALID_VOTE_MODES`, and
+     `proposal_vote_service.VALID_PROPOSAL_VOTE_MODES`) — now everyone imports the one
+     in `proposal_vote_service`, re-exported from `voting_settings_service` as
+     `VALID_VOTE_MODES`. Left the *read* path alone: MCP's `_read_voting_settings()`
+     batches all three settings into one `WHERE key IN (...)` query for its own
+     process-local `_db_rows` helper, while REST's read goes through
+     `main_routes.get_poll_vote_mode()`/etc. (Flask-coupled, single-key reads) — these
+     read paths differ for a real reason (MCP has no Flask `get_db()`/app context to
+     share), and unifying them would mean giving up MCP's batching for no behavior gain.
+     11 new direct unit tests across `tests/unit/test_pagination_service.py` and
+     `tests/unit/test_voting_settings_service.py` (5 + 6). `app/mcp_server.py`: 872 → 850
+     lines. Full suite: 543 passed, zero regressions.
+   - Progress (2026-08-27, Sprint 5 slice 3): `create_proposal`'s actual persistence —
+     the INSERT plus the "auto-clear `basic_supplies` and log a comment when amount
+     exceeds €20" business rule — was duplicated in full between REST's
+     `api_create_proposal` and MCP's `_create_proposal_record`. That's a real risk (a
+     future change to the €20 threshold, or the comment text, only landing in one
+     place) so it moved to `ProposalRepository.create()` in the pre-existing
+     `app/repositories/proposal_repo.py`, matching WS-A A2's "repositories own
+     persistence" pattern. `create_poll`'s INSERT was a single duplicated line — added
+     `app/repositories/poll_repo.py` (new, `PollRepository.create()`) for the same
+     reason. Also found that MCP's `create_poll` had its own hand-rolled options
+     validation (strip/filter/count-bounds/length-bounds) instead of using
+     `normalize_poll_options`, which REST's `api_create_proposal` already called via
+     `api_helpers.py` — a real, if low-severity, drift risk (the two option-validation
+     implementations could silently diverge, same shape as the `basic_supplies` bug).
+     Since `mcp_server.py` must stay Flask-free (it runs as a standalone process) and
+     `normalize_poll_options`/`parse_positive_amount` lived in the Flask-importing
+     `api_helpers.py`, moved their implementations to a new, framework-independent
+     `app/services/creation_validation_service.py`; `api_helpers.py` now imports and
+     re-exports them so every existing caller (`api_routes.py`,
+     `tests/test_api_helpers.py`) keeps working unchanged. Fixing two tests that had
+     monkeypatched `mcp_server._db_execute`/raw SQL (the old create_poll's actual
+     persistence mechanism) to instead monkeypatch `PollRepository.create` — the
+     refactor changed *where* the mockable seam is, not what the tests verify. 12 new
+     direct unit tests across `tests/unit/test_proposal_repository_contract.py` (4),
+     `tests/unit/test_poll_repository_contract.py` (1), and
+     `tests/unit/test_creation_validation_service.py` (7). `app/mcp_server.py`: 850 → 845
+     lines. Full suite: 555 passed (543 + 12 new), zero regressions.
+   - Remaining for this item: `create_member` and `list_group_purchases` have no REST
+     equivalent to converge with, so they stay MCP-only. `list_proposals`/`list_polls`
+     response-shape convergence remains an explicit non-goal (see slice 1) unless a
+     product decision says otherwise.
+
+---
+
+### Error-contract matrix expansion
+
+4. **Error-contract matrix expansion (P1)**
+   - Extend parity coverage beyond voting, Telegram listing, proposal age filtering, and user statistics:
+     - proposal create/update validation edges,
+     - poll creation bounds,
+     - pagination/type errors across list endpoints.
+   - Progress (2026-08-27): added REST/MCP parity tests for `create_proposal` (missing
+     fields, non-positive amount, unknown/non-positive `created_by`, invalid
+     `basic_supplies`, success shape) and `create_poll` (question/option bounds, success
+     shape). This surfaced and fixed two real drifts rather than just documenting them:
+     REST silently coerced any truthy `basic_supplies` value (including the JSON string
+     `"false"`, which is truthy in Python) instead of validating it like MCP already did;
+     and MCP's `create_proposal` uniquely treated a non-positive `created_by` as an
+     invalid-params error while REST and MCP's own `create_poll` both treat it as
+     not-found. Proposal *update* has no MCP equivalent tool, so its validation edges
+     still only have REST-side coverage.
+   - Progress (2026-08-27): closed the pagination/type-errors item. Added REST/MCP parity
+     tests for `list_proposals` pagination (out-of-range limit, non-integer limit, negative
+     offset) — REST already validated these correctly, this was a test-coverage gap only.
+     Found and fixed a real drift for polls: MCP's `list_polls` tool already supported
+     `limit`/`offset` (bounds 1-200, same as `list_proposals`), but REST's `GET /api/polls`
+     had no pagination at all — a hardcoded `LIMIT 100` with no query params or validation.
+     Added `limit`/`offset` support to `GET /api/polls` using the same
+     `parse_pagination_params` helper and error codes (`invalid_limit`, `invalid_offset`,
+     `limit_out_of_range`, `offset_out_of_range`) as the other three REST list endpoints,
+     and added `count`/`limit`/`offset` to its response shape to match. Documented in
+     `APIDOC.md`. Added parity tests covering the new pagination working (limit/offset
+     honored, response shape matches MCP's) and its rejection paths (out-of-range limit,
+     non-integer offset). Full suite: 530 passed, zero regressions.
+
+---
+
+### Telegram lifecycle observability
+
+5. **Fixed: observability completion for Telegram lifecycle (P2)** — ✅ closed 2026-08-27.
+   - Add reason-coded audit events for link/unlink operations and blocked votes by policy mode.
+   - Expose `last_linked_at`/`last_unlinked_at` metadata for admin diagnostics.
+   - Progress (2026-08-27): `members.last_linked_at`/`last_unlinked_at` are now set on
+     every link (`/link` command or an OIDC login whose claims carry a Telegram identity)
+     and unlink (admin or member self-service), and exposed on both
+     `GET /api/members/telegram` and the `list_member_telegram_links` MCP tool. Blocked
+     votes by policy mode still need reason-coded audit events.
+   - Progress (2026-08-27, Sprint 6 Goal 2): closed the blocked-votes gap. Proposal votes
+     already had a `channel_disabled` audit event, but it was only reachable from the
+     Telegram path — the web route short-circuited with a flash message *before* ever
+     calling into the function that logged it, so a web-blocked vote was silently
+     unaudited. Poll votes had no audit infrastructure on either channel, and
+     `telegram_require_linked_vote` rejections (`link_required`) were unaudited
+     everywhere. Added `poll_service.log_poll_vote_event()` (mirrors
+     `log_proposal_vote_event`'s exact shape) and call sites in `poll_routes.py`,
+     `proposal_routes.py` (both vote entry points), and
+     `app/services/telegram_command_service.py` (which gained a `logger` parameter,
+     matching its existing dependency-injection pattern). Full reason-code table
+     documented in `docs/OPERATIONS.md`. Along the way, found and fixed a real
+     test-hygiene bug: an existing test monkeypatched a shared named logger's `.info`
+     method directly instead of using `caplog`, permanently polluting that logger for
+     every later test in the same run. 6 new tests. Full suite: 574 passed, zero
+     regressions.
+
+---
+
+### Statistics privacy and authorization
+
+6. **Statistics privacy and authorization review (P2)**
+   - User statistics expose member email addresses to API/MCP administrators.
+   - Document the operator need for that field, consider an `include_email` opt-in defaulting to false, and add an authorization regression test before expanding the statistics surface.
+   - Progress (2026-08-26): REST and MCP now omit email by default and require an
+     explicit administrator-only `include_email` opt-in. Parity and invalid-value tests
+     cover both transports, and the canonical field/count semantics are documented.
+
+---
+
+### Statistics pagination metadata
+
+The canonical REST/MCP statistics field dictionary documents counts and nullable fields in [APIDOC.md](../APIDOC.md).
+
+REST and MCP statistics gained matching `total` alongside page `count` on 2026-08-26; lifetime semantics were preserved. Performance profiling and optional date windows remain in IDEAS.
+
+---
+
+### Shared state for multi-worker safety
+
+2. **Shared state for multi-worker/restart safety (P0)** — ✅ closed (2026-08-27).
+   - Conversation history, pending confirmations, update deduplication, and queue state
+     are process-local. Multiple WSGI workers can route `/confirm` to a process that does
+     not own the pending action; restarts lose confirmations and retry memory.
+   - Either document/enforce a single application worker for the initial release or move
+     pending actions and idempotency keys to SQLite/Redis with expiry and atomic consume.
+   - Treat mutation idempotency as a database/MCP invariant, not only a webhook cache.
+   - Progress (2026-08-26): webhook update IDs and pending confirmations now use SQLite,
+     are shared by all application workers, and survive restarts. Confirmations are
+     atomically consumed before execution.
+   - Progress (2026-08-27): conversation history now uses the same SQLite-backed pattern
+     (`telegram_conversation_history`, `configure_history_store`), bounded to the last
+     `MAX_HISTORY_MESSAGES` (12) turns per chat/user and shared across workers.
+   - **Decision (2026-08-27)**: the one remaining piece — the bounded model-request
+     queue's in-process worker pool — stays process-local by design; it does not move to
+     SQLite/Redis. Reasoning:
+     - Every piece of state where cross-worker visibility is a *correctness* requirement
+       (a `/confirm` reply must find the pending action a different worker created; a
+       retried webhook must not be reprocessed; conversation history must be consistent
+       regardless of which worker answers) is now durable and shared, per the two
+       progress notes above. The queue's job is different in kind: it only limits how
+       many model calls run concurrently *within one process*, to avoid overloading the
+       downstream LLM API. It doesn't need cross-worker visibility to do that correctly —
+       each process independently staying within its own 4 active / 32 pending bound is
+       sufficient for that purpose.
+     - The actual residual risk was never "an in-flight job is invisible to other
+       workers" — it was "if the process holding a job crashes mid-flight, that one reply
+       is silently lost, with nothing logged and no signal to the user or an operator."
+       That's a real gap, but a narrow one: the user's message was already deduplicated
+       (marked consumed) so it will never be retried, and it costs the user one missed
+       chat reply, recoverable by asking again. Nothing that requires durability — votes,
+       proposal mutations, `/confirm` itself — depends on this in-memory queue; those all
+       already flow through the SQLite-backed paths above.
+     - A genuine fix for that narrow gap (a persistent job queue with claim/lease
+       semantics, retry/backoff, and safe-replay handling for a job that was mid-flight
+       when a process died) is real infrastructure work, and disproportionate to what it
+       buys for an app at this scale (a small community makerspace tool, not a
+       high-throughput service) — and it would add a new dependency (Redis, or a
+       hand-rolled SQLite lease system) this app doesn't otherwise need. "A single
+       dedicated assistant worker" (the other option floated in the prior note) doesn't
+       actually eliminate the risk either — that one worker can still crash mid-job — so
+       it wasn't pursued as a fix for this specific gap.
+     - What was fixed instead, because it's cheap, safe, and closes the part of the gap
+       that actually matters — silence: `_answer_and_send` in `app/web/routes/telegram_routes.py`
+       previously had no catch-all around reply generation or delivery, so
+       `concurrent.futures` would silently drop any exception outside the narrow
+       `(requests.RequestException, RuntimeError, KeyError, IndexError, ValueError)` tuple
+       `_natural_language_reply` already handled — including any failure in
+       `client.send_long_message(...)` itself, or in the `on_proposal_created` callback.
+       Wrapped every stage (reply generation, delivery, thinking-message cleanup) in its
+       own try/except that logs via `app.logger.exception(...)` with chat/member context
+       and, where possible, still sends the user a graceful fallback message instead of
+       leaving them with a deleted "🤔 Thinking…" message and nothing else. Regression
+       test added: `test_unexpected_reply_error_is_logged_and_user_gets_a_graceful_message`
+       in `tests/test_telegram_natural_language_webhook.py`, which forces an exception type
+       outside that tuple and asserts it's both logged and gracefully answered rather than
+       silently dropped.
+     - Operational note for future deployment changes: the model-request concurrency cap
+       (4 active / 32 pending) is enforced *per process*. Running N worker processes
+       multiplies the effective global cap by N. That's fine at this app's current scale;
+       revisit if the deployment ever moves to many workers or the assistant sees load
+       that makes per-process-only bounding matter.
+
+---
+
+### End-to-end natural-language webhook contract
+
+3. **End-to-end natural-language webhook contract (P0)** — ✅ delivered (2026-08-27)
+   - Existing functional webhook tests exercise deterministic commands and callbacks,
+     while model/Telegram lifecycle pieces are primarily unit-tested.
+   - Add a Flask-level test covering linked and unlinked senders, thinking-message create
+     and delete, tool call, final chunk delivery, duplicate `update_id`, and queue-full UX.
+   - Add an administrator test spanning proposed mutation → `/confirm` → one MCP write,
+     including role removal between proposal and confirmation.
+   - `tests/test_telegram_natural_language_webhook.py` now drives the real
+     `POST /telegram/webhook/<secret>` route end-to-end (mocking only the outbound
+     Telegram HTTP client and the OpenAI-compatible model response) covering every item
+     above. Building it surfaced a real test-infrastructure gotcha worth remembering: the
+     update-ID deduplicator persists to the shared session SQLite file by design, so
+     fixed literal `update_id`/`telegram_user_id` values collide across separate test
+     runs against that file — the test generates fresh ones every run.
+
+---
+
+### Public MCP application boundary
+
+4. **Public MCP application boundary (P1)**
+   - First slice completed in Sprint 8: the assistant now consumes the public
+     `tool_definitions()` API through `mcp_tool_registry`; Telegram policy is centralized
+     there and unclassified tools are denied by default.
+   - ✅ Completed in Sprint 8: JSON-RPC and Telegram now enter the shared
+     `mcp_application.execute_tool()` boundary with explicit system/member/admin actors;
+     the assistant no longer calls `handle_request()` or reads the MCP API key.
+   - Introduce a public MCP tool registry/application service that both transports and
+     the Telegram adapter call. Keep authentication at transport boundaries and actor
+     authorization in the application layer.
+   - Move per-tool Telegram policy next to tool metadata so new MCP tools are denied by
+     default until explicitly classified as member-read, admin-read, or confirmed-write.
+
+---
+
+### Confirmation integrity and auditability
+
+7. **Fixed: confirmation integrity and auditability (P1)** — ✅ closed 2026-08-27.
+   - Store an immutable/deep-copied action envelope with actor member ID, tool schema
+     version, redacted display arguments, expiry, and a digest of execution arguments.
+   - Revalidate linkage, administrator role, tool availability, and arguments at confirm
+     time, then atomically consume the action before executing it.
+   - Emit a reason-coded audit record for proposed, cancelled, expired, rejected, failed,
+     and completed mutations.
+   - Progress (2026-08-26): pending actions are claimed (popped) before validation and
+     execution, so two workers can no longer race the same mutation, and `/confirm`
+     already revalidates administrator role and actor-linkage drift. Tool-schema
+     versioning, an execution-argument digest, and reason-coded audit records for
+     proposed/cancelled/expired/rejected/failed/completed mutations remain open.
+   - Progress (2026-08-27, Sprint 6 Goal 1): closed all three remaining pieces.
+     `PendingAction` now carries `schema_fingerprint` (a hash of the tool's current
+     `inputSchema`, captured at propose time via a new
+     `telegram_agent._schema_fingerprint()`) and `arguments_digest` (a hash of the
+     arguments that will execute, via a new `telegram_agent._stable_digest()`). `/confirm`
+     recomputes both from the freshly-loaded pending row and rejects
+     (`arguments_tampered`, `schema_changed`) on a mismatch — so a confirmed mutation is
+     provably the one that was proposed, not a stale or corrupted row executing against a
+     contract that no longer matches what the member saw. Both fields tolerate `None` for
+     backward compatibility with any pending action already in flight before this
+     migration (`telegram_pending_actions` gained the two columns via
+     `add_column_if_missing`). Every lifecycle step — `proposed`, `confirmed`,
+     `completed`, `failed` (`mcp_error`), `cancelled` (`user_cancelled`/`reset_command`),
+     `expired` (`confirmation_ttl_exceeded`), `rejected`
+     (`not_admin`/`actor_changed`/`arguments_tampered`/`schema_changed`) — now emits a
+     `telegram_assistant_mutation` reason-coded audit record via a new
+     `_log_mutation_event()`, kept as its own event stream separate from
+     `telegram_assistant_job`'s general job telemetry, matching how backup and
+     Telegram-link events already get dedicated audit trails. Documented in full in
+     `docs/OPERATIONS.md`. 5 new tests in `tests/unit/test_telegram_agent.py`. Full suite:
+     568 passed, zero regressions.
+
+---
+
+### Telegram tool safeguards and job diagnostics
+
+`create_member` is excluded from the Telegram allowlist for every actor. Unclassified tools are denied by default, and confirmation display redacts nested credential fields. Background-job logs carry update/chat/actor/tool context, queue wait, model latency, delivery outcomes, and reason codes; worker exceptions are observed and the executor shuts down gracefully. Broader secret handling, MCP latency, and aggregate metrics remain open.
+
+---
+
+## Telegram forum-topic routing audit (2026-08-26)
+
+Audit scope covered the most recent commits hardening Telegram group address
+matching and forum-topic routing: `is_natural_language_message`,
+`is_configured_forum_topic`, thread-aware `TelegramClient` replies, and the
+`/confirm@botname` / `/cancel@botname` normalization added on top of the
+natural-language/MCP audit above.
+
+### Confirmed strengths
+- Reply-to-topic-root messages that only carry `message_thread_id` on
+  `reply_to_message` (rather than on the outer message) are now attributed to
+  their topic correctly, keeping both assistant routing and outgoing replies
+  anchored to the right thread.
+- Deterministic command replies (`/link`, `/pvote`, `/vote`, `/help`, `/reset`)
+  and natural-language replies both carry `message_thread_id` and
+  `reply_parameters` back to Telegram, so forum-topic conversations no longer
+  leak into the supergroup's General topic.
+- `/confirm@botname` and `/cancel@botname` (Telegram's mandatory group-chat
+  command syntax) are normalized before comparison, so confirmations are no
+  longer silently dropped when an admin confirms from a group or forum topic.
+- A configured assistant forum topic (`TELEGRAM_CHAT_ID` + `TELEGRAM_THREAD_ID`)
+  is treated as an implicit conversation without requiring an `@mention` on
+  every message, and the routing/reply behavior is exercised by focused unit
+  tests (`tests/unit/test_telegram_webhook_helpers.py`, `tests/test_telegram_client.py`).
+
+### Follow-up gaps to prioritize
+
+1. **Fixed: unconfigured bot-username group matching was overly permissive (P2)**
+   - `is_natural_language_message` only exact-matches an `@mention` or
+     `bot_command` entity against `TELEGRAM_BOT_USERNAME`; when that variable is
+     unset (still the `sample.env` default) it accepts any `mention`/`bot_command`
+     entity as a match. With Telegram privacy mode disabled, the webhook receives
+     every group message, so an unconfigured bot username makes the assistant
+     respond to messages that mention a different user or invoke a different
+     bot's command in the same chat.
+   - ✅ Closed 2026-08-27: startup emits a warning with the stable reason code
+     `missing_bot_username_for_group` when a negative Telegram chat ID or forum
+     thread is configured without `TELEGRAM_BOT_USERNAME`. Positive private-chat
+     IDs are excluded so valid private-only deployments do not get a false alarm.
+
+2. **No operator visibility into forum-topic/mention routing decisions (P2)**
+   - Neither the addressed-message match nor the configured-forum-topic match
+     emits a structured log/event, so misrouted or unexpectedly silent group
+     messages are hard to diagnose in production.
+   - Once WS-D's structured logging lands, attach a reason code (`private`,
+     `mentioned`, `reply_to_bot`, `forum_topic`, `unaddressed`) to each webhook
+     decision.
+   - ✅ Closed 2026-08-27 (Sprint 6 Goal 3): `is_natural_language_message` split into
+     `classify_message_addressing()` returning the reason code directly; non-command
+     group/supergroup messages now log `telegram_routing_decision
+     reason_code=... chat_id=... chat_type=... addressed=...` in
+     `telegram_routes.py`. Documented in `docs/OPERATIONS.md`.
+
+---
+
+## Docs audit findings requiring a product decision (2026-08-26)
+
+A full audit of `docs/*.md` against the current codebase (see the four commits fixing
+`APIDOC.md`, `SPEC.md`, `QUICKSTART.md`, and `TESTING.md`) surfaced one behavior that
+docs previously described incorrectly and that deserves an explicit decision rather than
+a silent doc fix:
+
+1. **OIDC/SSO login silently attaches to an existing password account by email match (P1)** — ✅ resolved (2026-08-27), confirmed intentional.
+   - `_upsert_oidc_member` (`app/web/routes/auth_routes.py`) looks up a member with
+     `oidc_sub IS NULL` and a matching `email` (case-insensitive) whenever no member is
+     yet linked to the incoming `sub`, and attaches the SSO identity to that account —
+     including syncing `is_admin` from the token's `groups` claim. `docs/QUICKSTART.md`
+     previously claimed the opposite ("Manavote never silently attaches an SSO identity
+     to an existing password account"); the docs now describe the real behavior.
+   - **Decision**: SSO is the single source of truth for identity and authority; password
+     login exists only for legacy members. Most legacy members deliberately set their own
+     `email` field specifically so their SSO login attaches to their existing account and
+     preserves their vote/proposal history, rather than creating a duplicate — this is a
+     desired self-service workflow, not an oversight.
+   - This also resolves the admin-role concern the original note raised: `is_admin` is
+     computed fresh from the token's `groups` claim (`is_admin = int("admins" in groups)`)
+     on *every* login and unconditionally overwrites the local value (it is not merged
+     with whatever the pre-existing account had). So an email match only determines which
+     member row/history a given SSO identity attaches to — it never grants privilege by
+     itself; the IdP's group claim is the sole source of admin status on every login, in
+     keeping with "SSO is the single source of truth." No code change needed; the existing
+     behavior already matches the intended trust model.
+
+---
+
+### A1. Decompose route concerns
+- Split route responsibilities into focused modules (`auth`, `proposal`, `poll`, `admin`, `api`).
+- Move shared orchestration helpers into route-helper or service layers.
+- Register route modules consistently through app setup.
+- **Disposition (2026-10-04): complete.** The remaining `main_routes.py` functions are
+  shared adapters and compatibility boundaries, not unassigned page handlers. Further
+  work belongs to A2 and must improve ownership rather than merely reduce line count.
+- Progress (2026-08-27): the `/admin` handler (627 lines), all 11 proposal-lifecycle
+  handlers, `proposals()` (the main listing page, ~155 lines), and `telegram_webhook`
+  (~180 lines, into a new `telegram_routes.py` blueprint) all moved out of
+  `main_routes.py` into their real blueprint homes, cutting `main_routes.py` from 2368
+  to 873 lines (-63.1%). Route decomposition itself is now close to done; what remains
+  in `main_routes.py` is almost entirely the shared helper layer (`get_db`,
+  threshold/vote-mode calculations, Telegram command processors, `record_proposal_vote`,
+  ~30 functions) plus small compatibility shims — moving the helpers into
+  `app/services/`/`app/repositories/` is A2's service/repository boundary work, not A1's
+  route decomposition.
+
+---
+
+### Delivered A2 extraction slices
+
+- Progress (2026-08-27): extracted the poll/proposal vote-mode policy logic (7 functions —
+  `get_poll_vote_mode`, `is_web_poll_voting_enabled`, `is_telegram_poll_voting_enabled`,
+  `require_linked_telegram_for_votes`, `get_proposal_vote_mode`,
+  `is_web_proposal_voting_enabled`, `can_record_proposal_vote`) plus
+  `is_registration_enabled` into a new `app/services/voting_mode_service.py`. Each function
+  now takes `get_setting_value` as an explicit parameter instead of reaching for a module
+  global, so the policy is directly unit-testable without a DB or Flask context (6 new
+  tests in `tests/unit/test_services.py`, no mocking needed). `main_routes.py` keeps
+  one-line wrapper functions at the original names — every other blueprint module still
+  reaches these via `legacy.X` (per A1's alias pattern) and the ~15 existing tests that
+  `unittest.mock.patch("app.web.routes.main_routes.X", ...)` these names keep working
+  unchanged, since patching a module attribute doesn't care what it currently points to.
+  Verified with the full suite: 492 passed (486 + 6 new), same 4 pre-existing/environmental
+  failures, zero regressions.
+- Progress (2026-08-27, second slice): extracted the poll-close/results helpers
+  (`close_expired_polls`, `build_poll_results_message`) into a new
+  `app/services/poll_service.py`. These were already shaped like service functions (pure
+  given a `conn`, no module-global reads), so the move is a straight relocation with no
+  signature change. `main_routes.py` keeps one-line wrappers at the original names for the
+  same `legacy.X`/patch-compatibility reasons as the first slice. Retargeted
+  `tests/unit/test_poll_closing.py`'s three tests to call `poll_service.X` directly instead
+  of `main_routes.X`, since they already built an isolated in-memory DB and never depended
+  on Flask/app internals — a better fit for the new module boundary and no loss of
+  coverage. Full suite: 492 passed, same 4 pre-existing failures, zero regressions.
+  Remaining in `main_routes.py`'s shared helper layer: `get_db` and its settings/budget
+  read wrappers (already thin repository wrappers — see `SettingsRepository`), the
+  Telegram command processors (`process_telegram_vote_command`,
+  `process_telegram_proposal_vote_command`, `process_telegram_vote_callback`,
+  `process_telegram_link_command`), `record_proposal_vote`/`log_proposal_vote_event`, and
+  the Telegram messaging/webhook-sync helpers (`send_telegram_message`,
+  `sync_telegram_webhook*`) — all still call through module globals so future slices
+  should follow the same parameter-injection pattern rather than importing `main_routes`
+  internals directly.
+- Progress (2026-08-27, third slice): extracted the deterministic Telegram vote-command
+  processors — `process_telegram_vote_command`, `process_telegram_vote_callback`, and
+  `process_telegram_proposal_vote_command` (~150 lines of command parsing, member lookup,
+  and vote-recording logic; not the natural-language assistant path) — into a new
+  `app/services/telegram_command_service.py`. Each function takes `get_db`,
+  `get_setting_value`, `send_telegram_message`, and/or `record_proposal_vote` as explicit
+  parameters, so it calls `poll_service`/`voting_mode_service` directly rather than through
+  `main_routes`, and is directly testable with a stub settings getter and a throwaway
+  sqlite file — no Flask, no monkeypatching (12 new tests in
+  `tests/unit/test_telegram_command_service.py`, covering disabled-channel rejection,
+  malformed commands, linked vs. unlinked-but-permitted Telegram voters, the
+  `telegram_require_linked_vote` gate, proposal-vote success/rejection, and both callback
+  dispatch branches). `main_routes.py` keeps one-line wrappers at the original names, same
+  `legacy.X`/patch-compatibility reasoning as the prior two slices — nothing in the test
+  suite patches `close_expired_polls`/`build_poll_results_message`/`send_telegram_message`
+  *while exercising these specific command processors*, so bypassing `main_routes` inside
+  the new service module for the already-relocated `poll_service` calls is safe (confirmed
+  by grep before making the change). Deliberately left `process_telegram_link_command` in
+  `main_routes.py` — it's already a thin adapter over `process_link_command` (an existing
+  service) plus one audit-log call, so moving it would trade one call site for four
+  injected parameters with no real logic gained. Dropped the now-dead `json` import from
+  `main_routes.py` (its only remaining use was inside the moved commands). Full suite: 504
+  passed (492 + 12 new), same 4 pre-existing/environmental failures, zero regressions.
+  Remaining A2 scope: `get_db`/settings-budget read wrappers, `record_proposal_vote`/
+  `log_proposal_vote_event`, `process_telegram_link_command`, and the Telegram messaging/
+  webhook-sync helpers (`send_telegram_message`, `sync_telegram_webhook*`).
+
+---
+
+### Fixed: the 4 tests repeatedly labeled "pre-existing/environmental" all session
+Every progress note above (and earlier ones) reported "same 4 pre-existing/environmental
+failures, zero regressions" without root-causing them. Investigated properly (2026-08-27)
+and fixed all four — none were flaky or environmental in the "can't be fixed" sense:
+- **`test_language.py::TestProposalStatusTags`** (3 tests: approved/rejected/over-budget
+  lowercase status tags) — two real bugs, not test flakiness:
+  1. `templates/proposals.html`'s status badges for `approved` and `over_budget` used
+     inline `style=` only, never the `status-approved`/`status-over-budget` CSS classes
+     that `static/react/style.css` already defines for them (and there was no badge
+     branch for `rejected` at all — a real, if minor, UI gap, since `rejected` is a valid
+     proposal status per `app/domain/enums.py` and is set by the admin reject action).
+     Fixed the template to add the missing classes and the missing `rejected` branch
+     (kept the existing inline colors for `approved`/`purchased` to avoid an unreviewed
+     visual change; `rejected`/`over_budget` now render via the CSS class alone, matching
+     the `active` badge's existing pattern). Added the missing `"rejected"`/`"rechazado"`
+     translation key pair.
+  2. Even with the template fixed, the tests could still fail depending on what other
+     test files happened to run first: `GET /proposals` with no `filter` query param (and
+     the "All" filter button, which linked to `url_for('proposals')` with no filter at
+     all) only ever shows `status = 'active'` proposals — so a run where no earlier test
+     left an approved/rejected/over-budget proposal behind in the shared session DB would
+     fail regardless of the template fix. Fixed the "All" button to link to
+     `filter=all` so it actually reaches the unrestricted "show every status" query
+     branch (it was silently behaving identically to "Active" before — a second small
+     real bug). Fixed the test class to seed one proposal per status itself in
+     `setUpClass`/clean up in `tearDownClass`, and to request the correct filter for
+     each status (`filter=approved`, `filter=over_budget`, `filter=all` for rejected)
+     instead of depending on ambient DB state left by unrelated tests.
+- **`test_production_config.py::test_init_db_fails_without_bootstrap_password_in_production`**
+  (plus 3 more `test_app_setup_*` tests in the same file that were being silently excluded
+  all session via `-k "not test_app_setup_"` rather than fixed) — all four spawn a
+  subprocess via bare `"python"` instead of `sys.executable`. In this sandbox, `python`/
+  `python3` resolves to a Python 3.11 interpreter, but the only `_cffi_backend` shared
+  object on the system path is built for cpython-312 — so any subprocess that imports
+  `cryptography.x509` (via `authlib`, pulled in by `app.extensions`) hits
+  `ModuleNotFoundError: No module named '_cffi_backend'`, which PyO3 turns into a Rust
+  panic. Confirmed by reproducing it directly (`python3 -c "import cryptography.x509"`)
+  independent of any test or app code. Fixed by using `sys.executable` in all four
+  subprocess calls, guaranteeing the subprocess runs with whatever interpreter is
+  actually running pytest (the `/tmp/testvenv` used throughout this session, where
+  `cryptography` is a matched pip install) rather than gambling on `PATH`.
+- Full suite now passes clean with no exclusions: **511 passed, 0 failed** (previously
+  508 collected with 3 deselected + 4 failing = 511 either way — nothing was hidden or
+  skipped, just broken). `pytest -q tests/` is the correct full-suite command going
+  forward; the `-k "not test_app_setup_"` qualifier used throughout this session's prior
+  runs is no longer needed and shouldn't be reintroduced.
+
+---
+
+## WS-B — Startup Reliability (P0)
+
+### B1. Single startup orchestrator
+Proposed startup lifecycle:
+1. config load + validation
+2. DB connect + migrations
+3. settings/bootstrap checks
+4. integrations (Telegram, scheduler)
+5. readiness summary
+
+### B2. Exception policy + startup report
+- Replace broad catch-all behavior with targeted exception classes.
+- Define clear severity levels (`fatal`, `degraded`) and actions.
+- Emit one structured startup summary event per boot.
+
+Review evidence: `app/startup.py` owns startup sequencing and its structured ready/degraded summary; `app/startup_policy.py` owns configuration checks. The baseline is implemented; further telemetry remains backlog work.
+
+---
+
+### C1. Standard error envelope
+- Use one failure shape across API endpoints:
+
+```json
+{
+  "error": {
+    "code": "stable_machine_code",
+    "message": "human-readable message"
+  }
+}
+```
+
+Review evidence: REST failures use `api_error()` in `app/web/routes/helpers/api_helpers.py`. MCP retains its documented JSON-RPC error envelope.
+
+---
+
+## Delivered UX/UI audit items
+
+The following original findings are closed by the current implementation. They are preserved as historical problem statements, not descriptions of current behavior. Sprint 7 records the delivery details. The calendar legend already carries text labels alongside its swatches (item 23); the Admin page now has persistent tabs (item 26).
+
+1. **Inline styles duplicate the shared classes instead of using them.** Proposals.html's
+   9 status/size filter-chip links (lines 32-44) each hand-roll their own
+   border/background/color inline instead of a `.filter-chip`/`.filter-chip.active`
+   class — a future palette or spacing change means hunting every template instead of
+   editing one CSS rule.
+
+3. **Two incompatible confirmation patterns coexist.** `admin.html`'s styled
+   `dangerActionModal` vs. the native unstyled browser `confirm()` used everywhere else
+   (proposal delete, comment delete, mark-purchased, undo-approval) — an unbranded
+   browser dialog breaks the app's look outside the admin page.
+
+4. **The same action is confirmed inconsistently.** "Undo approval" has a `confirm()`
+   dialog on `proposal_detail.html` (lines 39-42) but the identical action from the list
+   page's quick action (`proposals.html` line 119) is a bare link with no confirmation.
+
+5. **State-changing actions implemented as plain GET links** (`undo_approve`,
+   `withdraw_vote`) rather than POST forms/buttons — besides the CSRF/idempotency smell,
+   they read as ordinary navigation rather than "this changes state," and can't carry a
+   confirm-before-submit affordance the way a form can.
+
+6. **The settings dropdown is hover-only** (`.settings-dropdown:hover .settings-menu`,
+   `style.css` lines 65-66) — unusable on touch devices, which is most of this app's
+   traffic given the mobile-first viewport meta.
+
+7. **Destructive "Delete" sits inline in the top nav row** (`proposal_detail.html` lines
+   10-20), visually indistinguishable in position from ordinary navigation links
+   ("Proposals", "Polls") except by color.
+
+8. **"Undo Approval" is buried inside a paragraph of status badges** (`proposal_detail.html`
+   lines 38-43) rather than living in a clear actions area.
+
+9. **The Polls page's actual voting card is placed last.** "Vote via web" is the third of
+   three cards (`polls.html` lines 45-105), after "Votes so far" and "Who voted what" —
+   the primary action of a voting page is its least prominent element.
+
+10. **Poll voting looks like a different, weaker product than proposal voting.** Poll vote
+    buttons are a plain small `.btn` (padding 6px 12px); proposal vote buttons are the
+    bold, 2px-bordered, flex-filled `.vote-btn`. Two core "cast a vote" flows in the same
+    app read as visually unrelated.
+
+11. **The "All" proposals filter never shows an active state**, unlike every other filter
+    chip (`proposals.html` line 32) — a user on the default view has no confirmation any
+    filter is "selected."
+
+13. **Truncated proposal titles have no fallback.** CSS ellipsis (`proposals.html` line 67)
+    hides the full title with no `title=""` attribute to recover it without opening the
+    detail page.
+
+14. **Chart.js loads from a public CDN at render time** (`budget.html` line 132) rather
+    than being self-hosted — an external dependency for the app's core visualization,
+    with no fallback if the CDN is unreachable.
+
+16. **No date-range control** — the chart always renders full history; this will get
+    harder to read as budget history grows, with no way to focus on "last 3 months."
+
+17. **Two disconnected filter UIs look related but aren't.** The custom "calendar legend"
+    buttons (lines 42-58) filter only the table below; Chart.js's own legend toggles only
+    the chart above. A user is likely to expect one to affect the other.
+
+18. **No restated "current balance" on the budget page itself** — `proposals.html` shows
+    one (the "Available" card) but `/budget` requires reading the end of the line chart.
+
+19. **Currency has no thousands separator anywhere** (`€1234.56` style), harder to scan
+    for larger figures as the treasury grows.
+
+20. **Every poll option's result bar uses the same gradient** (`polls.html` line 57) — with
+    3+ options, bars are distinguishable only by length and the numeric label, not color.
+
+21. **Pinch-to-zoom is disabled app-wide**
+    (`<meta name="viewport" ... maximum-scale=1.0, user-scalable=no">`, `base.html` line
+    5) — a real accessibility regression for low-vision users, not required by the layout.
+
+23. **A few indicators rely on color alone** (e.g. the calendar legend's plain colored
+    `<span>` swatches, `budget.html` lines 44-58) without an accompanying icon or label.
+
+26. **`admin.html` is one ~780-line page covering 14+ unrelated sections** (registration,
+    members, two statistics blocks, thresholds, budget, two history blocks, polls, group
+    purchases, settings, timezone, two backup blocks, Telegram config, password) with no
+    tab/anchor navigation or section collapsing — pure linear scroll.
+
+---
+
+### Partial UX delivery
+
+In-favor count labels now use `.vote-approve`, and the shared danger-action dialog has dialog semantics, focus handling, and Escape dismissal. Proposal quick-vote buttons still override the cyan palette, and the change-password modal still lacks equivalent accessibility; those remaining portions stay in IDEAS.
+
+---
+
+## Member feedback delivered
+
+Categorized member feedback is implemented across the web overlay/Settings, REST, and member-scoped Telegram MCP. `feedback_service` owns validation and audit events; the Admin Feedback tab supports triage and status updates. `create_feedback` binds the calling member and executes without `/confirm`. Attachments, notifications, and member-facing replies were explicit first-slice non-goals, not unfinished delivery requirements. See Sprint 7 and current behavior in [SPEC.md](../SPEC.md).
+
+---
+
+## Voting and identity improvements delivered
+
+- Admin settings display the effective vote policy.
+- Proposal and poll votes emit accepted/rejected outcomes and reason-coded blocked-channel events.
+- Backup downloads emit actor/artifact/time audit events, including rejection paths.
+- API/MCP Telegram diagnostics expose link/unlink timestamps; the Admin UI shows linked Telegram IDs.
+- Members can unlink Telegram using the shared confirmation dialog.
+
+Link timestamps in the Admin UI and a consolidated cross-channel behavior matrix remain open.
+
+## Archived member-feedback scope
+
+The following is the original pre-implementation scope. Its proposed schema and open design wording are historical; the delivery record above and SPEC describe the implemented behavior.
+
+## Member feedback / bug reports / suggestions (2026-08-27)
+
+New feature, scoped into Sprint 7 as Goal 4. Members currently have no in-app way to
+report a bug, request a feature, or leave general feedback — the only channels are
+whatever informal chat/DM exists outside the app, invisible to admins as a group and
+with no record. This closes that gap end-to-end: web, REST/MCP, and the Telegram
+assistant, with an admin-panel view to triage submissions.
+
+### Scope
+- **Schema** — new `feedback` table (`app/db/schema.sql` + `app/db/migrations.py`,
+  following the existing `add_column_if_missing`/fresh-`CREATE TABLE` pattern used for
+  every other table): `id`, `member_id` (nullable — Telegram-linked members always
+  resolve to one, but keep the column nullable rather than assuming every future
+  submission path will have an authenticated member), `source` (`web`/`telegram`),
+  `category` (`bug`/`suggestion`/`general`), `message`, `status`
+  (`new`/`reviewed`/`resolved`, default `new`), `created_at`, `resolved_at`,
+  `resolved_by` (member id of the admin who resolved it).
+- **Service** — `app/services/feedback_service.py` following the A2 service/repository
+  boundary pattern already established this session: plain functions taking `get_db`/
+  `logger` as explicit parameters (`submit_feedback`, `list_feedback`,
+  `update_feedback_status`), directly unit-testable without Flask. Emits a
+  reason-coded `event=feedback_submitted source=... category=...` /
+  `event=feedback_status_changed ...` log on each action, matching the
+  `log_poll_vote_event`/`log_proposal_vote_event` style already in place.
+- **REST API** (`app/web/routes/api_routes.py`) — `POST /api/feedback` (any
+  authenticated member; category + message body, source inferred as `web`);
+  `GET /api/feedback` (admin-only, paginated via the existing
+  `parse_pagination_params` helper, filterable by `status`/`category`, matching the
+  shape/error codes of the other list endpoints); `PATCH /api/feedback/<id>`
+  (admin-only, status transitions).
+- **MCP tool** — new `create_feedback` tool in `app/mcp_server.py`, so the Telegram
+  assistant can store feedback "when instructed" (e.g. a member tells the bot "I found
+  a bug: ..." or "please suggest to admins that ..."). **This is a deliberate first**:
+  every existing mutating MCP tool (`create_proposal`, `create_poll`, `create_member`,
+  `update_voting_settings`) is admin-only in `telegram_agent.py`'s `TELEGRAM_TOOLS`
+  split (`allowed = TELEGRAM_TOOLS if is_admin else READ_ONLY_TOOLS`) — there is
+  currently no precedent for a non-admin member invoking a mutating tool through the
+  assistant. `create_feedback` needs a new tool category (e.g.
+  `MEMBER_WRITABLE_TOOLS`) exposed to linked members regardless of `is_admin`, scoped
+  to inserting a feedback row attributed to the calling member's own `member_id` only
+  (never someone else's).
+  - **Open design decision, to resolve during implementation, not here**: should
+    `create_feedback` go through the existing `/confirm` mutation-integrity flow
+    (`MUTATING_TOOLS`)? Recommendation: no — unlike creating a public proposal/poll or
+    changing voting policy, submitting feedback is low-stakes, has no visible
+    side-effect on shared state, and is trivially correctable (submit again). Adding
+    confirmation friction to "hey bot, log a bug I just found" undermines the point of
+    a fast, no-ceremony feedback channel. Worth a second opinion before shipping, since
+    it's the first tool to deliberately skip a pattern otherwise applied uniformly.
+- **Admin panel** (`templates/admin.html`) — new "Feedback" section (following the
+  existing per-section pattern) listing submissions with category/status badges (reuse
+  `.status`/`status-*` classes rather than one-off inline colors — see the UX/UI audit
+  above for why that matters), filterable by status, with a mark
+  reviewed/resolved action per row.
+
+### Explicit non-goals for the first slice
+- No email/push notification to admins on new feedback — a "N new" badge in the admin
+  nav is enough for v1; notification channels can follow once there's evidence anyone
+  needs it (same scale-appropriate reasoning applied to WS-D and fair-use limits
+  elsewhere in this backlog).
+- No public/member-facing view of feedback status or replies — this is an admin
+  triage tool first, not a support-ticket system with two-way conversation.
+- No file/screenshot attachments on the first slice — text only.
+
+---
+
+## Recent audit notes (2026-08-25)
+
+Audit scope focused on the REST/MCP proposal-list and user-statistics contracts, while
+rechecking the previously audited Telegram-link parity paths.
+
+### Confirmed strengths
+- REST and MCP member-link diagnostics now share one canonical SQL classification helper (`app/services/telegram_link_diagnostics.py`), reducing drift risk.
+- REST/MCP parity tests now cover both success shape and invalid pagination bounds for Telegram member-link listing.
+- Proposal age filtering has an explicit shared contract (`recent|old`, 30-day boundary) across REST and MCP.
+- User participation statistics are available through REST and MCP, backed by one canonical query in `app/services/user_statistics.py`.
+- Parity tests cover the user-statistics response shape and invalid pagination bounds.
+
+---
+
+## Telegram natural-language + MCP audit (2026-08-26)
+
+Audit scope covered the complete assistant branch: webhook admission, database-backed
+identity, model/tool orchestration, MCP authorization, mutation confirmation, worker
+backpressure, Telegram transport, retry behavior, documentation, and focused tests.
+
+### Confirmed strengths
+- Telegram identity and administrator status are read from `members.telegram_user_id`
+  for every natural-language request, so link/unlink and role changes do not require a restart.
+- Ordinary members receive only proposal, budget, and voting-setting tools; sensitive
+  statistics, Telegram-link records, and all mutations remain administrator-only.
+- Mutations require a separate `/confirm`, are isolated by chat and user, expire after
+  a bounded TTL, and can be discarded with `/cancel` or `/reset`.
+- Model work has bounded active/pending capacity, long answers respect Telegram limits,
+  and users receive a temporary thinking status while work runs.
+- Telegram webhook retries are deduplicated before commands, votes, model calls, and
+  MCP actions; deduplication memory is bounded.
+- Focused tests cover the agent, access lookup, executor, webhook helpers, and Telegram
+  client. Setup, architecture, operations, and test commands are documented.
+- Luis Rivera and `ocabra_telegram` are credited in the README, API documentation, and
+  agent module.
+
+---
+
+## UX/UI audit (2026-08-27)
+
+Audit scope: every page template (`templates/*.html`), `static/react/style.css`, and
+`static/react/app.js`/`_top_nav.html`, read against actual rendered markup rather than
+aspirational categories — this gives concrete, file/line-grounded backing to the
+"UX / UI Design Track (Forward)" categories below. Prompted by a request to scope
+Sprint 7 around UX/UI, with explicit focus on button layout/placement and the budget
+graph.
+
+### Confirmed strengths (worth building on, not replacing)
+- A real shared design system already exists in `style.css` (`.card`, `.btn`,
+  `.vote-btn`, `.status`, `.flash`) and is used correctly in the common case.
+- The mobile nav (`_top_nav.html`) already has a proper hamburger toggle with
+  `aria-expanded`/`aria-controls`/`aria-current` — a solid baseline other components
+  don't yet match.
+- `admin.html` already has a themed, on-brand confirm modal (`dangerActionModal`) and a
+  change-password modal — nicer than a native `confirm()`, just not reused anywhere else.
+- `polls.html` already groups related information into three labeled cards (results,
+  voter list, web-vote form) — a good pattern, just mis-ordered (see below).
+- `budget.html` already has table sort, pagination, and category filters on the
+  transaction list — a good pattern the Proposals list doesn't share.

@@ -85,12 +85,90 @@ Completion/rejection reason codes:
 | `reply_generation_failed` | The model, MCP round, history store, or expected adapter boundary failed; a fallback reply was attempted. |
 | `reply_delivery_failed` | Telegram reply delivery raised an expected client/input error. |
 | `thinking_cleanup_failed` | The temporary thinking message could not be deleted. |
-| `queue_full` | The bounded worker pool rejected the request before execution. |
+| `member_capacity_exceeded` | This linked member reached `TELEGRAM_AGENT_MAX_JOBS_PER_MEMBER` outstanding jobs in this process. No thinking message or model/MCP call was made; wait for an existing reply and retry. |
+| `queue_full` | The bounded worker pool rejected the request before execution; its member reservation was released and thinking-message cleanup attempted. |
+| `submission_failed` | Executor submission raised; member/global admission is released and thinking-message cleanup attempted. |
+| `thinking_creation_failed` | Creating the temporary Telegram message raised; the member reservation was released. |
 | `worker_cancelled` | The executor cancelled an accepted future. |
-| `unexpected_worker_failure` | A programming error escaped the typed worker boundary; inspect the attached traceback. |
+| `unexpected_worker_failure` | An error escaped the typed worker boundary; correlate safe update/actor metadata. Assistant logs omit exception bodies and tracebacks. |
+| `input_budget_exceeded` | Current input exceeds its UTF-8-byte budget; send a shorter question. |
+| `context_budget_exceeded` | Required instructions, schemas, current turn, and tool results cannot fit; request fewer results or reset history. Earlier actions may already have completed. |
+| `credential_input_rejected` | A configured credential or conventionally sensitive field was detected before input/tool arguments reached the next boundary. |
 
 Prompts, model replies, tool arguments, API keys, and tokens are deliberately absent
 from these job records. `tool_name` is logged, but tool arguments are not.
+
+`TELEGRAM_AGENT_MAX_JOBS_PER_MEMBER` is a positive integer, default `1`, loaded at
+process startup. It counts queued and running assistant jobs by linked member ID across
+chats. Invalid values prevent startup. Admission is acquired before the thinking message;
+completion, failure, rejected/failed submission, and queued cancellation release it once.
+Cancelled queued jobs also attempt to remove their thinking message.
+
+Accounting and the global executor are process-local. With `W` WSGI processes, a member
+can have up to `W × limit` outstanding jobs across those processes; each process retains
+four model workers and 32 pending slots. Tune cautiously and restart to apply. This is
+outstanding-work admission, without rate-per-minute throttling or distributed fairness.
+
+`/confirm` uses admission; capacity rejection leaves its pending mutation untouched.
+`/cancel` is now a deterministic control path before admission: it cancels the sender's
+queued jobs in this process/current conversation and atomically clears their owned
+pending action. It does not call the model or create a thinking message. Starting/running
+work is reported without interruption or rollback. A request in another WSGI process
+cannot be cancelled here; an unsuccessful lookup does not claim that no work exists.
+`/help`, linking, deterministic votes, and `/reset` retain their dispatch. Workers refresh
+linked identity and role before executing queued work, in addition to existing confirmation checks.
+
+## Assistant operator health
+
+Visit `GET /admin/assistant-health` in an authenticated administrator session. It uses
+the existing web administrator gate (not the REST admin key), returns JSON, and sends
+`Cache-Control: no-store`. Regular members and anonymous callers receive redirects.
+
+| Field | Meaning / operator action |
+|---|---|
+| `scope`, `reset` | `process`, `process_restart`; each worker has independent counters and registry. Polls may hit different workers. These values are not fleet totals. |
+| `status` | `disabled` (missing model/MCP configuration), `misconfigured` (invalid timeout), `saturated` (worker/queue capacity occupied), or `ready` (configuration/capacity available). This does not probe provider connectivity. |
+| `queued`, `active` | Current owned jobs, including short pre-submission setup in queued. Sustained saturation calls for inspecting queue/model latency before increasing capacity. |
+| `terminal` | Exactly-once completed/failed/cancelled/rejected job counts; early admission refusal also increments rejected. `/confirm` is an assistant job; `/cancel` is a control request. |
+| `reasons` | Stable completion/rejection reason counts, including member capacity, queue/submission/thinking failures and budget/credential rejections. No actor/chat/tool-argument labels. |
+| `stage_failures` | Model, MCP, and reply-delivery failure counts. Inspect the matching stage and safe job events; a handled tool error still records a failed tool stage/job even when a useful reply is delivered. |
+| `latency_ms` | Bounded count/mean/max summaries for queue, model, MCP, and delivery. High queue wait suggests saturation; high model/MCP latency suggests inspecting the provider/tool. No per-request samples persist here. |
+| `configuration` | Safe model identifier, timeout, worker/queue/member capacities, and input/context/output budgets. Provider URL and credentials are omitted. Restart processes to reset counters/apply startup limits. |
+
+Cancellation is owned by linked member plus chat/Telegram user, matching conversation
+history (including that user's threads in one chat). Relinking cannot cancel the prior
+member's job/action. Legacy pending actions with no recorded member cannot be claimed by
+the new control path; let them expire or use the existing explicit reset. Start/cancel
+races report only confirmed queued cancellation; work already starting/running may reply.
+Cancelled jobs release both capacities once, remove registry entries, and attempt status
+cleanup even when Telegram rejects deletion. There is no cross-worker queue or running
+HTTP interruption. Aggregate health contains no prompts, replies, tool arguments/results,
+credentials, provider URLs, or member/chat identities.
+
+## Assistant model safeguards
+
+Every model round counts serialized UTF-8 bytes plus 256 framing units and 64 units
+per message, including system/current input, tools, history, and tool results. The
+output reserve is included and sent as `max_tokens`. Set the context budget no higher
+than the provider's verified context limit; this estimate is conservative for byte-based
+tokenizers, not model discovery or a guarantee for custom tokenizers. The provider must
+accept `max_tokens`. Initial member/admin tool schemas measured 4,813/9,223 units with
+framing; defaults leave room for the built-in prompt and a 4,096-byte question.
+
+Old history is dropped in complete user-led groups; incomplete tool-call/result groups
+are excluded. Required current tool exchanges and actor instructions are never truncated.
+Budget rejection sends localized feedback and releases admission. It does not retry or
+undo previously committed tool actions.
+
+The assistant redacts configured credentials, conventional sensitive JSON fields,
+credential assignments, bearer values, and URL credentials from model payloads, new
+history writes, confirmation displays, tool errors, and replies. Input or allowed tool
+arguments containing these values are rejected before persistence/execution. Required
+authentication headers still carry credentials to their destination. Arbitrary unlabelled
+secrets in free text cannot reliably be recognized. Existing stored history is scrubbed
+on read, not rewritten/deleted; retention remains separate. Failure logs retain stable
+reason codes and exception types rather than bodies/tracebacks. Avoid request/body debug
+logging at these boundaries.
 
 ## Telegram assistant mutations
 

@@ -268,6 +268,7 @@ def test_agent_reports_model_latency_and_tool_names(monkeypatch):
     assert [event for event, _details in events] == [
         "model_request_completed",
         "tool_call_received",
+        "tool_request_completed",
         "model_request_completed",
     ]
     assert events[0][1]["model_round"] == 1

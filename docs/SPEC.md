@@ -62,17 +62,20 @@ Primary modules and responsibilities:
 - `app/startup.py` — deterministic startup orchestration (`run_startup_steps`) and backup-check helper.
 - `app/startup_policy.py` — startup policy validation and env-specific runtime flags.
 - `app/web/app_setup.py` — Flask app construction/config, logging, and extension initialization.
-- `app/web/routes/main_routes.py` — web route orchestration and legacy-compatible endpoints; most business logic not yet extracted into `app/services/` still lives here.
+- `app/web/routes/main_routes.py` — runtime composition and legacy-compatible endpoint/helper adapters. Database bootstrap lives in `app/db/initialization.py`; the retained adapters and service owners are documented in [SPRINT_10_INVENTORY.md](SPRINT_10_INVENTORY.md).
 - `app/web/routes/api_routes.py` — admin-key REST API endpoints.
 - `app/web/routes/admin_routes.py`, `auth_routes.py`, `group_purchase_routes.py`, `poll_routes.py`, `proposal_routes.py` — blueprint modules split out of `main_routes.py`; `auth_routes.py` also implements the Keycloak/OIDC SSO login flow.
 - `app/web/routes/helpers/` — shared request/response helpers used across blueprints.
 - `app/domain/` — `entities.py`, `enums.py` (e.g. `ProposalStatus`, live-wired into API/MCP validation), `exceptions.py`, `rules.py`.
-- `app/services/` — business logic helpers (auth/budget/proposal/backup/settings/Telegram); `admin_service.py`, `vote_service.py`, and `app/domain/rules.py` are currently placeholder stubs, with the corresponding logic still in `main_routes.py`.
+- `app/services/proposal_actions_service.py` — proposal creation/editing, purchase flags, deletion, comment actions, withdrawal, and approval undo; repositories own SQL, services own write transactions, and routes preserve HTTP responses.
+- `app/services/proposal_page_service.py` — proposal list/detail read models, filters, age/vote requirements, member votes, and running balances assembled through repositories.
+- `app/services/budget_service.py` — backer thresholds and budget-page cash/pending timelines; repositories own calendar and daily aggregation queries. Routes own authentication, request inputs, rendering, and connection cleanup.
+- `app/services/` — business and read-model owners: auth/OIDC, admin actions/pages, group purchases, poll pages/votes, Koins/QR, proposals, budget, backup, settings, and Telegram. `admin_service.py`, `vote_service.py`, and `app/domain/rules.py` remain unused placeholder stubs; active owners have explicit names. Route blueprints contain no SQL.
 - `app/repositories/` — DB access helpers.
 - `app/db/` — schema, migrations, and DB connection helper.
 - `app/mcp_server.py` — MCP JSON-RPC server for admin tooling (list/read/create operations).
 - `app/integrations/telegram_agent.py` — OpenAI-compatible conversation loop, MCP tool adapter, per-user history, and confirmed mutation workflow.
-- `app/integrations/bounded_executor.py` — bounded background execution for model work.
+- `app/integrations/bounded_executor.py` — bounded background execution for model work; `member_admission.py` owns concurrent-safe per-member reservations and idempotent terminal-path release.
 - `app/integrations/telegram_client.py` — Telegram API transport, temporary status messages, callbacks, and long-response chunking.
 - `app/integrations/telegram_webhook.py` — payload extraction, command dispatch, and bounded update-ID deduplication.
 - `app/services/telegram_access_service.py` — live Telegram-ID allowlist and administrator principal lookup.
@@ -363,18 +366,28 @@ Committed series behavior:
    while group privacy mode is disabled makes this matching overly permissive; startup
    logs `missing_bot_username_for_group` when it detects that configuration.
 3. The sender's numeric Telegram ID is resolved from `members.telegram_user_id` for every message. Unknown IDs are ignored before worker admission; link/unlink and admin changes therefore apply immediately.
-4. The bot posts `🤔 Thinking…`, then submits the model request to a four-worker queue with at most 32 pending requests. Saturated queues return a retry message rather than growing without bound.
+4. The process first reserves a job slot by linked member ID across chats. The positive
+   integer `TELEGRAM_AGENT_MAX_JOBS_PER_MEMBER` defaults to `1`; reaching it returns an
+   English/Spanish busy/retry reply using Telegram’s language code, before posting a
+   thinking message or calling the model/MCP. Otherwise the bot posts `🤔 Thinking…`
+   and submits to the existing four-worker queue with at most 32 pending requests.
+   Global queue rejection releases the member slot and cleans up the thinking message.
 5. The OpenAI-compatible model receives MCP function schemas. Members receive read-only proposal, poll, group-purchase, budget, and voting-setting tools; administrators receive the complete MCP tool set.
 6. Read tools execute in-process through the MCP JSON-RPC handler. Mutating tools create a per-chat/per-user pending action instead of executing immediately.
 7. A linked administrator must send `/confirm` before `TELEGRAM_CONFIRM_TTL_SECONDS` expires; `/cancel` discards it. `/reset` clears that user's history and pending action.
-8. The final answer is split into chunks of at most 3900 characters. The temporary thinking message is deleted after delivery or worker failure.
+8. The final answer is split into chunks of at most 3900 characters. Thinking-message
+   cleanup is attempted after delivery, worker failure, queued cancellation, or rejected
+   submission. Member admission is released exactly once on every terminal path.
+9. `/confirm` and `/cancel` use the same admission check before pending-action handling.
+   A busy response leaves that action available for retry; deduplicated updates reserve
+   no second slot. Deterministic command dispatch and confirmation revalidation are preserved.
 
 Conversation history, pending confirmations, and update deduplication are stored in
 SQLite (`telegram_conversation_history`, `telegram_pending_actions`,
 `telegram_update_dedup`) and shared across application workers, surviving restarts.
 History is bounded to the most recent 12 turns per chat/user. The bounded model-request
-worker queue itself remains process-local — it limits concurrent model calls within one
-process and is not yet shared across workers.
+worker queue and member admission remain process-local. Multiple WSGI processes
+multiply both limits; there is no distributed fairness or per-minute rate limit.
 
 ### Admin web actions
 - `GET|POST /admin` (includes timezone selector, member management, budget controls, and poll actions)
@@ -454,3 +467,60 @@ that behavior without exposing prompts, credentials, or provider payloads.
   - Inline callback payload: `pvote:<proposal_id>:yes|no`
 - Both channels route through unified proposal vote ingestion with upsert semantics (latest vote wins per member/proposal).
 - Rejected votes are logged with reason code (`channel_disabled`) for auditability.
+
+## Assistant model safeguards
+
+Natural-language input is limited to 4,096 UTF-8 bytes by default. Every model round
+uses a conservative context budget including tool schemas/results, instructions,
+history, and response reserve. Old history is trimmed in complete groups; required
+context that cannot fit produces English/Spanish feedback instead of another model
+request. These limits supplement per-member admission.
+
+Configured credentials and conventionally sensitive fields are rejected in input or
+allowed tool arguments and redacted at model, history-write, confirmation, error, and
+reply boundaries. This does not detect every unlabelled secret or remove old stored
+history. See [configuration](QUICKSTART.md) and [operational limits](OPERATIONS.md).
+
+## Proposal transition invariants
+
+Approval and over-budget rechecks share service validation and acquire SQLite's write
+reservation before reading proposal state and available budget. Only active or
+eligible over-budget proposals transition to approved. Repeated/concurrent processing
+of an approved proposal is a no-op: one approval debits the ledger once. State, budget
+setting, and ledger writes commit together or roll back together. Notifications happen
+after commit; delivery failure cannot cause a second debit on retry.
+
+Administrator undo atomically restores the amount and clears approval/purchase state,
+then runs the existing reprocessing callbacks. An unchanged successful vote can
+immediately approve again; undo does not erase votes. Historical over-budget dates are
+preserved. Purchase flags remain editable by signed-in members for approved proposals;
+active-proposal deletion remains owner/admin only, and vote withdrawal rejects processed
+proposals. Missing proposal withdrawal remains a no-op. Web creation adds a creator
+vote; API creation does not. Web editing clears basic-supplies above €20; API editing
+currently preserves its supplied flag. These differences remain explicit compatibility
+behavior, not new policy alignment.
+
+## Administrator interface diagnostics and dialogs
+
+Password changes use a labelled shared modal with keyboard opening, initial focus,
+focus trapping, Escape/backdrop/cancel dismissal, and focus return. Dismissal clears
+password inputs; submitted action, member target, CSRF, and administrator validation
+remain server-owned. Danger and feedback dialogs reuse the same frontend controller.
+Admin members display recorded last-link and last-unlink timestamps in the configured
+local timezone with missing-history fallbacks. These diagnostics remain administrator-only.
+
+## Assistant cancellation and health
+
+`/cancel` deterministically attempts both owned queued-job cancellation and pending-action
+cancellation in the current conversation before model admission. Running/starting work
+continues with an accurate localized status; cancellation never reverses committed tool
+changes. Ownership includes the live linked member, chat, and Telegram sender. Pending
+claims are atomic and bound to the recorded actor. Queued workers refresh identity/role
+before model/tool execution; changed linkage refuses execution. Registry and aggregate
+health are process-local. See [operational semantics](OPERATIONS.md#assistant-operator-health).
+
+An administrator web session can read `GET /admin/assistant-health` for queue/active
+gauges, exactly-once terminal counts/reasons, stage failures and bounded latency summaries,
+plus safe configuration. Responses omit identities, conversation contents and credentials
+and disable caching. Counters reset on process restart; health reports configuration and
+capacity, not an external provider liveness guarantee.

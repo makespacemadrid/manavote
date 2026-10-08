@@ -51,11 +51,12 @@ def test_button_groups_use_gap_without_misaligned_adjacent_margins():
     fallback_styles = (ROOT / "static" / "react" / "style.css").read_text()
 
     for styles in (source_styles, fallback_styles):
-        assert ".button-row" in styles
-        assert ".button-row { display: flex; align-items: stretch" in styles
-        assert ".button-row > form > .btn { height: 100%; }" in styles
-        assert "font-family: inherit" in styles
-        assert ".btn + .btn" not in styles
+        compact = re.sub(r"\s+", "", styles).replace(';}', '}')
+        assert ".button-row" in compact
+        assert ".button-row{display:flex;align-items:stretch" in compact
+        assert ".button-row>form>.btn{height:100%}" in compact
+        assert "font-family:inherit" in compact
+        assert ".btn+.btn" not in compact
 
 
 def test_group_purchase_actions_use_shared_aligned_button_row():

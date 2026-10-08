@@ -12,12 +12,14 @@ the code wins — update the diagram in the same PR that changes the shape it de
 
 - [Process overview](#process-overview)
 - [Request path: web page load](#request-path-web-page-load)
+- [Proposal action writes](#proposal-action-writes)
 - [Admin koin correction flow](#admin-koin-correction-flow)
 - [Telegram webhook: message routing](#telegram-webhook-message-routing)
 - [Telegram assistant: mutation confirm flow](#telegram-assistant-mutation-confirm-flow)
 - [MCP and REST: shared service layer](#mcp-and-rest-shared-service-layer)
 - [Startup sequence](#startup-sequence)
 - [Core data model](#core-data-model)
+- [Assistant member admission](#assistant-member-admission)
 
 ## Process overview
 
@@ -34,7 +36,7 @@ flowchart TB
     end
 
     subgraph flaskapp["Flask app internals"]
-        legacy["main_routes.py\n(legacy routes + shared\nhelper functions, shrinking)"]
+        legacy["main_routes.py\n(runtime composition +\ncompatibility adapters)"]
         bps["8 blueprints:\nauth, api, proposals, polls,\nadmin, koins, group_purchases, telegram"]
         services["app/services/*\n(business logic,\nDI-parameter style)"]
         repos["app/repositories/*\n(query composition)"]
@@ -60,28 +62,76 @@ flowchart TB
 
 ## Request path: web page load
 
-Most page views follow the same shape: blueprint view function reads a service, the
-service reads a repository, the repository touches SQLite, and the view renders a
-Jinja template. `main_routes.py` still holds some of this chain directly (its own
-shrinking share of shared helpers) rather than a dedicated service module — see
-`IDEAS.md`'s WS-A2 for what's already been extracted and what's left.
+The `/budget` and `/proposals` list routes now own authentication, request/session
+inputs, rendering, and connection cleanup. `budget_service.build_budget_page` and
+`proposal_page_service.build_proposal_page` assemble read models through repositories.
+Services borrow the route's connection; the route closes it even when a read fails.
+Auth, admin, poll, proposal-detail, group-purchase, QR, and API paths follow the same
+query ownership boundary; see the [Sprint 10 inventory](SPRINT_10_INVENTORY.md).
+`main_routes.get_db` remains the initialization/runtime adapter; retained helper
+wrappers delegate budget/member/vote reads to their repositories.
 
 ```mermaid
 sequenceDiagram
     participant Browser
-    participant Blueprint as Blueprint view\n(e.g. proposal_routes.py)
-    participant Service as app/services/*
-    participant Repo as app/repositories/*
+    participant Blueprint as proposal_routes.py
+    participant Adapter as main_routes.get_db
+    participant Service as proposal_page_service / budget_service
+    participant Repo as proposal / budget / member / settings / vote repositories
     participant DB as SQLite
 
-    Browser->>Blueprint: GET /proposals
-    Blueprint->>Service: proposal_service.list_proposals(...)
-    Service->>Repo: proposal_repo.fetch(...)
-    Repo->>DB: SELECT ...
+    Browser->>Blueprint: GET /proposals or /budget
+    Blueprint->>Blueprint: authenticate, read request/session inputs
+    Blueprint->>Adapter: get initialized connection
+    Adapter-->>Blueprint: connection
+    Blueprint->>Service: build_proposal_page(...) or build_budget_page(...)
+    Service->>Repo: list, aggregate, and member-specific reads
+    Repo->>DB: SELECT
     DB-->>Repo: rows
-    Repo-->>Service: domain objects
-    Service-->>Blueprint: view model
-    Blueprint-->>Browser: render_template("proposals.html", ...)
+    Repo-->>Service: query results
+    Service-->>Blueprint: template read model
+    Blueprint->>Blueprint: close connection in finally
+    Blueprint-->>Browser: render Jinja page
+```
+
+## Proposal action writes
+
+Purchase/unpurchase, proposal deletion, and admin comment editing/deletion use
+`proposal_actions_service`. HTTP adapters keep login/method checks and existing
+redirect/flash semantics. The service enforces status and owner/admin rules, borrowing
+the route's connection and committing or rolling back the write transaction. Purchase
+flags retain their existing signed-in-member policy. Other lifecycle operations remain
+in the [Sprint 10 inventory](SPRINT_10_INVENTORY.md).
+
+```mermaid
+sequenceDiagram
+    participant Browser
+    participant Route as proposal_routes.py
+    participant Service as proposal_actions_service
+    participant Repo as Proposal / Vote / Comment repositories
+    participant DB as SQLite
+
+    Browser->>Route: authenticated action request
+    Route->>Service: IDs, actor role, submitted values
+    Service->>Repo: load current record
+    Repo->>DB: SELECT
+    Repo-->>Service: record
+    alt missing / disallowed status / actor denied
+        Service-->>Route: ProposalActionError with stable code
+    else accepted
+        Service->>Repo: write purchase flag / comment / dependent deletion
+        Repo->>DB: UPDATE or DELETE
+        alt write failure
+            Service->>DB: ROLLBACK
+            Service-->>Route: database error
+        else success
+            Service->>DB: COMMIT
+            Service->>Service: metadata-only audit event
+            Service-->>Route: result
+        end
+    end
+    Route->>Route: close connection in finally
+    Route-->>Browser: existing redirect / flash / edit form
 ```
 
 ## Admin koin correction flow
@@ -323,3 +373,27 @@ erDiagram
         real balance
     }
 ```
+
+## Assistant member admission
+
+`member_admission.MemberAdmission` is a singleton beside the bounded executor in each
+process. The webhook resolves a live principal, then reserves by linked member ID
+before posting `Thinking…`. Deduplicated updates exit before admission. Rejected
+confirm/cancel requests do not touch pending mutations.
+
+```mermaid
+flowchart LR
+    Update["Webhook update"] --> Dedup["Shared update dedup"]
+    Dedup --> Principal["Live linked principal"]
+    Principal --> Member["MemberAdmission.try_acquire"]
+    Member -->|full| Busy["Localized busy reply\nmember_capacity_exceeded"]
+    Member -->|lease| Thinking["Post thinking message"]
+    Thinking --> Submit["AdmissionLease.submit\nBoundedExecutor"]
+    Submit -->|accepted| Work["Queued / running job"]
+    Submit -->|rejected or failed| Release["Release lease once\nclean up thinking"]
+    Work -->|done, failed, cancelled| Release
+```
+
+The positive integer `TELEGRAM_AGENT_MAX_JOBS_PER_MEMBER` defaults to one. It counts
+queued plus running jobs across chats in one process; WSGI processes multiply this
+limit and the independent four-worker/32-pending global bound.
