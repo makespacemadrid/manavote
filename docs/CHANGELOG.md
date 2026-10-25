@@ -1,11 +1,25 @@
 # CHANGELOG — Delivered Roadmap Items
 
-Last reviewed: 2026-10-08
+Last reviewed: 2026-10-25
 
 Shipped outcomes from the roadmap, newest first. This is not a complete release
 history. [IDEAS.md](IDEAS.md) contains unfinished work; [SPRINTS.md](SPRINTS.md)
 records iteration scope and progress. Detailed historical findings and decisions are
 preserved in the [roadmap audit archive](archive/ROADMAP_AUDITS.md).
+
+## 2026-10-25 — Preserve proposal drafts after invalid images
+
+- New/edit proposal forms render validation errors with entered fields intact, including
+  creation deadlines and unchecked basic supplies. English/Spanish image guidance
+  explains how to retry with a JPG/PNG or submit without a new image; entered markup
+  remains escaped and file inputs are not repopulated.
+- Invalid contents and unsupported extensions leave proposals, votes, and notifications
+  unchanged. Editing retains the current image until its replacement is committed;
+  failed validation, inspection, partial uploads, or edit writes remove new files.
+- Added multipart regression coverage for both languages, form recovery, successful
+  retries, and preservation/cleanup of existing and replacement images.
+- Validation: 896 Python tests passed, including 24 new regression cases; the three
+  localhost MCP checks ran separately with socket access and loopback proxy exclusion.
 
 ## 2026-10-08 — Sprint 15 queued cancellation and assistant operator health (BOT-04 slice, BOT-06, OPS-03 slice)
 

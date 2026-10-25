@@ -193,6 +193,12 @@ If a proposal marked basic supplies has amount > €20, basic flag is auto-remov
 - Vite writes fixed `app.js` and `style.css` filenames to `static/react`, matching the Flask base template.
 
 ### Proposals
+- New/edit forms retain entered text, amount, URL, basic-supplies selection, and the
+  creation form's voting deadline when image or other field validation fails.
+  Unsupported image extensions and non-JPEG/PNG contents show a localized error;
+  members can choose another image or resubmit without one. File inputs must be
+  selected again after validation. Rejected uploads create no proposal or vote, and
+  edits keep the current image until a valid replacement is committed.
 - Budget card with current budget, member count, and vote requirements display.
 - Proposal list with status/category filters (filters inside Proposals card).
 - Filter buttons show amounts (no decimals) with color-coded styling.

@@ -798,6 +798,7 @@ TRANSLATIONS = {
 # Literal notifications emitted by routes. Keeping these in one catalog makes it
 # easy for coverage tests to ensure that a newly added flash is translated.
 _FLASH_TRANSLATIONS_ES = {
+    "Choose a JPG or PNG image, or submit without a new image. Your other entries have been kept.": "Elige una imagen JPG o PNG, o envía el formulario sin una imagen nueva. Se han conservado los demás datos.",
     "A group purchase can have at most 30 components": "Una compra conjunta puede tener como máximo 30 componentes",
     "Add a title and at least one component": "Añade un título y al menos un componente",
     "Admin access required": "Se requiere acceso de administrador",

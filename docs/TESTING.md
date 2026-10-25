@@ -69,6 +69,21 @@ pytest -q tests/test_proposal_actions.py tests/test_app_functionality.py tests/t
 - Verify dependent vote/comment removal, atomic rollback on failed deletion, immutable comment identity/timestamps, blank-edit no-ops, unchanged budget, POST/login gates, redirects/flashes, and connection cleanup on service failures.
 - Purchase endpoints retain the existing signed-in-member access policy; this refactor does not add an owner/admin restriction. Successful action logs contain metadata without comment contents.
 
+### Proposal image validation and draft recovery
+
+```bash
+pytest -q tests/test_proposal_image_validation.py tests/test_proposal_edit_route.py
+```
+
+- Multipart new/edit submissions cover invalid contents, unsupported extensions, empty
+  uploads, and checked/unchecked basic supplies in English and Spanish. Rejected forms
+  retain every editable value, escape entered markup, show accessible image guidance,
+  and leave persisted proposals, votes, notifications, and existing images unchanged.
+- Retry with a valid replacement or no new image succeeds. Database, inspection, and
+  partial-upload failures clean up new files while preserving the existing image.
+- Invalid amounts and creation deadlines retain entered fields through the same form
+  rendering path; file inputs are intentionally empty after a failed submission.
+
 ### Sprint 10 remaining ownership and boundary guards
 
 ```bash
