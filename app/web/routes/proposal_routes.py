@@ -1,17 +1,30 @@
 from contextlib import closing
-import os
-import secrets
 from datetime import datetime
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
 from app.services import proposal_actions_service
+from app.services.creation_validation_service import parse_positive_amount
+from app.services.proposal_image_service import InvalidProposalImage, save_proposal_image, remove_proposal_image
 from app.services.budget_service import build_budget_page
 from app.services.proposal_page_service import build_proposal_page, build_proposal_detail
 from app.web.decorators import admin_required, login_required
 from app.web.routes import main_routes as legacy
 
 proposal_bp = Blueprint("proposals", __name__)
+
+
+def _render_proposal_form(template, *, proposal=None, image_error=False):
+    form_data = request.form if request.method == "POST" else (dict(proposal) if proposal is not None else {})
+    return render_template(
+        template,
+        proposal=proposal,
+        form_data=form_data,
+        image_error=image_error,
+        current_budget=legacy.get_current_budget(),
+        thresholds=legacy.get_thresholds(),
+        session_lang=session.get("lang", "en"),
+    )
 
 
 @proposal_bp.route("/about", endpoint="about")
@@ -66,8 +79,6 @@ def new_proposal():
     # monkeypatches on main_routes still take effect.
     get_db = legacy.get_db
     get_base_url = legacy.get_base_url
-    get_current_budget = legacy.get_current_budget
-    get_thresholds = legacy.get_thresholds
     can_record_proposal_vote = legacy.can_record_proposal_vote
     process_proposal = legacy.process_proposal
     send_telegram_message = legacy.send_telegram_message
@@ -81,13 +92,13 @@ def new_proposal():
     if request.method == "POST":
         title = request.form["title"]
         description = request.form["description"]
-        amount = float(request.form["amount"])
+        amount = parse_positive_amount(request.form["amount"])
         url = request.form.get("url", "").strip()
         voting_deadline = request.form.get("voting_deadline", "").strip()
         basic_supplies = 1 if request.form.get("basic_supplies") else 0
-        if amount <= 0:
+        if amount is None:
             flash("Amount must be positive", "error")
-            return redirect(url_for("proposals.new_proposal"))
+            return _render_proposal_form("new_proposal.html")
         deadline_text = ""
         if voting_deadline:
             try:
@@ -95,23 +106,16 @@ def new_proposal():
                 deadline_text = deadline_dt.strftime("%Y-%m-%d %H:%M")
             except ValueError:
                 flash("Invalid voting deadline", "error")
-                return redirect(url_for("proposals.new_proposal"))
+                return _render_proposal_form("new_proposal.html")
 
-        image_filename = None
-        if "image" in request.files:
-            image = request.files["image"]
-            if image and image.filename:
-                ext = image.filename.split(".")[-1].lower()
-                if ext in ["jpg", "jpeg", "png"]:
-                    image_filename = f"{secrets.token_hex(8)}.{ext}"
-                    filepath = os.path.join(app.config["UPLOAD_FOLDER"], image_filename)
-                    image.save(filepath)
-
-                    mime_type = detect_image_type(filepath)
-                    if mime_type not in ["jpeg", "png"]:
-                        os.remove(filepath)
-                        flash("Invalid image format", "error")
-                        return redirect(url_for("proposals.new_proposal"))
+        try:
+            image_filename = save_proposal_image(
+                request.files.get("image"), upload_folder=app.config["UPLOAD_FOLDER"],
+                detect_image_type=detect_image_type,
+            )
+        except InvalidProposalImage:
+            flash("Invalid image format", "error")
+            return _render_proposal_form("new_proposal.html", image_error=True)
 
         conn = get_db()
         try:
@@ -135,14 +139,7 @@ def new_proposal():
         flash("Proposal created!", "success")
         return redirect(url_for("proposals"))
 
-    current_budget = get_current_budget()
-    thresholds = get_thresholds()
-    return render_template(
-        "new_proposal.html",
-        current_budget=current_budget,
-        thresholds=thresholds,
-        session_lang=session.get("lang", "en"),
-    )
+    return _render_proposal_form("new_proposal.html")
 
 
 @proposal_bp.route("/proposal/<int:proposal_id>", methods=["GET", "POST"], endpoint="proposal_detail")
@@ -254,8 +251,6 @@ def delete_proposal(proposal_id):
 @login_required
 def edit_proposal(proposal_id):
     get_db = legacy.get_db
-    get_current_budget = legacy.get_current_budget
-    get_thresholds = legacy.get_thresholds
     detect_image_type = legacy.detect_image_type
     app = legacy.app
 
@@ -272,55 +267,40 @@ def edit_proposal(proposal_id):
         if request.method == "POST":
             title = request.form["title"]
             description = request.form["description"]
-            amount = float(request.form["amount"])
+            amount = parse_positive_amount(request.form["amount"])
             url = request.form.get("url", "").strip()
             basic_supplies = 1 if request.form.get("basic_supplies") else 0
-            if amount <= 0:
+            if amount is None:
                 flash("Amount must be positive", "error")
-                return redirect(url_for("proposals.edit_proposal", proposal_id=proposal_id))
+                return _render_proposal_form("edit_proposal.html", proposal=proposal)
 
-            image_filename = proposal["image_filename"]
-            if "image" in request.files:
-                image = request.files["image"]
-                if image and image.filename:
-                    ext = image.filename.split(".")[-1].lower()
-                    if ext in ["jpg", "jpeg", "png"]:
-                        if image_filename and os.path.exists(
-                            os.path.join(app.config["UPLOAD_FOLDER"], image_filename)
-                        ):
-                            os.remove(
-                                os.path.join(app.config["UPLOAD_FOLDER"], image_filename)
-                            )
-                        image_filename = f"{secrets.token_hex(8)}.{ext}"
-                        filepath = os.path.join(app.config["UPLOAD_FOLDER"], image_filename)
-                        image.save(filepath)
+            try:
+                new_image = save_proposal_image(
+                    request.files.get("image"), upload_folder=app.config["UPLOAD_FOLDER"],
+                    detect_image_type=detect_image_type,
+                )
+            except InvalidProposalImage:
+                flash("Invalid image format", "error")
+                return _render_proposal_form("edit_proposal.html", proposal=proposal, image_error=True)
 
-                        mime_type = detect_image_type(filepath)
-                        if mime_type not in ["jpeg", "png"]:
-                            os.remove(filepath)
-                            flash("Invalid image format", "error")
-                            return redirect(
-                                url_for("proposals.edit_proposal", proposal_id=proposal_id)
-                            )
-
-            proposal_actions_service.update_web_proposal(
-                conn, proposal_id=proposal_id, member_id=session["member_id"], is_admin=session.get("is_admin"),
-                title=title, description=description, amount=amount, url=url,
-                image_filename=image_filename, basic_supplies=basic_supplies,
-            )
+            image_filename = new_image or proposal["image_filename"]
+            try:
+                proposal_actions_service.update_web_proposal(
+                    conn, proposal_id=proposal_id, member_id=session["member_id"], is_admin=session.get("is_admin"),
+                    title=title, description=description, amount=amount, url=url,
+                    image_filename=image_filename, basic_supplies=basic_supplies,
+                )
+            except Exception:
+                # Compensate the new file if the database update fails; keep the old image.
+                remove_proposal_image(new_image, upload_folder=app.config["UPLOAD_FOLDER"])
+                raise
+            if new_image:
+                remove_proposal_image(proposal["image_filename"], upload_folder=app.config["UPLOAD_FOLDER"])
 
             flash("Proposal updated!", "success")
             return redirect(url_for("proposals.proposal_detail", proposal_id=proposal_id))
 
-        current_budget = get_current_budget()
-        thresholds = get_thresholds()
-        return render_template(
-            "edit_proposal.html",
-            proposal=proposal,
-            current_budget=current_budget,
-            thresholds=thresholds,
-            session_lang=session.get("lang", "en"),
-        )
+        return _render_proposal_form("edit_proposal.html", proposal=proposal)
 
 
 @proposal_bp.route("/vote/<int:proposal_id>", methods=["POST"], endpoint="quick_vote")
