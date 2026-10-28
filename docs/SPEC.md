@@ -299,6 +299,10 @@ Committed series behavior:
 - Recent movement history shows the latest 30 movements from all members, newest first.
 
 ### Group purchases page (`/group-purchases`)
+- Creators and administrators can append components when editing a purchase, including
+  ordered/received purchases under the existing edit policy. Existing component IDs and
+  member quantities remain intact; new rows append in order, within the 30-component
+  total limit. Invalid prices or duplicate added names reject the edit and retain its fields.
 - Any authenticated member can propose a shared purchase and add up to 30 option rows, each with its own name and unit price.
 - A proposal may include a deadline, product URL, image, and payment instructions.
 - The creator can add shared costs such as shipping or taxes. Each participant pays the same percentage of those costs as their percentage of the total selected-product value.

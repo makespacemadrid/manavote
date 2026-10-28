@@ -1,6 +1,7 @@
 """Group purchase validation, authorization, allocation, and lifecycle ownership."""
 from contextlib import contextmanager
 from datetime import date
+import math
 from urllib.parse import urlparse
 from app.repositories.group_purchase_repo import GroupPurchaseRepository
 
@@ -210,14 +211,46 @@ def set_quantity(connection, *, purchase_id, component_id, member_id, quantity):
         repo.set_quantity(component_id, member_id, quantity)
 
 
+def validate_component_additions(updates, names, prices):
+    additions = []
+    seen = {row[0].casefold() for row in updates}
+    if len(names) != len(prices):
+        raise ValueError('Invalid component name or price')
+    for name, raw_price in zip(names, prices):
+        name = name.strip()
+        if not name and not raw_price.strip():
+            continue
+        try:
+            price = round(float(raw_price), 2)
+        except (TypeError, ValueError):
+            raise ValueError('Invalid component name or price') from None
+        if not name or len(name) > 100 or not math.isfinite(price) or not 0 <= price <= 1000000:
+            raise ValueError('Invalid component name or price')
+        if name.casefold() in seen:
+            raise ValueError('Duplicate component name')
+        seen.add(name.casefold())
+        additions.append((name, price))
+    if len(updates) + len(additions) > 30:
+        raise ValueError('A group purchase can have at most 30 components')
+    return additions
+
+
 def edit_purchase(connection, *, purchase_id, member_id, is_admin, title, description,
-                  deadline, product_url, image_filename, payment_method, updates, shared_costs):
+                  deadline, product_url, image_filename, payment_method, updates, shared_costs,
+                  new_components=()):
     if manageable_purchase(connection, purchase_id, member_id, is_admin) is None:
         raise ValueError('Only the creator or an admin can edit this group purchase')
     repo = GroupPurchaseRepository(connection)
     with _transaction(connection):
+        additions = validate_component_additions(
+            updates, [name for name, _ in new_components], [str(price) for _, price in new_components],
+        )
+        existing = repo.components(purchase_id)
+        if len(existing) + len(additions) > 30:
+            raise ValueError('A group purchase can have at most 30 components')
         repo.update(purchase_id, title, description, deadline, product_url, image_filename, payment_method)
         repo.update_components(updates)
+        repo.insert_components(purchase_id, additions, start_position=max((row['position'] for row in existing), default=-1) + 1)
         repo.delete_shared_costs(purchase_id)
         repo.insert_shared_costs(purchase_id, shared_costs)
 
