@@ -7,6 +7,16 @@ history. [IDEAS.md](IDEAS.md) contains unfinished work; [SPRINTS.md](SPRINTS.md)
 records iteration scope and progress. Detailed historical findings and decisions are
 preserved in the [roadmap audit archive](archive/ROADMAP_AUDITS.md).
 
+## Unreleased — Add components while editing group purchases
+
+- Group-purchase edits can append components with names and prices while preserving
+  existing component IDs, member selections, and purchase status. The form supports
+  adding/removing new rows, keyboard focus, mobile layout, and existing translations.
+- Invalid/non-finite prices, duplicate added names, and totals above 30 components are
+  rejected without saving the edit; submitted component fields remain available to correct.
+- Validation: 906 Python tests passed, including 10 new component-edit cases;
+  frontend tests and production build passed.
+
 ## 2026-10-25 — Preserve proposal drafts after invalid images
 
 - New/edit proposal forms render validation errors with entered fields intact, including

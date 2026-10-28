@@ -436,3 +436,62 @@ def test_admin_panel_delete_returns_to_group_purchase_section(group_purchase_cli
     conn = sqlite3.connect(db_path)
     assert conn.execute("SELECT COUNT(*) FROM group_purchases").fetchone()[0] == 0
     conn.close()
+
+
+@pytest.mark.parametrize('status', ['open', 'ordered', 'received'])
+def test_edit_adds_components_without_changing_existing_selections(group_purchase_client, status):
+    client, db_path = group_purchase_client
+    client.post('/group-purchases', data={'title': 'Order', 'components': 'AA | 2'})
+    conn = sqlite3.connect(db_path)
+    purchase_id, component_id = conn.execute('SELECT group_purchase_id, id FROM group_purchase_components').fetchone()
+    conn.execute('UPDATE group_purchases SET status = ?', (status,))
+    conn.execute('INSERT INTO group_purchase_quantities (component_id, member_id, quantity) VALUES (?, 1, 3)', (component_id,))
+    conn.commit()
+    conn.close()
+    page = client.get(f'/group-purchases/{purchase_id}/edit')
+    assert b'data-add-group-component' in page.data
+    response = client.post(f'/group-purchases/{purchase_id}/edit', data={
+        'title': 'Updated order', f'component_name_{component_id}': 'AA',
+        f'component_price_{component_id}': '2', 'new_component_name': ['AAA', 'Charger'],
+        'new_component_price': ['3.75', '12'],
+    })
+    assert response.status_code == 302
+    conn = sqlite3.connect(db_path)
+    rows = conn.execute('SELECT id, name, unit_price, position FROM group_purchase_components ORDER BY position').fetchall()
+    assert rows[0][:3] == (component_id, 'AA', 2)
+    assert [(row[1], row[2]) for row in rows] == [('AA', 2), ('AAA', 3.75), ('Charger', 12)]
+    assert rows[0][3] < rows[1][3] < rows[2][3]
+    assert conn.execute('SELECT component_id, quantity FROM group_purchase_quantities').fetchall() == [(component_id, 3)]
+    assert conn.execute('SELECT status FROM group_purchases').fetchone()[0] == status
+    conn.close()
+
+
+@pytest.mark.parametrize('names,prices,message', [
+    (['AAA'], ['-1'], 'Invalid component name or price'),
+    (['AAA'], ['nan'], 'Invalid component name or price'),
+    (['AAA'], ['free'], 'Invalid component name or price'),
+    (['AAA'], [], 'Invalid component name or price'),
+    (['aa'], ['2'], 'Duplicate component name'),
+    (['AAA', 'aaa'], ['2', '3'], 'Duplicate component name'),
+    ([f'Part {i}' for i in range(30)], ['1'] * 30, 'at most 30 components'),
+])
+def test_edit_rejects_invalid_additions_atomically_and_retains_draft(group_purchase_client, names, prices, message):
+    client, db_path = group_purchase_client
+    client.post('/group-purchases', data={'title': 'Order', 'components': 'AA | 2'})
+    conn = sqlite3.connect(db_path)
+    purchase_id, component_id = conn.execute('SELECT group_purchase_id, id FROM group_purchase_components').fetchone()
+    conn.close()
+    response = client.post(f'/group-purchases/{purchase_id}/edit', data={
+        'title': 'Draft order', f'component_name_{component_id}': 'AA',
+        f'component_price_{component_id}': '4', 'new_component_name': names, 'new_component_price': prices,
+    })
+    assert response.status_code == 200
+    assert message.encode() in response.data
+    assert b'Draft order' in response.data
+    assert b'name="component_price_' in response.data and b'value="4"' in response.data
+    if prices:
+        assert names[0].encode() in response.data
+    conn = sqlite3.connect(db_path)
+    assert conn.execute('SELECT title FROM group_purchases').fetchone() == ('Order',)
+    assert conn.execute('SELECT name, unit_price FROM group_purchase_components').fetchall() == [('AA', 2)]
+    conn.close()

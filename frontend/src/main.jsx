@@ -5,6 +5,29 @@ import { initializeDialogs } from './dialogs.js';
 
 initializeDialogs();
 
+for (const rows of document.querySelectorAll('[data-new-component-rows]')) {
+  const form = rows.closest('form');
+  const add = form.querySelector('[data-add-group-component]');
+  const template = form.querySelector('[data-new-component-template]');
+  const updateLimit = () => {
+    add.disabled = Number(rows.dataset.existingCount) + rows.children.length >= 30;
+  };
+  add.addEventListener('click', () => {
+    if (add.disabled) return;
+    rows.append(template.content.cloneNode(true));
+    rows.lastElementChild.querySelector('input').focus();
+    updateLimit();
+  });
+  rows.addEventListener('click', (event) => {
+    const remove = event.target.closest('[data-remove-group-component]');
+    if (!remove) return;
+    remove.closest('.group-component-input-row').remove();
+    updateLimit();
+    add.focus();
+  });
+  updateLimit();
+}
+
 function readProps(root) {
   try {
     return JSON.parse(root.dataset.reactProps ?? '');

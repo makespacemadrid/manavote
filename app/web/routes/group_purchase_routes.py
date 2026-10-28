@@ -1,6 +1,7 @@
 import os
 import secrets
 from contextlib import closing
+from itertools import zip_longest
 
 from flask import Blueprint, current_app, flash, redirect, render_template, request, session, url_for
 
@@ -221,6 +222,14 @@ def edit_purchase(purchase_id):
                 title=title, deadline=deadline, product_url=product_url, payment_method=payment_method,
                 invalid_component=invalid_component, shared_cost_error=shared_cost_error,
             )
+            try:
+                new_components = purchases_service.validate_component_additions(
+                    component_updates, request.form.getlist("new_component_name"),
+                    request.form.getlist("new_component_price"),
+                )
+            except ValueError as exc:
+                new_components = []
+                error = error or str(exc)
             if error:
                 flash(error, "error")
             else:
@@ -239,7 +248,7 @@ def edit_purchase(purchase_id):
                         conn, purchase_id=purchase_id, member_id=session["member_id"], is_admin=session.get("is_admin"),
                         title=title, description=description, deadline=deadline, product_url=product_url,
                         image_filename=image_filename, payment_method=payment_method,
-                        updates=component_updates, shared_costs=shared_costs,
+                        updates=component_updates, shared_costs=shared_costs, new_components=new_components,
                     )
                     flash("Group purchase updated", "success")
                     return redirect(url_for("group_purchases.group_purchases_page") + f"#purchase-{purchase_id}")
@@ -250,7 +259,12 @@ def edit_purchase(purchase_id):
         return render_template(
             "edit_group_purchase.html",
             purchase=purchase_data,
-            components=components,
+            components=[
+                {**dict(c), "name": request.form.get(f"component_name_{c['id']}", c['name']),
+                 "unit_price": request.form.get(f"component_price_{c['id']}", c['unit_price'])}
+                for c in components
+            ] if request.method == "POST" else components,
+            new_components=list(zip_longest(request.form.getlist("new_component_name"), request.form.getlist("new_component_price"), fillvalue="")) or [("", "")],
             shared_costs=(
                 list(zip(request.form.getlist("cost_label"), request.form.getlist("cost_amount")))
                 if request.method == "POST"

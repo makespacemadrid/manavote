@@ -1,0 +1,5 @@
+<div class="group-component-input-row">
+    <label>{{ 'Component'|lang }}<input name="new_component_name" maxlength="100" value="{{ name }}"></label>
+    <label>{{ 'Unit price'|lang }} (€)<input name="new_component_price" type="number" min="0" max="1000000" step="0.01" value="{{ price }}"></label>
+    <button class="btn btn-secondary" type="button" data-remove-group-component aria-label="{{ 'Remove'|lang }}">×</button>
+</div>

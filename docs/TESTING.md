@@ -367,7 +367,9 @@ Not part of a themed pack above, but each exercises real, otherwise-undocumented
 - `tests/test_backup_service.py` — unit-level backup scheduler, upload-backup, and
   database-backup behavior (distinct from the admin-observability pack above, which
   covers the admin-panel/audit-event layer on top of this).
-- `tests/test_group_purchases.py` — group-purchase creation, per-member quantities,
+- `tests/test_group_purchases.py` — group-purchase creation, component additions during
+  edits (including ordered/received purchases), stable existing selections, invalid or
+  duplicate additions, the combined 30-component limit, retained drafts, per-member quantities,
   proportional shared-cost splitting, and lifecycle migrations.
 - `tests/test_budget_admin_refactor.py` — admin budget-tab behavior after the `/budget`
   route split.

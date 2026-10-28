@@ -162,3 +162,6 @@ th[aria-sort="ascending"] .table-sort-button::after { content: " \2191"; }
 th[aria-sort="descending"] .table-sort-button::after { content: " \2193"; }
 
 .quick-vote-btn { padding: 4px 8px; font-size: 0.75em; }
+/* New group-purchase components retain a usable layout on small screens. */
+.group-component-input-row { display: grid; grid-template-columns: minmax(0, 1fr) 140px auto; gap: 10px; align-items: end; }
+@media (max-width: 600px) { .group-component-input-row { grid-template-columns: minmax(0, 1fr); } }

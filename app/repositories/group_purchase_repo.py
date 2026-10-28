@@ -43,9 +43,9 @@ class GroupPurchaseRepository:
             VALUES (?, ?, ?, ?, ?, ?, ?)''',
             (title, description, deadline or None, url or None, image_filename, payment_method or None, member_id)).lastrowid
 
-    def insert_components(self, purchase_id, components):
+    def insert_components(self, purchase_id, components, *, start_position=0):
         self.conn.executemany('INSERT INTO group_purchase_components (group_purchase_id, name, unit_price, position) VALUES (?, ?, ?, ?)',
-            [(purchase_id, name, price, position) for position, (name, price) in enumerate(components)])
+            [(purchase_id, name, price, position) for position, (name, price) in enumerate(components, start=start_position)])
 
     def insert_shared_costs(self, purchase_id, shared_costs):
         self.conn.executemany('INSERT INTO group_purchase_shared_costs (group_purchase_id, label, amount, position) VALUES (?, ?, ?, ?)',
