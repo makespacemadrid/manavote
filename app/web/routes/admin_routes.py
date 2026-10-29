@@ -6,7 +6,7 @@ from flask import Blueprint, flash, redirect, render_template, request, send_fil
 from app.extensions import limiter
 from app.services import admin_actions_service, admin_page_service
 from app.services.assistant_health_service import build_assistant_health
-from app.services.error_report_service import list_errors, export_errors
+from app.services.error_report_service import list_errors, export_errors, capture_browser_error
 from app.integrations import telegram_agent
 from app.web.routes.helpers.admin_audit_helpers import log_admin_backup_event, log_telegram_link_event
 
@@ -15,6 +15,27 @@ from app.web.routes import main_routes as legacy
 from werkzeug.utils import secure_filename
 
 admin_bp = Blueprint("admin", __name__)
+
+
+@admin_bp.post('/diagnostics/browser-errors')
+@limiter.limit('20 per minute', key_func=lambda: str(session.get('member_id') or request.remote_addr))
+def browser_error():
+    # Members can submit diagnostics; only administrators can read them.
+    if not session.get('member_id'):
+        return '', 401
+    if request.content_length is None:
+        return '', 400
+    if request.content_length > 64000:
+        return '', 413
+    if not request.is_json:
+        return '', 415
+    try:
+        capture_browser_error(legacy.app.extensions['error_reports'], request.get_json(silent=True))
+    except ValueError:
+        return '', 400
+    response = legacy.app.response_class(status=204)
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 @admin_bp.get('/admin/errors/download')

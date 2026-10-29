@@ -187,18 +187,24 @@ If a proposal marked basic supplies has amount > €20, basic flag is auto-remov
 ### Administrator error reports
 
 - The Errors tab precedes Feedback and lists the latest 200 Python logging warnings
-  and errors from web workers, newest first, with timestamps, severity, logger/call site,
+  and errors from web workers and browser JavaScript errors, newest first, with timestamps, severity, logger/call site,
   and available exception traceback locations. Details are capped at 16,000 characters.
 - Session administrators can download the same records as UTF-8 JSON from
   `GET /admin/errors/download`; API keys alone do not grant access. Both Admin HTML
   and downloads use `Cache-Control: no-store`; displayed diagnostic text is escaped.
 - Capture starts after deployment. Records live in a separate `<APP_DB_PATH>.errors.db`
   SQLite file shared by workers and retained across restarts when its volume persists.
-  Browser DevTools, raw stdout/stderr, and historical container logs are not imported.
+  Browser `console.error`, uncaught exceptions, and unhandled rejections on signed-in
+  pages appear under `browser.*`; capture starts when the client reporter initializes.
+  Historical DevTools output, raw stdout/stderr, and historical container logs are not imported.
 - Configured credentials and conventional secret fields are scrubbed at capture and
   export. No request bodies, headers, frame locals, or source lines are collected.
   Arbitrary sensitive text already present in log messages cannot be guaranteed absent;
   review downloads before sharing. Storage failures do not interrupt normal logging.
+- Browser uploads use session authentication, CSRF protection, a 64 KB request bound,
+  field-size validation, and a 20/member/minute limit. Clients deduplicate reports and
+  send at most 10 per page load, with no retries on upload failure. Page URL queries and
+  fragments are removed; console objects/DOM/form fields are not serialized.
 
 ### React application shell
 

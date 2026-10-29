@@ -102,6 +102,7 @@ def error_store(ui_client, tmp_path, monkeypatch):
     from app.integrations.error_reporting import ErrorReportHandler
     repo = ErrorReportRepository(tmp_path / 'diagnostics.db')
     monkeypatch.setitem(app.extensions, 'error_reports', repo)
+    monkeypatch.setitem(app.config, 'WTF_CSRF_ENABLED', False)
     handler = ErrorReportHandler(repo)
     logging.getLogger().addHandler(handler)
     yield repo
@@ -199,3 +200,48 @@ def test_uncaught_request_error_is_captured_with_traceback(ui_client, error_stor
     assert ui_client.get('/admin').status_code == 500
     report = ui_client.get('/admin/errors/download').get_json()
     assert any('RuntimeError: admin page failure fixture' in row['details'] and 'fail_page' in row['details'] for row in report['errors'])
+
+
+def test_member_browser_errors_are_in_admin_download_with_redaction(ui_client, error_store, monkeypatch):
+    monkeypatch.setenv('OCABRA_API_KEY', 'browser-hidden-credential')
+    with ui_client.session_transaction() as session:
+        session.update(member_id=2, username='member', is_admin=False)
+    response = ui_client.post('/diagnostics/browser-errors', json={
+        'kind': 'console.error', 'message': 'failed browser-hidden-credential <script>bad</script>',
+        'page': '/proposals?private=hidden#fragment',
+        'stack': 'at https://user:password@example.org/static/app.js?private=hidden#fragment',
+    })
+    assert response.status_code == 204
+    assert ui_client.get('/admin/errors/download').status_code == 302
+    with ui_client.session_transaction() as session:
+        session.update(member_id=1, username='admin', is_admin=True)
+    report = ui_client.get('/admin/errors/download').get_json()
+    row = report['errors'][0]
+    assert row['logger'] == 'browser.console.error'
+    assert '[REDACTED]' in row['details']
+    assert 'browser-hidden-credential' not in row['details']
+    assert '?private' not in row['details'] and 'user:password' not in row['details']
+    assert '<script>bad</script>' not in ui_client.get('/admin?tab=errors').get_data(as_text=True)
+
+
+@pytest.mark.parametrize('payload', [None, [], {'kind': []}, {'kind': 'other'}, {'kind': 'error', 'message': {}}, {'kind': 'error', 'message': 'x' * 6001}])
+def test_invalid_browser_reports_do_not_write_records(ui_client, error_store, payload):
+    response = ui_client.post('/diagnostics/browser-errors', json=payload)
+    assert response.status_code in (400, 415)
+    assert error_store.recent() == []
+
+
+def test_browser_reports_require_session_csrf_and_bounded_body(ui_client, error_store, monkeypatch):
+    import re
+    with ui_client.session_transaction() as session:
+        session.clear()
+    assert ui_client.post('/diagnostics/browser-errors', json={'kind': 'error', 'message': 'unauthorized'}).status_code == 401
+    with ui_client.session_transaction() as session:
+        session.update(member_id=2, username='member', is_admin=False)
+    monkeypatch.setitem(app.config, 'WTF_CSRF_ENABLED', True)
+    payload = {'kind': 'error', 'message': 'valid'}
+    assert ui_client.post('/diagnostics/browser-errors', json=payload).status_code == 400
+    page = ui_client.get('/about').get_data(as_text=True)
+    token = re.search(r'name="csrf-token" content="([^"]+)"', page).group(1)
+    assert ui_client.post('/diagnostics/browser-errors', json=payload, headers={'X-CSRFToken': token}).status_code == 204
+    assert ui_client.post('/diagnostics/browser-errors', data='x' * 64001, content_type='application/json', headers={'X-CSRFToken': token}).status_code == 413
