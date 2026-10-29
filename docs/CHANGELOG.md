@@ -7,6 +7,17 @@ history. [IDEAS.md](IDEAS.md) contains unfinished work; [SPRINTS.md](SPRINTS.md)
 records iteration scope and progress. Detailed historical findings and decisions are
 preserved in the [roadmap audit archive](archive/ROADMAP_AUDITS.md).
 
+## Unreleased — Optional €125 group-purchase cap
+
+- Added a creator/admin option to cap selected goods plus shared costs at €125.
+  Overshooting selections are rejected without saving, and reaching €125 closes joining.
+  Price/fee edits cannot bypass the cap; concurrent selection changes are serialized.
+- Shows a running order total and cap status. Both new/edit forms place deadline,
+  member limit and the €125 option below Add shared cost, retaining values on errors.
+- Uses decimal cents and preserves the existing optional member-count closing limit.
+- Validation: 937 Python tests passed, including cap boundaries, rollback, concurrent
+  selections, edits, and compatibility with uncapped/member-limited orders.
+
 ## Unreleased — Error archives, feedback workflow, purchasing and Admin usability
 
 - Error downloads now use CSRF-protected POST and atomically archive only exported

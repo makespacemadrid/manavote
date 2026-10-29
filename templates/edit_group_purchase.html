@@ -7,12 +7,9 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="title">{{ 'Title'|lang }}</label><input id="title" name="title" maxlength="150" value="{{ purchase.title or '' }}" required>
         <label for="description">{{ 'Description'|lang }}</label><textarea id="description" name="description">{{ purchase.description or '' }}</textarea>
-        <label for="deadline">{{ 'Order deadline (optional)'|lang }}</label><input id="deadline" type="date" name="deadline" value="{{ purchase.deadline or '' }}">
         <label for="url">{{ 'URL (optional)'|lang }}</label><input id="url" type="url" name="url" value="{{ purchase.url or '' }}">
         <label for="payment_method">{{ 'Payment method (optional)'|lang }}</label><input id="payment_method" name="payment_method" maxlength="250" value="{{ purchase.payment_method or '' }}">
         <label for="image">{{ 'Replace image (optional)'|lang }}</label><input id="image" type="file" name="image" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
-        <label for="join-member-limit">{{ 'Close joining after this many members (optional)'|lang }}</label>
-        <input id="join-member-limit" name="join_member_limit" type="number" min="1" max="10000" value="{{ purchase.join_member_limit or '' }}">
         <h2 style="margin-top:18px;">{{ 'Components and prices'|lang }}</h2>
         {% for component in components %}
         <div style="display:grid;grid-template-columns:1fr 140px;gap:10px;">
@@ -42,6 +39,11 @@
         {% endfor %}
         </div>
         <button id="add-edit-cost" class="btn btn-secondary" type="button" style="margin-bottom:12px;">+ {{ 'Add shared cost'|lang }}</button><br>
+        <label for="deadline">{{ 'Order deadline (optional)'|lang }}</label><input id="deadline" type="date" name="deadline" value="{{ purchase.deadline or '' }}">
+        <label for="join-member-limit">{{ 'Close joining after this many members (optional)'|lang }}</label>
+        <input id="join-member-limit" name="join_member_limit" type="number" min="1" max="10000" value="{{ purchase.join_member_limit or '' }}">
+        <label><input type="checkbox" name="cap_at_125" value="1" style="width:auto;"{% if purchase.cap_at_125 %} checked{% endif %}> {{ 'Close joining at €125 total'|lang }}</label>
+        <p>{{ 'Includes goods and shared costs. Selections above €125 are rejected; joining closes at €125.'|lang }}</p>
         <div class="button-row">
             <button class="btn" type="submit">{{ 'Save'|lang }}</button>
             <a class="btn btn-secondary" href="{{ url_for('group_purchases.group_purchases_page') }}#purchase-{{ purchase.id }}">{{ 'Cancel'|lang }}</a>
