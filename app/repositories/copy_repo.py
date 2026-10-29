@@ -11,6 +11,12 @@ class CopyRepository:
     def member_exists(self, member_id):
         return self.conn.execute('SELECT 1 FROM members WHERE id=?', (member_id,)).fetchone() is not None
 
+    def prior_request(self, creator, key):
+        return self.conn.execute('SELECT fingerprint,result_json FROM copy_requests WHERE creator_id=? AND request_key=?', (creator, key)).fetchone()
+
+    def save_request(self, creator, key, fingerprint, result):
+        self.conn.execute('INSERT INTO copy_requests(creator_id,request_key,fingerprint,result_json) VALUES (?,?,?,?)', (creator, key, fingerprint, result))
+
     def proposal(self, source, creator, title, image):
         return self.conn.execute('''INSERT INTO proposals(title,description,amount,url,image_filename,created_by,basic_supplies,status)
             VALUES (?,?,?,?,?,?,?,'active')''', (title, source['description'], source['amount'], source['url'], image, creator,

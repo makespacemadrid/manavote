@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 {% block content %}
 {% include "_top_nav.html" %}
-<article class="card about-page">
+<article class="about-page">
     <header class="about-intro">
         <p class="about-eyebrow">MakeSpace Madrid</p>
         <h1>{{ 'About'|lang }}</h1>
@@ -10,19 +10,21 @@
     </header>
     <section class="about-section" aria-labelledby="about-how">
         <h2 id="about-how">{{ 'How It Works'|lang }}</h2>
-        <ul class="about-list">
-            <li>{{ 'About flow submit vote'|lang }}</li>
-            <li>{{ 'Members vote on proposals'|lang }}
-                <ul>
+        <ol class="about-flow">
+            <li><h3>{{ 'Suggest a purchase'|lang }}</h3><p>{{ 'About flow submit vote'|lang }}</p></li>
+            <li><h3>{{ 'Vote together'|lang }}</h3>
+                <ul class="about-thresholds">
                     <li>{{ 'Basic supplies threshold'|lang }}</li>
                     <li>{{ 'Standard threshold'|lang }}</li>
                     <li>{{ 'Expensive threshold'|lang }}</li>
                 </ul>
             </li>
-            <li>{{ 'About flow approved'|lang }}</li>
-            <li>{{ 'Over-budget proposals'|lang }}</li>
-            <li>{{ 'About flow undo'|lang }}</li>
-        </ul>
+            <li><h3>{{ 'Put the decision into action'|lang }}</h3>
+                <p>{{ 'About flow approved'|lang }}</p>
+                <p>{{ 'Over-budget proposals'|lang }}</p>
+                <p>{{ 'About flow undo'|lang }}</p>
+            </li>
+        </ol>
     </section>
     <div class="about-details">
         <section class="about-section" aria-labelledby="about-funding">

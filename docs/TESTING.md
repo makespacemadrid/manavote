@@ -48,6 +48,13 @@ appears in the Quick Start configuration reference. Add new documentation beneat
 copy-tool inputs/outputs, fresh state, unchanged source records, independent image files,
 new/reset deadlines, permission/creator binding, explicit Telegram confirmation, and
 rollback of both database rows and newly copied images.
+Copy checks also cover concurrent retries, key conflicts, durable request rollback,
+default deduplication, fresh keys, and admin web forms using the same service.
+`tests/test_feedback_telegram_notifications.py` mocks Telegram to verify opt-in, private
+localized delivery, at-most-one attempts, opt-out/unlink/failure behavior and web fallback;
+the tests never send real notifications.
+About browser checks include a single stacked reading column, full-width introductory
+paragraphs, inline links, and the inline Feedback action at mobile/tablet/desktop sizes.
 
 Workflow regression checks in `tests/test_admin_interface.py` and
 `tests/test_group_purchases.py` cover atomic error download/archive (including concurrent

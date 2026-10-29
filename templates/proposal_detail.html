@@ -95,10 +95,11 @@
     </div>
     {% endif %}
 
-    {% if (proposal.status == 'active' and (proposal.created_by == session.member_id or session.is_admin)) or (session.is_admin and proposal.status == 'approved') %}
+    {% if (proposal.status == 'active' and (proposal.created_by == session.member_id or session.is_admin)) or session.is_admin %}
     <section style="margin-top: 24px; padding-top: 18px; border-top: 1px solid #3a3a3a;" aria-labelledby="proposalActionsHeading">
         <h3 id="proposalActionsHeading" style="font-size: 1em; color: #aaa;">{{ 'Proposal actions'|lang }}</h3>
         <div class="button-row">
+            {% with copy_kind='proposal', copy_source_id=proposal.id %}{% include '_copy_button.html' %}{% endwith %}
             {% if proposal.status == 'active' and (proposal.created_by == session.member_id or session.is_admin) %}
             <a href="{{ url_for('proposals.edit_proposal', proposal_id=proposal.id) }}" class="btn btn-secondary">{{ t('Edit') }}</a>
             <form method="POST" action="{{ url_for('proposals.delete_proposal', proposal_id=proposal.id) }}" onsubmit="return confirmDangerAction(this, '{{ 'Delete proposal confirm'|lang }}');">

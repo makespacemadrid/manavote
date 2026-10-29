@@ -195,6 +195,13 @@ If a proposal marked basic supplies has amount > €20, basic flag is auto-remov
   titles/questions and future deadlines are supported. Group purchases retain their
   member/amount closing rules and obey them on creation. Sources and budgets are unchanged;
   no announcements are sent. See the [MCP reference](interfaces/MCP.md#copy-tools).
+- Copy tools now persist creator-scoped idempotency keys. Same-key retries return the
+  original result, conflicting reuse is rejected, and identical requests without an
+  explicit key reuse the original copy. Fresh keys allow intentional new copies.
+- Admins have Copy as new buttons on proposal details, polls and group purchases,
+  backed by the same service and CSRF-protected POST endpoint. A per-form key prevents
+  duplicate copies from double submissions; new records are attributed to the session
+  administrator, with the same fresh-state rules as MCP.
 
 ### Administrator error reports
 
@@ -233,6 +240,12 @@ If a proposal marked basic supplies has amount > €20, basic flag is auto-remov
   within the same transaction. Repeated resolution is a no-op for notifications. Reopening
   and resolving again creates a new notification. Members can dismiss only their own
   notifications. Deleting feedback removes its notes and notifications.
+- Members with linked Telegram accounts can opt in under Settings to private resolution
+  messages, in English/Spanish according to their preference at opt-in. Default is off;
+  unlinked members cannot enable it. Delivery rechecks the link/preference, claims one
+  attempt per notice after the resolution transaction commits, and records sent/failed
+  status. Failures never remove the in-app notice or undo resolution. Ambiguous failures
+  or interrupted sends are not retried automatically, avoiding duplicate messages.
 
 ### React application shell
 
@@ -284,8 +297,9 @@ Committed series behavior:
 ### About page
 - Content is fully localized (English/Spanish) via translation keys.
 - Budget and Proposals link directly from the original funding/tracking sentence words,
-  retaining localized wording. Feedback is an inline dialog action; sections and feature
-  cards adapt to narrow screens, with visible keyboard focus.
+  retaining localized wording. Feedback is an inline dialog action. All sections use a
+  single column, including the numbered proposal flow and Extras; introductory paragraphs
+  use the full same-column width. Keyboard focus remains visible.
 - Explains proposal lifecycle, threshold rules, funding model, and transparency expectations.
 - Includes governance link to the public repository for proposing feature changes.
 

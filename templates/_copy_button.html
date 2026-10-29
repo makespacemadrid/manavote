@@ -1,0 +1,7 @@
+{% if session.get('is_admin') %}
+<form method="POST" action="{{ url_for('admin.copy_from_web', kind=copy_kind, source_id=copy_source_id) }}">
+    <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+    <input type="hidden" name="idempotency_key" value="{{ copy_request_key() }}">
+    <button class="btn btn-secondary" type="submit">{{ 'Copy as new'|lang }}</button>
+</form>
+{% endif %}

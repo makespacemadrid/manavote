@@ -14,6 +14,7 @@ from app.repositories.member_repo import MemberRepository
 from app.repositories.feedback_repo import FeedbackRepository
 import sqlite3
 from app.services import feedback_service
+from app.services.feedback_notification_service import set_preferences
 from app.services.telegram_link_service import (
     link_member_telegram,
     read_browser_link_token,
@@ -285,6 +286,13 @@ def settings_page():
         member = MemberRepository(conn).get_by_id(session["member_id"])
 
         if request.method == "POST":
+            if request.form.get('action') == 'feedback_notification_preferences':
+                try:
+                    set_preferences(conn, session['member_id'], request.form.get('enabled') == '1', session.get('lang', 'en'))
+                    flash('Notification preferences saved.', 'success')
+                except ValueError as exc:
+                    flash(str(exc), 'error')
+                return redirect(url_for('auth.settings_page'))
             if request.form.get("action") == "submit_feedback":
                 try:
                     feedback_service.submit_feedback(
@@ -306,7 +314,9 @@ def settings_page():
 
         email = (member["email"] or "").strip() if member else ""
         return render_template(
-            "settings.html", email=email, session_lang=session.get("lang", "en")
+            "settings.html", email=email, session_lang=session.get("lang", "en"),
+            feedback_telegram_enabled=bool(member and member['feedback_telegram_notifications']),
+            feedback_telegram_linked=bool(member and member['telegram_user_id']),
         )
 
 

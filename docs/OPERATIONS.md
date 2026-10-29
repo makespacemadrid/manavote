@@ -1,5 +1,16 @@
 # Operations and Diagnostics
 
+## Optional feedback-resolution messages
+
+Members opt in under Settings after linking Telegram; the default is off. The configured
+`TELEGRAM_BOT_TOKEN` sends a private generic resolution message to the linked user ID,
+without feedback contents or admin notes. The in-app notice always remains available.
+Delivery is claimed after the resolution commits and occurs outside the SQLite writer.
+`feedback_notifications.telegram_status` records pending/sending/sent/failed; failures
+emit `event=feedback_telegram_delivery` with safe status metadata. There is no automatic
+retry of failed or interrupted sends, because a timeout may follow successful delivery.
+Changing links or opting out prevents delivery when detected at the final recheck.
+
 ## Downloading an error report
 
 Frontend script/stylesheet URLs include content fingerprints, so a new deployment does

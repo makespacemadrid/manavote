@@ -42,9 +42,10 @@
     {% endif %}
     {% if polls %}
         {% for p in polls %}
-        <div style="border:1px solid #333;padding:12px;margin-bottom:16px;border-radius:8px;">
+        <div id="poll-{{ p.id }}" style="border:1px solid #333;padding:12px;margin-bottom:16px;border-radius:8px;">
             <h3 style="margin-top:0;">{{ p.question }} {% if p.status == "closed" %}<span class="status" style="background:#444;">{{ 'Closed'|lang }}</span>{% endif %} {% if p.allow_multiple %}<span class="status" style="background:#9b59b622; color:#9b59b6;">{{ 'Multi-select'|lang }}</span>{% endif %}</h3>
             <p style="color:#888;">{{ 'By'|lang }} {{ p.creator|username }} · {{ p.created_at|localtime("%Y-%m-%d %H:%M") }}</p>
+            {% with copy_kind='poll', copy_source_id=p.id %}{% include '_copy_button.html' %}{% endwith %}
 
             {# Put the member's primary action first, followed by results and details. #}
             <div class="poll-card-grid">

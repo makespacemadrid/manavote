@@ -10,7 +10,22 @@ class FeedbackRepository:
         self.conn.execute("UPDATE feedback SET status=?, resolved_by=?, resolved_at=CASE WHEN ?='resolved' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id=?", (status, actor, status, feedback_id))
 
     def notify(self, feedback):
-        self.conn.execute('INSERT INTO feedback_notifications(feedback_id,member_id,message) VALUES (?,?,?)', (feedback['id'], feedback['member_id'], feedback['message'][:250]))
+        return self.conn.execute('INSERT INTO feedback_notifications(feedback_id,member_id,message) VALUES (?,?,?)', (feedback['id'], feedback['member_id'], feedback['message'][:250])).lastrowid
+
+    def member(self, member_id):
+        return self.conn.execute('SELECT * FROM members WHERE id=?', (member_id,)).fetchone()
+
+    def preferences(self, member_id, enabled, language):
+        self.conn.execute('UPDATE members SET feedback_telegram_notifications=?,feedback_notification_language=? WHERE id=?', (int(enabled), language, member_id))
+
+    def delivery(self, notification_id):
+        return self.conn.execute('SELECT * FROM feedback_notifications WHERE id=?', (notification_id,)).fetchone()
+
+    def claim_delivery(self, notification_id):
+        return self.conn.execute("UPDATE feedback_notifications SET telegram_status='sending' WHERE id=? AND telegram_status='pending'", (notification_id,)).rowcount
+
+    def finish_delivery(self, notification_id, status):
+        self.conn.execute("UPDATE feedback_notifications SET telegram_status=?,telegram_sent_at=CASE WHEN ?='sent' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id=?", (status, status, notification_id))
 
     def notifications(self, member_id):
         return [dict(r) for r in self.conn.execute('SELECT * FROM feedback_notifications WHERE member_id=? AND read_at IS NULL ORDER BY id DESC LIMIT 50', (member_id,))]

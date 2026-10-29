@@ -7,6 +7,22 @@ history. [IDEAS.md](IDEAS.md) contains unfinished work; [SPRINTS.md](SPRINTS.md)
 records iteration scope and progress. Detailed historical findings and decisions are
 preserved in the [roadmap audit archive](archive/ROADMAP_AUDITS.md).
 
+## Unreleased — Copy retry protection, web copies and Telegram preferences
+
+- MCP copies persist creator-scoped request keys: retries reuse the original result,
+  changed arguments conflict, and fresh keys allow intentional additional copies.
+  Requests without explicit keys reuse identical prior requests by default.
+- Added admin-only Copy as new buttons on proposals, polls and group purchases, with
+  session attribution, CSRF protection and per-form keys using the same copy service.
+- Linked members can opt into private Telegram feedback-resolution notices in Settings.
+  In-app notices remain guaranteed; claimed delivery attempts avoid duplicate messages,
+  and missing links or delivery failures do not undo feedback resolution.
+- Reworked About into one column with full-width introductory paragraphs, numbered
+  proposal steps, and vertically stacked funding, tracking and Extras sections.
+- Validation: full Python run passed 986 tests; follow-up Settings coverage passed.
+  Five frontend tests, production build, and six bilingual Chromium layout/interaction
+  checks passed.
+
 ## Unreleased — About readability
 
 - Budget and Proposals links now wrap the original sentence words in both languages,
