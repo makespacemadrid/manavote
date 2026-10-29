@@ -51,6 +51,10 @@ delete and resolution notices, and joining limits based on distinct members with
 serialized last-slot admission. `scripts/check_dialogs.mjs` also verifies Admin tab
 refresh and successful React hydration in both languages at all three viewport sizes.
 
+Group-purchase amount-cap checks cover goods plus shared costs, decimal-cent boundaries,
+overshoot rollback, concurrent final selections, enabling the cap through an edit,
+uncapped compatibility, and composition with member-count limits.
+
 Coke/Coke Zero QR artwork uses high error correction with a small central wordmark.
 Validate exported label PNGs with a decoder against their exact original scan URLs when
 changing the artwork; titles/colours must not alter tokens or quiet zones.

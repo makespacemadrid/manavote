@@ -352,6 +352,14 @@ Committed series behavior:
   edits are rejected. Closing joining does not claim an order was placed. The creator can
   advance `open` or `closed` to `ordered`, then `received`. Lowering an open purchase's
   limit below its current participation also closes joining; blank limits disable it.
+- Creators/admins can enable an optional €125 cap on selected goods plus all shared
+  costs. Money comparisons use decimal cents. Quantity changes above the cap are rejected
+  atomically; reaching exactly €125 closes joining. Price, shared-cost, and cap-setting
+  edits obey the same constraint and preserve the previous order on rejection. Either
+  the member limit or the amount cap can close joining; disabling a cap does not reopen
+  an already-closed order. This is a chosen budget control, not a customs eligibility check.
+- New/edit forms place order deadline, member limit and the €125 cap below Add shared
+  cost. The listing shows the running goods-plus-shared-cost total and cap status.
 - The page calculates the amount owed by every participant and lets the creator mark each payment as received.
 
 ## 8) HTTP routes

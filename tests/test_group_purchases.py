@@ -547,3 +547,85 @@ def test_join_limit_serializes_concurrent_members(group_purchase_client):
         assert sorted(pool.map(join, [2,3])) == [False, True]
     with sqlite3.connect(path) as conn:
         assert conn.execute('SELECT COUNT(*) FROM group_purchase_quantities').fetchone()[0] == 1
+
+
+def test_amount_cap_includes_shared_costs_and_rolls_back_overshoot(group_purchase_client):
+    from app.services import group_purchase_service as groups
+    client, path = group_purchase_client
+    client.post('/group-purchases', data={'title': 'Capped order', 'components': 'Part | 30', 'cost_label': ['Shipping'], 'cost_amount': ['5'], 'cap_at_125': '1'})
+    conn = sqlite3.connect(path); conn.row_factory = sqlite3.Row
+    purchase_id, component_id = conn.execute('SELECT group_purchase_id,id FROM group_purchase_components').fetchone()
+    groups.set_quantity(conn, purchase_id=purchase_id, component_id=component_id, member_id=1, quantity=3)
+    assert groups.build_purchase_page(conn, 1)[0]['order_total'] == 95
+    with pytest.raises(ValueError, match='cannot exceed'):
+        groups.set_quantity(conn, purchase_id=purchase_id, component_id=component_id, member_id=1, quantity=5)
+    assert conn.execute('SELECT quantity FROM group_purchase_quantities').fetchone()[0] == 3
+    assert conn.execute('SELECT status FROM group_purchases').fetchone()[0] == 'open'
+    groups.set_quantity(conn, purchase_id=purchase_id, component_id=component_id, member_id=1, quantity=4)
+    assert conn.execute('SELECT status FROM group_purchases').fetchone()[0] == 'closed'
+    assert groups.build_purchase_page(conn, 1)[0]['order_total'] == 125
+    conn.close()
+
+
+def test_amount_cap_serializes_last_slot_and_uses_decimal_cents(group_purchase_client):
+    from concurrent.futures import ThreadPoolExecutor
+    from app.services import group_purchase_service as groups
+    client, path = group_purchase_client
+    client.post('/group-purchases', data={'title': 'Cents', 'components': 'Part | 62.45', 'cost_label': ['Shipping'], 'cost_amount': ['0.10'], 'cap_at_125': '1'})
+    with sqlite3.connect(path) as conn:
+        conn.executemany("INSERT INTO members(id,username,password_hash) VALUES (?,?,'x')", [(2,'second'), (3,'third')])
+        purchase_id, component_id = conn.execute('SELECT group_purchase_id,id FROM group_purchase_components').fetchone()
+    def join(member_id):
+        conn = sqlite3.connect(path); conn.row_factory = sqlite3.Row
+        try:
+            groups.set_quantity(conn, purchase_id=purchase_id, component_id=component_id, member_id=member_id, quantity=1)
+            return True
+        except ValueError:
+            return False
+        finally:
+            conn.close()
+    with ThreadPoolExecutor(max_workers=3) as pool:
+        assert sorted(pool.map(join, [1,2,3])) == [False, True, True]
+    with sqlite3.connect(path) as conn:
+        assert conn.execute('SELECT SUM(quantity) FROM group_purchase_quantities').fetchone()[0] == 2
+        assert conn.execute('SELECT status FROM group_purchases').fetchone()[0] == 'closed'
+
+
+def test_enabling_cap_or_increasing_prices_cannot_exceed_limit(group_purchase_client):
+    from app.services import group_purchase_service as groups
+    client, path = group_purchase_client
+    client.post('/group-purchases', data={'title': 'Original', 'components': 'Part | 60'})
+    conn = sqlite3.connect(path); conn.row_factory = sqlite3.Row
+    purchase_id, component_id = conn.execute('SELECT group_purchase_id,id FROM group_purchase_components').fetchone()
+    groups.set_quantity(conn, purchase_id=purchase_id, component_id=component_id, member_id=1, quantity=2)
+    conn.close()
+    response = client.post(f'/group-purchases/{purchase_id}/edit', data={
+        'title': 'Draft', f'component_name_{component_id}': 'Part', f'component_price_{component_id}': '63', 'cap_at_125': '1',
+    })
+    assert response.status_code == 200 and b'Draft' in response.data and 'cannot exceed'.encode() in response.data
+    with sqlite3.connect(path) as conn:
+        assert conn.execute('SELECT title,cap_at_125,status FROM group_purchases').fetchone() == ('Original',0,'open')
+        assert conn.execute('SELECT unit_price FROM group_purchase_components').fetchone()[0] == 60
+    response = client.post(f'/group-purchases/{purchase_id}/edit', data={
+        'title': 'Capped', f'component_name_{component_id}': 'Part', f'component_price_{component_id}': '62.50', 'cap_at_125': '1',
+    })
+    assert response.status_code == 302
+    with sqlite3.connect(path) as conn:
+        assert conn.execute('SELECT cap_at_125,status FROM group_purchases').fetchone() == (1,'closed')
+
+
+def test_disabled_amount_cap_and_combined_member_limit(group_purchase_client):
+    from app.services import group_purchase_service as groups
+    client, path = group_purchase_client
+    client.post('/group-purchases', data={'title': 'Uncapped', 'components': 'Part | 126'})
+    conn = sqlite3.connect(path); conn.row_factory = sqlite3.Row
+    purchase_id, component_id = conn.execute('SELECT group_purchase_id,id FROM group_purchase_components').fetchone()
+    groups.set_quantity(conn, purchase_id=purchase_id, component_id=component_id, member_id=1, quantity=1)
+    assert conn.execute('SELECT status FROM group_purchases').fetchone()[0] == 'open'
+    conn.close()
+    client.post('/group-purchases', data={'title': 'Both', 'components': 'Part | 10', 'cap_at_125':'1', 'join_member_limit':'1'})
+    conn = sqlite3.connect(path); conn.row_factory = sqlite3.Row
+    purchase_id, component_id = conn.execute('SELECT group_purchase_id,id FROM group_purchase_components ORDER BY id DESC').fetchone()
+    groups.set_quantity(conn, purchase_id=purchase_id, component_id=component_id, member_id=1, quantity=1)
+    assert conn.execute('SELECT status FROM group_purchases WHERE id=?', (purchase_id,)).fetchone()[0] == 'closed'
+    conn.close()

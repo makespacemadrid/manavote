@@ -172,6 +172,7 @@ def run_migrations(cursor):
     add_column_if_missing(cursor, "group_purchases", "image_filename TEXT")
     add_column_if_missing(cursor, "group_purchases", "payment_method TEXT")
     add_column_if_missing(cursor, "group_purchases", "join_member_limit INTEGER")
+    add_column_if_missing(cursor, "group_purchases", "cap_at_125 INTEGER NOT NULL DEFAULT 0")
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS group_purchase_components (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

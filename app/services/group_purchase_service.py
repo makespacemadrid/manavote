@@ -2,6 +2,7 @@
 from contextlib import contextmanager
 from datetime import date
 import math
+from decimal import Decimal, InvalidOperation
 from urllib.parse import urlparse
 from app.repositories.group_purchase_repo import GroupPurchaseRepository
 from app.db.transactions import write_transaction
@@ -174,7 +175,7 @@ def component_updates(purchase_id, components, values):
 
 
 def create_purchase(connection, *, title, description, deadline, product_url, image_filename,
-                    payment_method, member_id, components, shared_costs, join_member_limit=None):
+                    payment_method, member_id, components, shared_costs, join_member_limit=None, cap_at_125=False):
     join_member_limit = parse_join_member_limit(join_member_limit)
     error = validate_creation(title=title, components=components, deadline=deadline, product_url=product_url,
                               payment_method=payment_method, component_error=None, shared_cost_error=None)
@@ -184,8 +185,10 @@ def create_purchase(connection, *, title, description, deadline, product_url, im
     with _transaction(connection):
         purchase_id = repo.create(title, description, deadline, product_url, image_filename, payment_method, member_id)
         repo.set_join_limit(purchase_id, join_member_limit)
+        repo.set_amount_cap(purchase_id, cap_at_125)
         repo.insert_components(purchase_id, components)
         repo.insert_shared_costs(purchase_id, shared_costs)
+        enforce_purchase_limits(repo, purchase_id)
     return purchase_id
 
 
@@ -199,6 +202,7 @@ def build_purchase_page(connection, member_id):
             component['user_quantity'] = next((o['quantity'] for o in component['orders'] if o['member_id'] == member_id), 0)
         purchase['shared_costs'] = [dict(row) for row in repo.shared_costs(purchase['id'])]
         purchase['shared_cost_total'] = sum(c['amount'] for c in purchase['shared_costs'])
+        purchase['order_total'] = purchase_amount(repo.selected_prices(purchase['id']), [(c['label'], c['amount']) for c in purchase['shared_costs']])
         purchase['debts'] = [dict(row) for row in repo.debts(purchase['id'])]
         purchase['joined_members'] = len(purchase['debts'])
         _allocate_shared_costs(purchase['debts'], purchase['shared_cost_total'])
@@ -213,7 +217,35 @@ def set_quantity(connection, *, purchase_id, component_id, member_id, quantity):
         if repo.open_component(purchase_id, component_id) is None:
             raise ValueError('Component not found')
         repo.set_quantity(component_id, member_id, quantity)
-        repo.close_at_join_limit(purchase_id)
+        enforce_purchase_limits(repo, purchase_id)
+
+
+def purchase_amount(prices, shared_costs, updates=()):
+    replacements = {row[2]: row[1] for row in updates}
+    def money(value):
+        try:
+            result = Decimal(str(value))
+            if not result.is_finite() or result < 0:
+                raise ValueError('Invalid component name or price')
+            return result.quantize(Decimal('0.01'))
+        except (InvalidOperation, TypeError):
+            raise ValueError('Invalid component name or price') from None
+    return sum((money(replacements.get(row['id'], row['unit_price'])) * row['quantity'] for row in prices), Decimal('0')) + sum((money(amount) for _, amount in shared_costs), Decimal('0'))
+
+
+def validate_amount_cap(total, enabled):
+    if enabled and total > Decimal('125.00'):
+        raise ValueError('This order cannot exceed €125 including shared costs. Reduce quantities or costs.')
+
+
+def enforce_purchase_limits(repo, purchase_id):
+    purchase = repo.get_by_id(purchase_id)
+    if purchase['cap_at_125']:
+        total = purchase_amount(repo.selected_prices(purchase_id), [(r['label'], r['amount']) for r in repo.shared_costs(purchase_id)])
+        validate_amount_cap(total, True)
+        if total == Decimal('125.00') and purchase['status'] == 'open':
+            repo.set_status(purchase_id, 'closed')
+    repo.close_at_join_limit(purchase_id)
 
 
 def parse_join_member_limit(value):
@@ -250,7 +282,7 @@ def validate_component_additions(updates, names, prices):
 
 def edit_purchase(connection, *, purchase_id, member_id, is_admin, title, description,
                   deadline, product_url, image_filename, payment_method, updates, shared_costs,
-                  new_components=(), join_member_limit=None):
+                  new_components=(), join_member_limit=None, cap_at_125=None):
     join_member_limit = parse_join_member_limit(join_member_limit)
     if manageable_purchase(connection, purchase_id, member_id, is_admin) is None:
         raise ValueError('Only the creator or an admin can edit this group purchase')
@@ -264,11 +296,13 @@ def edit_purchase(connection, *, purchase_id, member_id, is_admin, title, descri
             raise ValueError('A group purchase can have at most 30 components')
         repo.update(purchase_id, title, description, deadline, product_url, image_filename, payment_method)
         repo.set_join_limit(purchase_id, join_member_limit)
+        if cap_at_125 is not None:
+            repo.set_amount_cap(purchase_id, cap_at_125)
         repo.update_components(updates)
         repo.insert_components(purchase_id, additions, start_position=max((row['position'] for row in existing), default=-1) + 1)
         repo.delete_shared_costs(purchase_id)
         repo.insert_shared_costs(purchase_id, shared_costs)
-        repo.close_at_join_limit(purchase_id)
+        enforce_purchase_limits(repo, purchase_id)
 
 
 def delete_purchase(connection, *, purchase_id, member_id, is_admin):

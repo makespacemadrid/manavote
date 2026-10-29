@@ -798,6 +798,11 @@ TRANSLATIONS = {
 # Literal notifications emitted by routes. Keeping these in one catalog makes it
 # easy for coverage tests to ensure that a newly added flash is translated.
 _FLASH_TRANSLATIONS_ES = {
+    "Close joining at €125 total": "Cerrar la inscripción al alcanzar 125 € en total",
+    "Includes goods and shared costs. Selections above €125 are rejected; joining closes at €125.": "Incluye productos y gastos compartidos. Se rechazan selecciones superiores a 125 €; la inscripción se cierra al alcanzar 125 €.",
+    "Order total": "Total del pedido",
+    "€125 cap enabled": "Límite de 125 € activado",
+    "This order cannot exceed €125 including shared costs. Reduce quantities or costs.": "El pedido no puede superar 125 € incluidos los gastos compartidos. Reduce las cantidades o los gastos.",
     "Joining limit": "Límite de inscripción",
     "Downloading marks pending errors as processed and archives them.": "La descarga marca los errores pendientes como procesados y los archiva.",
     "Archived errors": "Errores archivados",

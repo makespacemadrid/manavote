@@ -91,12 +91,14 @@ def group_purchases_page():
             deadline = request.form.get("deadline", "").strip()
             product_url = request.form.get("url", "").strip()
             payment_method = request.form.get("payment_method", "").strip()
+            cap_at_125 = request.form.get('cap_at_125') == '1'
             error = purchases_service.validate_creation(
                 title=title, components=components, deadline=deadline, product_url=product_url,
                 payment_method=payment_method, component_error=component_error, shared_cost_error=shared_cost_error,
             )
             try:
                 join_member_limit = purchases_service.parse_join_member_limit(request.form.get('join_member_limit'))
+                purchases_service.validate_amount_cap(purchases_service.purchase_amount([], shared_costs), cap_at_125)
             except ValueError as exc:
                 error = error or str(exc)
             if error:
@@ -113,7 +115,7 @@ def group_purchases_page():
                     purchase_id = purchases_service.create_purchase(
                         conn, title=title, description=description, deadline=deadline, product_url=product_url,
                         image_filename=image_filename, payment_method=payment_method, member_id=session["member_id"],
-                        components=components, shared_costs=shared_costs, join_member_limit=join_member_limit,
+                        components=components, shared_costs=shared_costs, join_member_limit=join_member_limit, cap_at_125=cap_at_125,
                     )
                     creator = session["username"].split("@")[0]
                     option_lines = "\n".join(
@@ -208,6 +210,7 @@ def edit_purchase(purchase_id):
             deadline = request.form.get("deadline", "").strip()
             product_url = request.form.get("url", "").strip()
             payment_method = request.form.get("payment_method", "").strip()
+            cap_at_125 = request.form.get('cap_at_125') == '1'
             component_updates, invalid_component = purchases_service.component_updates(
                 purchase_id, components,
                 [(request.form.get(f"component_name_{c['id']}", ""), request.form.get(f"component_price_{c['id']}", "0")) for c in components],
@@ -228,6 +231,7 @@ def edit_purchase(purchase_id):
             )
             try:
                 join_member_limit = purchases_service.parse_join_member_limit(request.form.get('join_member_limit'))
+                purchases_service.validate_amount_cap(purchases_service.purchase_amount(repo.selected_prices(purchase_id), shared_costs, component_updates), cap_at_125)
             except ValueError as exc:
                 error = error or str(exc)
             try:
@@ -247,23 +251,33 @@ def edit_purchase(purchase_id):
                 except ValueError as exc:
                     flash(str(exc), "error")
                 else:
-                    if new_image:
-                        old_path = os.path.join(current_app.config["UPLOAD_FOLDER"], image_filename or "")
-                        if image_filename and os.path.exists(old_path):
-                            os.remove(old_path)
-                        image_filename = new_image
-                    purchases_service.edit_purchase(
-                        conn, purchase_id=purchase_id, member_id=session["member_id"], is_admin=session.get("is_admin"),
-                        title=title, description=description, deadline=deadline, product_url=product_url,
-                        image_filename=image_filename, payment_method=payment_method,
-                        updates=component_updates, shared_costs=shared_costs, new_components=new_components, join_member_limit=join_member_limit,
-                    )
-                    flash("Group purchase updated", "success")
-                    return redirect(url_for("group_purchases.group_purchases_page") + f"#purchase-{purchase_id}")
+                    saved = False
+                    try:
+                        purchases_service.edit_purchase(
+                            conn, purchase_id=purchase_id, member_id=session["member_id"], is_admin=session.get("is_admin"),
+                            title=title, description=description, deadline=deadline, product_url=product_url,
+                            image_filename=new_image or image_filename, payment_method=payment_method,
+                            updates=component_updates, shared_costs=shared_costs, new_components=new_components,
+                            join_member_limit=join_member_limit, cap_at_125=cap_at_125,
+                        )
+                        saved = True
+                    except ValueError as exc:
+                        flash(str(exc), 'error')
+                    finally:
+                        if not saved and new_image:
+                            os.remove(os.path.join(current_app.config['UPLOAD_FOLDER'], new_image))
+                    if saved:
+                        if new_image and image_filename:
+                            old_path = os.path.join(current_app.config['UPLOAD_FOLDER'], image_filename)
+                            if os.path.exists(old_path):
+                                os.remove(old_path)
+                        flash("Group purchase updated", "success")
+                        return redirect(url_for("group_purchases.group_purchases_page") + f"#purchase-{purchase_id}")
 
         purchase_data = dict(purchase)
         if request.method == "POST":
             purchase_data.update(request.form)
+            purchase_data['cap_at_125'] = cap_at_125
         return render_template(
             "edit_group_purchase.html",
             purchase=purchase_data,

@@ -88,6 +88,14 @@ class GroupPurchaseRepository:
     def set_join_limit(self, purchase_id, limit):
         self.conn.execute('UPDATE group_purchases SET join_member_limit = ? WHERE id = ?', (limit, purchase_id))
 
+    def set_amount_cap(self, purchase_id, enabled):
+        self.conn.execute('UPDATE group_purchases SET cap_at_125 = ? WHERE id = ?', (int(enabled), purchase_id))
+
+    def selected_prices(self, purchase_id):
+        return self.conn.execute('''SELECT c.id, c.unit_price, COALESCE(SUM(q.quantity), 0) AS quantity
+            FROM group_purchase_components c LEFT JOIN group_purchase_quantities q ON q.component_id=c.id
+            WHERE c.group_purchase_id=? GROUP BY c.id''', (purchase_id,)).fetchall()
+
     def close_at_join_limit(self, purchase_id):
         self.conn.execute('''UPDATE group_purchases SET status = 'closed'
             WHERE id = ? AND status = 'open' AND join_member_limit IS NOT NULL
