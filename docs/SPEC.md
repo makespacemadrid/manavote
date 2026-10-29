@@ -184,6 +184,22 @@ If a proposal marked basic supplies has amount > €20, basic flag is auto-remov
 
 ## 7) UI/feature behavior
 
+### Administrator error reports
+
+- The Errors tab precedes Feedback and lists the latest 200 Python logging warnings
+  and errors from web workers, newest first, with timestamps, severity, logger/call site,
+  and available exception traceback locations. Details are capped at 16,000 characters.
+- Session administrators can download the same records as UTF-8 JSON from
+  `GET /admin/errors/download`; API keys alone do not grant access. Both Admin HTML
+  and downloads use `Cache-Control: no-store`; displayed diagnostic text is escaped.
+- Capture starts after deployment. Records live in a separate `<APP_DB_PATH>.errors.db`
+  SQLite file shared by workers and retained across restarts when its volume persists.
+  Browser DevTools, raw stdout/stderr, and historical container logs are not imported.
+- Configured credentials and conventional secret fields are scrubbed at capture and
+  export. No request bodies, headers, frame locals, or source lines are collected.
+  Arbitrary sensitive text already present in log messages cannot be guaranteed absent;
+  review downloads before sharing. Storage failures do not interrupt normal logging.
+
 ### React application shell
 
 - Flask remains the source of truth for routes, sessions, authorization, localization, and page data.

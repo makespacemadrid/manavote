@@ -1,5 +1,26 @@
 # Operations and Diagnostics
 
+## Downloading an error report
+
+In Admin, open **Errors** (before Feedback), expand a record to read its details,
+or choose **Download error report** to save `manavote-errors.json` for troubleshooting.
+Warnings and errors recorded through Python logging include their original timestamp,
+logger, call site, and available traceback; errors logged without exception information
+cannot supply a traceback retroactively. The empty state means no records were captured.
+
+Capture begins with this deployment and retains the latest 200 records (16,000 detail
+characters each). Workers share `<APP_DB_PATH>.errors.db`; keep its containing directory
+writable and on a persistent volume to retain reports across container replacements.
+The Compose `/data` volume already meets this requirement. Diagnostic records are
+separate from application database backups. If storage is unavailable, Admin/downloads
+show that status and console logging continues. Check disk space and permissions.
+
+This does not import old `app.log`/container output, raw print/stderr, or browser DevTools
+errors. Credentials are scrubbed at capture and download, and no request bodies, headers,
+source lines, or frame locals are added. Free-text logs may still contain sensitive
+business/member information; review the report before sharing it. Only signed-in session
+administrators can view/download reports, and responses are marked `no-store`.
+
 This guide is the operator-facing reference for startup health, scheduled work,
 backups, MCP failures, OIDC failures, and the Telegram assistant. Deployment and
 environment setup remain in [`QUICKSTART.md`](QUICKSTART.md); behavioral contracts

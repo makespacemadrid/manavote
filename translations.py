@@ -798,6 +798,10 @@ TRANSLATIONS = {
 # Literal notifications emitted by routes. Keeping these in one catalog makes it
 # easy for coverage tests to ensure that a newly added flash is translated.
 _FLASH_TRANSLATIONS_ES = {
+    "Errors": "Errores",
+    "Download error report": "Descargar informe de errores",
+    "No captured errors yet.": "Todavía no se han registrado errores.",
+    "Server warnings and errors captured after this update. Latest 200 records; browser console errors are not included.": "Avisos y errores del servidor registrados después de esta actualización. Últimos 200 registros; no incluye errores de la consola del navegador.",
     "Duplicate component name": "Nombre de componente duplicado",
     "Choose a JPG or PNG image, or submit without a new image. Your other entries have been kept.": "Elige una imagen JPG o PNG, o envía el formulario sin una imagen nueva. Se han conservado los demás datos.",
     "A group purchase can have at most 30 components": "Una compra conjunta puede tener como máximo 30 componentes",

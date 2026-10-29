@@ -93,3 +93,109 @@ def test_assistant_health_is_admin_only_and_contains_safe_aggregate_fields(ui_cl
         session.update(member_id=2,is_admin=False)
     assert ui_client.get('/admin/assistant-health').status_code == 302
     assert app.test_client().get('/admin/assistant-health').status_code == 302
+
+
+@pytest.fixture
+def error_store(ui_client, tmp_path, monkeypatch):
+    import logging
+    from app.repositories.error_report_repo import ErrorReportRepository
+    from app.integrations.error_reporting import ErrorReportHandler
+    repo = ErrorReportRepository(tmp_path / 'diagnostics.db')
+    monkeypatch.setitem(app.extensions, 'error_reports', repo)
+    handler = ErrorReportHandler(repo)
+    logging.getLogger().addHandler(handler)
+    yield repo
+    logging.getLogger().removeHandler(handler)
+    handler.close()
+
+
+def test_errors_tab_precedes_feedback_and_download_contains_verbose_trace(ui_client, error_store, monkeypatch):
+    import logging
+    monkeypatch.setenv('ADMIN_API_KEY', 'do-not-export-this-secret')
+    logger = logging.getLogger('manavote.test.errors')
+    try:
+        raise ValueError('request failed api_key=do-not-export-this-secret <script>bad</script>')
+    except ValueError:
+        logger.exception('Failed operation')
+    response = ui_client.get('/admin?tab=errors')
+    html = response.get_data(as_text=True)
+    assert response.status_code == 200 and response.headers['Cache-Control'] == 'no-store'
+    assert html.index('data-section="errors"') < html.index('data-section="feedback"')
+    assert 'Traceback' in html and 'ValueError' in html
+    assert '<script>bad</script>' not in html
+    assert 'do-not-export-this-secret' not in html
+    report = ui_client.get('/admin/errors/download')
+    assert report.status_code == 200
+    assert report.headers['Cache-Control'] == 'no-store'
+    assert 'attachment;' in report.headers['Content-Disposition']
+    assert report.mimetype == 'application/json'
+    data = report.get_json()
+    assert data['errors'][0]['logger'] == 'manavote.test.errors'
+    assert 'test_admin_interface.py' in data['errors'][0]['details']
+    assert 'do-not-export-this-secret' not in report.get_data(as_text=True)
+    assert '[REDACTED]' in report.get_data(as_text=True)
+
+
+@pytest.mark.parametrize('role', ['anonymous', 'member', 'api_key'])
+def test_error_download_is_session_admin_only(ui_client, error_store, role, monkeypatch):
+    with ui_client.session_transaction() as session:
+        session.clear()
+        if role == 'member':
+            session.update(member_id=2, username='member', is_admin=False)
+    monkeypatch.setattr(main_routes, 'ADMIN_API_KEY', 'admin-api-key')
+    response = ui_client.get('/admin/errors/download', headers={'X-Admin-Key': 'admin-api-key'})
+    assert response.status_code in (302, 403)
+    assert b'"errors"' not in response.data
+
+
+def test_empty_and_spanish_errors_view(ui_client, error_store):
+    with ui_client.session_transaction() as session:
+        session['lang'] = 'es'
+    html = ui_client.get('/admin?tab=errors').get_data(as_text=True)
+    assert 'Errores' in html and 'Descargar informe de errores' in html
+    assert 'Todavía no se han registrado errores.' in html
+    assert ui_client.get('/admin/errors/download').get_json()['errors'] == []
+
+
+def test_error_capture_is_bounded_persistent_and_scrubs_again_on_export(error_store, monkeypatch):
+    import logging
+    from app.integrations.error_reporting import ErrorReportHandler
+    from app.repositories.error_report_repo import ErrorReportRepository
+    from app.services.error_report_service import list_errors
+    handler = ErrorReportHandler(error_store)
+    for i in range(205):
+        handler.handle(logging.LogRecord('test', logging.ERROR, __file__, 1, f'{i}: ' + 'x' * 18000, (), None))
+    persisted = ErrorReportRepository(error_store.path)
+    rows = persisted.recent()
+    assert len(rows) == 200
+    assert all(len(row['details']) <= 16000 for row in rows)
+    assert '204:' in rows[0]['details'] and '5:' in rows[-1]['details']
+    error_store.append('2026-10-29T10:00:00+00:00', 'ERROR', 'test', 'a-secret-configured-later')
+    monkeypatch.setenv('MCP_API_KEY', 'a-secret-configured-later')
+    assert list_errors(persisted)[0]['details'] == '[REDACTED]'
+
+
+def test_diagnostic_failure_does_not_break_logging_and_admin_shows_unavailable(error_store, ui_client, monkeypatch):
+    import logging
+    import sqlite3
+    from app.integrations.error_reporting import ErrorReportHandler
+    def unavailable(*args):
+        raise sqlite3.OperationalError('private error')
+    monkeypatch.setattr(error_store, 'append', unavailable)
+    monkeypatch.setattr(error_store, 'recent', unavailable)
+    ErrorReportHandler(error_store).handle(logging.LogRecord('test', logging.ERROR, __file__, 1, 'failure', (), None))
+    response = ui_client.get('/admin/errors/download')
+    assert response.status_code == 200
+    assert 'storage is unavailable' in response.get_json()['errors'][0]['details']
+    assert b'private error' not in response.data
+
+
+def test_uncaught_request_error_is_captured_with_traceback(ui_client, error_store, monkeypatch):
+    from app.services import admin_page_service
+    monkeypatch.setitem(app.config, 'PROPAGATE_EXCEPTIONS', False)
+    def fail_page(*args, **kwargs):
+        raise RuntimeError('admin page failure fixture')
+    monkeypatch.setattr(admin_page_service, 'build_admin_page', fail_page)
+    assert ui_client.get('/admin').status_code == 500
+    report = ui_client.get('/admin/errors/download').get_json()
+    assert any('RuntimeError: admin page failure fixture' in row['details'] and 'fail_page' in row['details'] for row in report['errors'])
