@@ -8,10 +8,10 @@ from urllib.parse import urlsplit
 from app.integrations.assistant_safety import scrub
 
 
-def list_errors(repository):
+def list_errors(repository, archived=False):
     # Scrub again so credentials configured after capture are protected too.
     try:
-        return scrub(repository.recent())
+        return scrub(repository.recent(archived=True) if archived else repository.recent())
     except (OSError, sqlite3.Error):
         return [{'id': None, 'created_at': datetime.now(timezone.utc).isoformat(),
                  'level': 'ERROR', 'logger': 'manavote.diagnostics',
@@ -19,11 +19,12 @@ def list_errors(repository):
 
 
 def export_errors(repository):
-    return json.dumps({
-        'generated_at': datetime.now(timezone.utc).isoformat(),
+    generated_at = datetime.now(timezone.utc).isoformat()
+    return repository.export_pending(lambda rows: json.dumps({
+        'generated_at': generated_at,
         'scope': 'Server warnings/errors and signed-in browser JavaScript errors; latest 200 records; each detail capped at 16000 characters. No historical container logs.',
-        'errors': list_errors(repository),
-    }, ensure_ascii=False, indent=2)
+        'errors': scrub(rows),
+    }, ensure_ascii=False, indent=2), generated_at)
 
 
 def capture_browser_error(repository, payload):

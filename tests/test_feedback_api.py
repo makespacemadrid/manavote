@@ -21,6 +21,8 @@ def feedback_db(tmp_path, monkeypatch):
             resolved_at TEXT, resolved_by INTEGER
         );
     """)
+    conn.execute("CREATE TABLE feedback_notifications(id INTEGER PRIMARY KEY,feedback_id INTEGER,member_id INTEGER,message TEXT,read_at TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP)")
+    conn.commit()
     conn.close()
 
     def get_db():

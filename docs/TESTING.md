@@ -44,6 +44,17 @@ appears in the Quick Start configuration reference. Add new documentation beneat
 
 ## Targeted regression packs
 
+Workflow regression checks in `tests/test_admin_interface.py` and
+`tests/test_group_purchases.py` cover atomic error download/archive (including concurrent
+downloads, rollback, and old diagnostic schema migration), feedback rejection/notes/edit/
+delete and resolution notices, and joining limits based on distinct members with
+serialized last-slot admission. `scripts/check_dialogs.mjs` also verifies Admin tab
+refresh and successful React hydration in both languages at all three viewport sizes.
+
+Coke/Coke Zero QR artwork uses high error correction with a small central wordmark.
+Validate exported label PNGs with a decoder against their exact original scan URLs when
+changing the artwork; titles/colours must not alter tokens or quiet zones.
+
 `npm test` includes browser diagnostic interception, uncaught errors/rejections,
 redaction, deduplication, upload caps, preserved console calls, and silent upload failure.
 The Admin interface tests additionally cover member intake with admin-only export,

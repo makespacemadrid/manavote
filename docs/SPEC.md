@@ -126,7 +126,7 @@ Primary modules and responsibilities:
 - Multi-select polls (`allow_multiple = 1`): a member can hold more than one row per poll, one per selected option. Telegram (inline button tap, or the text command) toggles exactly the one option that action names, since each request there represents one discrete user action. The web checkbox form instead adds options (union with the member's prior selections) on every "Vote" click and never removes one that way, since a form submission always resends the browser's entire checkbox state rather than a single action; removing selections on the web requires the separate "Clear my votes" action
 
 ### Group purchases
-- `group_purchases`: title, description, creator, deadline, product URL, image, payment method, and lifecycle status (`open`, `ordered`, `received`).
+- `group_purchases`: title, description, creator, deadline, product URL, image, payment method, optional `join_member_limit`, and lifecycle status (`open`, `closed`, `ordered`, `received`).
 - `group_purchase_components`: named options with a unit price and stable display position.
 - `group_purchase_quantities`: one requested quantity per member and component.
 - `group_purchase_payments`: records that the purchase creator has received a participant's payment.
@@ -190,7 +190,7 @@ If a proposal marked basic supplies has amount > €20, basic flag is auto-remov
   and errors from web workers and browser JavaScript errors, newest first, with timestamps, severity, logger/call site,
   and available exception traceback locations. Details are capped at 16,000 characters.
 - Session administrators can download the same records as UTF-8 JSON from
-  `GET /admin/errors/download`; API keys alone do not grant access. Both Admin HTML
+  `POST /admin/errors/download` with CSRF; API keys alone do not grant access. Both Admin HTML
   and downloads use `Cache-Control: no-store`; displayed diagnostic text is escaped.
 - Capture starts after deployment. Records live in a separate `<APP_DB_PATH>.errors.db`
   SQLite file shared by workers and retained across restarts when its volume persists.
@@ -205,6 +205,22 @@ If a proposal marked basic supplies has amount > €20, basic flag is auto-remov
   field-size validation, and a 20/member/minute limit. Clients deduplicate reports and
   send at most 10 per page load, with no retries on upload failure. Page URL queries and
   fragments are removed; console objects/DOM/form fields are not serialized.
+
+- Error download generation atomically marks only exported pending records processed
+  and archives them; later downloads include only new pending errors. Failed generation
+  or archival rolls back. Retention is 200 pending plus 200 archived records.
+- Admin tabs use validated URL query parameters and fragments, preserving refresh,
+  direct links, and browser Back/Forward navigation.
+
+### Feedback workflow
+
+- Administrators can mark feedback new, reviewed, resolved, or rejected; edit/delete
+  feedback items; and add/edit/delete private administrator notes. Notes are not exposed
+  in member notifications or feedback API output.
+- Moving feedback into resolved creates a persistent in-app notification for its author
+  within the same transaction. Repeated resolution is a no-op for notifications. Reopening
+  and resolving again creates a new notification. Members can dismiss only their own
+  notifications. Deleting feedback removes its notes and notifications.
 
 ### React application shell
 
@@ -331,7 +347,11 @@ Committed series behavior:
 - Creating a proposal announces it in the configured Telegram group/thread, including its options and prices.
 - The configured Telegram group/thread is notified again when the creator marks the order as placed and when the shipment is received.
 - While the purchase is `open`, members can update their requested quantities and the creator can edit its details and option prices.
-- The creator advances the lifecycle from `open` to `ordered`, then to `received`; quantities and prices are frozen once ordered.
+- Optional joining limits count distinct members with positive quantities, not units or
+  components. Reaching the limit atomically changes `open` to `closed`; further quantity
+  edits are rejected. Closing joining does not claim an order was placed. The creator can
+  advance `open` or `closed` to `ordered`, then `received`. Lowering an open purchase's
+  limit below its current participation also closes joining; blank limits disable it.
 - The page calculates the amount owed by every participant and lets the creator mark each payment as received.
 
 ## 8) HTTP routes

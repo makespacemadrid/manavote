@@ -85,6 +85,16 @@ class GroupPurchaseRepository:
     def set_status(self, purchase_id, status):
         self.conn.execute('UPDATE group_purchases SET status = ? WHERE id = ?', (status, purchase_id))
 
+    def set_join_limit(self, purchase_id, limit):
+        self.conn.execute('UPDATE group_purchases SET join_member_limit = ? WHERE id = ?', (limit, purchase_id))
+
+    def close_at_join_limit(self, purchase_id):
+        self.conn.execute('''UPDATE group_purchases SET status = 'closed'
+            WHERE id = ? AND status = 'open' AND join_member_limit IS NOT NULL
+            AND join_member_limit <= (SELECT COUNT(DISTINCT q.member_id)
+                FROM group_purchase_quantities q JOIN group_purchase_components c ON c.id = q.component_id
+                WHERE c.group_purchase_id = group_purchases.id AND q.quantity > 0)''', (purchase_id,))
+
     def is_participant(self, purchase_id, member_id):
         return self.conn.execute('''SELECT 1 FROM group_purchase_quantities q
             JOIN group_purchase_components c ON c.id = q.component_id

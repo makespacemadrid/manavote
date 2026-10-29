@@ -49,8 +49,10 @@ try {
   await new Promise((resolveOpen, reject) => { socket.onopen = resolveOpen; socket.onerror = reject; });
   let nextId = 0;
   const pending = new Map();
+  const consoleErrors = [];
   socket.onmessage = ({ data }) => {
     const message = JSON.parse(data);
+    if (message.method === 'Runtime.consoleAPICalled' && message.params.type === 'error') consoleErrors.push(JSON.stringify(message.params.args));
     if (message.method === 'Runtime.exceptionThrown') console.error('Browser error:', message.params.exceptionDetails.exception?.description);
     const request = pending.get(message.id);
     if (!request) return;
@@ -87,6 +89,8 @@ try {
         await new Promise((resolveDelay) => setTimeout(resolveDelay, 100));
       }
       assert.ok(loaded, `Dialog module did not load: ${await evaluate('JSON.stringify({url:location.href,scripts:Array.from(document.scripts).map(s=>s.src)})')}`);
+      assert.ok(await evaluate('!!document.querySelector("nav[data-react-hydrated]")'), 'Navigation did not hydrate');
+      assert.ok(!consoleErrors.some((text) => /hydration|#418/.test(text)), 'Navigation hydration mismatch');
       assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), `Admin page overflow: ${language}/${width}`);
       await evaluate('document.querySelector("[data-password-open]").focus()');
       assert.ok(await evaluate('document.activeElement.hasAttribute("data-password-open")'), 'Password opener is not focusable');
@@ -118,8 +122,15 @@ try {
       assert.equal(await evaluate('document.activeElement.id'), 'feedback-message');
       await key('Escape');
       assert.ok(await evaluate('document.getElementById("feedbackModal").hidden'));
+      await evaluate('document.querySelector("[data-section=errors]").click()');
+      assert.equal(await evaluate('location.hash'), '#errors');
+      assert.ok(await evaluate('!document.getElementById("errors").hidden && document.getElementById("members").hidden'));
+      await cdp('Page.reload');
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 300));
+      assert.ok(await evaluate('!document.getElementById("errors").hidden && document.getElementById("members").hidden'), 'Admin tab did not survive reload');
       await cdp('Page.navigate', { url: `${base}/proposals-${language}.html` });
       await new Promise((resolveDelay) => setTimeout(resolveDelay, 150));
+      assert.ok(!consoleErrors.some((text) => /hydration|#418/.test(text)), 'Navigation hydration mismatch on proposals');
       assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), `Proposal page overflow: ${language}/${width}`);
       assert.equal(await evaluate('getComputedStyle(document.querySelector(".quick-vote-btn.approve")).borderTopColor'), 'rgb(0, 217, 255)');
       console.log(`Passed keyboard/focus/dialog/palette/layout checks: ${language}, ${width}px`);

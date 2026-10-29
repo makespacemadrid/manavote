@@ -4,6 +4,7 @@ from datetime import date
 import math
 from urllib.parse import urlparse
 from app.repositories.group_purchase_repo import GroupPurchaseRepository
+from app.db.transactions import write_transaction
 
 
 def _component_names(raw_components):
@@ -173,7 +174,8 @@ def component_updates(purchase_id, components, values):
 
 
 def create_purchase(connection, *, title, description, deadline, product_url, image_filename,
-                    payment_method, member_id, components, shared_costs):
+                    payment_method, member_id, components, shared_costs, join_member_limit=None):
+    join_member_limit = parse_join_member_limit(join_member_limit)
     error = validate_creation(title=title, components=components, deadline=deadline, product_url=product_url,
                               payment_method=payment_method, component_error=None, shared_cost_error=None)
     if error:
@@ -181,6 +183,7 @@ def create_purchase(connection, *, title, description, deadline, product_url, im
     repo = GroupPurchaseRepository(connection)
     with _transaction(connection):
         purchase_id = repo.create(title, description, deadline, product_url, image_filename, payment_method, member_id)
+        repo.set_join_limit(purchase_id, join_member_limit)
         repo.insert_components(purchase_id, components)
         repo.insert_shared_costs(purchase_id, shared_costs)
     return purchase_id
@@ -197,6 +200,7 @@ def build_purchase_page(connection, member_id):
         purchase['shared_costs'] = [dict(row) for row in repo.shared_costs(purchase['id'])]
         purchase['shared_cost_total'] = sum(c['amount'] for c in purchase['shared_costs'])
         purchase['debts'] = [dict(row) for row in repo.debts(purchase['id'])]
+        purchase['joined_members'] = len(purchase['debts'])
         _allocate_shared_costs(purchase['debts'], purchase['shared_cost_total'])
     return purchases
 
@@ -205,10 +209,19 @@ def set_quantity(connection, *, purchase_id, component_id, member_id, quantity):
     if component_id is None or quantity is None or quantity < 0 or quantity > 999:
         raise ValueError('Quantity must be between 0 and 999')
     repo = GroupPurchaseRepository(connection)
-    if repo.open_component(purchase_id, component_id) is None:
-        raise ValueError('Component not found')
-    with _transaction(connection):
+    with write_transaction(connection):
+        if repo.open_component(purchase_id, component_id) is None:
+            raise ValueError('Component not found')
         repo.set_quantity(component_id, member_id, quantity)
+        repo.close_at_join_limit(purchase_id)
+
+
+def parse_join_member_limit(value):
+    if value is None or value == '':
+        return None
+    if isinstance(value, bool) or not str(value).isascii() or not str(value).isdigit() or not 1 <= int(value) <= 10000:
+        raise ValueError('Member limit must be between 1 and 10000')
+    return int(value)
 
 
 def validate_component_additions(updates, names, prices):
@@ -237,7 +250,8 @@ def validate_component_additions(updates, names, prices):
 
 def edit_purchase(connection, *, purchase_id, member_id, is_admin, title, description,
                   deadline, product_url, image_filename, payment_method, updates, shared_costs,
-                  new_components=()):
+                  new_components=(), join_member_limit=None):
+    join_member_limit = parse_join_member_limit(join_member_limit)
     if manageable_purchase(connection, purchase_id, member_id, is_admin) is None:
         raise ValueError('Only the creator or an admin can edit this group purchase')
     repo = GroupPurchaseRepository(connection)
@@ -249,10 +263,12 @@ def edit_purchase(connection, *, purchase_id, member_id, is_admin, title, descri
         if len(existing) + len(additions) > 30:
             raise ValueError('A group purchase can have at most 30 components')
         repo.update(purchase_id, title, description, deadline, product_url, image_filename, payment_method)
+        repo.set_join_limit(purchase_id, join_member_limit)
         repo.update_components(updates)
         repo.insert_components(purchase_id, additions, start_position=max((row['position'] for row in existing), default=-1) + 1)
         repo.delete_shared_costs(purchase_id)
         repo.insert_shared_costs(purchase_id, shared_costs)
+        repo.close_at_join_limit(purchase_id)
 
 
 def delete_purchase(connection, *, purchase_id, member_id, is_admin):
@@ -266,7 +282,7 @@ def delete_purchase(connection, *, purchase_id, member_id, is_admin):
 
 def update_status(connection, *, purchase_id, member_id, status):
     purchase = manageable_purchase(connection, purchase_id, member_id)
-    if purchase is None or {'open': 'ordered', 'ordered': 'received'}.get(purchase['status']) != status:
+    if purchase is None or {'open': 'ordered', 'closed': 'ordered', 'ordered': 'received'}.get(purchase['status']) != status:
         raise ValueError('Invalid status change')
     with _transaction(connection):
         GroupPurchaseRepository(connection).set_status(purchase_id, status)

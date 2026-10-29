@@ -120,6 +120,13 @@ def run_migrations(cursor):
     )
     """)
     add_column_if_missing(cursor, "feedback", "section TEXT")
+    cursor.execute('''CREATE TABLE IF NOT EXISTS feedback_notes (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, feedback_id INTEGER NOT NULL,
+        author_id INTEGER NOT NULL, message TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP)''')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS feedback_notifications (
+        id INTEGER PRIMARY KEY AUTOINCREMENT, feedback_id INTEGER NOT NULL,
+        member_id INTEGER NOT NULL, message TEXT NOT NULL, read_at TEXT,
+        created_at TEXT DEFAULT CURRENT_TIMESTAMP)''')
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS telegram_pending_actions (
         chat_id INTEGER NOT NULL,
@@ -164,6 +171,7 @@ def run_migrations(cursor):
     add_column_if_missing(cursor, "group_purchases", "url TEXT")
     add_column_if_missing(cursor, "group_purchases", "image_filename TEXT")
     add_column_if_missing(cursor, "group_purchases", "payment_method TEXT")
+    add_column_if_missing(cursor, "group_purchases", "join_member_limit INTEGER")
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS group_purchase_components (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

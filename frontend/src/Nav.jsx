@@ -24,7 +24,7 @@ export function Nav({ username, links, currentPath }) {
       aria-label={username.navigationLabel}
     >
       <div className="nav-header">
-        <span>{username.label}: <strong>{username.value}</strong></span>
+        <span>{`${username.label}: `}<strong>{username.value}</strong></span>
         <button
           className="nav-toggle"
           type="button"

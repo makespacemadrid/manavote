@@ -3,7 +3,7 @@
 import io
 import secrets
 
-import qrcode
+from app.services.coin_qr_service import render_coin_qr
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_file, session, url_for
 
 from app.repositories.coin_repo import CoinRepository
@@ -93,7 +93,7 @@ def qr_image(token):
         abort(404)
     scan_url = _public_scan_url(connection, token)
     connection.close()
-    image = qrcode.make(scan_url)
+    image = render_coin_qr(scan_url, row['item_name'])
     output = io.BytesIO()
     image.save(output, format="PNG")
     output.seek(0)

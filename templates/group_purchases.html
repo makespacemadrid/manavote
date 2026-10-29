@@ -32,6 +32,8 @@
         <input id="image" type="file" name="image" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
         <label for="payment_method">{{ 'Payment method (optional)'|lang }}</label>
         <input id="payment_method" name="payment_method" maxlength="250" value="{{ submitted.get('payment_method', '') }}" placeholder="{{ 'Payment method placeholder'|lang }}">
+        <label for="join-member-limit">{{ 'Close joining after this many members (optional)'|lang }}</label>
+        <input id="join-member-limit" name="join_member_limit" type="number" min="1" max="10000" value="{{ submitted.get('join_member_limit', '') }}">
         <label>{{ 'Components and prices'|lang }}</label>
         <p class="hint">{{ 'Component rows help'|lang }}</p>
         <div id="component-rows">
@@ -93,6 +95,7 @@
             {% if purchase.url %}<a href="{{ purchase.url }}" target="_blank" rel="noopener noreferrer">🔗 {{ 'Product link'|lang }}</a>{% endif %}
         </p>
     {% endif %}
+    {% if purchase.join_member_limit %}<p>{{ 'Joining limit'|lang }}: {{ purchase.joined_members }} / {{ purchase.join_member_limit }} {{ 'Members'|lang }}</p>{% endif %}
     {% if purchase.payment_method %}<p style="margin:8px 0;">💳 <strong>{{ 'Payment method'|lang }}:</strong> {{ purchase.payment_method }}</p>{% endif %}
     {% if purchase.shared_costs %}
         <p style="margin:8px 0;">➕ <strong>{{ 'Shared costs'|lang }}:</strong>
@@ -107,7 +110,7 @@
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-secondary" type="submit">{{ 'Delete'|lang }}</button>
             </form>
-            {% if purchase.created_by == session.member_id and purchase.status == 'open' %}
+            {% if purchase.created_by == session.member_id and purchase.status in ['open', 'closed'] %}
                 <form method="post" action="{{ url_for('group_purchases.update_status', purchase_id=purchase.id) }}">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="status" value="ordered">
                     <button class="btn" type="submit">{{ 'Mark order placed'|lang }}</button>

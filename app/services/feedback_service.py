@@ -1,7 +1,11 @@
 """Validation and persistence for member feedback across REST and MCP."""
 
 VALID_CATEGORIES = {"bug", "suggestion", "other"}
-VALID_STATUSES = {"new", "reviewed", "resolved"}
+from app.repositories.feedback_repo import FeedbackRepository
+from app.db.transactions import write_transaction
+import logging
+
+VALID_STATUSES = {"new", "reviewed", "resolved", "rejected"}
 VALID_SOURCES = {"web", "telegram", "api"}
 MAX_MESSAGE_LENGTH = 4000
 MAX_SECTION_LENGTH = 250
@@ -67,15 +71,43 @@ def list_feedback(conn, *, status=None, category=None, limit=50, offset=0):
 
 def update_feedback_status(conn, *, feedback_id, status, resolved_by, logger=None):
     if status not in VALID_STATUSES:
-        raise FeedbackValidationError("invalid_status", "status must be new, reviewed, or resolved")
-    cursor = conn.execute(
-        """UPDATE feedback SET status = ?, resolved_by = ?,
-           resolved_at = CASE WHEN ? = 'resolved' THEN CURRENT_TIMESTAMP ELSE NULL END
-           WHERE id = ?""",
-        (status, resolved_by, status, feedback_id),
-    )
-    if not cursor.rowcount:
-        raise FeedbackValidationError("feedback_not_found", "feedback not found")
-    conn.commit()
+        raise FeedbackValidationError("invalid_status", "status must be new, reviewed, resolved, or rejected")
+    repo = FeedbackRepository(conn)
+    with write_transaction(conn):
+        item = repo.get(feedback_id)
+        if item is None:
+            raise FeedbackValidationError('feedback_not_found', 'feedback not found')
+        repo.resolve_status(feedback_id, status, resolved_by)
+        if status == 'resolved' and item['status'] != 'resolved':
+            repo.notify(item)
     if logger:
         logger.info("event=feedback_status_changed feedback_id=%s status=%s resolved_by=%s", feedback_id, status, resolved_by)
+
+
+def manage_feedback(conn, *, action, feedback_id, actor_id, is_admin, message='', category='', note_id=None):
+    if not is_admin:
+        raise FeedbackValidationError('admin_required', 'Admin access required')
+    repo = FeedbackRepository(conn)
+    with write_transaction(conn):
+        if repo.get(feedback_id) is None:
+            raise FeedbackValidationError('feedback_not_found', 'feedback not found')
+        message = str(message or '').strip()
+        if action in {'add_feedback_note', 'edit_feedback_note', 'edit_feedback'} and (not message or len(message) > 4000):
+            raise FeedbackValidationError('invalid_message', 'Feedback text must contain 1 to 4000 characters')
+        if action == 'add_feedback_note':
+            repo.add_note(feedback_id, actor_id, message)
+        elif action == 'edit_feedback_note':
+            if not repo.edit_note(feedback_id, note_id, message):
+                raise FeedbackValidationError('note_not_found', 'Feedback note not found')
+        elif action == 'delete_feedback_note':
+            if not repo.delete_note(feedback_id, note_id):
+                raise FeedbackValidationError('note_not_found', 'Feedback note not found')
+        elif action == 'edit_feedback':
+            if category not in VALID_CATEGORIES:
+                raise FeedbackValidationError('invalid_category', 'Invalid feedback category')
+            repo.edit(feedback_id, message, category)
+        elif action == 'delete_feedback':
+            repo.delete(feedback_id)
+        else:
+            raise FeedbackValidationError('invalid_action', 'Invalid feedback action')
+    logging.getLogger(__name__).info('event=feedback_admin_action action=%s feedback_id=%s actor_id=%s', action, feedback_id, actor_id)

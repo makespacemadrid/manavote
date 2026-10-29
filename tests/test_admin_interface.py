@@ -125,7 +125,7 @@ def test_errors_tab_precedes_feedback_and_download_contains_verbose_trace(ui_cli
     assert 'Traceback' in html and 'ValueError' in html
     assert '<script>bad</script>' not in html
     assert 'do-not-export-this-secret' not in html
-    report = ui_client.get('/admin/errors/download')
+    report = ui_client.post('/admin/errors/download')
     assert report.status_code == 200
     assert report.headers['Cache-Control'] == 'no-store'
     assert 'attachment;' in report.headers['Content-Disposition']
@@ -144,7 +144,7 @@ def test_error_download_is_session_admin_only(ui_client, error_store, role, monk
         if role == 'member':
             session.update(member_id=2, username='member', is_admin=False)
     monkeypatch.setattr(main_routes, 'ADMIN_API_KEY', 'admin-api-key')
-    response = ui_client.get('/admin/errors/download', headers={'X-Admin-Key': 'admin-api-key'})
+    response = ui_client.post('/admin/errors/download', headers={'X-Admin-Key': 'admin-api-key'})
     assert response.status_code in (302, 403)
     assert b'"errors"' not in response.data
 
@@ -155,7 +155,7 @@ def test_empty_and_spanish_errors_view(ui_client, error_store):
     html = ui_client.get('/admin?tab=errors').get_data(as_text=True)
     assert 'Errores' in html and 'Descargar informe de errores' in html
     assert 'Todavía no se han registrado errores.' in html
-    assert ui_client.get('/admin/errors/download').get_json()['errors'] == []
+    assert ui_client.post('/admin/errors/download').get_json()['errors'] == []
 
 
 def test_error_capture_is_bounded_persistent_and_scrubs_again_on_export(error_store, monkeypatch):
@@ -184,10 +184,11 @@ def test_diagnostic_failure_does_not_break_logging_and_admin_shows_unavailable(e
         raise sqlite3.OperationalError('private error')
     monkeypatch.setattr(error_store, 'append', unavailable)
     monkeypatch.setattr(error_store, 'recent', unavailable)
+    monkeypatch.setattr(error_store, 'export_pending', unavailable)
     ErrorReportHandler(error_store).handle(logging.LogRecord('test', logging.ERROR, __file__, 1, 'failure', (), None))
-    response = ui_client.get('/admin/errors/download')
-    assert response.status_code == 200
-    assert 'storage is unavailable' in response.get_json()['errors'][0]['details']
+    response = ui_client.post('/admin/errors/download')
+    assert response.status_code == 503
+    assert b'storage is unavailable' in response.data
     assert b'private error' not in response.data
 
 
@@ -198,7 +199,7 @@ def test_uncaught_request_error_is_captured_with_traceback(ui_client, error_stor
         raise RuntimeError('admin page failure fixture')
     monkeypatch.setattr(admin_page_service, 'build_admin_page', fail_page)
     assert ui_client.get('/admin').status_code == 500
-    report = ui_client.get('/admin/errors/download').get_json()
+    report = ui_client.post('/admin/errors/download').get_json()
     assert any('RuntimeError: admin page failure fixture' in row['details'] and 'fail_page' in row['details'] for row in report['errors'])
 
 
@@ -212,10 +213,10 @@ def test_member_browser_errors_are_in_admin_download_with_redaction(ui_client, e
         'stack': 'at https://user:password@example.org/static/app.js?private=hidden#fragment',
     })
     assert response.status_code == 204
-    assert ui_client.get('/admin/errors/download').status_code == 302
+    assert ui_client.post('/admin/errors/download').status_code == 302
     with ui_client.session_transaction() as session:
         session.update(member_id=1, username='admin', is_admin=True)
-    report = ui_client.get('/admin/errors/download').get_json()
+    report = ui_client.post('/admin/errors/download').get_json()
     row = report['errors'][0]
     assert row['logger'] == 'browser.console.error'
     assert '[REDACTED]' in row['details']
@@ -245,3 +246,98 @@ def test_browser_reports_require_session_csrf_and_bounded_body(ui_client, error_
     token = re.search(r'name="csrf-token" content="([^"]+)"', page).group(1)
     assert ui_client.post('/diagnostics/browser-errors', json=payload, headers={'X-CSRFToken': token}).status_code == 204
     assert ui_client.post('/diagnostics/browser-errors', data='x' * 64001, content_type='application/json', headers={'X-CSRFToken': token}).status_code == 413
+
+
+def test_download_archives_pending_errors_and_never_exports_them_twice(ui_client, error_store):
+    error_store.append('2026-10-29T00:00:00Z', 'ERROR', 'fixture', 'one')
+    assert ui_client.get('/admin/errors/download').status_code == 405
+    assert len(error_store.recent()) == 1
+    first = ui_client.post('/admin/errors/download').get_json()['errors']
+    assert len(first) == 1 and first[0]['processed_at']
+    assert error_store.recent() == []
+    assert len(error_store.recent(archived=True)) == 1
+    assert ui_client.post('/admin/errors/download').get_json()['errors'] == []
+    error_store.append('2026-10-29T00:00:01Z', 'ERROR', 'fixture', 'two')
+    second = ui_client.post('/admin/errors/download').get_json()['errors']
+    assert len(second) == 1 and second[0]['details'] == 'two'
+    assert second[0]['id'] != first[0]['id']
+    assert b'Archived errors' in ui_client.get('/admin?tab=errors').data
+
+
+def test_error_archive_rolls_back_failed_render_and_serializes_downloads(error_store):
+    from concurrent.futures import ThreadPoolExecutor
+    from app.services.error_report_service import export_errors
+    import json
+    error_store.append('2026-10-29T00:00:00Z', 'ERROR', 'fixture', 'one')
+    def fail(rows):
+        raise RuntimeError('render failed')
+    with pytest.raises(RuntimeError):
+        error_store.export_pending(fail, 'now')
+    assert len(error_store.recent()) == 1
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results = list(pool.map(lambda _: json.loads(export_errors(error_store))['errors'], range(2)))
+    assert sorted(len(result) for result in results) == [0, 1]
+    assert len(error_store.recent(archived=True)) == 1
+
+
+def test_feedback_rejection_notes_edit_delete_and_resolution_notice(ui_client, error_store):
+    from app.services import feedback_service
+    conn = main_routes.get_db()
+    feedback_id = feedback_service.submit_feedback(conn, member_id=2, source='web', category='suggestion', message='Improve it')
+    conn.close()
+    def action(name, **values):
+        return ui_client.post('/admin?tab=feedback', data={'action': name, 'feedback_id': feedback_id, **values})
+    assert action('update_feedback_status', status='rejected').status_code == 200
+    action('add_feedback_note', message='<script>private note</script>')
+    conn = main_routes.get_db()
+    note_id = conn.execute('SELECT id FROM feedback_notes').fetchone()[0]
+    conn.close()
+    action('edit_feedback_note', note_id=note_id, message='Corrected note')
+    action('edit_feedback', message='Updated feedback', category='bug')
+    action('update_feedback_status', status='resolved')
+    action('update_feedback_status', status='resolved')
+    conn = main_routes.get_db()
+    assert conn.execute('SELECT COUNT(*) FROM feedback_notifications').fetchone()[0] == 1
+    assert conn.execute('SELECT message FROM feedback_notes').fetchone()[0] == 'Corrected note'
+    conn.close()
+    with ui_client.session_transaction() as session:
+        session.update(member_id=2, username='member', is_admin=False)
+    page = ui_client.get('/about')
+    assert b'Your feedback was resolved' in page.data and b'Updated feedback' in page.data
+    assert b'Corrected note' not in page.data
+    assert ui_client.post('/admin', data={'action': 'delete_feedback', 'feedback_id': feedback_id}).status_code == 302
+    conn = main_routes.get_db()
+    notification_id = conn.execute('SELECT id FROM feedback_notifications').fetchone()[0]
+    conn.close()
+    with ui_client.session_transaction() as session:
+        session.update(member_id=1, username='admin', is_admin=True)
+    ui_client.post(f'/notifications/{notification_id}/read')
+    conn = main_routes.get_db()
+    assert conn.execute('SELECT read_at FROM feedback_notifications').fetchone()[0] is None
+    conn.close()
+    with ui_client.session_transaction() as session:
+        session.update(member_id=2, username='member', is_admin=False)
+    ui_client.post(f'/notifications/{notification_id}/read')
+    assert b'Your feedback was resolved' not in ui_client.get('/about').data
+    with ui_client.session_transaction() as session:
+        session.update(member_id=1, username='admin', is_admin=True)
+    action('delete_feedback_note', note_id=note_id)
+    action('delete_feedback')
+    conn = main_routes.get_db()
+    assert conn.execute('SELECT COUNT(*) FROM feedback').fetchone()[0] == 0
+    assert conn.execute('SELECT COUNT(*) FROM feedback_notes').fetchone()[0] == 0
+    assert conn.execute('SELECT COUNT(*) FROM feedback_notifications').fetchone()[0] == 0
+    conn.close()
+
+
+def test_error_store_migrates_existing_pending_records(tmp_path):
+    from app.repositories.error_report_repo import ErrorReportRepository
+    path = tmp_path / 'old-errors.db'
+    conn = sqlite3.connect(path)
+    conn.execute('CREATE TABLE errors (id INTEGER PRIMARY KEY, created_at TEXT, level TEXT, logger TEXT, details TEXT)')
+    conn.execute("INSERT INTO errors VALUES (1,'2026-10-29T00:00:00Z','ERROR','old','preserved')")
+    conn.commit(); conn.close()
+    repo = ErrorReportRepository(path)
+    assert repo.recent()[0]['details'] == 'preserved'
+    assert repo.recent()[0]['processed_at'] is None
+    assert repo.recent(archived=True) == []

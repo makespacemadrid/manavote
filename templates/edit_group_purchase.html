@@ -11,6 +11,8 @@
         <label for="url">{{ 'URL (optional)'|lang }}</label><input id="url" type="url" name="url" value="{{ purchase.url or '' }}">
         <label for="payment_method">{{ 'Payment method (optional)'|lang }}</label><input id="payment_method" name="payment_method" maxlength="250" value="{{ purchase.payment_method or '' }}">
         <label for="image">{{ 'Replace image (optional)'|lang }}</label><input id="image" type="file" name="image" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
+        <label for="join-member-limit">{{ 'Close joining after this many members (optional)'|lang }}</label>
+        <input id="join-member-limit" name="join_member_limit" type="number" min="1" max="10000" value="{{ purchase.join_member_limit or '' }}">
         <h2 style="margin-top:18px;">{{ 'Components and prices'|lang }}</h2>
         {% for component in components %}
         <div style="display:grid;grid-template-columns:1fr 140px;gap:10px;">

@@ -3,9 +3,11 @@ import { Nav } from './Nav.jsx';
 import './styles.css';
 import { initializeDialogs } from './dialogs.js';
 import { initializeBrowserErrors } from './browserErrors.js';
+import { initializeAdminTabs } from './adminTabs.js';
 
 initializeBrowserErrors();
 initializeDialogs();
+initializeAdminTabs();
 
 for (const rows of document.querySelectorAll('[data-new-component-rows]')) {
   const form = rows.closest('form');

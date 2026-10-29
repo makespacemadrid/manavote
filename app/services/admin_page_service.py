@@ -10,6 +10,7 @@ from app.repositories.group_purchase_repo import GroupPurchaseRepository
 from app.repositories.coin_repo import CoinRepository
 from app.repositories.settings_repo import SettingsRepository
 from app.services import feedback_service
+from app.repositories.feedback_repo import FeedbackRepository
 
 
 def build_admin_page(conn, *, db_path, get_thresholds, is_registration_enabled, get_current_budget, logger):
@@ -109,6 +110,8 @@ def build_admin_page(conn, *, db_path, get_thresholds, is_registration_enabled, 
     group_purchases = [dict(row) for row in GroupPurchaseRepository(conn).list_for_admin()]
 
     feedback_items = feedback_service.list_feedback(conn, limit=100)
+    for item in feedback_items:
+        item['notes'] = FeedbackRepository(conn).notes(item['id'])
 
     coin_items = [dict(row) for row in CoinRepository(conn).list_for_admin()]
     coin_movements = [dict(row) for row in CoinRepository(conn).movements_for_admin()]

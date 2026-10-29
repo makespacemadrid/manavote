@@ -11,6 +11,8 @@ from urllib.parse import urlparse
 from app.extensions import limiter, oauth
 from app.services import auth_service
 from app.repositories.member_repo import MemberRepository
+from app.repositories.feedback_repo import FeedbackRepository
+import sqlite3
 from app.services import feedback_service
 from app.services.telegram_link_service import (
     link_member_telegram,
@@ -23,6 +25,26 @@ from app.web.routes import main_routes as legacy
 
 auth_bp = Blueprint("auth", __name__)
 logger = logging.getLogger(__name__)
+
+
+@auth_bp.app_context_processor
+def feedback_notifications():
+    if not session.get('member_id'):
+        return {'feedback_notifications': []}
+    try:
+        with closing(legacy.get_db()) as conn:
+            return {'feedback_notifications': FeedbackRepository(conn).notifications(session['member_id'])}
+    except sqlite3.Error:
+        return {'feedback_notifications': []}
+
+
+@auth_bp.post('/notifications/<int:notification_id>/read')
+@login_required
+def read_notification(notification_id):
+    with closing(legacy.get_db()) as conn:
+        FeedbackRepository(conn).dismiss(notification_id, session['member_id'])
+        conn.commit()
+    return redirect(url_for('proposals'))
 
 
 @auth_bp.route("/telegram/link/<token>", methods=["GET", "POST"], endpoint="telegram_link")
