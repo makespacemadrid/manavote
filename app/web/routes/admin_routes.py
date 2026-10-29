@@ -6,6 +6,7 @@ from flask import Blueprint, flash, redirect, render_template, request, send_fil
 from app.extensions import limiter
 from app.services import admin_actions_service, admin_page_service
 from app.services.assistant_health_service import build_assistant_health
+from app.services.error_report_service import list_errors, export_errors
 from app.integrations import telegram_agent
 from app.web.routes.helpers.admin_audit_helpers import log_admin_backup_event, log_telegram_link_event
 
@@ -14,6 +15,19 @@ from app.web.routes import main_routes as legacy
 from werkzeug.utils import secure_filename
 
 admin_bp = Blueprint("admin", __name__)
+
+
+@admin_bp.get('/admin/errors/download')
+@login_required
+@admin_required
+def download_errors():
+    response = legacy.app.response_class(
+        export_errors(legacy.app.extensions['error_reports']), mimetype='application/json',
+    )
+    response.headers['Content-Disposition'] = 'attachment; filename="manavote-errors.json"'
+    response.headers['Cache-Control'] = 'no-store'
+    response.headers['X-Content-Type-Options'] = 'nosniff'
+    return response
 
 
 @admin_bp.route('/admin/assistant-health', methods=['GET'], endpoint='assistant_health')
@@ -47,7 +61,7 @@ def _admin_form_data(form):
 def _admin_redirect_with_tab():
     tab = request.values.get("tab", "members")
     allowed_tabs = {
-        "members", "budget", "polls", "group_purchases", "coins", "feedback", "settings"
+        "members", "budget", "polls", "group_purchases", "coins", "errors", "feedback", "settings"
     }
     safe_tab = tab if tab in allowed_tabs else "members"
     return redirect(url_for("admin.admin", tab=safe_tab))
@@ -102,12 +116,15 @@ def admin():
             get_current_budget=legacy.get_current_budget, logger=legacy.app.logger,
         )
     requested_tab = request.values.get("tab", "all")
-    allowed_tabs = {"all", "members", "budget", "polls", "group_purchases", "coins", "feedback", "settings"}
-    return render_template(
+    allowed_tabs = {"all", "members", "budget", "polls", "group_purchases", "coins", "errors", "feedback", "settings"}
+    response = legacy.app.make_response(render_template(
         "admin.html", **model, get_setting_value=legacy.get_setting_value,
         session_lang=session.get("lang", "en"),
         active_admin_tab=requested_tab if requested_tab in allowed_tabs else "all",
-    )
+        error_reports=list_errors(legacy.app.extensions['error_reports']),
+    ))
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 

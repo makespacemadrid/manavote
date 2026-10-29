@@ -1,11 +1,25 @@
 # CHANGELOG — Delivered Roadmap Items
 
-Last reviewed: 2026-10-25
+Last reviewed: 2026-10-29
 
 Shipped outcomes from the roadmap, newest first. This is not a complete release
 history. [IDEAS.md](IDEAS.md) contains unfinished work; [SPRINTS.md](SPRINTS.md)
 records iteration scope and progress. Detailed historical findings and decisions are
 preserved in the [roadmap audit archive](archive/ROADMAP_AUDITS.md).
+
+## Unreleased — Downloadable administrator error reports
+
+- Added an Errors tab before Feedback, with expandable server warnings/errors and an
+  admin-only JSON download. Reports include timestamps, severity, logger/call site, and
+  available traceback locations; rendered text is escaped and responses use no-store.
+- The latest 200 records persist in a separate SQLite file alongside the application
+  database, shared across workers. Credentials are scrubbed on capture/export; no request
+  bodies/headers, frame locals, or source lines are collected. Storage failures preserve
+  console logging and show an unavailable-storage diagnostic.
+- Browser console errors, historical container logs, and raw stdout/stderr are outside
+  capture. OPERATIONS documents sharing and retention limits.
+- Validation: all 914 Python tests passed, including admin/download authorization,
+  uncaught request errors, credential redaction, persistence/retention, and storage failures.
 
 ## Unreleased — Add components while editing group purchases
 

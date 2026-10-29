@@ -44,6 +44,11 @@ appears in the Quick Start configuration reference. Add new documentation beneat
 
 ## Targeted regression packs
 
+`pytest -q tests/test_admin_interface.py` also verifies the Errors tab ordering,
+English/Spanish empty state, escaped verbose errors, JSON attachments, session-admin
+authorization, uncaught request tracebacks, credential redaction at capture/export,
+bounded persistent retention, and safe behavior when diagnostic storage fails.
+
 ```bash
 pytest -q tests/test_template_guards.py tests/test_production_config.py tests/test_app_startup.py tests/test_startup_policy.py tests/unit/test_settings_service.py tests/unit/test_vote_repository_contract.py
 ```

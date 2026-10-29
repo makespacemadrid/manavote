@@ -117,7 +117,7 @@ def test_admin_can_edit_coin_ledger_entry(coin_client):
 
     page = client.get("/admin?tab=coins")
     assert b"Edit koin ledger" in page.data
-    assert page.data.count(b'<span aria-hidden="true">') == 7
+    assert page.data.count(b'<span aria-hidden="true">') == 8
     assert f'action="/admin/koins/movements/{movement_id}"'.encode() in page.data
 
     response = client.post(

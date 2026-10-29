@@ -7,7 +7,7 @@
 <h2>{{ 'Admin'|lang }}</h2>
 
 <div class="admin-toolbar">
-    {% for section, icon, label in [('members', '👥', 'Members'), ('budget', '💶', 'Budget'), ('polls', '📊', 'Polls'), ('coins', '🪙', 'Koins'), ('group_purchases', '🛒', 'Group purchases'), ('feedback', '💬', 'Feedback'), ('settings', '⚙️', 'Settings')] %}
+    {% for section, icon, label in [('members', '👥', 'Members'), ('budget', '💶', 'Budget'), ('polls', '📊', 'Polls'), ('coins', '🪙', 'Koins'), ('group_purchases', '🛒', 'Group purchases'), ('errors', '⚠️', 'Errors'), ('feedback', '💬', 'Feedback'), ('settings', '⚙️', 'Settings')] %}
     <a href="{{ url_for('admin.admin', tab=section) }}" class="btn btn-secondary admin-tab-btn{% if active_admin_tab == section %} active{% endif %}" data-section="{{ section }}" onclick="showSection('{{ section }}', this); return false;"><span aria-hidden="true">{{ icon }}</span> {{ label|lang }}</a>
     {% endfor %}
 </div>
@@ -92,6 +92,7 @@ function showSection(sectionId, buttonEl) {
         polls: ['polls'],
         group_purchases: ['group-purchases'],
         coins: ['coins'],
+        errors: ['errors'],
         feedback: ['feedback'],
         settings: ['settings', 'timezone', 'backup', 'telegram']
     };
@@ -563,6 +564,18 @@ document.addEventListener('DOMContentLoaded', function() {
         </td></tr>{% else %}<tr><td colspan="7">{{ 'No koin movements yet'|lang }}</td></tr>{% endfor %}</tbody>
     </table></div>
     </section>
+</div>
+
+<div id="errors" class="card">
+    <h3>{{ 'Errors'|lang }}</h3>
+    <p>{{ 'Server warnings and errors captured after this update. Latest 200 records; browser console errors are not included.'|lang }}</p>
+    <a class="btn" href="{{ url_for('admin.download_errors') }}">{{ 'Download error report'|lang }}</a>
+    {% for error in error_reports %}
+    <details style="margin-top:12px;">
+        <summary>{{ error.created_at|localtime }} · {{ error.level }} · {{ error.logger }}</summary>
+        <pre style="white-space:pre-wrap;overflow-wrap:anywhere;">{{ error.details }}</pre>
+    </details>
+    {% else %}<p>{{ 'No captured errors yet.'|lang }}</p>{% endfor %}
 </div>
 
 <div id="feedback" class="card">
