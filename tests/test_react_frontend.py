@@ -108,3 +108,21 @@ def test_navigation_only_exposes_admin_link_to_admin_sessions():
 
     assert "🛠️ Admin" not in {link["label"] for link in member_links}
     assert "🛠️ Admin" in {link["label"] for link in admin_links}
+
+
+def test_frontend_urls_are_content_versioned_and_update_when_assets_change(tmp_path, monkeypatch):
+    from app.web import app_setup
+    assets = tmp_path / 'react'; assets.mkdir()
+    (assets/'app.js').write_text('first build')
+    (assets/'style.css').write_text('body{}')
+    monkeypatch.setattr(app, 'static_folder', str(tmp_path))
+    with app.test_request_context('/about'):
+        first = render_template('base.html')
+        version = app_setup.asset_version('react/app.js')
+        assert f'frontend-build" content="{version}"' in first
+        assert f'app.js?v={version}' in first
+        assert 'style.css?v=' in first
+        (assets/'app.js').write_text('second build, changed contents')
+        second = render_template('base.html')
+        assert app_setup.asset_version('react/app.js') != version
+        assert f'app.js?v={version}' not in second

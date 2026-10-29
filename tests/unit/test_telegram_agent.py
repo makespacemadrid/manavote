@@ -642,3 +642,22 @@ def test_admin_coin_actions_confirm_before_modifying_other_member(monkeypatch, t
     assert calls == []
     telegram_agent.answer(970, "/confirm", telegram_user_id=7, actor_member_id=1, is_admin=True)
     assert calls == [(tool, arguments)]
+
+
+@pytest.mark.parametrize('name', ['copy_proposal','copy_poll','copy_group_purchase'])
+def test_copy_requires_confirmation_and_binds_creator(monkeypatch, name):
+    response = FakeResponse({'role':'assistant','content':None,'tool_calls':[
+        {'id':'copy-1','type':'function','function':{'name':name,'arguments':'{"source_id":5,"created_by":999}'}}
+    ]})
+    calls = []
+    monkeypatch.setenv('OCABRA_CHAT_URL','https://ocabra.example/v1/chat/completions')
+    monkeypatch.setattr(telegram_agent.requests,'post',lambda *args, **kwargs: response)
+    monkeypatch.setattr(telegram_agent,'_call_mcp',lambda tool, arguments, **kwargs: calls.append((tool,arguments)) or '{"success":true}')
+    telegram_agent.reset(701, 71)
+    reply = telegram_agent.answer(701,'Copy the previous item',telegram_user_id=71,actor_member_id=42,is_admin=True)
+    assert '/confirm' in reply and calls == []
+    reply = telegram_agent.answer(701,'/confirm',telegram_user_id=71,actor_member_id=42,is_admin=True)
+    assert 'completed' in reply
+    assert calls == [(name, {'source_id':5,'created_by':42})]
+    telegram_agent.answer(701,'/confirm',telegram_user_id=71,actor_member_id=42,is_admin=True)
+    assert len(calls) == 1

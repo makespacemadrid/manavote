@@ -7,7 +7,7 @@ function setup(enabled = true) {
   browser.console = { error: vi.fn() };
   const original = browser.console.error;
   browser.fetch = vi.fn().mockResolvedValue({ ok: true });
-  const doc = { querySelector: (selector) => enabled ? { content: selector.includes('endpoint') ? '/diagnostics/browser-errors' : 'csrf-private' } : null };
+  const doc = { querySelector: (selector) => enabled ? { content: selector.includes('endpoint') ? '/diagnostics/browser-errors' : selector.includes('frontend-build') ? '1234567890abcdef' : 'csrf-private' } : null };
   initializeBrowserErrors(browser, doc);
   return { browser, original };
 }
@@ -31,6 +31,7 @@ describe('browser diagnostics', () => {
     expect(payload.stack).toContain('fixture');
     expect(request.body).not.toContain('object-secret');
     expect(payload.page).toBe('/proposals');
+    expect(payload.build).toBe('1234567890abcdef');
   });
   it('captures uncaught errors and promise rejections without suppressing browser behavior', () => {
     const { browser } = setup();

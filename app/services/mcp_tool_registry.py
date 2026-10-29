@@ -30,6 +30,9 @@ TELEGRAM_POLICIES = {
     "replenish_coin_item": TelegramPolicy.MEMBER_WRITE,
     "admin_consume_coin_item": TelegramPolicy.CONFIRMED_ADMIN_WRITE,
     "admin_replenish_coin_item": TelegramPolicy.CONFIRMED_ADMIN_WRITE,
+    "copy_proposal": TelegramPolicy.CONFIRMED_ADMIN_WRITE,
+    "copy_poll": TelegramPolicy.CONFIRMED_ADMIN_WRITE,
+    "copy_group_purchase": TelegramPolicy.CONFIRMED_ADMIN_WRITE,
     "create_proposal": TelegramPolicy.CONFIRMED_ADMIN_WRITE,
     "create_poll": TelegramPolicy.CONFIRMED_ADMIN_WRITE,
     "update_voting_settings": TelegramPolicy.CONFIRMED_ADMIN_WRITE,
@@ -52,7 +55,7 @@ def telegram_tool_definitions(definitions, *, is_admin, actor_member_id=None):
             continue
         item = deepcopy(original)
         item["telegram_policy"] = policy.value
-        if actor_member_id is not None and item["name"] in {"create_proposal", "create_poll", "create_feedback", "consume_coin_item", "replenish_coin_item", "list_coin_items", "list_coin_movements"}:
+        if actor_member_id is not None and item["name"] in {"create_proposal", "create_poll", "copy_proposal", "copy_poll", "copy_group_purchase", "create_feedback", "consume_coin_item", "replenish_coin_item", "list_coin_items", "list_coin_movements"}:
             field = "member_id" if item["name"] in {"create_feedback", "consume_coin_item", "replenish_coin_item", "list_coin_items", "list_coin_movements"} else "created_by"
             schema = item["inputSchema"]
             schema["properties"].pop(field, None)

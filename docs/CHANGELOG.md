@@ -7,6 +7,35 @@ history. [IDEAS.md](IDEAS.md) contains unfinished work; [SPRINTS.md](SPRINTS.md)
 records iteration scope and progress. Detailed historical findings and decisions are
 preserved in the [roadmap audit archive](archive/ROADMAP_AUDITS.md).
 
+## Unreleased — About readability
+
+- Budget and Proposals links now wrap the original sentence words in both languages,
+  retaining the existing copy rather than adding standalone links. API is also linked
+  inline, and Feedback opens the same dialog through an inline text action.
+- Added readable spacing, responsive funding/tracking columns, feature cards, and a
+  quieter integration footer, with keyboard focus and escaped localized inline links.
+- Combined validation: 973 Python tests and 5 frontend tests passed; production assets
+  rebuilt. Chromium verified About inline links/feedback, hydration and Admin interactions
+  in English/Spanish at 375/600/1280px.
+
+## Unreleased — Browser build provenance
+
+- Fingerprint frontend asset URLs to avoid reusing stale JavaScript/styles across
+  deployments, and include the loaded frontend build in new browser error reports.
+- Added validation and asset-change regression checks. The uploaded hydration warnings
+  predate the currently deployed fixed bundle; injected wallet errors are external to
+  application code and remain visible rather than being suppressed.
+
+## Unreleased — MCP copy tools
+
+- Added copy_proposal, copy_poll, and copy_group_purchase with optional new titles/
+  questions and deadlines. Copies get new IDs/creators and fresh lifecycle/participation
+  state, retaining reusable content, component prices, fees and closing settings.
+- Old deadlines are cleared by default, images are independently duplicated, and
+  transaction failures roll back rows and new files. Source items and budgets are unchanged.
+- Telegram copies require administrator confirmation and bind the creator to the linked
+  administrator. Copy operations do not send announcements; missing images yield a warning.
+
 ## Unreleased — Optional €125 group-purchase cap
 
 - Added a creator/admin option to cap selected goods plus shared costs at €125.

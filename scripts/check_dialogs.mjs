@@ -3,7 +3,7 @@
 // Run: node scripts/check_dialogs.mjs /tmp/manavote-ui
 import assert from 'node:assert/strict';
 import { spawn } from 'node:child_process';
-import { mkdtemp, readFile, rm } from 'node:fs/promises';
+import { mkdtemp, readFile, rm, writeFile } from 'node:fs/promises';
 import { createServer } from 'node:http';
 import { tmpdir } from 'node:os';
 import { join, resolve } from 'node:path';
@@ -13,7 +13,7 @@ const assets = resolve('static/react');
 const server = createServer(async (request, response) => {
   const path = new URL(request.url, 'http://localhost').pathname;
   try {
-    if (/^\/(admin|proposals)-(en|es)\.html$/.test(path)) {
+    if (/^\/(admin|proposals|about)-(en|es)\.html$/.test(path)) {
       const html = await readFile(join(snapshots, path.slice(1)), 'utf8');
       response.setHeader('Content-Type', 'text/html');
       response.end(html.replaceAll(`file://${resolve('static')}/`, '/assets/'));
@@ -133,6 +133,19 @@ try {
       assert.ok(!consoleErrors.some((text) => /hydration|#418/.test(text)), 'Navigation hydration mismatch on proposals');
       assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), `Proposal page overflow: ${language}/${width}`);
       assert.equal(await evaluate('getComputedStyle(document.querySelector(".quick-vote-btn.approve")).borderTopColor'), 'rgb(0, 217, 255)');
+      await cdp('Page.navigate', { url: `${base}/about-${language}.html` });
+      await new Promise((resolveDelay) => setTimeout(resolveDelay, 200));
+      assert.ok(await evaluate('document.documentElement.scrollWidth <= window.innerWidth'), `About page overflow: ${language}/${width}`);
+      assert.ok(await evaluate('!!document.querySelector("#about-funding + p a[href=\\\"/budget\\\"]")'), 'Budget is not linked within the funding paragraph');
+      assert.ok(await evaluate('!!document.querySelector("#about-tracking + ul li a[href=\\\"/proposals\\\"]")'), 'Proposals is not linked within the tracking sentence');
+      await evaluate('document.querySelector(".about-inline-link").click()');
+      assert.equal(await evaluate('document.activeElement.id'), 'feedback-message');
+      await key('Escape');
+      assert.ok(await evaluate('document.getElementById("feedbackModal").hidden'));
+      if (width === 1280) {
+        const shot = await cdp('Page.captureScreenshot', { format: 'png', captureBeyondViewport: true });
+        await writeFile(join(snapshots, `about-${language}.png`), Buffer.from(shot.data, 'base64'));
+      }
       console.log(`Passed keyboard/focus/dialog/palette/layout checks: ${language}, ${width}px`);
     }
   }
@@ -140,6 +153,6 @@ try {
   socket?.close();
   browser.kill();
   await new Promise((resolveExit) => { if (browser.exitCode !== null) resolveExit(); else browser.once('exit', resolveExit); });
-  await rm(profile, { recursive: true, force: true });
+  await rm(profile, { recursive: true, force: true, maxRetries: 10, retryDelay: 100 });
   await new Promise((resolveClose) => server.close(resolveClose));
 }

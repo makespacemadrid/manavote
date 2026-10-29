@@ -26,6 +26,35 @@ The project also exposes an MCP JSON-RPC server (`app/mcp_server.py`) for admin 
 If key is missing/invalid, server responds with JSON-RPC error code `-32001` and message:
 `Unauthorized: invalid or missing MCP api_key`.
 
+## Copy tools
+
+`copy_proposal`, `copy_poll`, and `copy_group_purchase` accept required positive integer
+`source_id` and `created_by`. These are admin actions through authenticated MCP; in the
+Telegram assistant they require administrator confirmation and bind `created_by` to the
+linked administrator rather than trusting model-supplied attribution.
+
+- `copy_proposal`: optionally override `title`. Copies description, amount, product URL,
+  basic-supplies flag (subject to the €20 rule), and an independent local image. Starts
+  active with no votes, comments, approval/purchase timestamps, or budget/ledger changes.
+- `copy_poll`: optionally override `question` and `deadline`. Copies options and multiple-
+  selection setting; starts open without votes. Old deadlines are cleared. A supplied
+  deadline must be a future ISO datetime with timezone (normalized to UTC for scheduling).
+- `copy_group_purchase`: optionally override `title` and `deadline` (current/future
+  YYYY-MM-DD). Copies description, product URL, image, payment instructions, components/
+  prices, shared-cost definitions, member limit and €125-cap setting. Component IDs are
+  new; quantities, participants, payment receipts and old deadline are not copied. New
+  purchases obey current creation/closing limits, so shared costs alone reaching a copied
+  cap can immediately close joining.
+
+Example tool arguments: `{"source_id":42,"created_by":7,"title":"Next month's order"}`
+for `copy_group_purchase`. Other override fields are rejected. Success returns `success`,
+`source_id`, the new `proposal_id`/`poll_id`/`group_purchase_id`, and `warnings`.
+Missing source/creator returns `-32004`, invalid inputs `-32602`, and storage failures
+`-32012`. Copying is transactional and does not send announcements or modify the source.
+Repeated successful calls intentionally create separate copies. Images are independently
+duplicated; a missing source image is omitted with a warning. New images are removed
+when a transaction fails.
+
 ## Run modes
 1. **Standalone stdio**
 ```bash

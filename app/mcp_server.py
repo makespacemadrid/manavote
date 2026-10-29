@@ -26,6 +26,7 @@ from app.repositories.proposal_repo import ProposalRepository
 from app.repositories.coin_repo import CoinRepository
 from app.services import coin_service, feedback_service, pagination_service, poll_service, voting_settings_service
 from app.services import mcp_application
+from app.services.copy_service import copy_item, CopyNotFound
 from app.services import telegram_messaging_service
 from app.services.creation_validation_service import normalize_poll_options
 from app.services.telegram_link_diagnostics import LINKED_CONDITION_SQL, link_state_case_sql
@@ -464,6 +465,14 @@ def tool_definitions() -> list[dict[str, Any]]:
                 },
             },
         },
+    ] + [
+        {'name': 'copy_' + kind,
+         'description': f'Copy an existing {kind.replace("_", " ")} into a fresh item. No votes, comments, orders, payments or lifecycle history are copied. Old deadlines are cleared. Does not send announcements. Admin-only action.',
+         'inputSchema': {'type': 'object', 'required': ['source_id', 'created_by'], 'additionalProperties': False,
+             'properties': {'source_id': {'type': 'integer', 'minimum': 1}, 'created_by': {'type': 'integer', 'minimum': 1},
+                 ('question' if kind == 'poll' else 'title'): {'type': 'string', 'minLength': 1},
+                 **({'deadline': {'type': ['string', 'null'], 'description': 'New future ISO datetime including timezone for polls; current/future YYYY-MM-DD for orders. Omit to clear.'}} if kind != 'proposal' else {})}}}
+        for kind in ('proposal', 'poll', 'group_purchase')
     ]
 
 def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: Any = 1) -> dict[str, Any]:
@@ -480,6 +489,31 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
     alias_warning = None
     if normalized_name != tool_name:
         alias_warning = f"Deprecated tool alias '{tool_name}' used; please use '{normalized_name}'"
+
+    if normalized_name in {'copy_proposal', 'copy_poll', 'copy_group_purchase'}:
+        kind = normalized_name.removeprefix('copy_')
+        label_key = 'question' if kind == 'poll' else 'title'
+        allowed = {'source_id', 'created_by', label_key} | ({'deadline'} if kind != 'proposal' else set())
+        if set(arguments) - allowed:
+            return _error(req_id, -32602, 'Invalid params: unsupported copy fields')
+        if label_key in arguments and arguments[label_key] is None:
+            return _error(req_id, -32602, 'Invalid params: title/question cannot be null')
+        conn = None
+        try:
+            conn = sqlite3.connect(DB_PATH)
+            conn.row_factory = sqlite3.Row
+            payload = copy_item(conn, kind=kind, source_id=arguments.get('source_id'), created_by=arguments.get('created_by'),
+                upload_folder=UPLOAD_FOLDER, label=arguments.get(label_key), deadline=arguments.get('deadline'))
+        except CopyNotFound as exc:
+            return _error(req_id, -32004, str(exc))
+        except ValueError as exc:
+            return _error(req_id, -32602, str(exc))
+        except (sqlite3.Error, OSError):
+            return _error(req_id, -32012, 'Copy unavailable; no new item was saved')
+        finally:
+            if conn is not None:
+                conn.close()
+        return _tool_text(req_id, payload)
 
     if normalized_name == "list_proposals":
         status = str(arguments.get("status") or "").strip().lower()

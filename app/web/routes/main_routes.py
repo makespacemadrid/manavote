@@ -47,10 +47,12 @@ from app.services.telegram_link_service import create_browser_link_token, proces
 from app.web.app_setup import app, BASE_DIR, is_production
 from app.web.decorators import login_required, admin_required
 from app.web.routes.helpers.main_helpers import (
+    link_word,
     detect_image_type,
     format_datetime,
     truncate_username as helper_truncate_username,
 )
+app.add_template_filter(link_word, 'link_word')
 from werkzeug.utils import secure_filename
 from werkzeug.security import generate_password_hash
 import markdown

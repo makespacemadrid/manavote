@@ -660,7 +660,7 @@ def _answer(
             elif function.get("name") in MUTATING_TOOLS:
                 arguments = _known_tool_arguments(function["name"], arguments)
                 check_arguments(arguments)
-                if function["name"] in {"create_proposal", "create_poll"}:
+                if function["name"] in {"create_proposal", "create_poll", "copy_proposal", "copy_poll", "copy_group_purchase"}:
                     if actor_member_id is None:
                         result = json.dumps({"error": "A linked member is required."})
                         current_messages.append(

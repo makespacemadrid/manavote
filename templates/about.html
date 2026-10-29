@@ -1,50 +1,57 @@
 {% extends "base.html" %}
-
 {% block content %}
 {% include "_top_nav.html" %}
-
-<div class="card">
-    <h2>{{ 'About'|lang }}</h2>
-
-    <p style="margin-bottom: 14px;">{{ 'About intro 1'|lang }}</p>
-    <p style="margin-bottom: 25px;">{{ 'About intro 2'|lang }}</p>
-
-    <h3>{{ 'How It Works'|lang }}</h3>
-    <ul style="margin-bottom: 25px; padding-left: 20px;">
-        <li>{{ 'About flow submit vote'|lang }}</li>
-        <li>{{ 'Members vote on proposals'|lang }}
-            <ul>
-                <li>{{ 'Basic supplies threshold'|lang }}</li>
-                <li>{{ 'Standard threshold'|lang }}</li>
-                <li>{{ 'Expensive threshold'|lang }}</li>
+<article class="card about-page">
+    <header class="about-intro">
+        <p class="about-eyebrow">MakeSpace Madrid</p>
+        <h1>{{ 'About'|lang }}</h1>
+        <p>{{ 'About intro 1'|lang }}</p>
+        <p>{{ 'About intro 2'|lang }}</p>
+    </header>
+    <section class="about-section" aria-labelledby="about-how">
+        <h2 id="about-how">{{ 'How It Works'|lang }}</h2>
+        <ul class="about-list">
+            <li>{{ 'About flow submit vote'|lang }}</li>
+            <li>{{ 'Members vote on proposals'|lang }}
+                <ul>
+                    <li>{{ 'Basic supplies threshold'|lang }}</li>
+                    <li>{{ 'Standard threshold'|lang }}</li>
+                    <li>{{ 'Expensive threshold'|lang }}</li>
+                </ul>
+            </li>
+            <li>{{ 'About flow approved'|lang }}</li>
+            <li>{{ 'Over-budget proposals'|lang }}</li>
+            <li>{{ 'About flow undo'|lang }}</li>
+        </ul>
+    </section>
+    <div class="about-details">
+        <section class="about-section" aria-labelledby="about-funding">
+            <h2 id="about-funding">{{ 'Funding'|lang }}</h2>
+            <p>{{ ('About funding 1'|lang)|link_word('Budget'|lang, url_for('budget')) }}</p>
+        </section>
+        <section class="about-section" aria-labelledby="about-tracking">
+            <h2 id="about-tracking">{{ 'Transparency and tracking'|lang }}</h2>
+            <ul class="about-list">
+                <li>{{ ('About tracking 1'|lang)|link_word('Proposals'|lang, url_for('proposals')) }}</li>
+                <li>{{ 'About tracking 2'|lang }}</li>
+                <li>{{ 'About tracking 3'|lang }}</li>
             </ul>
-        </li>
-        <li>{{ 'About flow approved'|lang }}</li>
-        <li>{{ 'Over-budget proposals'|lang }}</li>
-        <li>{{ 'About flow undo'|lang }}</li>
-    </ul>
-
-    <h3>{{ 'Funding'|lang }}</h3>
-    <p style="margin-bottom: 25px;">{{ 'About funding 1'|lang }}</p>
-    <p><a href="{{ url_for('budget') }}">{{ 'Budget'|lang }}</a></p>
-
-    <h3>{{ 'Transparency and tracking'|lang }}</h3>
-    <ul style="margin-bottom: 25px; padding-left: 20px;">
-        <li>{{ 'About tracking 1'|lang }}</li>
-        <li>{{ 'About tracking 2'|lang }}</li>
-        <li>{{ 'About tracking 3'|lang }}</li>
-    </ul>
-
-    <p><a href="{{ url_for('proposals') }}">{{ 'Proposals'|lang }}</a></p>
-
-    <h3>{{ 'Features Governance'|lang }}</h3>
-    <p>{{ 'Any member can suggest improvements to the platform via'|lang }} <a href="https://github.com/makespacemadrid/manavote">GitHub</a> {{ 'or the'|lang }} {% if session.get('member_id') %}<button class="btn btn-secondary" type="button" data-feedback-open>{{ 'Feedback'|lang }}</button>{% else %}<a href="{{ url_for('auth.login') }}">{{ 'Feedback'|lang }}</a>{% endif %}.</p>
-    <h3>{{ 'Extras'|lang }}</h3>
-    <ul>
-        <li><a href="{{ url_for('polls.polls_page') }}">{{ 'Polls'|lang }}</a>: {{ 'Ask members questions and vote on shared decisions.'|lang }}</li>
-        <li><a href="{{ url_for('coins.coins_page') }}">{{ 'Koins'|lang }}</a>: {{ 'Track shared drinks, consumption, replenishment, and member balances.'|lang }}</li>
-        <li><a href="{{ url_for('group_purchases.group_purchases_page') }}">{{ 'Group purchases'|lang }}</a>: {{ 'Organize shared orders, quantities, costs, and payments.'|lang }}</li>
-    </ul>
-    <p>{{ 'Interact through the web, Telegram, or the assistant bot connected through MCP. Build integrations using our API.'|lang }} <a href="https://github.com/makespacemadrid/manavote/blob/main/docs/APIDOC.md">{{ 'API documentation'|lang }}</a></p>
-</div>
+        </section>
+    </div>
+    <section class="about-section" aria-labelledby="about-governance">
+        <h2 id="about-governance">{{ 'Features Governance'|lang }}</h2>
+        <p>{{ 'Any member can suggest improvements to the platform via'|lang }} <a href="https://github.com/makespacemadrid/manavote">GitHub</a> {{ 'or the'|lang }} {% if session.get('member_id') %}<button class="about-inline-link" type="button" data-feedback-open>{{ 'Feedback'|lang }}</button>{% else %}<a href="{{ url_for('auth.login') }}">{{ 'Feedback'|lang }}</a>{% endif %}.</p>
+    </section>
+    <section class="about-section" aria-labelledby="about-extras">
+        <h2 id="about-extras">{{ 'Extras'|lang }}</h2>
+        <ul class="about-extras">
+            <li><h3><a href="{{ url_for('polls.polls_page') }}">{{ 'Polls'|lang }}</a></h3><p>{{ 'Ask members questions and vote on shared decisions.'|lang }}</p></li>
+            <li><h3><a href="{{ url_for('coins.coins_page') }}">{{ 'Koins'|lang }}</a></h3><p>{{ 'Track shared drinks, consumption, replenishment, and member balances.'|lang }}</p></li>
+            <li><h3><a href="{{ url_for('group_purchases.group_purchases_page') }}">{{ 'Group purchases'|lang }}</a></h3><p>{{ 'Organize shared orders, quantities, costs, and payments.'|lang }}</p></li>
+        </ul>
+    </section>
+    <footer class="about-section about-access">
+        <p>{{ ('Interact through the web, Telegram, or the assistant bot connected through MCP. Build integrations using our API.'|lang)|link_word('API', 'https://github.com/makespacemadrid/manavote/blob/main/docs/APIDOC.md') }}</p>
+    </footer>
+</article>
 {% endblock %}

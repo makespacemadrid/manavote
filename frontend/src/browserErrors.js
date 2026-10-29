@@ -2,6 +2,7 @@
 export function initializeBrowserErrors(browser = window, doc = document) {
   const endpoint = doc.querySelector('meta[name="browser-error-endpoint"]')?.content;
   const csrf = doc.querySelector('meta[name="csrf-token"]')?.content;
+  const build = doc.querySelector('meta[name="frontend-build"]')?.content;
   if (!endpoint || !csrf || typeof browser.fetch !== 'function') return;
   let count = 0;
   const seen = new Set();
@@ -23,6 +24,7 @@ export function initializeBrowserErrors(browser = window, doc = document) {
       const payload = {
         kind, message: clean(message, 6000), stack: clean(stack, 8000),
         page: browser.location.pathname.slice(0, 300),
+        ...(build && /^[a-f0-9]{16}$/.test(build) ? { build } : {}),
       };
       const key = JSON.stringify(payload);
       if (count >= 10 || seen.has(key)) return;
