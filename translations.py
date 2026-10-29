@@ -798,6 +798,19 @@ TRANSLATIONS = {
 # Literal notifications emitted by routes. Keeping these in one catalog makes it
 # easy for coverage tests to ensure that a newly added flash is translated.
 _FLASH_TRANSLATIONS_ES = {
+    "Suggest a purchase": "Propón una compra",
+    "Vote together": "Votamos juntos",
+    "Put the decision into action": "Llevamos la decisión a la práctica",
+    "Copy as new": "Crear una copia",
+    "Item copied.": "Copia creada.",
+    "This request already created a copy.": "Esta solicitud ya había creado una copia.",
+    "Copy could not be created. Refresh the page and try again.": "No se pudo crear la copia. Actualiza la página e inténtalo de nuevo.",
+    "Copy storage is unavailable. Retry the same request.": "El almacenamiento de copias no está disponible. Reintenta la misma solicitud.",
+    "Feedback notifications": "Notificaciones de comentarios",
+    "Resolution notices always appear in the web app. You can also receive a private Telegram message.": "Los avisos de resolución siempre aparecen en la web. También puedes recibir un mensaje privado por Telegram.",
+    "Send feedback resolutions through Telegram": "Recibir resoluciones de comentarios por Telegram",
+    "Link your Telegram account before enabling notifications.": "Vincula tu cuenta de Telegram antes de activar las notificaciones.",
+    "Notification preferences saved.": "Preferencias de notificación guardadas.",
     "Close joining at €125 total": "Cerrar la inscripción al alcanzar 125 € en total",
     "Includes goods and shared costs. Selections above €125 are rejected; joining closes at €125.": "Incluye productos y gastos compartidos. Se rechazan selecciones superiores a 125 €; la inscripción se cierra al alcanzar 125 €.",
     "Order total": "Total del pedido",

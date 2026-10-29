@@ -1,6 +1,7 @@
 import os
 import logging
 import hashlib
+import secrets
 from functools import lru_cache
 from flask import Flask
 
@@ -16,6 +17,11 @@ app = Flask(
     static_folder=os.path.join(BASE_DIR, "static"),
 )
 app.config.from_object(Config)
+
+
+@app.template_global()
+def copy_request_key():
+    return secrets.token_urlsafe(24)
 
 
 @lru_cache(maxsize=8)

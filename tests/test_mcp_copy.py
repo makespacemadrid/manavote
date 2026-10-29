@@ -139,3 +139,71 @@ def test_copy_tools_are_confirmed_admin_writes_with_bound_creator(copy_db, kind)
     with sqlite3.connect(copy_db[0]) as conn:
         table = {'proposal':'proposals','poll':'polls','group_purchase':'group_purchases'}[kind]
         assert conn.execute(f'SELECT created_by FROM {table} WHERE id=?',(new_id,)).fetchone()[0] == 2
+
+
+@pytest.mark.parametrize('kind', ['proposal','poll','group_purchase'])
+def test_copy_retries_reuse_result_by_default_and_fresh_keys_allow_another(copy_db, kind):
+    args = {'source_id':1,'created_by':2}
+    first = payload(call(kind,args))
+    second = payload(call(kind,args))
+    assert first[kind+'_id'] == second[kind+'_id']
+    assert not first['replayed'] and second['replayed']
+    another = payload(call(kind,{**args,'idempotency_key':'another-intentional-copy'}))
+    assert another[kind+'_id'] != first[kind+'_id']
+    assert not another['replayed']
+
+
+def test_request_key_conflicts_and_concurrent_retries(copy_db):
+    from concurrent.futures import ThreadPoolExecutor
+    args={'source_id':1,'created_by':2,'idempotency_key':'same-request'}
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        results=list(pool.map(lambda _: payload(call('proposal',args)), range(2)))
+    assert results[0]['proposal_id'] == results[1]['proposal_id']
+    assert sorted(row['replayed'] for row in results) == [False,True]
+    assert len(list(copy_db[1].iterdir())) == 2
+    assert call('proposal',{**args,'title':'Different request'})['error']['code'] == -32009
+    with sqlite3.connect(copy_db[0]) as conn:
+        conn.execute('DELETE FROM proposals WHERE id=1')
+    assert payload(call('proposal',args))['proposal_id'] == results[0]['proposal_id']
+
+
+def test_failed_idempotency_record_rolls_back_copy_and_retry_succeeds(copy_db):
+    path, uploads=copy_db
+    with sqlite3.connect(path) as conn:
+        conn.execute("CREATE TRIGGER stop_request BEFORE INSERT ON copy_requests BEGIN SELECT RAISE(ABORT, 'blocked'); END")
+    args={'source_id':1,'created_by':2,'idempotency_key':'failed-first-attempt'}
+    assert call('proposal',args)['error']['code'] == -32012
+    assert len(list(uploads.iterdir())) == 1
+    with sqlite3.connect(path) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM proposals').fetchone()[0] == 1
+        conn.execute('DROP TRIGGER stop_request')
+    assert not payload(call('proposal',args))['replayed']
+
+
+@pytest.mark.parametrize('kind,page', [('proposal','/proposal/1'),('poll','/polls'),('group_purchase','/group-purchases')])
+def test_web_copy_buttons_reuse_service_and_enforce_admin_permission(copy_db, monkeypatch, kind, page):
+    from app import app
+    from app.web.routes import main_routes
+    def connect():
+        conn=sqlite3.connect(copy_db[0]); conn.row_factory=sqlite3.Row; return conn
+    monkeypatch.setattr(main_routes,'get_db',connect)
+    monkeypatch.setattr(main_routes,'DB_PATH',str(copy_db[0]))
+    monkeypatch.setitem(app.config,'WTF_CSRF_ENABLED',False)
+    monkeypatch.setitem(app.config,'UPLOAD_FOLDER',str(copy_db[1]))
+    client=app.test_client()
+    with client.session_transaction() as session:
+        session.update(member_id=1,username='admin',is_admin=True)
+    endpoint=f'/admin/copy/{kind}/1'
+    assert endpoint.encode() in client.get(page).data
+    first=client.post(endpoint,data={'idempotency_key':'web-copy-request','created_by':'999'})
+    second=client.post(endpoint,data={'idempotency_key':'web-copy-request','created_by':'999'})
+    assert first.status_code == second.status_code == 302
+    assert first.headers['Location'] == second.headers['Location']
+    with connect() as conn:
+        table={'proposal':'proposals','poll':'polls','group_purchase':'group_purchases'}[kind]
+        assert conn.execute(f'SELECT COUNT(*) FROM {table}').fetchone()[0] == 2
+        assert conn.execute(f'SELECT created_by FROM {table} ORDER BY id DESC').fetchone()[0] == 1
+    with client.session_transaction() as session:
+        session.update(member_id=2,username='member',is_admin=False)
+    assert endpoint.encode() not in client.get(page).data
+    assert client.post(endpoint,data={'idempotency_key':'not-admin'}).status_code == 302

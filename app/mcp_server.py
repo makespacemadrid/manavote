@@ -26,7 +26,7 @@ from app.repositories.proposal_repo import ProposalRepository
 from app.repositories.coin_repo import CoinRepository
 from app.services import coin_service, feedback_service, pagination_service, poll_service, voting_settings_service
 from app.services import mcp_application
-from app.services.copy_service import copy_item, CopyNotFound
+from app.services.copy_service import copy_item, CopyNotFound, CopyConflict
 from app.services import telegram_messaging_service
 from app.services.creation_validation_service import normalize_poll_options
 from app.services.telegram_link_diagnostics import LINKED_CONDITION_SQL, link_state_case_sql
@@ -471,6 +471,7 @@ def tool_definitions() -> list[dict[str, Any]]:
          'inputSchema': {'type': 'object', 'required': ['source_id', 'created_by'], 'additionalProperties': False,
              'properties': {'source_id': {'type': 'integer', 'minimum': 1}, 'created_by': {'type': 'integer', 'minimum': 1},
                  ('question' if kind == 'poll' else 'title'): {'type': 'string', 'minLength': 1},
+                 'idempotency_key': {'type': 'string', 'minLength': 1, 'maxLength': 128, 'description': 'Reuse for retries; use a fresh key for another intentional copy. Without a key, identical copy arguments reuse their original result.'},
                  **({'deadline': {'type': ['string', 'null'], 'description': 'New future ISO datetime including timezone for polls; current/future YYYY-MM-DD for orders. Omit to clear.'}} if kind != 'proposal' else {})}}}
         for kind in ('proposal', 'poll', 'group_purchase')
     ]
@@ -493,7 +494,7 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
     if normalized_name in {'copy_proposal', 'copy_poll', 'copy_group_purchase'}:
         kind = normalized_name.removeprefix('copy_')
         label_key = 'question' if kind == 'poll' else 'title'
-        allowed = {'source_id', 'created_by', label_key} | ({'deadline'} if kind != 'proposal' else set())
+        allowed = {'source_id', 'created_by', label_key, 'idempotency_key'} | ({'deadline'} if kind != 'proposal' else set())
         if set(arguments) - allowed:
             return _error(req_id, -32602, 'Invalid params: unsupported copy fields')
         if label_key in arguments and arguments[label_key] is None:
@@ -503,7 +504,9 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
             conn = sqlite3.connect(DB_PATH)
             conn.row_factory = sqlite3.Row
             payload = copy_item(conn, kind=kind, source_id=arguments.get('source_id'), created_by=arguments.get('created_by'),
-                upload_folder=UPLOAD_FOLDER, label=arguments.get(label_key), deadline=arguments.get('deadline'))
+                upload_folder=UPLOAD_FOLDER, label=arguments.get(label_key), deadline=arguments.get('deadline'), idempotency_key=arguments.get('idempotency_key'))
+        except CopyConflict as exc:
+            return _error(req_id, -32009, str(exc))
         except CopyNotFound as exc:
             return _error(req_id, -32004, str(exc))
         except ValueError as exc:

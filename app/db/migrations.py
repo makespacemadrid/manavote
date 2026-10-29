@@ -120,6 +120,12 @@ def run_migrations(cursor):
     )
     """)
     add_column_if_missing(cursor, "feedback", "section TEXT")
+    add_column_if_missing(cursor, "members", "feedback_telegram_notifications INTEGER NOT NULL DEFAULT 0")
+    add_column_if_missing(cursor, "members", "feedback_notification_language TEXT NOT NULL DEFAULT 'en'")
+    cursor.execute('''CREATE TABLE IF NOT EXISTS copy_requests (
+        creator_id INTEGER NOT NULL, request_key TEXT NOT NULL, fingerprint TEXT NOT NULL,
+        result_json TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP,
+        PRIMARY KEY(creator_id,request_key))''')
     cursor.execute('''CREATE TABLE IF NOT EXISTS feedback_notes (
         id INTEGER PRIMARY KEY AUTOINCREMENT, feedback_id INTEGER NOT NULL,
         author_id INTEGER NOT NULL, message TEXT NOT NULL, created_at TEXT DEFAULT CURRENT_TIMESTAMP)''')
@@ -127,6 +133,8 @@ def run_migrations(cursor):
         id INTEGER PRIMARY KEY AUTOINCREMENT, feedback_id INTEGER NOT NULL,
         member_id INTEGER NOT NULL, message TEXT NOT NULL, read_at TEXT,
         created_at TEXT DEFAULT CURRENT_TIMESTAMP)''')
+    add_column_if_missing(cursor, "feedback_notifications", "telegram_status TEXT NOT NULL DEFAULT 'pending'")
+    add_column_if_missing(cursor, "feedback_notifications", "telegram_sent_at TEXT")
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS telegram_pending_actions (
         chat_id INTEGER NOT NULL,

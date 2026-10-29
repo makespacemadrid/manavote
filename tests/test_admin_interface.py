@@ -354,3 +354,20 @@ def test_browser_reports_include_validated_build_version(ui_client, error_store)
         'kind':'error', 'message':'invalid', 'build':{'secret':'not metadata'},
     }).status_code == 400
     assert len(error_store.recent()) == 1
+
+
+def test_member_can_opt_in_to_feedback_telegram_only_after_linking(ui_client, error_store):
+    with ui_client.session_transaction() as session:
+        session.update(member_id=2,username='member',is_admin=False,lang='en')
+    endpoint='/settings'
+    response=ui_client.post(endpoint,data={'action':'feedback_notification_preferences','enabled':'1'},follow_redirects=True)
+    assert b'Link your Telegram account' in response.data
+    conn=main_routes.get_db()
+    assert conn.execute('SELECT feedback_telegram_notifications FROM members WHERE id=2').fetchone()[0] == 0
+    conn.execute('UPDATE members SET telegram_user_id=777 WHERE id=2'); conn.commit(); conn.close()
+    response=ui_client.post(endpoint,data={'action':'feedback_notification_preferences','enabled':'1'},follow_redirects=True)
+    assert b'Notification preferences saved.' in response.data
+    conn=main_routes.get_db()
+    assert conn.execute('SELECT feedback_telegram_notifications FROM members WHERE id=2').fetchone()[0] == 1
+    assert conn.execute('SELECT feedback_telegram_notifications FROM members WHERE id=1').fetchone()[0] == 0
+    conn.close()

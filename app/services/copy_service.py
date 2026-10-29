@@ -4,6 +4,9 @@ import logging
 from pathlib import Path
 import secrets
 import shutil
+import hashlib
+import json
+import re
 
 from app.db.transactions import write_transaction
 from app.repositories.copy_repo import CopyRepository
@@ -15,35 +18,54 @@ class CopyNotFound(ValueError):
     pass
 
 
-def copy_item(conn, *, kind, source_id, created_by, upload_folder, label=None, deadline=None):
+class CopyConflict(ValueError):
+    pass
+
+
+def copy_item(conn, *, kind, source_id, created_by, upload_folder, label=None, deadline=None, idempotency_key=None):
     if kind not in CopyRepository.TABLES:
         raise ValueError('Unknown copy kind')
     if any(isinstance(value, bool) or not isinstance(value, int) or value < 1 for value in (source_id, created_by)):
         raise ValueError('source_id and created_by must be positive integers')
     if label is not None and (not isinstance(label, str) or not label.strip()):
         raise ValueError('The new title/question must be a non-empty string')
-    if deadline is not None:
-        if kind == 'proposal' or not isinstance(deadline, str):
-            raise ValueError('Invalid deadline')
-        try:
-            if kind == 'poll':
-                parsed = datetime.fromisoformat(deadline.replace('Z', '+00:00'))
-                if parsed.tzinfo is None:
-                    raise ValueError('Poll deadline must include a timezone')
-                if parsed <= datetime.now(timezone.utc):
-                    raise ValueError('Poll deadline must be in the future')
-                # Existing poll scheduling compares UTC-naive ISO timestamps.
-                deadline = parsed.astimezone(timezone.utc).replace(tzinfo=None).isoformat()
-            elif date.fromisoformat(deadline) < date.today():
-                raise ValueError('Order deadline must not be in the past')
-        except (TypeError, ValueError) as exc:
-            raise ValueError('Supply a future timezone-qualified poll deadline or current/future order date') from exc
+    if deadline is not None and not isinstance(deadline, str):
+        raise ValueError('Invalid deadline')
+    if idempotency_key is not None and (not isinstance(idempotency_key, str) or re.fullmatch(r'[A-Za-z0-9._:-]{1,128}', idempotency_key) is None):
+        raise ValueError('idempotency_key must be 1..128 letters, digits, dots, underscores, colons or hyphens')
+    fingerprint = hashlib.sha256(json.dumps([kind, source_id, created_by, label.strip() if label else None, deadline], ensure_ascii=False).encode()).hexdigest()
+    request_key = 'explicit:' + hashlib.sha256(idempotency_key.encode()).hexdigest() if idempotency_key else 'auto:' + fingerprint
     new_image = None
     committed = False
     warnings = []
     repo = CopyRepository(conn)
     try:
         with write_transaction(conn):
+            previous = repo.prior_request(created_by, request_key)
+            if previous is not None:
+                if previous['fingerprint'] != fingerprint:
+                    raise CopyConflict('This request key was already used with different copy arguments')
+                result = json.loads(previous['result_json'])
+                if repo.source(kind, result[kind + '_id']) is None:
+                    raise CopyConflict('The original copy was deleted; use a new request key')
+                result['replayed'] = True
+                return result
+            if deadline is not None:
+                if kind == 'proposal' or not isinstance(deadline, str):
+                    raise ValueError('Invalid deadline')
+                try:
+                    if kind == 'poll':
+                        parsed = datetime.fromisoformat(deadline.replace('Z', '+00:00'))
+                        if parsed.tzinfo is None:
+                            raise ValueError('Poll deadline must include a timezone')
+                        if parsed <= datetime.now(timezone.utc):
+                            raise ValueError('Poll deadline must be in the future')
+                        # Existing poll scheduling compares UTC-naive ISO timestamps.
+                        deadline = parsed.astimezone(timezone.utc).replace(tzinfo=None).isoformat()
+                    elif date.fromisoformat(deadline) < date.today():
+                        raise ValueError('Order deadline must not be in the past')
+                except (TypeError, ValueError) as exc:
+                    raise ValueError('Supply a future timezone-qualified poll deadline or current/future order date') from exc
             if not repo.member_exists(created_by):
                 raise CopyNotFound('Creator member not found')
             source = repo.source(kind, source_id)
@@ -84,9 +106,11 @@ def copy_item(conn, *, kind, source_id, created_by, upload_folder, label=None, d
                 groups.insert_components(new_id, components)
                 groups.insert_shared_costs(new_id, costs)
                 group_purchase_service.enforce_purchase_limits(groups, new_id)
+            result = {'success': True, 'source_id': source_id, kind + '_id': new_id, 'warnings': warnings, 'replayed': False}
+            repo.save_request(created_by, request_key, fingerprint, json.dumps(result, ensure_ascii=False))
         committed = True
     finally:
         if new_image and not committed:
             (Path(upload_folder) / new_image).unlink(missing_ok=True)
     logging.getLogger(__name__).info('event=item_copied kind=%s source_id=%s new_id=%s actor_id=%s', kind, source_id, new_id, created_by)
-    return {'success': True, 'source_id': source_id, kind + '_id': new_id, 'warnings': warnings}
+    return result

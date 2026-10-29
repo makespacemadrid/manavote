@@ -2,12 +2,13 @@ from contextlib import closing
 import os
 import sqlite3
 
-from flask import Blueprint, flash, redirect, render_template, request, send_file, session, url_for
+from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, session, url_for
 
 from app.extensions import limiter
 from app.services import admin_actions_service, admin_page_service
 from app.services.assistant_health_service import build_assistant_health
 from app.services.error_report_service import list_errors, export_errors, capture_browser_error
+from app.services.copy_service import copy_item, CopyConflict, CopyNotFound
 from app.integrations import telegram_agent
 from app.web.routes.helpers.admin_audit_helpers import log_admin_backup_event, log_telegram_link_event
 
@@ -16,6 +17,35 @@ from app.web.routes import main_routes as legacy
 from werkzeug.utils import secure_filename
 
 admin_bp = Blueprint("admin", __name__)
+
+
+@admin_bp.post('/admin/copy/<kind>/<int:source_id>')
+@login_required
+@admin_required
+def copy_from_web(kind, source_id):
+    if kind not in {'proposal', 'poll', 'group_purchase'}:
+        abort(404)
+    key = request.form.get('idempotency_key')
+    if not key:
+        abort(400)
+    try:
+        with closing(legacy.get_db()) as conn:
+            result = copy_item(conn, kind=kind, source_id=source_id, created_by=session['member_id'],
+                upload_folder=legacy.app.config['UPLOAD_FOLDER'], idempotency_key=key)
+    except (CopyConflict, CopyNotFound, ValueError):
+        flash('Copy could not be created. Refresh the page and try again.', 'error')
+        return redirect(url_for('proposals'))
+    except (OSError, sqlite3.Error):
+        flash('Copy storage is unavailable. Retry the same request.', 'error')
+        return redirect(url_for('proposals'))
+    flash('Item copied.' if not result['replayed'] else 'This request already created a copy.', 'success')
+    for warning in result['warnings']:
+        flash(warning, 'warning')
+    if kind == 'proposal':
+        return redirect(url_for('proposals.proposal_detail', proposal_id=result['proposal_id']))
+    if kind == 'poll':
+        return redirect(url_for('polls.polls_page', _anchor='poll-' + str(result['poll_id'])))
+    return redirect(url_for('group_purchases.group_purchases_page', _anchor='purchase-' + str(result['group_purchase_id'])))
 
 
 @admin_bp.post('/diagnostics/browser-errors')

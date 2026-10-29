@@ -51,7 +51,14 @@ for `copy_group_purchase`. Other override fields are rejected. Success returns `
 `source_id`, the new `proposal_id`/`poll_id`/`group_purchase_id`, and `warnings`.
 Missing source/creator returns `-32004`, invalid inputs `-32602`, and storage failures
 `-32012`. Copying is transactional and does not send announcements or modify the source.
-Repeated successful calls intentionally create separate copies. Images are independently
+Copy tools accept optional `idempotency_key` (1–128 letters, digits, dots, underscores,
+colons or hyphens). Retrying the same key and arguments returns the saved result with
+`replayed: true`; initial success includes `replayed: false`. Reusing a key with different
+arguments, or replaying a copy that was deleted, returns `-32009`. Keys are scoped to
+the new creator across copy tools. Without an explicit key, identical arguments reuse
+their original result; supply a fresh key for another intentional identical copy.
+The durable request record, new item and image lifecycle share the same transaction,
+so concurrent retries cannot create duplicates. Images are independently
 duplicated; a missing source image is omitted with a warning. New images are removed
 when a transaction fails.
 

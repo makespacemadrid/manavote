@@ -3,6 +3,7 @@
 VALID_CATEGORIES = {"bug", "suggestion", "other"}
 from app.repositories.feedback_repo import FeedbackRepository
 from app.db.transactions import write_transaction
+from app.services.feedback_notification_service import deliver_resolution
 import logging
 
 VALID_STATUSES = {"new", "reviewed", "resolved", "rejected"}
@@ -73,13 +74,16 @@ def update_feedback_status(conn, *, feedback_id, status, resolved_by, logger=Non
     if status not in VALID_STATUSES:
         raise FeedbackValidationError("invalid_status", "status must be new, reviewed, resolved, or rejected")
     repo = FeedbackRepository(conn)
+    notification_id = None
     with write_transaction(conn):
         item = repo.get(feedback_id)
         if item is None:
             raise FeedbackValidationError('feedback_not_found', 'feedback not found')
         repo.resolve_status(feedback_id, status, resolved_by)
         if status == 'resolved' and item['status'] != 'resolved':
-            repo.notify(item)
+            notification_id = repo.notify(item)
+    if notification_id is not None:
+        deliver_resolution(conn, notification_id)
     if logger:
         logger.info("event=feedback_status_changed feedback_id=%s status=%s resolved_by=%s", feedback_id, status, resolved_by)
 
