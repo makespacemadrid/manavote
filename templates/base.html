@@ -13,6 +13,15 @@
 </head>
 <body>
     <div class="container">
+        {% for notification in feedback_notifications|default([]) %}
+        <div class="flash success" role="status">
+            {{ 'Your feedback was resolved'|lang }} #{{ notification.feedback_id }}: {{ notification.message }}
+            <form method="POST" action="{{ url_for('auth.read_notification', notification_id=notification.id) }}">
+                <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+                <button class="btn btn-secondary" type="submit">{{ 'Dismiss'|lang }}</button>
+            </form>
+        </div>
+        {% endfor %}
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}

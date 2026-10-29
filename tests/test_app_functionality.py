@@ -489,7 +489,7 @@ class TestAdminFunctionality(unittest.TestCase):
         )
         self.assertEqual(response.status_code, 200)
         html = response.data.decode("utf-8")
-        self.assertIn('var serverTab = "settings";', html)
+        self.assertIn('data-default-tab="settings"', html)
 
     def test_admin_backup_db_create_emits_audit_log_event(self):
         with patch("app.services.backup_service.backup_db", return_value=("budget_20990101_000000.db", 2)):

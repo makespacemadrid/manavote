@@ -352,6 +352,13 @@ def apply_admin_action(conn, *, data, actor_id, is_admin, dependencies):
                     sent = send_telegram_message(message, poll["id"], options)
                     emit_message("Poll sent to Telegram!" if sent else "Failed to send poll to Telegram", "success" if sent else "error")
 
+        elif action in {'add_feedback_note', 'edit_feedback_note', 'delete_feedback_note', 'edit_feedback', 'delete_feedback'}:
+            try:
+                feedback_service.manage_feedback(conn, action=action, feedback_id=_optional_int(data.get('feedback_id')),
+                    actor_id=actor_id, is_admin=is_admin, message=data.get('message', ''), category=data.get('category', ''), note_id=_optional_int(data.get('note_id')))
+                emit_message('Feedback updated.', 'success')
+            except feedback_service.FeedbackValidationError as exc:
+                emit_message(str(exc), 'error')
         elif action == "update_feedback_status":
             try:
                 feedback_service.update_feedback_status(

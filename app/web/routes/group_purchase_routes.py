@@ -95,6 +95,10 @@ def group_purchases_page():
                 title=title, components=components, deadline=deadline, product_url=product_url,
                 payment_method=payment_method, component_error=component_error, shared_cost_error=shared_cost_error,
             )
+            try:
+                join_member_limit = purchases_service.parse_join_member_limit(request.form.get('join_member_limit'))
+            except ValueError as exc:
+                error = error or str(exc)
             if error:
                 flash(error, "error")
             else:
@@ -109,7 +113,7 @@ def group_purchases_page():
                     purchase_id = purchases_service.create_purchase(
                         conn, title=title, description=description, deadline=deadline, product_url=product_url,
                         image_filename=image_filename, payment_method=payment_method, member_id=session["member_id"],
-                        components=components, shared_costs=shared_costs,
+                        components=components, shared_costs=shared_costs, join_member_limit=join_member_limit,
                     )
                     creator = session["username"].split("@")[0]
                     option_lines = "\n".join(
@@ -223,6 +227,10 @@ def edit_purchase(purchase_id):
                 invalid_component=invalid_component, shared_cost_error=shared_cost_error,
             )
             try:
+                join_member_limit = purchases_service.parse_join_member_limit(request.form.get('join_member_limit'))
+            except ValueError as exc:
+                error = error or str(exc)
+            try:
                 new_components = purchases_service.validate_component_additions(
                     component_updates, request.form.getlist("new_component_name"),
                     request.form.getlist("new_component_price"),
@@ -248,7 +256,7 @@ def edit_purchase(purchase_id):
                         conn, purchase_id=purchase_id, member_id=session["member_id"], is_admin=session.get("is_admin"),
                         title=title, description=description, deadline=deadline, product_url=product_url,
                         image_filename=image_filename, payment_method=payment_method,
-                        updates=component_updates, shared_costs=shared_costs, new_components=new_components,
+                        updates=component_updates, shared_costs=shared_costs, new_components=new_components, join_member_limit=join_member_limit,
                     )
                     flash("Group purchase updated", "success")
                     return redirect(url_for("group_purchases.group_purchases_page") + f"#purchase-{purchase_id}")

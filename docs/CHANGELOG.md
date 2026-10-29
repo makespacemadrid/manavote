@@ -7,6 +7,25 @@ history. [IDEAS.md](IDEAS.md) contains unfinished work; [SPRINTS.md](SPRINTS.md)
 records iteration scope and progress. Detailed historical findings and decisions are
 preserved in the [roadmap audit archive](archive/ROADMAP_AUDITS.md).
 
+## Unreleased — Error archives, feedback workflow, purchasing and Admin usability
+
+- Error downloads now use CSRF-protected POST and atomically archive only exported
+  pending records. Processed records remain viewable but are excluded from later exports;
+  simultaneous downloads cannot duplicate a batch. Retains 200 pending and 200 archived.
+- Group purchases support an optional distinct-member joining limit. Reaching it closes
+  joining atomically without claiming an order was placed; creator ordering remains explicit.
+- Feedback adds rejection, administrator item and note editing/deletion, and persistent
+  in-app resolution notifications for the submitter. Admin notes remain private.
+- Admin tabs use URL fragments/query parameters and survive refresh and Back/Forward.
+  Fixed the React navigation text-node mismatch reported in the uploaded diagnostics.
+- Coke/Coke Zero labels have large red/black titles and central branded wordmarks with
+  high QR error correction; both decode to their unchanged scan URLs.
+- About links to Feedback, GitHub, Budget and Proposals, describes Polls/Koins/Group
+  purchases, and explains web, Telegram, MCP bot and API access in both languages.
+- Validation: 933 Python tests and 5 frontend tests passed; production build passed.
+  Chromium verified hydration, tab refresh, keyboard/focus, and layouts in English/Spanish
+  at 375/600/1280px. Both branded QR images decode at native and printed display sizes.
+
 ## Unreleased — Browser errors in administrator reports
 
 - Signed-in browsers report `console.error`, uncaught JavaScript errors, and unhandled

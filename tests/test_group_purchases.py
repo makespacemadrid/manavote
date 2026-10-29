@@ -415,7 +415,7 @@ def test_admin_panel_lists_group_purchase_actions(group_purchase_client):
 
     assert response.status_code == 200
     assert b'data-section="group_purchases"' in response.data
-    assert b'href="/admin?tab=group_purchases"' in response.data
+    assert b'href="/admin?tab=group_purchases#group_purchases"' in response.data
     assert b"Admin-managed order" in response.data
     assert b'/group-purchases/1/edit' in response.data
     assert b'/group-purchases/1/delete' in response.data
@@ -495,3 +495,55 @@ def test_edit_rejects_invalid_additions_atomically_and_retains_draft(group_purch
     assert conn.execute('SELECT title FROM group_purchases').fetchone() == ('Order',)
     assert conn.execute('SELECT name, unit_price FROM group_purchase_components').fetchall() == [('AA', 2)]
     conn.close()
+
+
+def test_join_limit_counts_members_not_components_and_closes_joining(group_purchase_client):
+    from app.services import group_purchase_service as groups
+    client, path = group_purchase_client
+    response = client.post('/group-purchases', data={'title': 'Limited order', 'components': 'AA | 2\nAAA | 3', 'join_member_limit': '2'})
+    assert response.status_code == 302
+    conn = sqlite3.connect(path); conn.row_factory = sqlite3.Row
+    conn.executemany("INSERT INTO members(id,username,password_hash) VALUES (?,?,'x')", [(2, 'second'), (3, 'third')]); conn.commit()
+    purchase_id = conn.execute('SELECT id FROM group_purchases').fetchone()[0]
+    components = conn.execute('SELECT id FROM group_purchase_components ORDER BY id').fetchall()
+    groups.set_quantity(conn, purchase_id=purchase_id, component_id=components[0]['id'], member_id=2, quantity=5)
+    groups.set_quantity(conn, purchase_id=purchase_id, component_id=components[1]['id'], member_id=2, quantity=8)
+    assert conn.execute('SELECT status FROM group_purchases').fetchone()[0] == 'open'
+    groups.set_quantity(conn, purchase_id=purchase_id, component_id=components[0]['id'], member_id=3, quantity=1)
+    assert conn.execute('SELECT status FROM group_purchases').fetchone()[0] == 'closed'
+    with pytest.raises(ValueError, match='Component not found'):
+        groups.set_quantity(conn, purchase_id=purchase_id, component_id=components[0]['id'], member_id=1, quantity=1)
+    groups.update_status(conn, purchase_id=purchase_id, member_id=1, status='ordered')
+    conn.close()
+
+
+@pytest.mark.parametrize('limit', ['0', '-1', '2.5', 'invalid', '10001'])
+def test_invalid_join_limit_retains_purchase_form(group_purchase_client, limit):
+    client, path = group_purchase_client
+    response = client.post('/group-purchases', data={'title': 'Draft limited order', 'components': 'AA', 'join_member_limit': limit})
+    assert response.status_code == 200 and b'Draft limited order' in response.data
+    with sqlite3.connect(path) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM group_purchases').fetchone()[0] == 0
+
+
+def test_join_limit_serializes_concurrent_members(group_purchase_client):
+    from concurrent.futures import ThreadPoolExecutor
+    from app.services import group_purchase_service as groups
+    client, path = group_purchase_client
+    client.post('/group-purchases', data={'title': 'Only one', 'components': 'AA', 'join_member_limit': '1'})
+    with sqlite3.connect(path) as conn:
+        conn.executemany("INSERT INTO members(id,username,password_hash) VALUES (?,?,'x')", [(2, 'second'), (3, 'third')])
+        purchase_id, component_id = conn.execute('SELECT group_purchase_id,id FROM group_purchase_components').fetchone()
+    def join(member_id):
+        conn = sqlite3.connect(path); conn.row_factory = sqlite3.Row
+        try:
+            groups.set_quantity(conn, purchase_id=purchase_id, component_id=component_id, member_id=member_id, quantity=1)
+            return True
+        except ValueError:
+            return False
+        finally:
+            conn.close()
+    with ThreadPoolExecutor(max_workers=2) as pool:
+        assert sorted(pool.map(join, [2,3])) == [False, True]
+    with sqlite3.connect(path) as conn:
+        assert conn.execute('SELECT COUNT(*) FROM group_purchase_quantities').fetchone()[0] == 1

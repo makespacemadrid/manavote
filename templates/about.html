@@ -26,6 +26,7 @@
 
     <h3>{{ 'Funding'|lang }}</h3>
     <p style="margin-bottom: 25px;">{{ 'About funding 1'|lang }}</p>
+    <p><a href="{{ url_for('budget') }}">{{ 'Budget'|lang }}</a></p>
 
     <h3>{{ 'Transparency and tracking'|lang }}</h3>
     <ul style="margin-bottom: 25px; padding-left: 20px;">
@@ -34,7 +35,16 @@
         <li>{{ 'About tracking 3'|lang }}</li>
     </ul>
 
+    <p><a href="{{ url_for('proposals') }}">{{ 'Proposals'|lang }}</a></p>
+
     <h3>{{ 'Features Governance'|lang }}</h3>
-    <p style="margin-bottom: 0;">{{ 'About governance'|lang }} <a href="https://github.com/makespacemadrid/manavote">https://github.com/makespacemadrid/manavote</a>.</p>
+    <p>{{ 'Any member can suggest improvements to the platform via'|lang }} <a href="https://github.com/makespacemadrid/manavote">GitHub</a> {{ 'or the'|lang }} {% if session.get('member_id') %}<button class="btn btn-secondary" type="button" data-feedback-open>{{ 'Feedback'|lang }}</button>{% else %}<a href="{{ url_for('auth.login') }}">{{ 'Feedback'|lang }}</a>{% endif %}.</p>
+    <h3>{{ 'Extras'|lang }}</h3>
+    <ul>
+        <li><a href="{{ url_for('polls.polls_page') }}">{{ 'Polls'|lang }}</a>: {{ 'Ask members questions and vote on shared decisions.'|lang }}</li>
+        <li><a href="{{ url_for('coins.coins_page') }}">{{ 'Koins'|lang }}</a>: {{ 'Track shared drinks, consumption, replenishment, and member balances.'|lang }}</li>
+        <li><a href="{{ url_for('group_purchases.group_purchases_page') }}">{{ 'Group purchases'|lang }}</a>: {{ 'Organize shared orders, quantities, costs, and payments.'|lang }}</li>
+    </ul>
+    <p>{{ 'Interact through the web, Telegram, or the assistant bot connected through MCP. Build integrations using our API.'|lang }} <a href="https://github.com/makespacemadrid/manavote/blob/main/docs/APIDOC.md">{{ 'API documentation'|lang }}</a></p>
 </div>
 {% endblock %}

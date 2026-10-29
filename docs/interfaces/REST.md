@@ -53,7 +53,7 @@ Feedback is the exception to admin-key REST authentication: it uses the
 logged-in web session. `POST /api/feedback` accepts
 `{"category":"bug|suggestion|other","message":"..."}` from any member. Administrators
 can use `GET /api/feedback?status=&category=&limit=&offset=` and
-`PATCH /api/feedback/<id>` with `{"status":"new|reviewed|resolved"}` to triage it.
+`PATCH /api/feedback/<id>` with `{"status":"new|reviewed|resolved|rejected"}` to triage it. Resolution creates a persistent in-app notification for the submitter.
 Validation failures use the standard error envelope; stable codes include
 `invalid_category`, `message_required`, `message_too_long`, `invalid_status`, and
 `feedback_not_found`.

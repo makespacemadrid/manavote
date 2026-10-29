@@ -1,5 +1,6 @@
 from contextlib import closing
 import os
+import sqlite3
 
 from flask import Blueprint, flash, redirect, render_template, request, send_file, session, url_for
 
@@ -38,12 +39,16 @@ def browser_error():
     return response
 
 
-@admin_bp.get('/admin/errors/download')
+@admin_bp.post('/admin/errors/download')
 @login_required
 @admin_required
 def download_errors():
+    try:
+        report = export_errors(legacy.app.extensions['error_reports'])
+    except (OSError, sqlite3.Error):
+        return legacy.app.response_class('Diagnostic storage is unavailable; no errors were processed.', status=503, headers={'Cache-Control': 'no-store'})
     response = legacy.app.response_class(
-        export_errors(legacy.app.extensions['error_reports']), mimetype='application/json',
+        report, mimetype='application/json',
     )
     response.headers['Content-Disposition'] = 'attachment; filename="manavote-errors.json"'
     response.headers['Cache-Control'] = 'no-store'
@@ -143,6 +148,7 @@ def admin():
         session_lang=session.get("lang", "en"),
         active_admin_tab=requested_tab if requested_tab in allowed_tabs else "all",
         error_reports=list_errors(legacy.app.extensions['error_reports']),
+        archived_error_reports=list_errors(legacy.app.extensions['error_reports'], archived=True),
     ))
     response.headers['Cache-Control'] = 'no-store'
     return response

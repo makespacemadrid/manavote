@@ -26,6 +26,7 @@ def conn():
             resolved_at TEXT, resolved_by INTEGER
         );
     """)
+    connection.execute('CREATE TABLE feedback_notifications(id INTEGER PRIMARY KEY,feedback_id INTEGER,member_id INTEGER,message TEXT,read_at TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP)')
     yield connection
     connection.close()
 

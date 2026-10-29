@@ -4,11 +4,16 @@
 
 In Admin, open **Errors** (before Feedback), expand a record to read its details,
 or choose **Download error report** to save `manavote-errors.json` for troubleshooting.
+The CSRF-protected POST download atomically processes exactly its pending records and
+archives them. Later downloads exclude them; the Archived errors section stays readable.
+Processing means server-side file generation, not confirmation the browser saved it.
+Generation/archiving failures return 503 and roll back. Concurrent downloads cannot
+export the same pending batch.
 Warnings and errors recorded through Python logging include their original timestamp,
 logger, call site, and available traceback; errors logged without exception information
 cannot supply a traceback retroactively. The empty state means no records were captured.
 
-Capture begins with this deployment and retains the latest 200 records (16,000 detail
+Capture begins with this deployment and retains the latest 200 pending and 200 archived records (16,000 detail
 characters each). Workers share `<APP_DB_PATH>.errors.db`; keep its containing directory
 writable and on a persistent volume to retain reports across container replacements.
 The Compose `/data` volume already meets this requirement. Diagnostic records are
