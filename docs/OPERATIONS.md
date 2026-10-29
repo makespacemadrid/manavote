@@ -2,6 +2,14 @@
 
 ## Downloading an error report
 
+Frontend script/stylesheet URLs include content fingerprints, so a new deployment does
+not reuse an older asset URL. New browser reports include a validated `Frontend build`
+fingerprint when available. Compare it with the page's `frontend-build` meta tag when
+investigating errors across deployments; older reports do not identify their build.
+Injected browser-extension errors (for example wallet-provider code) are still reported,
+but application changes cannot repair the extension. Generic cross-origin `Script error.`
+events may contain no useful stack because the browser withholds those details.
+
 In Admin, open **Errors** (before Feedback), expand a record to read its details,
 or choose **Download error report** to save `manavote-errors.json` for troubleshooting.
 The CSRF-protected POST download atomically processes exactly its pending records and

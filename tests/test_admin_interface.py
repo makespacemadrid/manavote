@@ -62,6 +62,7 @@ def test_password_dialog_and_translated_diagnostics(ui_client, language, history
         html=html.replace('/static/', (base/'static').as_uri()+'/')
         (output/f'admin-{language}.html').write_text(html)
         (output/f'proposals-{language}.html').write_text(ui_client.get('/proposals').get_data(as_text=True).replace('/static/',(base/'static').as_uri()+'/'))
+        (output/f'about-{language}.html').write_text(ui_client.get('/about').get_data(as_text=True).replace('/static/',(base/'static').as_uri()+'/'))
 
 
 def test_regular_member_cannot_read_admin_diagnostics(ui_client):
@@ -341,3 +342,15 @@ def test_error_store_migrates_existing_pending_records(tmp_path):
     assert repo.recent()[0]['details'] == 'preserved'
     assert repo.recent()[0]['processed_at'] is None
     assert repo.recent(archived=True) == []
+
+
+def test_browser_reports_include_validated_build_version(ui_client, error_store):
+    response = ui_client.post('/diagnostics/browser-errors', json={
+        'kind':'error', 'message':'fixture', 'build':'1234567890abcdef', 'page':'/admin',
+    })
+    assert response.status_code == 204
+    assert 'Frontend build: 1234567890abcdef' in error_store.recent()[0]['details']
+    assert ui_client.post('/diagnostics/browser-errors', json={
+        'kind':'error', 'message':'invalid', 'build':{'secret':'not metadata'},
+    }).status_code == 400
+    assert len(error_store.recent()) == 1

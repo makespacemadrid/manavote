@@ -1,5 +1,7 @@
 import os
 import logging
+import hashlib
+from functools import lru_cache
 from flask import Flask
 
 from app.config import Config
@@ -14,6 +16,22 @@ app = Flask(
     static_folder=os.path.join(BASE_DIR, "static"),
 )
 app.config.from_object(Config)
+
+
+@lru_cache(maxsize=8)
+def _asset_digest(path, modified_ns, size):
+    with open(path, 'rb') as asset:
+        return hashlib.sha256(asset.read()).hexdigest()[:16]
+
+
+@app.template_global()
+def asset_version(filename):
+    path = os.path.join(app.static_folder, filename)
+    try:
+        stat = os.stat(path)
+        return _asset_digest(path, stat.st_mtime_ns, stat.st_size)
+    except OSError:
+        return 'unavailable'
 
 if not app.debug:
     logging.basicConfig(

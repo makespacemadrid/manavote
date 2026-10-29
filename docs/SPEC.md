@@ -184,6 +184,18 @@ If a proposal marked basic supplies has amount > €20, basic flag is auto-remov
 
 ## 7) UI/feature behavior
 
+### MCP copying
+
+- Administrators can copy proposals, polls and group purchases into fresh records via
+  `copy_proposal`, `copy_poll`, and `copy_group_purchase`. Telegram requires explicit
+  admin confirmation and binds the new creator to the linked actor. Public MCP uses its
+  existing admin-key boundary and an explicit creator ID.
+- Copies reuse content/settings, independently duplicate available images, and retain no
+  participation, approval, purchase, payment, or historical deadline state. Optional new
+  titles/questions and future deadlines are supported. Group purchases retain their
+  member/amount closing rules and obey them on creation. Sources and budgets are unchanged;
+  no announcements are sent. See the [MCP reference](interfaces/MCP.md#copy-tools).
+
 ### Administrator error reports
 
 - The Errors tab precedes Feedback and lists the latest 200 Python logging warnings
@@ -223,6 +235,9 @@ If a proposal marked basic supplies has amount > €20, basic flag is auto-remov
   notifications. Deleting feedback removes its notes and notifications.
 
 ### React application shell
+
+- Script/stylesheet URLs use content fingerprints; browser diagnostics include the
+  frontend build fingerprint when the reporting client supports it.
 
 - Flask remains the source of truth for routes, sessions, authorization, localization, and page data.
 - Shared navigation is rendered by Jinja first, so links remain available without JavaScript, then hydrated by React using JSON props from `data-react-props`.
@@ -268,6 +283,9 @@ Committed series behavior:
 
 ### About page
 - Content is fully localized (English/Spanish) via translation keys.
+- Budget and Proposals link directly from the original funding/tracking sentence words,
+  retaining localized wording. Feedback is an inline dialog action; sections and feature
+  cards adapt to narrow screens, with visible keyboard focus.
 - Explains proposal lifecycle, threshold rules, funding model, and transparency expectations.
 - Includes governance link to the public repository for proposing feature changes.
 

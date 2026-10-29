@@ -1,6 +1,20 @@
 import sqlite3
+import re
+from urllib.parse import urlsplit
+from markupsafe import Markup, escape
 from datetime import datetime
 from zoneinfo import ZoneInfo, ZoneInfoNotFoundError
+
+
+def link_word(text, word, href):
+    """Link a translated word without changing its wording or trusting HTML."""
+    text, word = str(text or ''), str(word or '')
+    if not word or urlsplit(str(href)).scheme not in {'', 'http', 'https'}:
+        return escape(text)
+    match = re.search(r'(?<!\w)' + re.escape(word) + r'(?!\w)', text, re.IGNORECASE)
+    if match is None:
+        return escape(text)
+    return escape(text[:match.start()]) + Markup('<a href="{}">{}</a>').format(href, match.group()) + escape(text[match.end():])
 
 
 def get_app_timezone(get_db):

@@ -35,6 +35,9 @@ def capture_browser_error(repository, payload):
         raise ValueError('Invalid browser error')
     if not payload.get('message', '').strip():
         raise ValueError('Invalid browser error')
+    build = payload.get('build')
+    if build is not None and (not isinstance(build, str) or re.fullmatch(r'[a-f0-9]{16}', build) is None):
+        raise ValueError('Invalid browser build')
     def clean_url(match):
         try:
             parts = urlsplit(match.group())
@@ -44,6 +47,8 @@ def capture_browser_error(repository, payload):
     page = urlsplit(payload.get('page', ''))
     # Store path only, even when a client submits a full URL or query string.
     details = f"Page: {page.path}\n{payload['message']}\n{payload.get('stack', '')}"
+    if build:
+        details = f'Frontend build: {build}\n' + details
     details = scrub(re.sub(r'https?://[^\s<>\"\')]+', clean_url, details))[:16000]
     try:
         repository.append(datetime.now(timezone.utc).isoformat(), 'ERROR', 'browser.' + payload['kind'], details)

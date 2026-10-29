@@ -165,3 +165,25 @@ th[aria-sort="descending"] .table-sort-button::after { content: " \2193"; }
 /* New group-purchase components retain a usable layout on small screens. */
 .group-component-input-row { display: grid; grid-template-columns: minmax(0, 1fr) 140px auto; gap: 10px; align-items: end; }
 @media (max-width: 600px) { .group-component-input-row { grid-template-columns: minmax(0, 1fr); } }
+/* About: readable sections, inline actions, and a compact feature overview. */
+.about-page { max-width:1000px; margin-inline:auto; padding:clamp(20px,4vw,40px); line-height:1.7; }
+.about-page h1 { color:#eee; font-size:2rem; margin-bottom:16px; }
+.about-page h2 { font-size:1.15rem; margin-bottom:12px; }
+.about-page p + p { margin-top:10px; }
+.about-eyebrow { color:#aaa; font-size:.8rem; letter-spacing:.08em; text-transform:uppercase; margin-bottom:8px; }
+.about-intro { padding-bottom:26px; max-width:78ch; }
+.about-section { padding-block:24px; border-top:1px solid #3a3a3a; }
+.about-list { padding-left:22px; }
+.about-list li + li { margin-top:8px; }
+.about-list ul { padding-left:22px; margin-top:8px; color:#ccc; }
+.about-page a, .about-inline-link { text-decoration:underline; text-underline-offset:3px; }
+.about-inline-link { display:inline; appearance:none; border:0; padding:0; background:transparent; color:#ffff00; font:inherit; cursor:pointer; }
+.about-inline-link:hover { color:#ff6b6b; }
+.about-inline-link:focus-visible { outline:2px solid #ffff00; outline-offset:4px; border-radius:2px; }
+.about-details { display:grid; grid-template-columns:1fr 1.4fr; column-gap:32px; }
+.about-extras { list-style:none; display:grid; grid-template-columns:repeat(3,minmax(0,1fr)); gap:16px; }
+.about-extras li { background:#252525; border:1px solid #3a3a3a; border-radius:8px; padding:18px; }
+.about-extras h3 { font-size:1rem; margin-bottom:8px; }
+.about-extras p, .about-access { color:#ccc; }
+.about-access { padding-bottom:0; }
+@media (max-width:650px) { .about-details, .about-extras { grid-template-columns:minmax(0,1fr); } }

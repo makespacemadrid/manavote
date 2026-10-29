@@ -44,6 +44,11 @@ appears in the Quick Start configuration reference. Add new documentation beneat
 
 ## Targeted regression packs
 
+`pytest -q tests/test_mcp_copy.py tests/unit/test_telegram_agent.py` covers authenticated
+copy-tool inputs/outputs, fresh state, unchanged source records, independent image files,
+new/reset deadlines, permission/creator binding, explicit Telegram confirmation, and
+rollback of both database rows and newly copied images.
+
 Workflow regression checks in `tests/test_admin_interface.py` and
 `tests/test_group_purchases.py` cover atomic error download/archive (including concurrent
 downloads, rollback, and old diagnostic schema migration), feedback rejection/notes/edit/
