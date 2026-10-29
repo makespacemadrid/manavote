@@ -568,7 +568,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
 <div id="errors" class="card">
     <h3>{{ 'Errors'|lang }}</h3>
-    <p>{{ 'Server warnings and errors captured after this update. Latest 200 records; browser console errors are not included.'|lang }}</p>
+    <p>{{ 'Server and browser errors captured after this update. Latest 200 records; browser reports are labelled separately.'|lang }}</p>
     <a class="btn" href="{{ url_for('admin.download_errors') }}">{{ 'Download error report'|lang }}</a>
     {% for error in error_reports %}
     <details style="margin-top:12px;">

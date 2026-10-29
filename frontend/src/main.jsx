@@ -2,7 +2,9 @@ import { hydrateRoot } from 'react-dom/client';
 import { Nav } from './Nav.jsx';
 import './styles.css';
 import { initializeDialogs } from './dialogs.js';
+import { initializeBrowserErrors } from './browserErrors.js';
 
+initializeBrowserErrors();
 initializeDialogs();
 
 for (const rows of document.querySelectorAll('[data-new-component-rows]')) {

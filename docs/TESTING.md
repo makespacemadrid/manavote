@@ -44,6 +44,11 @@ appears in the Quick Start configuration reference. Add new documentation beneat
 
 ## Targeted regression packs
 
+`npm test` includes browser diagnostic interception, uncaught errors/rejections,
+redaction, deduplication, upload caps, preserved console calls, and silent upload failure.
+The Admin interface tests additionally cover member intake with admin-only export,
+session/CSRF enforcement, malformed/oversized payloads, and browser report redaction.
+
 `pytest -q tests/test_admin_interface.py` also verifies the Errors tab ordering,
 English/Spanish empty state, escaped verbose errors, JSON attachments, session-admin
 authorization, uncaught request tracebacks, credential redaction at capture/export,

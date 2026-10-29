@@ -15,8 +15,16 @@ The Compose `/data` volume already meets this requirement. Diagnostic records ar
 separate from application database backups. If storage is unavailable, Admin/downloads
 show that status and console logging continues. Check disk space and permissions.
 
-This does not import old `app.log`/container output, raw print/stderr, or browser DevTools
-errors. Credentials are scrubbed at capture and download, and no request bodies, headers,
+Signed-in pages also capture `console.error`, uncaught JavaScript errors, and unhandled
+promise rejections after the reporter initializes. Browser records use `browser.*` logger
+names and include a page path and available stack; DevTools history, network/resource
+errors without a JavaScript message, and errors before initialization are not imported.
+The console still behaves normally. Identical reports are deduplicated, uploads are capped
+at 10 per page load and 20 per member/minute, and upload failures are silently ignored.
+The session/CSRF-protected endpoint accepts at most 64 KB; member reports are untrusted
+diagnostics and only administrators can read them. URL queries/fragments and console
+objects are omitted. This does not import old `app.log`/container output or raw print/stderr.
+Credentials are scrubbed at capture and download, and no form contents, request headers,
 source lines, or frame locals are added. Free-text logs may still contain sensitive
 business/member information; review the report before sharing it. Only signed-in session
 administrators can view/download reports, and responses are marked `no-store`.

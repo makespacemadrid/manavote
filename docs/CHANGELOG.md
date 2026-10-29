@@ -7,6 +7,16 @@ history. [IDEAS.md](IDEAS.md) contains unfinished work; [SPRINTS.md](SPRINTS.md)
 records iteration scope and progress. Detailed historical findings and decisions are
 preserved in the [roadmap audit archive](archive/ROADMAP_AUDITS.md).
 
+## Unreleased — Browser errors in administrator reports
+
+- Signed-in browsers report `console.error`, uncaught JavaScript errors, and unhandled
+  promise rejections to the Errors tab and JSON download, labelled `browser.*`. Normal
+  console behavior is preserved and reporting failures do not trigger another report.
+- Reports include page paths and available stacks; URL query/fragment data and console
+  objects are omitted. Session/CSRF validation, server/client limits, deduplication, and
+  credential scrubbing bound intake. Admin-only viewing/downloading remains unchanged.
+- Validation: 922 Python tests and 5 frontend tests passed; production assets rebuilt.
+
 ## Unreleased — Downloadable administrator error reports
 
 - Added an Errors tab before Feedback, with expandable server warnings/errors and an
@@ -16,8 +26,8 @@ preserved in the [roadmap audit archive](archive/ROADMAP_AUDITS.md).
   database, shared across workers. Credentials are scrubbed on capture/export; no request
   bodies/headers, frame locals, or source lines are collected. Storage failures preserve
   console logging and show an unavailable-storage diagnostic.
-- Browser console errors, historical container logs, and raw stdout/stderr are outside
-  capture. OPERATIONS documents sharing and retention limits.
+- Historical container logs and raw stdout/stderr are outside capture. Browser capture
+  was added in the follow-up above. OPERATIONS documents sharing and retention limits.
 - Validation: all 914 Python tests passed, including admin/download authorization,
   uncaught request errors, credential redaction, persistence/retention, and storage failures.
 
