@@ -90,6 +90,8 @@ const budgetChart = new window.Chart(ctx, {
         maintainAspectRatio: false,
         plugins: {
             legend: {
+                // Labelled checkboxes own visibility; avoid a second independent control.
+                display: false,
                 labels: { color: '#aaa' }
             }
         },
