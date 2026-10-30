@@ -32,7 +32,7 @@
             <label>{{ 'Search proposals'|lang }}<input type="search" name="q" value="{{ search_query }}" maxlength="200" placeholder="{{ 'Title or description'|lang }}"></label>
             <label>{{ 'Status'|lang }}<select name="filter">{% for value, label in [('all','All'),('active','Active'),('over_budget','Pending Budget'),('approved','Approved'),('rejected','Rejected'),('not_purchased','Pending Purchase'),('purchased','Purchased')] %}<option value="{{ value }}"{% if filter == value %} selected{% endif %}>{{ label|lang }}</option>{% endfor %}</select></label>
             <label>{{ 'Sort by'|lang }}<select name="sort">{% for value,label in [('newest','Date (Newest)'),('oldest','Date (Oldest)'),('amount_desc','Amount (Highest)'),('amount_asc','Amount (Lowest)')] %}<option value="{{ value }}"{% if proposal_sort == value %} selected{% endif %}>{{ label|lang }}</option>{% endfor %}</select></label>
-            <button class="btn btn-secondary" type="submit">{{ 'Apply'|lang }}</button>
+            <button class="btn btn-secondary" type="submit" data-query-submit>{{ 'Apply'|lang }}</button>
         </form>
         <details class="proposal-refinements"{% if proposal_age or proposal_kind %} open{% endif %}><summary>{{ 'Age and purchase type'|lang }}</summary>
         <div class="query-refinements">

@@ -12,6 +12,7 @@
 <article class="card coin-card" id="coin-item-{{ item.id }}">
     <h2>{{ item.name }}</h2>
     <p class="coin-stock">{{ 'Total consumed'|lang }}: <strong>{{ item.total_consumed }}</strong>, {{ 'Total purchased'|lang }}: <strong>{{ item.total_purchased }}</strong></p>
+    <div class="button-row">
     <form method="post" action="{{ url_for('coins.move') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="item_id" value="{{ item.id }}"><input type="hidden" name="action" value="consume"><input type="hidden" name="quantity" value="1"><input type="hidden" name="idempotency_key" value="{{ range(1000000000, 9999999999)|random }}">
         <button class="btn btn-danger" type="submit">{{ 'I consumed 1'|lang }}</button>
@@ -20,6 +21,7 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="item_id" value="{{ item.id }}"><input type="hidden" name="action" value="replenish"><input type="hidden" name="quantity" value="{{ item.pack_size or 12 }}"><input type="hidden" name="idempotency_key" value="{{ range(1000000000, 9999999999)|random }}">
         <button class="btn btn-success" type="submit">{{ 'I bought'|lang }} {{ item.pack_size }}</button>
     </form>
+    </div>
     <details class="coin-custom"><summary>{{ 'Other quantity'|lang }}</summary>
         <form method="post" action="{{ url_for('coins.move') }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="item_id" value="{{ item.id }}"><input type="hidden" name="idempotency_key" value="{{ range(1000000000, 9999999999)|random }}">

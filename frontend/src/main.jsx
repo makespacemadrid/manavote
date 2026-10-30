@@ -1,6 +1,7 @@
 import { hydrateRoot } from 'react-dom/client';
 import { Nav } from './Nav.jsx';
 import './styles.css';
+import { initializeProposalFilters } from './proposalFilters.js';
 import { initializeUX } from './ux.js';
 import { initializeBudget } from './budget.js';
 import { initializeDialogs } from './dialogs.js';
@@ -12,6 +13,7 @@ initializeDialogs();
 initializeAdminTabs();
 initializeUX();
 initializeBudget();
+initializeProposalFilters();
 
 for (const rows of document.querySelectorAll('[data-new-component-rows]')) {
   const form = rows.closest('form');

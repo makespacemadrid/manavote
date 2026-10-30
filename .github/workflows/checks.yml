@@ -44,3 +44,26 @@ jobs:
       - run: npm run build
       - name: Verify committed assets match sources
         run: git diff --exit-code -- static/react/app.js static/react/style.css
+
+  ui-layout:
+    name: UI layout checks
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    env:
+      ADMIN_BOOTSTRAP_PASSWORD: ci-fixture-only
+      MANAVOTE_UI_LAYOUT_DIR: /tmp/manavote-layouts
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+          cache: pip
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - run: python -m pip install -r requirements.txt
+      - run: python -m pytest -q tests/test_ui_layouts.py
+      - name: Check browser geometry and interactions
+        run: |
+          CHROMIUM_BIN="$(command -v google-chrome || command -v chromium)"
+          CHROMIUM="$CHROMIUM_BIN" node scripts/check_ui_layouts.mjs "$MANAVOTE_UI_LAYOUT_DIR"

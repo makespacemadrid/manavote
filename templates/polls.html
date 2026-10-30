@@ -2,32 +2,10 @@
 
 {% block content %}
 
-<style>
-.web-vote-form label {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-    margin: 6px 0;
-    font-size: 0.9em;
-}
-.web-vote-form input[type="radio"],
-.web-vote-form input[type="checkbox"] {
-    width: auto;
-    margin: 0;
-    flex-shrink: 0;
-}
-.web-vote-form .option-text {
-    line-height: 1.3;
-}
-.poll-result-fill.color-1 { --result-color: #00d9ff; }
-.poll-result-fill.color-2 { --result-color: #ff8fa3; }
-.poll-result-fill.color-3 { --result-color: #ffd700; }
-.poll-result-fill.color-4 { --result-color: #9b59b6; }
-.poll-result-fill.color-5 { --result-color: #39d98a; }
-</style>
+
 
 <div class="card">
-    <h1>📊 {{ 'Polls'|lang }}</h1>
+    <h1> {{ 'Polls'|lang }}</h1>
     <div style="margin: 0 0 10px;">
         {% with is_linked=is_telegram_linked, linked_text='Telegram linked', not_linked_text='Telegram not linked' %}
             {% include "_telegram_link_status.html" %}
@@ -42,8 +20,8 @@
     {% endif %}
     {% if polls %}
         {% for p in polls %}
-        <div id="poll-{{ p.id }}" style="border:1px solid #333;padding:12px;margin-bottom:16px;border-radius:8px;">
-            <h3 style="margin-top:0;">{{ p.question }} {% if p.status == "closed" %}<span class="status" style="background:#444;">{{ 'Closed'|lang }}</span>{% endif %} {% if p.allow_multiple %}<span class="status" style="background:#9b59b622; color:#9b59b6;">{{ 'Multi-select'|lang }}</span>{% endif %}</h3>
+        <article id="poll-{{ p.id }}" class="poll-entry" aria-labelledby="poll-title-{{ p.id }}">
+            <h2 id="poll-title-{{ p.id }}" class="poll-question">{{ p.question }}</h2><div class="poll-badges">{% if p.status == "open" %}<span class="status status-active">{{ 'Open'|lang }}</span>{% else %}<span class="status" style="background:#444;">{{ 'Closed'|lang }}</span>{% endif %} {% if p.allow_multiple %}<span class="status" style="background:#9b59b622; color:#d49aff;">{{ 'Multi-select'|lang }}</span>{% endif %}</div>
             <p style="color:#b5b5b5;">{{ 'By'|lang }} {{ p.creator|username }} · {{ p.created_at|localtime("%Y-%m-%d %H:%M") }}</p>
             {% with copy_kind='poll', copy_source_id=p.id %}{% include '_copy_button.html' %}{% endwith %}
 
@@ -51,14 +29,18 @@
             <div class="poll-card-grid">
                 {# Card 1: Vote via web #}
                 <div class="poll-card-panel">
-                    <h4 style="margin:0 0 8px 0;font-size:0.95em;">🖱️ {{ 'Vote via web'|lang }}</h4>
+                    <h3 class="poll-panel-title"> {{ 'Vote via web'|lang }}</h3>
                     {% if is_web_vote_enabled %}
                         <form method="POST" class="web-vote-form" style="margin-top:8px;">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="poll_id" value="{{ p.id }}">
+                            <fieldset class="poll-options"{% if p.status != 'open' %} disabled{% endif %}>
+                                <legend>{{ ('Choose one or more options' if p.allow_multiple else 'Choose one option')|lang }}</legend>
                             {% for option in p.options %}
-                                <label><input type="{{ 'checkbox' if p.allow_multiple else 'radio' }}" name="option_index" value="{{ loop.index0 }}" {{ 'checked' if loop.index0 in p.user_votes else '' }}><span class="option-text">{{ option }} <span style="color:#b5b5b5;">({{ p.counts[loop.index0] }})</span></span></label>
+                                <label class="poll-option"><input type="{{ 'checkbox' if p.allow_multiple else 'radio' }}" name="option_index" value="{{ loop.index0 }}" {{ 'checked' if loop.index0 in p.user_votes else '' }}><span class="option-text">{{ option }}{% if loop.index0 in p.user_votes %}<small class="poll-saved">{{ 'Saved vote'|lang }}</small>{% endif %}</span></label>
                             {% endfor %}
+                            </fieldset>
+                            {% if p.status == 'open' %}<p class="help-text">{{ ('Poll additive selection help' if p.allow_multiple else 'Poll selection help')|lang }}</p>{% endif %}
                             {% if p.status == "open" %}<button class="vote-btn approve poll-vote-submit" type="submit">{{ 'Vote'|lang }}</button>
                             {% else %}<button class="vote-btn poll-vote-submit" type="button" disabled>{{ 'Voting closed'|lang }}</button>{% endif %}
                         </form>
@@ -75,16 +57,16 @@
 
                 {# Card 2: Votes so far with bars #}
                 <div class="poll-card-panel">
-                    <h4 style="margin:0 0 8px 0;font-size:0.95em;">📊 {{ 'Votes so far'|lang }} ({{ p.counts|sum }})</h4>
+                    <h3 class="poll-panel-title"> {{ 'Votes so far'|lang }} ({{ p.counts|sum }})</h3>
                     {% for option in p.options %}
                         {% set option_votes = p.counts[loop.index0] %}
                         {% set pct = ((option_votes * 100.0) / p.total_voters) if p.total_voters > 0 else 0 %}
-                        <div style="margin:8px 0;">
-                            <div style="display:flex;justify-content:space-between;font-size:0.85em;color:#bbb;">
+                        <div class="poll-result">
+                            <div class="poll-result-label">
                                 <span>{{ option }}</span>
-                                <span>{{ option_votes }}{% if p.total_voters > 0 %} ({{ '%.1f'|format(pct) }}%){% endif %}</span>
+                                <span class="poll-result-count">{{ option_votes }}{% if p.total_voters > 0 %} ({{ '%.1f'|format(pct) }}%){% endif %}</span>
                             </div>
-                            <div style="width:100%;height:12px;background:#0d1117;border-radius:999px;overflow:hidden;">
+                            <div class="poll-result-track" aria-hidden="true">
                                 <div class="poll-result-fill color-{{ (loop.index0 % 5) + 1 }}" style="width: {{ '%.2f'|format(pct) }}%;"></div>
                             </div>
                         </div>
@@ -92,14 +74,14 @@
                 </div>
                 
                 {# Card 3: Who voted what #}
-                <div class="poll-card-panel">
-                    <h4 style="margin:0 0 8px 0;font-size:0.95em;">👥 {{ 'Who voted what'|lang }}</h4>
+                <div class="poll-card-panel poll-voters">
+                    <h3 class="poll-panel-title"> {{ 'Who voted what'|lang }}</h3>
                     {% if p.votes %}
                         <details>
                             <summary style="cursor:pointer;color:#00d9ff;font-size:0.9em;">{{ 'Show votes'|lang }} ({{ p.votes|length }})</summary>
                             <ul style="margin:8px 0 0 0;padding-left:20px;font-size:0.85em;max-height:150px;overflow-y:auto;">
                                 {% for vote in p.votes %}
-                                    <li style="margin:4px 0;">{{ vote.username|username }}{% if not vote.is_linked_username %} (not linked, use /link){% endif %} → {{ p.options[vote.option_index] if vote.option_index < p.options|length else 'Unknown'|lang }}</li>
+                                    <li style="margin:4px 0;">{{ vote.username|username }}{% if not vote.is_linked_username %} {{ 'Unlinked voter hint'|lang }}{% endif %} → {{ p.options[vote.option_index] if vote.option_index < p.options|length else 'Unknown'|lang }}</li>
                                 {% endfor %}
                             </ul>
                         </details>
@@ -109,10 +91,10 @@
                 </div>
                 
             </div>
-        </div>
+        </article>
         {% endfor %}
     {% else %}
-        <p>{{ 'No polls yet.'|lang }}</p>
+        <p class="empty-state">{{ 'No polls yet.'|lang }}</p>
     {% endif %}
 </div>
 {% endblock %}

@@ -650,3 +650,17 @@ black COKE ZERO heading and black artwork with ZERO beneath it. Common Coke/Coca
 name variants use the same branding. Other items retain plain QR codes. The four-module
 quiet zone and high error correction remain intact. Print waits for all QR images to
 decode and reports loading errors instead of opening an incomplete print view.
+
+### Responsive controls and poll presentation
+
+The shared content container grows to 1600px on wide screens. Poll choices use labelled
+native radio/checkbox groups, visible saved-vote markers and disabled controls when
+closed. Multi-select guidance explains the existing additive policy and explicit clear
+action. Voting and results precede expandable participation details.
+
+Proposal filter selections submit the existing GET form immediately, including advanced
+controls associated with the form. Search waits 450ms after typing/composition ends;
+filter changes and explicit submission cancel pending search timers. Without JavaScript,
+the Apply button and native GET form remain available. Permissions and filter semantics
+remain server-owned. Shared action rows align grouped controls and field baselines
+across translations and narrow/wide layouts.

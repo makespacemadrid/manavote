@@ -55,8 +55,8 @@
     display: flex;
     gap: 8px;
     flex-wrap: wrap;
-    align-items: center;
-    justify-content: center;
+    align-items: stretch;
+    justify-content: flex-start;
 }
 
 .admin-page .card {
@@ -100,7 +100,7 @@
 
 <div id="add-member" class="card">
     <h3>{{ 'Add Member'|lang }}</h3>
-    <form method="POST" style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
+    <form method="POST" class="form-row">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="add_member">
         <div style="flex: 1; min-width: 150px;">
@@ -141,7 +141,7 @@
             {% for m in members %}
             <tr>
                 <td colspan="2">
-                    <form method="POST" style="display: grid; grid-template-columns: 1fr 1fr auto; gap: 5px; align-items: center;">
+                    <form method="POST" class="member-identity-row">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="edit_member_identity">
                         <input type="hidden" name="member_id" value="{{ m.id }}">
@@ -164,7 +164,7 @@
                 </td>
                 <td>
                     {% if m.id != session.member_id %}
-                    <div style="display: flex; flex-wrap: wrap; gap: 5px;">
+                    <div class="button-row">
                         <form method="POST" style="display: inline;">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="action" value="toggle_admin">
@@ -254,7 +254,7 @@
     <form method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="update_thresholds">
-        <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
+        <div class="form-row">
             <div style="flex: 1; min-width: 120px;">
                 <label>{{ 'Basic'|lang }} (%)
                 <input type="number" name="threshold_basic" value="{{ thresholds.basic }}" min="1" max="100" step="1" required></label>
@@ -283,7 +283,7 @@
     <form method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="add_budget">
-        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
+        <div class="form-row">
             <div style="flex: 2; min-width: 200px;">
                 <label>{{ 'Description'|lang }}
                 <input type="text" name="description" placeholder="{{ 'e.g. Donation, sponsorship'|lang }}" required></label>
@@ -384,32 +384,32 @@
                 <td>{{ poll.status }}</td>
                 <td>{{ poll.creator|username }}</td>
                 <td>{{ poll.total_votes }}</td>
-                <td>
+                <td><div class="button-row action-stack">
                     <form method="POST">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="send_poll_telegram_test">
                         <input type="hidden" name="poll_id" value="{{ poll.id }}">
                         <button type="submit" class="btn btn-secondary">{{ 'Send Test to Admin'|lang }}</button>
                     </form>
-                    <form method="POST" style="margin-top: 6px;">
+                    <form method="POST">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="send_poll_telegram">
                         <input type="hidden" name="poll_id" value="{{ poll.id }}">
                         <button type="submit" class="btn btn-secondary">{{ 'Send to Telegram'|lang }}</button>
                     </form>
-                    <form method="POST" style="margin-top: 6px;">
+                    <form method="POST">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="{{ 'close_poll' if poll.status == 'open' else 'reopen_poll' }}">
                         <input type="hidden" name="poll_id" value="{{ poll.id }}">
                         <button type="submit" class="btn btn-secondary">{{ 'Close Poll'|lang if poll.status == 'open' else 'Reopen Poll'|lang }}</button>
                     </form>
-                    <form method="POST" style="margin-top: 6px;">
+                    <form method="POST">
                         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                         <input type="hidden" name="action" value="delete_poll">
                         <input type="hidden" name="poll_id" value="{{ poll.id }}">
                         <button type="submit" class="btn btn-secondary" onclick="return confirmDangerAction(this.form, 'Delete this poll permanently? Existing votes for this poll will be removed.')">{{ 'Delete Poll'|lang }}</button>
                     </form>
-                </td>
+                </div></td>
             </tr>
             {% endfor %}
         </tbody>
@@ -545,10 +545,11 @@
                 <input type="hidden" name="action" value="update_feedback_status"><input type="hidden" name="feedback_id" value="{{ item.id }}">
                 <label>{{ 'Member-facing reason'|lang }}<textarea name="public_reason" maxlength="4000" aria-describedby="reason-help-{{ item.id }}">{{ item.public_reason }}</textarea></label>
                 <p id="reason-help-{{ item.id }}" class="help-text">{{ 'Public reason help'|lang }}</p>
+                <div class="button-row">
                 {% if item.status == 'new' %}<button class="btn btn-secondary" name="status" value="reviewed">{{ 'Mark reviewed'|lang }}</button>{% endif %}
                 {% if item.status != 'resolved' %}<button class="btn btn-success" name="status" value="resolved">{{ 'Resolve'|lang }}</button>{% endif %}
                 {% if item.status != 'rejected' %}<button class="btn btn-secondary" name="status" value="rejected">{{ 'Reject'|lang }}</button>{% endif %}
-                <button class="btn btn-secondary" name="status" value="{{ item.status }}">{{ 'Save reason'|lang }}</button>
+                <button class="btn btn-secondary" name="status" value="{{ item.status }}">{{ 'Save reason'|lang }}</button></div>
             </form>
             <details><summary>{{ 'Edit'|lang }} / {{ 'Private admin notes'|lang }}</summary>
                 <form method="POST"><input type="hidden" name="tab" value="feedback">
@@ -562,7 +563,7 @@
                 <p>{{ note.username }} · {{ note.created_at|localtime }}</p>
                 <form method="POST"><input type="hidden" name="tab" value="feedback"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="feedback_id" value="{{ item.id }}"><input type="hidden" name="note_id" value="{{ note.id }}">
                     <label>{{ 'Notes'|lang }}<textarea name="message" maxlength="4000" required>{{ note.message }}</textarea></label>
-                    <button class="btn" name="action" value="edit_feedback_note">{{ 'Save'|lang }}</button><button class="btn btn-danger" name="action" value="delete_feedback_note" formnovalidate>{{ 'Delete note'|lang }}</button>
+                    <div class="button-row"><button class="btn" name="action" value="edit_feedback_note">{{ 'Save'|lang }}</button><button class="btn btn-danger" name="action" value="delete_feedback_note" formnovalidate>{{ 'Delete note'|lang }}</button></div>
                 </form>
                 {% endfor %}
                 <form method="POST"><input type="hidden" name="tab" value="feedback"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="add_feedback_note"><input type="hidden" name="feedback_id" value="{{ item.id }}">
@@ -649,7 +650,7 @@
     <form method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="update_timezone">
-        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
+        <div class="form-row">
             <div style="flex: 1; min-width: 200px;">
                 <label>{{ 'Timezone'|lang }}
                 <select name="timezone" required>
@@ -760,7 +761,7 @@
     <form method="POST">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="update_url">
-        <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
+        <div class="form-row">
             <div style="flex: 2; min-width: 200px;">
                 <label>{{ 'Base URL for proposal links'|lang }}
                 <input type="url" name="base_url" value="{{ telegram_base_url }}" placeholder="https://manavote.mksmad.org"></label>
