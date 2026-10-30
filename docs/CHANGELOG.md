@@ -290,3 +290,7 @@ asset does not disable ledger filtering. A frontend regression covers this failu
 
 About now uses the same available content width as the other pages, preserving its
 single column and full-width introductory paragraphs.
+
+Telegram assistant HTTP failures now include safe model-stage status/reason/round
+metadata in diagnostic warnings. Provider credentials, response text and prompts remain
+excluded. Historical generic HTTPError records cannot establish the upstream cause.

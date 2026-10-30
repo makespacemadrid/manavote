@@ -661,3 +661,34 @@ def test_copy_requires_confirmation_and_binds_creator(monkeypatch, name):
     assert calls == [(name, {'source_id':5,'created_by':42})]
     telegram_agent.answer(701,'/confirm',telegram_user_id=71,actor_member_id=42,is_admin=True)
     assert len(calls) == 1
+
+@pytest.mark.parametrize('status,reason', [
+    (400,'model_invalid_request'), (401,'model_auth_failed'),
+    (403,'model_access_denied'), (404,'model_endpoint_not_found'),
+    (413,'model_payload_too_large'), (429,'model_rate_limited'),
+    (500,'model_upstream_unavailable'), (503,'model_upstream_unavailable'),
+])
+def test_model_failure_metadata_is_bounded_and_excludes_provider_secrets(status, reason):
+    import requests
+    response = requests.Response()
+    response.status_code = status
+    response.url = 'https://secret:password@example.test/?token=private'
+    response._content = b'private provider response'
+    exc = requests.HTTPError('secret authorization message', response=response)
+    assert telegram_agent.model_failure_details(exc) == {'reason_code':reason, 'http_status':status}
+
+
+def test_model_failure_logging_does_not_include_exception_or_response_text(monkeypatch, caplog):
+    import requests
+    monkeypatch.setenv('OCABRA_CHAT_URL','https://example.test/chat')
+    response=requests.Response(); response.status_code=429
+    response._content=b'provider-private-body'
+    response.url='https://credential:secret@example.test/chat'
+    def fail(*args, **kwargs):
+        raise requests.HTTPError('provider-private-secret', response=response)
+    monkeypatch.setattr(telegram_agent.requests,'post',fail)
+    with pytest.raises(requests.HTTPError):
+        telegram_agent.answer(998877,'hello',telegram_user_id=112233,actor_member_id=1)
+    assert 'reason_code=model_rate_limited http_status=429' in caplog.text
+    assert 'provider-private' not in caplog.text
+    assert 'credential' not in caplog.text

@@ -342,3 +342,24 @@ rg -n "except Exception" app
 When debugging, search by stable reason code first, then narrow by request/update/member
 identifier. Do not paste production tokens, Telegram payloads, OIDC responses, or raw
 database contents into issue reports.
+
+### Assistant model HTTP failures
+
+`assistant_model_failed` records `reason_code`, numeric `http_status` (or `None` when
+unavailable), exception type and model round. It deliberately excludes provider URLs,
+response bodies, prompts, headers and raw exception messages. The Admin Errors export
+captures this warning alongside the webhook's generic `assistant_failed` warning.
+
+- `model_auth_failed` / `model_access_denied`: verify the configured provider credential
+  and model entitlement without copying credentials into logs or feedback.
+- `model_endpoint_not_found`: check the configured chat endpoint/model route.
+- `model_invalid_request` / `model_payload_too_large`: inspect provider-supported request
+  options and configured context/output limits using synthetic requests.
+- `model_rate_limited`: check provider quota/rate limits before retrying.
+- `model_upstream_unavailable`, `model_timeout`, `model_connection_failed`: investigate
+  provider availability and network reachability.
+- `model_invalid_response`: the response did not match the expected model contract.
+
+Old exports that only contain `HTTPError` cannot identify the status or prove which
+configuration/provider condition failed. This change improves evidence for the next
+failure; it does not retroactively diagnose those events or automatically replay actions.
