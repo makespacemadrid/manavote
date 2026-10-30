@@ -3,7 +3,7 @@
 import io
 import secrets
 
-from app.services.coin_qr_service import render_coin_qr
+from app.services.coin_qr_service import render_coin_qr, qr_brand
 from flask import Blueprint, abort, current_app, flash, redirect, render_template, request, send_file, session, url_for
 
 from app.repositories.coin_repo import CoinRepository
@@ -107,6 +107,8 @@ def qr_labels():
     connection = legacy.get_db()
     _ensure_tokens(connection)
     labels = [dict(row) for row in CoinRepository(connection).list_consume_labels()]
+    for label in labels:
+        label["brand"] = qr_brand(label["item_name"])
     repo = CoinRepository(connection)
     items = repo.list_items()
     movements = repo.recent_movements(limit=100)

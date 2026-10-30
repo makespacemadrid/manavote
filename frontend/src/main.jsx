@@ -55,7 +55,16 @@ for (const root of document.querySelectorAll('[data-react-nav]')) {
 }
 
 for (const button of document.querySelectorAll('[data-print-page]')) {
-  button.addEventListener('click', () => window.print());
+  button.addEventListener('click', async () => {
+    const label = button.textContent;
+    button.disabled = true;
+    try {
+      await Promise.all([...document.querySelectorAll('.qr-label img')].map(img => img.decode()));
+      window.print();
+    } catch {
+      button.textContent = button.dataset.printError || label;
+    } finally { button.disabled = false; }
+  });
 }
 
 function sortableValue(cell, type) {

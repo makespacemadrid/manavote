@@ -343,3 +343,5 @@ fieldset.chart-series { border:0; padding:0; } fieldset.chart-series legend { co
 fieldset { min-inline-size:0; }
 .chart-container { min-width:0; max-width:100%; }
 .chart-container canvas { max-width:100%; }
+.qr-label { print-color-adjust:exact; -webkit-print-color-adjust:exact; }
+.qr-label img { width:280px; image-rendering:auto; }

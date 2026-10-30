@@ -509,3 +509,8 @@ is unavailable and keep their pressed state aligned with visible rows.
 frontend tests/build and committed-asset consistency on pull requests and main pushes.
 The stable job names are `Python tests` and `Frontend checks`. These jobs require no
 deployment credentials; the Docker publishing workflow remains separate.
+
+`tests/test_coin_qr_artwork.py` decodes branded QR images at native, 280px and 220px
+widths using the optional test-only `zxing-cpp==3.1.1` dependency (installed by CI).
+Production QR generation requires only the existing Pillow/qrcode dependencies and
+checked-in brand PNG; SVG rasterization tools are not needed at runtime.
