@@ -664,3 +664,10 @@ filter changes and explicit submission cancel pending search timers. Without Jav
 the Apply button and native GET form remain available. Permissions and filter semantics
 remain server-owned. Shared action rows align grouped controls and field baselines
 across translations and narrow/wide layouts.
+
+Group-purchase summaries display the existing order total, the signed-in participant's
+allocated share and payment state, cap headroom and configured member limit. A member
+without selections sees a zero share and explicit no-selection state. Responsive
+component cards and labelled mobile payment rows preserve the existing quantities,
+allocation calculations and creator/admin permissions; lifecycle badges reflect the
+actual open/closed/ordered/received state.

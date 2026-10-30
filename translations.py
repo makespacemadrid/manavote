@@ -1165,3 +1165,11 @@ for _message, _spanish in _POLL_PRESENTATION_ES.items():
 del _message, _spanish
 TRANSLATIONS['en']['Open'] = 'Open'
 TRANSLATIONS['es']['Open'] = 'Abierta'
+
+TRANSLATIONS['en']['Your share'] = 'Your share'
+TRANSLATIONS['es']['Your share'] = 'Tu parte'
+TRANSLATIONS['en']['No selection yet'] = 'No selection yet'
+TRANSLATIONS['es']['No selection yet'] = 'Todavía no has elegido unidades'
+
+TRANSLATIONS['en']['Order management'] = 'Order management'
+TRANSLATIONS['es']['Order management'] = 'Gestionar pedido'

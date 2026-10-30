@@ -629,3 +629,44 @@ def test_disabled_amount_cap_and_combined_member_limit(group_purchase_client):
     groups.set_quantity(conn, purchase_id=purchase_id, component_id=component_id, member_id=1, quantity=1)
     assert conn.execute('SELECT status FROM group_purchases WHERE id=?', (purchase_id,)).fetchone()[0] == 'closed'
     conn.close()
+
+@pytest.mark.parametrize('status',['open','closed','ordered','received'])
+@pytest.mark.parametrize('language',['en','es'])
+def test_purchase_summary_uses_own_allocated_share_and_real_status(group_purchase_client,status,language):
+    import re
+    client,path=group_purchase_client
+    with sqlite3.connect(path) as conn:
+        conn.execute("INSERT INTO members(id,username,password_hash) VALUES (2,'member-two','unused')")
+        conn.execute('INSERT INTO group_purchases(id,title,created_by,status,cap_at_125,join_member_limit) VALUES (1,\'Parts\',1,?,1,4)',(status,))
+        conn.execute("INSERT INTO group_purchase_components(id,group_purchase_id,name,unit_price) VALUES (1,1,'Connectors',3)")
+        conn.executemany('INSERT INTO group_purchase_quantities(component_id,member_id,quantity) VALUES (1,?,?)',[(1,2),(2,1)])
+        conn.execute("INSERT INTO group_purchase_shared_costs(group_purchase_id,label,amount) VALUES (1,'Shipping',4)")
+    with client.session_transaction() as session:session['lang']=language
+    html=client.get('/group-purchases').get_data(as_text=True)
+    summary=re.search(r'<dl class="purchase-summary">(.*?)</dl>',html,re.S).group(1)
+    assert '€13.00' in summary and '€8.67' in summary and '€112.00' in summary
+    assert '2 / 4' in summary
+    assert f'status-{ "active" if status=="open" else status }' in html
+    assert 'class="purchase-debts-table"' in html
+    assert html.count('data-label=') == 6
+    with sqlite3.connect(path) as conn:
+        conn.execute('INSERT INTO group_purchase_payments(group_purchase_id,member_id) VALUES (1,1)')
+    paid=client.get('/group-purchases').get_data(as_text=True)
+    paid_summary=re.search(r'<dl class="purchase-summary">(.*?)</dl>',paid,re.S).group(1)
+    assert ('Received' if language=='en' else 'Recibido') in paid_summary
+
+
+def test_purchase_summary_does_not_show_another_members_debt(group_purchase_client):
+    import re
+    client,path=group_purchase_client
+    with sqlite3.connect(path) as conn:
+        conn.execute("INSERT INTO members(id,username,password_hash) VALUES (2,'new-member','unused')")
+        conn.execute("INSERT INTO group_purchases(id,title,created_by) VALUES (1,'Parts',1)")
+        conn.execute("INSERT INTO group_purchase_components(id,group_purchase_id,name,unit_price) VALUES (1,1,'Connectors',3)")
+        conn.execute('INSERT INTO group_purchase_quantities(component_id,member_id,quantity) VALUES (1,1,2)')
+    with client.session_transaction() as session:session.update(member_id=2,username='new-member',is_admin=False,lang='en')
+    html=client.get('/group-purchases').get_data(as_text=True)
+    summary=re.search(r'<dl class="purchase-summary">(.*?)</dl>',html,re.S).group(1)
+    assert '€6.00' in summary and '<dt>Your share</dt><dd>€0.00</dd>' in summary
+    assert 'No selection yet' in summary
+    assert 'Order management' not in html

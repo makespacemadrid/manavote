@@ -429,3 +429,30 @@ input, select, textarea { padding:9px 10px; }
 .proposal-query:has([data-query-submit][hidden]) { grid-template-columns:minmax(160px,2fr) repeat(2,minmax(140px,1fr)); }
 @media(max-width:700px) { .proposal-query:has([data-query-submit][hidden]) { grid-template-columns:minmax(0,1fr); } }
 :is(.group-component-input-row,.component-input-row,.edit-cost-row) label { margin-bottom:0; }
+/* Group orders: distinguish lifecycle state and bring member costs together. */
+.sr-only { position:absolute; width:1px; height:1px; padding:0; margin:-1px; overflow:hidden; clip-path:inset(50%); white-space:nowrap; border:0; }
+.purchase-card .purchase-header { padding-bottom:16px; border-bottom:1px solid var(--border); margin-bottom:20px; }
+.purchase-card .purchase-header h2 { font-size:1.3rem; line-height:1.4; margin-bottom:8px; }
+.purchase-summary { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,170px),1fr)); gap:16px; padding:20px; margin:20px 0; border:1px solid var(--border); border-radius:8px; background:var(--surface-muted); }
+.purchase-summary dt { color:var(--muted); font-size:.875rem; margin-bottom:6px; }
+.purchase-summary dd { font-size:1.4rem; font-weight:650; font-variant-numeric:tabular-nums; line-height:1.3; }
+.purchase-summary small { display:block; color:var(--muted); font-size:.8rem; margin-top:6px; }
+.purchase-components { display:grid; grid-template-columns:repeat(auto-fit,minmax(min(100%,320px),1fr)); gap:16px; margin-top:20px; }
+.purchase-components > .component { margin:0; padding:16px; border-radius:8px; }
+.purchase-components .component-row { grid-template-columns:minmax(0,1fr); gap:16px; }
+.purchase-components .quantity-form { justify-content:flex-start; }
+.purchase-components .orders { padding-top:12px; border-top:1px solid var(--border); margin-top:16px; }
+.purchase-payments h3 { font-size:1.1rem; margin-bottom:16px; }
+@media(max-width:650px) {
+    .purchase-summary { padding:16px; }
+    .table-scroll > table.purchase-debts-table { display:block; min-width:0; white-space:normal; }
+    .purchase-debts-table thead { position:absolute; width:1px; height:1px; overflow:hidden; clip-path:inset(50%); }
+    .purchase-debts-table tbody { display:block; }
+    .purchase-debts-table tr { display:grid; gap:14px; padding:16px 0; border-top:1px solid var(--border); }
+    .purchase-debts-table td { display:block; padding:0; border:0; }
+    .purchase-debts-table td::before { content:attr(data-label); display:block; color:var(--muted); font-size:.8rem; margin-bottom:4px; }
+    .purchase-debts-table form { display:block !important; margin:8px 0 0 !important; }
+}
+.purchase-management-title { color:var(--muted); font-size:.875rem; margin:20px 0 8px; }
+.purchase-components-title { margin:24px 0 12px; font-size:1.1rem; }
+.purchase-components-title + .purchase-components { margin-top:0; }

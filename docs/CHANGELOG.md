@@ -307,3 +307,9 @@ Proposal filters submit on selection; search debounces typing, with native submi
 retained as the no-JavaScript fallback. Admin, Koins and group-purchase actions now use
 consistent shared rows and field baselines. Persistent bilingual Chromium checks cover
 300 populated layouts, alignment, automatic filtering and native poll keyboard input.
+
+Group-purchase cards now distinguish open, closed, ordered and received states, group
+order/member totals and cap headroom, and separate order management from component
+selection. Components use responsive cards; mobile payment rows show labelled member,
+amount and payment information without horizontal hunting. Financial regressions cover
+allocated shares, rounding, paid state and members without selections.
