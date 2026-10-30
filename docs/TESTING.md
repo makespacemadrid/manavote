@@ -532,3 +532,6 @@ Set `CHROMIUM` to override the browser executable and `MANAVOTE_LAYOUT_SCREENSHO
 to save representative phone/wide screenshots in the fixture directory.
 `frontend/src/proposalFilters.test.js` additionally verifies typing debounce, external
 form controls, IME composition and timer cancellation.
+Group summary regressions in `tests/test_group_purchases.py` cover both locales and all
+four lifecycle states, existing proportional cost rounding, payment receipt and a
+non-participant's zero share. Browser fixtures include all four order states.

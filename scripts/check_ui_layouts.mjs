@@ -129,6 +129,9 @@ try {
       if(page.name==='proposals'){
         assert.ok(await evaluate(`(()=>{const form=document.querySelector('#proposal-query');form.requestSubmit=()=>{window.filterSubmits=(window.filterSubmits||0)+1};form.querySelector('select').dispatchEvent(new Event('change'));document.querySelector('[name=age]').dispatchEvent(new Event('change'));return window.filterSubmits===2&&form.querySelector('[data-query-submit]').getBoundingClientRect().height===0})()`));
       }
+      if(page.name==='groups'&&width<=600){
+        assert.ok(await evaluate(`[...document.querySelectorAll('.purchase-debts-table')].every(table=>table.scrollWidth<=table.parentElement.clientWidth+1)`), 'Mobile payment rows must fit without scrolling');
+      }
       if(page.name==='polls'){
         assert.ok(await evaluate(`(()=>{const input=document.querySelector('.poll-options:not(:disabled) input:not(:checked)');input.focus();return document.activeElement===input})()`));
         await cdp('Input.dispatchKeyEvent',{type:'keyDown',key:' ',code:'Space',windowsVirtualKeyCode:32});
@@ -136,7 +139,7 @@ try {
         assert.ok(await evaluate('document.activeElement.checked'));
         assert.ok(await evaluate('!!document.querySelector(".poll-options:disabled")'));
       }
-      if(process.env.MANAVOTE_LAYOUT_SCREENSHOTS==='1'&&[375,1920].includes(width)&&['polls','settings','about'].includes(page.name)){
+      if(process.env.MANAVOTE_LAYOUT_SCREENSHOTS==='1'&&[375,1920].includes(width)&&['polls','settings','about','groups'].includes(page.name)){
         const shot=await cdp('Page.captureScreenshot',{format:'png',captureBeyondViewport:true});
         await writeFile(join(snapshots,`${page.name}-${language}-${width}.png`),Buffer.from(shot.data,'base64'));
       }

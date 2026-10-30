@@ -20,6 +20,13 @@ def test_capture_ui_layouts(ui_client, language):
     conn.execute("INSERT INTO group_purchase_components(id,group_purchase_id,name,unit_price,position) VALUES (1,1,'USB-C connectors',1.5,0)")
     conn.execute("INSERT INTO group_purchase_quantities(component_id,member_id,quantity) VALUES (1,1,2)")
     conn.execute("INSERT INTO group_purchase_shared_costs(group_purchase_id,label,amount) VALUES (1,'Shipping',5)")
+    for id,status in [(2,'closed'),(3,'ordered'),(4,'received')]:
+        conn.execute('INSERT INTO group_purchases(id,title,created_by,status,cap_at_125) VALUES (?,?,1,?,1)',(id,'Shared order '+status,status))
+        conn.execute('INSERT INTO group_purchase_components(id,group_purchase_id,name,unit_price,position) VALUES (?,?,?,2,0)',(id,id,'Development boards'))
+        conn.execute('INSERT INTO group_purchase_quantities(component_id,member_id,quantity) VALUES (?,1,2)',(id,))
+    conn.execute("INSERT INTO group_purchase_components(id,group_purchase_id,name,unit_price,position) VALUES (5,1,'AA rechargeable batteries',3.75,1)")
+    conn.execute("INSERT INTO group_purchase_components(id,group_purchase_id,name,unit_price,position) VALUES (6,1,'ESP32 development boards',6.25,2)")
+    conn.execute('INSERT INTO group_purchase_quantities(component_id,member_id,quantity) VALUES (5,2,2)')
     conn.execute("INSERT INTO feedback(id,member_id,source,category,message) VALUES (1,1,'web','suggestion','Make shared purchases easier to find on mobile.')")
     conn.execute("INSERT INTO feedback_notes(feedback_id,author_id,message) VALUES (1,1,'Private note for alignment checks')")
     conn.commit();conn.close()

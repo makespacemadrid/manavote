@@ -68,7 +68,7 @@
 <div class="card">
     <div class="purchase-header">
         <div>
-            <h1>🛒 {{ 'Group purchases'|lang }}</h1>
+            <h1>{{ 'Group purchases'|lang }}</h1>
             <p class="hint">{{ 'Group purchases intro'|lang }}</p>
         </div>
         <a class="btn" href="{{ url_for('group_purchases.new_purchase') }}">+ {{ 'New group purchase'|lang }}</a>
@@ -78,13 +78,13 @@
 
 {% if not show_create_form %}
 {% for purchase in purchases %}
-<article class="card" id="purchase-{{ purchase.id }}">
+<article class="card purchase-card" id="purchase-{{ purchase.id }}" aria-labelledby="purchase-title-{{ purchase.id }}">
     <div class="purchase-header">
         <div>
-            <h2>{{ purchase.title }}</h2>
+            <h2 id="purchase-title-{{ purchase.id }}">{{ purchase.title }}</h2>
             <p class="proposal-meta">{{ 'By'|lang }} {{ purchase.creator|username }} · {{ purchase.created_at|localtime }}</p>
         </div>
-        <span class="status status-active">{{ purchase.status|lang }}</span>
+        <span class="status status-{{ 'active' if purchase.status == 'open' else purchase.status }}">{{ purchase.status|lang }}</span>
     </div>
     {% if purchase.description %}<p style="margin:10px 0;white-space:pre-wrap">{{ purchase.description }}</p>{% endif %}
     {% if purchase.image_filename %}
@@ -97,9 +97,13 @@
             {% if purchase.url %}<a href="{{ purchase.url }}" target="_blank" rel="noopener noreferrer">🔗 {{ 'Product link'|lang }}</a>{% endif %}
         </p>
     {% endif %}
-    {% if purchase.join_member_limit %}<p>{{ 'Joining limit'|lang }}: {{ purchase.joined_members }} / {{ purchase.join_member_limit }} {{ 'Members'|lang }}</p>{% endif %}
-    <p>{{ 'Order total'|lang }}: €{{ purchase.order_total|currency }}{% if purchase.cap_at_125 %} / €125 · {{ '€125 cap enabled'|lang }}{% endif %}</p>
-    {% if purchase.cap_at_125 %}<p class="help-text">{{ 'Remaining headroom'|lang }}: €{{ purchase.remaining_headroom|currency }}</p>{% endif %}
+    {% set own_debt = purchase.debts|selectattr('member_id', 'equalto', session.member_id)|first %}
+    <dl class="purchase-summary">
+        <div><dt>{{ 'Order total'|lang }}</dt><dd>€{{ purchase.order_total|currency }}</dd>{% if purchase.cap_at_125 %}<small>{{ '€125 cap enabled'|lang }}</small>{% endif %}</div>
+        <div><dt>{{ 'Your share'|lang }}</dt><dd>€{{ (own_debt.amount_owed if own_debt else 0)|currency }}</dd><small>{% if own_debt %}{{ ('Received' if own_debt.received_at else 'Pending')|lang }}{% else %}{{ 'No selection yet'|lang }}{% endif %}</small></div>
+        {% if purchase.cap_at_125 %}<div><dt>{{ 'Remaining headroom'|lang }}</dt><dd>€{{ purchase.remaining_headroom|currency }}</dd></div>{% endif %}
+        {% if purchase.join_member_limit %}<div><dt>{{ 'Joining limit'|lang }}</dt><dd>{{ purchase.joined_members }} / {{ purchase.join_member_limit }}</dd><small>{{ 'Members'|lang }}</small></div>{% endif %}
+    </dl>
     {% if purchase.status != 'open' %}<p class="feedback-reason">{{ purchase.state_help|lang }}</p>{% endif %}
     {% if purchase.payment_method %}<p style="margin:8px 0;">💳 <strong>{{ 'Payment method'|lang }}:</strong> {{ purchase.payment_method }}</p>{% endif %}
     {% if purchase.shared_costs %}
@@ -109,6 +113,7 @@
         </p>
     {% endif %}
     {% if purchase.created_by == session.member_id or session.get('is_admin') %}
+        <h3 class="purchase-management-title">{{ 'Order management'|lang }}</h3>
         <div class="button-row" style="margin:10px 0;">
             {% with copy_kind='group_purchase', copy_source_id=purchase.id %}{% include '_copy_button.html' %}{% endwith %}
             <a class="btn btn-secondary" href="{{ url_for('group_purchases.edit_purchase', purchase_id=purchase.id) }}">{{ 'Edit'|lang }}</a>
@@ -129,6 +134,8 @@
             {% endif %}
         </div>
     {% endif %}
+    <h3 class="purchase-components-title">{{ 'Components and prices'|lang }}</h3>
+    <div class="purchase-components">
     {% for component in purchase.components %}
     <section class="component">
         <div class="component-row">
@@ -147,14 +154,16 @@
         </div>
     </section>
     {% endfor %}
-    <section class="component" style="margin-top:16px;">
+    </div>
+    <section class="component purchase-payments" style="margin-top:16px;">
         <h3>💶 {{ 'Amounts owed'|lang }}</h3>
         {% if purchase.debts %}
-            <table>
+            <table class="purchase-debts-table" role="table">
+                <caption class="sr-only">{{ 'Amounts owed'|lang }}: {{ purchase.title }}</caption>
                 <thead><tr><th>{{ 'Member'|lang }}</th><th>{{ 'Amount owed'|lang }}</th><th>{{ 'Payment'|lang }}</th></tr></thead>
                 <tbody>{% for debt in purchase.debts %}<tr>
-                    <td>{{ debt.username|username }}</td><td>€{{ debt.amount_owed|currency }}<br><span class="proposal-meta">€{{ debt.selection_amount|currency }} + €{{ debt.shared_cost_share|currency }} ({{ '%.1f'|format(debt.selection_percentage) }}%)</span></td>
-                    <td>
+                    <td data-label="{{ 'Member'|lang }}">{{ debt.username|username }}</td><td data-label="{{ 'Amount owed'|lang }}">€{{ debt.amount_owed|currency }}<br><span class="proposal-meta">€{{ debt.selection_amount|currency }} + €{{ debt.shared_cost_share|currency }} ({{ '%.1f'|format(debt.selection_percentage) }}%)</span></td>
+                    <td data-label="{{ 'Payment'|lang }}">
                         {% if debt.received_at %}<span class="amount-positive">✓ {{ 'Received'|lang }}</span>{% else %}<span class="proposal-meta">{{ 'Pending'|lang }}</span>{% endif %}
                         {% if purchase.created_by == session.member_id %}
                         <form method="post" action="{{ url_for('group_purchases.update_payment', purchase_id=purchase.id, member_id=debt.member_id) }}" style="display:inline;margin-left:8px;">
