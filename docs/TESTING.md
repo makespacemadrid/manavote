@@ -502,3 +502,10 @@ status deduplication and deletion. `npm test` also checks order previews in inte
 Existing integration suites cover permission, copy retry and ledger boundaries.
 `frontend/src/budget.test.js` verifies that activity filters remain usable when Chart.js
 is unavailable and keep their pressed state aligned with visible rows.
+
+## Pull-request automation
+
+`.github/workflows/checks.yml` runs Python tests (including documentation integrity),
+frontend tests/build and committed-asset consistency on pull requests and main pushes.
+The stable job names are `Python tests` and `Frontend checks`. These jobs require no
+deployment credentials; the Docker publishing workflow remains separate.

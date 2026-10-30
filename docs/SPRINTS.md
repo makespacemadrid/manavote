@@ -29,7 +29,7 @@ their dependent implementation, not the independent discovery work.
 | 2 | 17 — Bootstrap Credentials and Key Rotation | OPS-01, OPS-02 | Define secure bootstrap retrieval and rotation rollout; preserve existing authentication while supporting overlap and retirement |
 | 3 | 18 — Assistant History Retention and Localized Status | BOT-05, BOT-07 | Agree history policy and reuse Sprint 15 ownership; bounded deletion/expiry and reliable English/Spanish interaction |
 | 4 | 19 — Verified Backups and Measured Query Performance | OPS-04, DATA-01; backup slice of OPS-03 | Agree recovery targets and representative fixtures; verifiable snapshots, safe health signals, and evidence-based query decisions |
-| 5 | 20 — Proposal Discovery and Budget Chart Controls | UX-03, UX-04 | Validate member tasks and use Sprint 19 query evidence; accessible search/filter/sort and discoverable chart controls |
+| 5 | 20 — Proposal Discovery and Budget Chart Controls | UX-03, UX-04 | Implementation shipped in PRs #127–128; member task validation and Sprint 19 query evidence remain open |
 
 ### Execution and close-out rules
 
@@ -53,43 +53,34 @@ their dependent implementation, not the independent discovery work.
 
 ---
 
-## Sprint 20 (Planned) — Proposal Discovery and Budget Chart Controls
+## Sprint 20 (Implementation delivered; validation open) — Proposal Discovery and Budget Chart Controls
 
-### Goal and rationale
+### Delivered implementation — 30 October 2026
 
-Make proposals easier to find and budget series easier to understand. The proposal
-page currently mixes status and size chips without search/sort; the budget chart has
-six datasets controlled through its legend. Existing chart ranges and activity-table
-filters remain delivered foundations.
+PRs #127–128 delivered bounded Unicode-aware title/description search, independent
+status/age/type filters, allowlisted sorting and URL-persistent pagination. Budget now
+has labelled series controls/presets, financial summaries and a data-table alternative;
+duplicate legend controls were removed and activity filtering survives chart failure.
+See [SPEC](SPEC.md#shared-interface-and-discovery) and [CHANGELOG](CHANGELOG.md).
 
-### Sequencing and decisions
+This implementation shipped through the UX audit before the original Sprint 19
+measurement dependency. No representative query-performance or member-research outcome
+is claimed. Existing filter URLs, date controls, ledger and authorization rules remain.
 
-- Starts after Sprint 19. Validate the concrete tasks of finding an older proposal
-  and isolating a budget series with available member feedback; record assumptions
-  and obtain task feedback during the sprint if prior evidence is unavailable.
-- Decide searchable fields, allowed sort orders, status/size combinations, and default
-  chart visibility before implementation. Preserve existing filter URLs or document
-  compatible mappings; use query evidence to choose any needed indexes.
+### Verified locally
 
-### Scope
+997 Python tests, eight frontend tests after the Budget follow-up, and bilingual
+keyboard/dialog checks passed. The audit delivery checked 184 layouts at 320–1280px.
+Search regressions cover combined filters, literal Unicode matching, ordering and
+pagination; Budget filtering has a chart-unavailable regression.
 
-1. Separate status and amount filtering, add bounded server-side proposal search and
-   allowlisted sorting, and preserve selected values across navigation and pagination.
-2. Add labelled, keyboard-operable chart series controls with a visible reset/default
-   action. Keep date ranges and activity-table filters distinct and understandable.
-3. Reuse shared styles and English/Spanish translations; cover empty results, long
-   titles, selected-state announcements, and mobile control layouts.
+### Remaining close-out work
 
-### Acceptance checks
-
-- Combined search/filter/sort yields deterministic results, matching counts and
-  pagination where exposed; clearing controls restores the documented default.
-- Query inputs are parameterized and sort expressions allowlisted; invalid inputs
-  follow documented fallback/error behavior without changing proposal permissions.
-- Chart controls accurately reflect visible series and compose with date ranges;
-  displayed totals and underlying budget data remain unchanged.
-- The selected tasks work with keyboard navigation in both languages at mobile,
-  tablet, and desktop sizes; feedback confirms the controls address the recorded task.
+- Observe members finding an older proposal and isolating/interpreting a Budget series.
+- Validate physical-device and screen-reader use, including focus and announcements.
+- Use Sprint 19 representative query measurements to decide whether indexes are needed.
+- Record task feedback before broader navigation changes. Implementation is delivered;
+  the sprint remains open for these evidence-based validation gates.
 
 ### Deferred scope
 
