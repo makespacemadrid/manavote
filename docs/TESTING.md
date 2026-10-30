@@ -500,3 +500,5 @@ safe health responses. Network calls are mocked; concurrency uses real futures/S
 filters, pagination/order validation, Markdown allowlisting and feedback-history privacy,
 status deduplication and deletion. `npm test` also checks order previews in integer cents.
 Existing integration suites cover permission, copy retry and ledger boundaries.
+`frontend/src/budget.test.js` verifies that activity filters remain usable when Chart.js
+is unavailable and keep their pressed state aligned with visible rows.
