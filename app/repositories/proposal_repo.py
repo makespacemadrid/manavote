@@ -99,7 +99,7 @@ class ProposalRepository:
     def count(self):
         return self.conn.execute("SELECT COUNT(*) FROM proposals").fetchone()[0]
 
-    def list_for_page(self, filter_type, old_cutoff):
+    def list_for_page(self, filter_type, old_cutoff, *, query="", sort="newest", limit=20, offset=0, count=False, age="", kind=""):
         conditions = {
             "basic": ("p.basic_supplies = 1", ()),
             "old": ("p.status = 'active' AND datetime(p.created_at) <= datetime(?)", (old_cutoff,)),
@@ -109,15 +109,28 @@ class ProposalRepository:
             "expensive": ("p.amount > 50 AND p.status IN ('active', 'approved')", ()),
             "standard": ("p.status = 'approved' AND p.basic_supplies = 0 AND p.amount <= 50", ()),
         }
-        if filter_type in {"active", "approved", "over_budget"}:
+        if filter_type in {"active", "approved", "over_budget", "rejected"}:
             condition, params = "p.status = ?", (filter_type,)
         else:
             condition, params = conditions.get(filter_type, ("1 = 1", ()))
+        if age in {'recent', 'old'}:
+            condition += " AND datetime(p.created_at) " + ('>' if age == 'recent' else '<=') + " datetime(?)"
+            params = (*params, old_cutoff)
+        if kind in {'basic', 'standard', 'expensive'}:
+            condition += ' AND ' + {'basic': 'p.basic_supplies=1', 'standard': 'p.basic_supplies=0 AND p.amount<=50', 'expensive': 'p.amount>50'}[kind]
+        if query:
+            self.conn.create_function('unicode_fold', 1, lambda text: str(text or '').casefold(), deterministic=True)
+            # instr treats %, _ and backslashes as literal search text.
+            condition += " AND (instr(unicode_fold(p.title), unicode_fold(?)) > 0 OR instr(unicode_fold(p.description), unicode_fold(?)) > 0)"
+            params = (*params, query, query)
+        base = " FROM proposals p JOIN members m ON p.created_by = m.id WHERE " + condition
+        if count:
+            return self.conn.execute("SELECT COUNT(*)" + base, params).fetchone()[0]
+        order = {"newest": "p.created_at DESC, p.id DESC", "oldest": "p.created_at ASC, p.id ASC",
+                 "amount_desc": "p.amount DESC, p.id DESC", "amount_asc": "p.amount ASC, p.id DESC"}.get(sort, "p.created_at DESC, p.id DESC")
         return self.conn.execute(
-            "SELECT p.*, m.username AS creator FROM proposals p "
-            "JOIN members m ON p.created_by = m.id "
-            f"WHERE {condition} ORDER BY p.created_at DESC",
-            params,
+            "SELECT p.*, m.username AS creator" + base + " ORDER BY " + order + " LIMIT ? OFFSET ?",
+            (*params, limit, offset),
         ).fetchall()
 
     def page_totals(self, old_cutoff):

@@ -1,12 +1,12 @@
 {% extends "base.html" %}
 
 {% block content %}
-{% include "_top_nav.html" %}
+
 
 <style>
 .user-settings-grid {
     display: grid;
-    grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+    grid-template-columns: repeat(auto-fit, minmax(min(100%, 240px), 1fr));
     gap: 12px;
 }
 .user-settings-item {
@@ -50,19 +50,20 @@
 </style>
 
 <div class="card">
-    <h2>{{ 'Settings'|lang }}</h2>
+    <h1>{{ 'Settings'|lang }}</h1>
+    <h2 class="settings-section-title">{{ 'Account'|lang }}</h2>
     <div class="user-settings-grid">
         <div class="user-settings-item">
             <h4>{{ 'Email'|lang }}</h4>
             {% if email %}
             <p>{{ 'Your email address is used as an alternative login.'|lang }}</p>
             <input type="email" value="{{ email }}" readonly aria-label="{{ 'Email'|lang }}">
-            <small style="color: #888;">{{ 'Email cannot be changed after it is added.'|lang }}</small>
+            <small style="color: #b5b5b5;">{{ 'Email cannot be changed after it is added.'|lang }}</small>
             {% else %}
             <p>{{ 'Add an email address to use it as an alternative login.'|lang }}</p>
             <form method="POST" class="email-settings-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-                <input type="email" name="email" autocomplete="email" required placeholder="you@example.com" aria-label="{{ 'Email'|lang }}">
+                <label>{{ 'Email'|lang }}<input type="email" name="email" autocomplete="email" required value="{{ request.form.get('email', '') }}" placeholder="you@example.com" aria-label="{{ 'Email'|lang }}"></label>
                 <button type="submit" class="btn btn-secondary">{{ 'Add Email'|lang }}</button>
             </form>
             {% endif %}
@@ -72,11 +73,17 @@
             <p>{{ 'Update your account password.'|lang }}</p>
             <a class="btn btn-secondary" href="{{ url_for('auth.change_password') }}">{{ 'Change Password'|lang }}</a>
         </div>
+    </div>
+    <h2 class="settings-section-title">{{ 'Integrations'|lang }}</h2>
+    <div class="user-settings-grid">
         <div class="user-settings-item">
             <h4>{{ 'Telegram Settings'|lang }}</h4>
             <p>{{ 'Manage your Telegram link. Use the /link command in the bot to connect your account.'|lang }}</p>
             <a class="btn btn-secondary" href="{{ url_for('telegram_settings') }}">{{ 'Telegram Settings'|lang }}</a>
         </div>
+    </div>
+    <h2 class="settings-section-title">{{ 'Preferences'|lang }}</h2>
+    <div class="user-settings-grid">
         <div class="user-settings-item">
             <h4>{{ 'Language'|lang }}</h4>
             <p>{{ 'Switch your interface language.'|lang }}</p>
@@ -85,6 +92,9 @@
                 <a class="btn btn-secondary" href="{{ url_for('auth.set_language', lang='es') }}">{{ 'Español'|lang }}</a>
             </div>
         </div>
+    </div>
+    <h2 class="settings-section-title">{{ 'Notifications'|lang }}</h2>
+    <div class="user-settings-grid">
         <div class="user-settings-item" id="feedback-notifications">
             <h4>{{ 'Feedback notifications'|lang }}</h4>
             <p>{{ 'Resolution notices always appear in the web app. You can also receive a private Telegram message.'|lang }}</p>
@@ -96,27 +106,27 @@
                 <button class="btn btn-secondary" type="submit">{{ 'Save'|lang }}</button>
             </form>
         </div>
+    </div>
+    <h2 class="settings-section-title">{{ 'Support'|lang }}</h2>
+    <div class="user-settings-grid">
         <div class="user-settings-item" id="feedback">
             <h4>{{ 'Feedback'|lang }}</h4>
+            <p><a href="{{ url_for('auth.my_feedback') }}">{{ 'My feedback'|lang }} →</a></p>
             <p>{{ 'Report a bug or suggest an improvement.'|lang }}</p>
             <form method="POST" class="email-settings-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <input type="hidden" name="action" value="submit_feedback">
-                <input type="hidden" name="section" value="{{ request.args.get('section', '/settings') }}">
-                <select name="category" required aria-label="{{ 'Feedback category'|lang }}">
-                    <option value="bug">{{ 'Bug report'|lang }}</option>
-                    <option value="suggestion">{{ 'Suggestion'|lang }}</option>
-                    <option value="other">{{ 'Other'|lang }}</option>
-                </select>
-                <textarea name="message" maxlength="4000" required placeholder="{{ 'Describe your feedback'|lang }}"></textarea>
+                <input type="hidden" name="section" value="{{ request.form.get('section', request.args.get('section', '/settings')) }}">
+                <label>{{ 'Feedback category'|lang }}<select name="category" required aria-label="{{ 'Feedback category'|lang }}">
+                    <option value="bug"{% if request.form.get('category', 'bug') == 'bug' %} selected{% endif %}>{{ 'Bug report'|lang }}</option>
+                    <option value="suggestion"{% if request.form.get('category') == 'suggestion' %} selected{% endif %}>{{ 'Suggestion'|lang }}</option>
+                    <option value="other"{% if request.form.get('category') == 'other' %} selected{% endif %}>{{ 'Other'|lang }}</option>
+                </select></label>
+                <label>{{ 'Describe your feedback'|lang }}<textarea name="message" maxlength="4000" required placeholder="{{ 'Describe your feedback'|lang }}">{{ request.form.get('message', '') }}</textarea></label>
                 <button type="submit" class="btn btn-secondary">{{ 'Send feedback'|lang }}</button>
             </form>
         </div>
-        <div class="user-settings-item">
-            <h4>{{ 'Logout'|lang }}</h4>
-            <p>{{ 'Sign out from your current session.'|lang }}</p>
-            <a class="btn" href="{{ url_for('auth.logout') }}">{{ 'Logout'|lang }}</a>
-        </div>
     </div>
+    <div class="settings-logout"><a class="btn btn-secondary" href="{{ url_for('auth.logout') }}">{{ 'Logout'|lang }}</a></div>
 </div>
 {% endblock %}

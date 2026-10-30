@@ -493,3 +493,10 @@ start/cancel races, capacity release, queued cancellation without model/MCP work
 webhook deduplication, pending-action ownership, relinking/role changes, running status,
 cleanup failures, model/MCP/delivery telemetry, bounded summaries, and administrator-only
 safe health responses. Network calls are mocked; concurrency uses real futures/SQLite.
+
+## UX audit implementation checks
+
+`pytest -q tests/test_ux_delivery.py` covers literal Unicode proposal search, combined
+filters, pagination/order validation, Markdown allowlisting and feedback-history privacy,
+status deduplication and deletion. `npm test` also checks order previews in integer cents.
+Existing integration suites cover permission, copy retry and ledger boundaries.

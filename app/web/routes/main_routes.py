@@ -97,9 +97,8 @@ from translations import TRANSLATIONS
 
 @app.template_filter("markdown")
 def render_markdown(text):
-    if not text:
-        return ""
-    return markdown.markdown(text, extensions=["nl2br"])
+    from app.services.content_service import render_member_markdown
+    return render_member_markdown(text)
 
 
 @app.template_filter("lang")

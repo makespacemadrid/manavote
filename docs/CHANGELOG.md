@@ -269,3 +269,16 @@ preserved in the [roadmap audit archive](archive/ROADMAP_AUDITS.md).
   [Startup notes](archive/ROADMAP_AUDITS.md#ws-b--startup-reliability-p0),
   [exception audit](archive/ROADMAP_AUDITS.md#route-exception-granularity), and
   [regression diagnosis](archive/ROADMAP_AUDITS.md#fixed-the-4-tests-repeatedly-labeled-pre-existingenvironmental-all-session).
+
+## 30 October 2026 — UX audit implementation
+
+Delivered responsive proposal details/cards, accessible form names and registration
+markup, readable palette/action states, shared spacing/type, landmarks, configurable
+About thresholds and sanitized Markdown. Added URL-persistent proposal discovery,
+Budget series controls/data alternative, group total previews, signed Koins ordering,
+copy preview, private member feedback history/public explanations, refreshed error
+archives, Telegram linking aids and grouped Settings. See [SPEC](SPEC.md#shared-interface-and-discovery).
+
+The [audit](UX_AUDIT_2026-10-29.md) remains the historical assessment. Physical-device,
+screen-reader, live SSO/Telegram and member task research remain follow-up validation;
+no broad navigation restructuring was attempted without that evidence.

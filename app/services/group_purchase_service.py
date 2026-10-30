@@ -205,6 +205,20 @@ def build_purchase_page(connection, member_id):
         purchase['order_total'] = purchase_amount(repo.selected_prices(purchase['id']), [(c['label'], c['amount']) for c in purchase['shared_costs']])
         purchase['debts'] = [dict(row) for row in repo.debts(purchase['id'])]
         purchase['joined_members'] = len(purchase['debts'])
+        purchase['order_total_cents'] = int(purchase['order_total'] * 100)
+        purchase['remaining_headroom'] = max(Decimal('0'), Decimal('125') - purchase['order_total'])
+        for component in purchase['components']:
+            component['unit_price_cents'] = int(Decimal(str(component['unit_price'])).quantize(Decimal('.01')) * 100)
+        purchase['state_help'] = {
+            'closed': 'Joining is closed. The creator can place the order.',
+            'ordered': 'Order placed. Track payments while waiting for delivery.',
+            'received': 'Shipment received. Arrange collection with the creator.',
+        }.get(purchase['status'], '')
+        if purchase['status'] == 'closed':
+            if purchase['cap_at_125'] and purchase['order_total'] >= Decimal('125'):
+                purchase['state_help'] = 'Joining closed because the €125 limit was reached.'
+            elif purchase['join_member_limit'] and purchase['joined_members'] >= purchase['join_member_limit']:
+                purchase['state_help'] = 'Joining closed because the member limit was reached.'
         _allocate_shared_costs(purchase['debts'], purchase['shared_cost_total'])
     return purchases
 

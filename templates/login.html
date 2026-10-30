@@ -4,36 +4,36 @@
 <div style="max-width: 400px; margin: 80px auto;">
     <div class="card">
         <h1 style="text-align: center;">🔧 MakeSpace Madrid</h1>
-        <p style="text-align: center; color: #888; margin-bottom: 30px;">{{ 'Budget'|lang }} {{ 'Proposals'|lang }}</p>
+        <p style="text-align: center; color: #b5b5b5; margin-bottom: 30px;">{{ 'Budget'|lang }} {{ 'Proposals'|lang }}</p>
 
         {% if oidc_enabled %}
-        <a href="{{ url_for('auth.keycloak_login') }}" class="btn" style="display: flex; width: 100%; box-sizing: border-box; text-align: center; margin-bottom: 24px;" aria-label="Sign in with MakeSpace SSO">
+        <a href="{{ url_for('auth.keycloak_login') }}" class="btn" style="display: flex; width: 100%; box-sizing: border-box; text-align: center; margin-bottom: 24px;" aria-label="{{ 'Sign in with MakeSpace SSO'|lang }}">
             <span aria-hidden="true">🔐</span>
-            <span>Sign in with MakeSpace SSO</span>
+            <span>{{ 'Sign in with MakeSpace SSO'|lang }}</span>
         </a>
-        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; color: #888;">
-            <span style="height: 1px; background: #555; flex: 1;"></span><span>or</span><span style="height: 1px; background: #555; flex: 1;"></span>
+        <div style="display: flex; align-items: center; gap: 10px; margin-bottom: 20px; color: #b5b5b5;">
+            <span style="height: 1px; background: #555; flex: 1;"></span><span>{{ 'or'|lang }}</span><span style="height: 1px; background: #555; flex: 1;"></span>
         </div>
         {% endif %}
         
         <form method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
-            <label>{{ 'Username or email'|lang }}</label>
-            <input type="text" name="username" autocomplete="username" required autofocus>
+            <label>{{ 'Username or email'|lang }}
+            <input type="text" name="username" value="{{ request.form.get('username', '') }}" autocomplete="username" required autofocus></label>
             
-            <label>{{ 'Password'|lang }}</label>
-            <input type="password" name="password" required>
+            <label>{{ 'Password'|lang }}
+            <input type="password" name="password" autocomplete="current-password" required></label>
             
             <button type="submit" class="btn" style="width: 100%;">{{ 'Login'|lang }}</button>
         </form>
 
-        <p style="text-align: center; margin-top: 20px; color: #888;">
+        {% if registration_enabled %}<p style="text-align: center; margin-top: 20px; color: #b5b5b5;">
             {{ 'No account yet'|lang }} <a href="{{ url_for('register') }}" style="color: #00d9ff;">{{ 'Register'|lang }}</a>
         </p>
 
-        <div style="text-align: center; margin-top: 15px;">
-        <a href="{{ url_for('auth.set_language', lang='en') }}" style="color: #888; font-size: 0.85em;">{{ 'English'|lang }}</a> |
-        <a href="{{ url_for('auth.set_language', lang='es') }}" style="color: #888; font-size: 0.85em;">{{ 'Español'|lang }}</a>
+        {% endif %}<div style="text-align: center; margin-top: 15px;">
+        <a href="{{ url_for('auth.set_language', lang='en') }}" style="color: #b5b5b5; font-size: 0.85em;">{{ 'English'|lang }}</a> |
+        <a href="{{ url_for('auth.set_language', lang='es') }}" style="color: #b5b5b5; font-size: 0.85em;">{{ 'Español'|lang }}</a>
         </div>
     </div>
 </div>

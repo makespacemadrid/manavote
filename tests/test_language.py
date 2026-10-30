@@ -303,8 +303,8 @@ class TestCalendarBudgetData(unittest.TestCase):
         response = self.client.get("/budget")
         self.assertEqual(response.status_code, 200)
         html = response.data.decode("utf-8")
-        self.assertIn("cashInData", html)
-        self.assertIn("cashOutData", html)
+        self.assertIn("cashInData", Path("frontend/src/budget.js").read_text())
+        self.assertIn("cashOutData", Path("frontend/src/budget.js").read_text())
 
     def test_calendar_table_uses_budget_in_out_labels(self):
         """Calendar activity table uses Budget In/Out labels, not Income/Expense"""
@@ -321,7 +321,7 @@ class TestCalendarBudgetData(unittest.TestCase):
         response = self.client.get("/budget")
         self.assertEqual(response.status_code, 200)
         html = response.data.decode("utf-8")
-        self.assertIn("approvedData", html)
+        self.assertIn("approvedData", Path("frontend/src/budget.js").read_text())
 
     def test_calendar_approved_query_includes_all_approvals(self):
         """Calendar approved bars include all approved proposals, not only over-budget ones"""
@@ -340,12 +340,12 @@ class TestCalendarBudgetData(unittest.TestCase):
     def test_calendar_approved_type_uses_purple_color(self):
         """Calendar template styles approved proposal type in purple"""
         template = Path("templates/budget.html").read_text(encoding="utf-8")
-        self.assertIn("color: #9932CC;", template)
+        self.assertIn("color: #d49aff;", template)
 
     def test_calendar_amounts_use_status_colors_for_proposals(self):
         """Calendar proposal amounts use purple for approved and blue for active"""
         template = Path("templates/budget.html").read_text(encoding="utf-8")
-        self.assertIn(".amount-approved { color: #9932CC; }", template)
+        self.assertIn(".amount-approved { color: #d49aff; }", template)
         self.assertIn(".amount-active { color: #00d9ff; }", template)
         self.assertIn("item.item_type == 'proposal' and item.status == 'approved'", template)
         self.assertIn("item.item_type == 'proposal' and item.status == 'active'", template)
@@ -357,7 +357,7 @@ class TestCalendarBudgetData(unittest.TestCase):
         response = self.client.get("/budget")
         self.assertEqual(response.status_code, 200)
         html = response.data.decode("utf-8")
-        self.assertIn("label: 'Pending Budget'", html)
+        self.assertIn("Pending Budget", html)
 
     def test_calendar_committed_budget_spanish(self):
         """Calendar shows Pending Budget line label in Spanish"""
@@ -365,7 +365,7 @@ class TestCalendarBudgetData(unittest.TestCase):
         response = self.client.get("/budget")
         self.assertEqual(response.status_code, 200)
         html = response.data.decode("utf-8")
-        self.assertIn("label: 'Presupuesto Pendiente'", html)
+        self.assertIn("Presupuesto Pendiente", html)
 
     def test_calendar_table_labels_spanish(self):
         """Calendar table labels are localized in Spanish for budget flows"""
@@ -384,8 +384,8 @@ class TestCalendarBudgetData(unittest.TestCase):
         response = self.client.get("/budget")
         self.assertEqual(response.status_code, 200)
         html = response.data.decode("utf-8")
-        self.assertIn("label: 'Propuestas (En votación)'", html)
-        self.assertIn("label: 'Propuestas (Aprobadas)'", html)
+        self.assertIn("Propuestas (En votación)", html)
+        self.assertIn("Propuestas (Aprobadas)", html)
 
     def test_calendar_pagination_uses_translation_keys(self):
         """Calendar pagination uses localized Previous/Next keys in template"""
@@ -398,15 +398,15 @@ class TestCalendarBudgetData(unittest.TestCase):
         response = self.client.get("/budget")
         self.assertEqual(response.status_code, 200)
         html = response.data.decode("utf-8")
-        self.assertIn("const committedData = cashBalanceData.map((b, i) => b - pendingData[i]);", html)
+        self.assertIn("const committedData = cashBalanceData.map((b, i) => b - pendingData[i]);", Path("frontend/src/budget.js").read_text())
 
     def test_calendar_lines_do_not_stack_with_each_other(self):
         """Budget Balance and Committed line datasets have separate stack keys"""
         response = self.client.get("/budget")
         self.assertEqual(response.status_code, 200)
         html = response.data.decode("utf-8")
-        self.assertIn("stack: 'line_budget_balance'", html)
-        self.assertIn("stack: 'line_committed'", html)
+        self.assertIn("stack: 'line_budget_balance'", Path("frontend/src/budget.js").read_text())
+        self.assertIn("stack: 'line_committed'", Path("frontend/src/budget.js").read_text())
 
 class TestProposalsFilters(unittest.TestCase):
     @classmethod
@@ -643,21 +643,21 @@ class TestCalendarChartData(unittest.TestCase):
         """Chart has Budget Balance line"""
         response = self.client.get("/budget")
         html = response.data.decode("utf-8")
-        self.assertIn("cashBalanceData", html)
+        self.assertIn("cashBalanceData", Path("frontend/src/budget.js").read_text())
 
     def test_calendar_chart_has_committed_line(self):
         """Chart has Committed line"""
         response = self.client.get("/budget")
         html = response.data.decode("utf-8")
-        self.assertIn("committedData", html)
+        self.assertIn("committedData", Path("frontend/src/budget.js").read_text())
 
     def test_calendar_chart_has_bars(self):
         """Chart has bars for Cash In/Out and Approved"""
         response = self.client.get("/budget")
         html = response.data.decode("utf-8")
-        self.assertIn("cashInData", html)
-        self.assertIn("cashOutData", html)
-        self.assertIn("approvedData", html)
+        self.assertIn("cashInData", Path("frontend/src/budget.js").read_text())
+        self.assertIn("cashOutData", Path("frontend/src/budget.js").read_text())
+        self.assertIn("approvedData", Path("frontend/src/budget.js").read_text())
 
 
 if __name__ == "__main__":

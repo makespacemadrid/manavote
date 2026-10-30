@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="{{ session_lang|default('en') }}">
+<html lang="{{ session_lang|default(session.get('lang', 'en')) }}">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -13,10 +13,13 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='react/style.css', v=asset_version('react/style.css')) }}">
 </head>
 <body>
+    <a class="skip-link" href="#main-content">{{ 'Skip to content'|lang }}</a>
     <div class="container">
+        {% block navigation %}{% if session.get('member_id') %}{% include "_top_nav.html" %}{% endif %}{% endblock %}
+        <main id="main-content" tabindex="-1">
         {% for notification in feedback_notifications|default([]) %}
         <div class="flash success" role="status">
-            {{ 'Your feedback was resolved'|lang }} #{{ notification.feedback_id }}: {{ notification.message }}
+            {{ 'Your feedback was resolved'|lang }} #{{ notification.feedback_id }}: {{ notification.message }} <a href="{{ url_for('auth.my_feedback', _anchor='feedback-' ~ notification.feedback_id) }}">{{ 'View feedback'|lang }}</a>
             <form method="POST" action="{{ url_for('auth.read_notification', notification_id=notification.id) }}">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                 <button class="btn btn-secondary" type="submit">{{ 'Dismiss'|lang }}</button>
@@ -26,12 +29,13 @@
         {% with messages = get_flashed_messages(with_categories=true) %}
             {% if messages %}
                 {% for category, message in messages %}
-                    <div class="flash {{ category }}">{{ message|lang }}</div>
+                    <div class="flash {{ category }}" role="{{ 'alert' if category == 'error' else 'status' }}"{% if category == 'error' %} tabindex="-1" data-error-summary{% endif %}>{{ message|lang }}</div>
                 {% endfor %}
             {% endif %}
         {% endwith %}
         
         {% block content %}{% endblock %}
+        </main>
     </div>
     {% if session.get('member_id') %}{% include "_feedback_modal.html" %}{% endif %}
     {% include "_danger_action_modal.html" %}

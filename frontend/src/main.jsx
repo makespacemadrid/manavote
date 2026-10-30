@@ -1,6 +1,8 @@
 import { hydrateRoot } from 'react-dom/client';
 import { Nav } from './Nav.jsx';
 import './styles.css';
+import { initializeUX } from './ux.js';
+import { initializeBudget } from './budget.js';
 import { initializeDialogs } from './dialogs.js';
 import { initializeBrowserErrors } from './browserErrors.js';
 import { initializeAdminTabs } from './adminTabs.js';
@@ -8,6 +10,8 @@ import { initializeAdminTabs } from './adminTabs.js';
 initializeBrowserErrors();
 initializeDialogs();
 initializeAdminTabs();
+initializeUX();
+initializeBudget();
 
 for (const rows of document.querySelectorAll('[data-new-component-rows]')) {
   const form = rows.closest('form');
@@ -64,12 +68,13 @@ for (const table of document.querySelectorAll('[data-sortable-table]')) {
   if (!body) continue;
 
   table.querySelectorAll('thead th').forEach((header, column) => {
+    if (column === 0 && table.hasAttribute('data-row-positions')) return;
     const label = header.textContent.trim();
     const button = document.createElement('button');
     button.type = 'button';
     button.className = 'table-sort-button';
     button.textContent = label;
-    button.setAttribute('aria-label', `Sort by ${label}`);
+    button.setAttribute('aria-label', `${document.documentElement.lang === 'es' ? 'Ordenar por' : 'Sort by'} ${label}`);
     header.textContent = '';
     header.append(button);
 
@@ -86,7 +91,10 @@ for (const table of document.querySelectorAll('[data-sortable-table]')) {
         if (type === 'number') return (leftValue - rightValue) * multiplier;
         return leftValue.localeCompare(rightValue, undefined, { numeric: true }) * multiplier;
       });
-      rows.forEach((row) => body.append(row));
+      rows.forEach((row, index) => {
+        if (table.hasAttribute('data-row-positions')) row.cells[0].textContent = String(index + 1);
+        body.append(row);
+      });
     });
   });
 }

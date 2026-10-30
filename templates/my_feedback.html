@@ -1,0 +1,15 @@
+{% extends "base.html" %}
+{% block content %}
+<header class="page-heading"><h1>{{ 'My feedback'|lang }}</h1><a class="btn btn-secondary" href="{{ url_for('auth.settings_page', _anchor='feedback') }}">{{ 'Send feedback'|lang }}</a></header>
+<p class="help-text">{{ 'Feedback history help'|lang }}</p>
+<div class="feedback-list">
+{% for item in items %}
+<article class="feedback-item" id="feedback-{{ item.id }}">
+    <header><h2>#{{ item.id }}</h2><span class="status status-{{ item.status }}">{{ item.status|lang }}</span><span class="status status-other">{{ item.category|lang }}</span></header>
+    <p class="feedback-message">{{ item.message }}</p><p class="help-text">{{ item.created_at|localtime }} · {{ item.section or '—' }}</p>
+    {% if item.public_reason %}<p class="feedback-reason">{{ item.public_reason }}</p>{% endif %}
+    {% if item.history %}<details><summary>{{ 'Status history'|lang }}</summary><ol class="about-list">{% for event in item.history %}<li><strong>{{ event.status|lang }}</strong> · {{ event.created_at|localtime }}{% if event.public_reason %}<p>{{ event.public_reason }}</p>{% endif %}</li>{% endfor %}</ol></details>{% endif %}
+</article>
+{% else %}<p class="empty-state">{{ 'No feedback yet.'|lang }}</p>{% endfor %}
+</div>
+{% endblock %}

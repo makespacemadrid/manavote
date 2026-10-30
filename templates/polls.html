@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-{% include "_top_nav.html" %}
+
 <style>
 .web-vote-form label {
     display: flex;
@@ -20,14 +20,14 @@
     line-height: 1.3;
 }
 .poll-result-fill.color-1 { --result-color: #00d9ff; }
-.poll-result-fill.color-2 { --result-color: #e94560; }
+.poll-result-fill.color-2 { --result-color: #ff8fa3; }
 .poll-result-fill.color-3 { --result-color: #ffd700; }
 .poll-result-fill.color-4 { --result-color: #9b59b6; }
 .poll-result-fill.color-5 { --result-color: #39d98a; }
 </style>
 
 <div class="card">
-    <h2>📊 {{ 'Polls'|lang }}</h2>
+    <h1>📊 {{ 'Polls'|lang }}</h1>
     <div style="margin: 0 0 10px;">
         {% with is_linked=is_telegram_linked, linked_text='Telegram linked', not_linked_text='Telegram not linked' %}
             {% include "_telegram_link_status.html" %}
@@ -44,7 +44,7 @@
         {% for p in polls %}
         <div id="poll-{{ p.id }}" style="border:1px solid #333;padding:12px;margin-bottom:16px;border-radius:8px;">
             <h3 style="margin-top:0;">{{ p.question }} {% if p.status == "closed" %}<span class="status" style="background:#444;">{{ 'Closed'|lang }}</span>{% endif %} {% if p.allow_multiple %}<span class="status" style="background:#9b59b622; color:#9b59b6;">{{ 'Multi-select'|lang }}</span>{% endif %}</h3>
-            <p style="color:#888;">{{ 'By'|lang }} {{ p.creator|username }} · {{ p.created_at|localtime("%Y-%m-%d %H:%M") }}</p>
+            <p style="color:#b5b5b5;">{{ 'By'|lang }} {{ p.creator|username }} · {{ p.created_at|localtime("%Y-%m-%d %H:%M") }}</p>
             {% with copy_kind='poll', copy_source_id=p.id %}{% include '_copy_button.html' %}{% endwith %}
 
             {# Put the member's primary action first, followed by results and details. #}
@@ -57,7 +57,7 @@
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="poll_id" value="{{ p.id }}">
                             {% for option in p.options %}
-                                <label><input type="{{ 'checkbox' if p.allow_multiple else 'radio' }}" name="option_index" value="{{ loop.index0 }}" {{ 'checked' if loop.index0 in p.user_votes else '' }}><span class="option-text">{{ option }} <span style="color:#888;">({{ p.counts[loop.index0] }})</span></span></label>
+                                <label><input type="{{ 'checkbox' if p.allow_multiple else 'radio' }}" name="option_index" value="{{ loop.index0 }}" {{ 'checked' if loop.index0 in p.user_votes else '' }}><span class="option-text">{{ option }} <span style="color:#b5b5b5;">({{ p.counts[loop.index0] }})</span></span></label>
                             {% endfor %}
                             {% if p.status == "open" %}<button class="vote-btn approve poll-vote-submit" type="submit">{{ 'Vote'|lang }}</button>
                             {% else %}<button class="vote-btn poll-vote-submit" type="button" disabled>{{ 'Voting closed'|lang }}</button>{% endif %}
@@ -104,7 +104,7 @@
                             </ul>
                         </details>
                     {% else %}
-                        <p style="color:#888;font-size:0.85em;margin:8px 0;">{{ 'No votes yet'|lang }}</p>
+                        <p style="color:#b5b5b5;font-size:0.85em;margin:8px 0;">{{ 'No votes yet'|lang }}</p>
                     {% endif %}
                 </div>
                 

@@ -1,0 +1,7 @@
+{% if total_pages > 1 %}
+<nav class="button-row" aria-label="{{ 'Proposal pages'|lang }}">
+    {% if page > 1 %}<a class="btn btn-secondary" href="{{ url_for('proposals', filter=filter, q=search_query, sort=proposal_sort, age=proposal_age, kind=proposal_kind, page=page-1) }}">← {{ 'Previous'|lang }}</a>{% endif %}
+    <span class="help-text">{{ page }} / {{ total_pages }}</span>
+    {% if page < total_pages %}<a class="btn btn-secondary" href="{{ url_for('proposals', filter=filter, q=search_query, sort=proposal_sort, age=proposal_age, kind=proposal_kind, page=page+1) }}">{{ 'Next'|lang }} →</a>{% endif %}
+</nav>
+{% endif %}

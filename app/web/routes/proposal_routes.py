@@ -14,13 +14,14 @@ from app.web.routes import main_routes as legacy
 proposal_bp = Blueprint("proposals", __name__)
 
 
-def _render_proposal_form(template, *, proposal=None, image_error=False):
+def _render_proposal_form(template, *, proposal=None, image_error=False, field_errors=None):
     form_data = request.form if request.method == "POST" else (dict(proposal) if proposal is not None else {})
     return render_template(
         template,
         proposal=proposal,
         form_data=form_data,
         image_error=image_error,
+        field_errors=field_errors or {},
         current_budget=legacy.get_current_budget(),
         thresholds=legacy.get_thresholds(),
         session_lang=session.get("lang", "en"),
@@ -29,7 +30,7 @@ def _render_proposal_form(template, *, proposal=None, image_error=False):
 
 @proposal_bp.route("/about", endpoint="about")
 def about():
-    return render_template("about.html", session_lang=session.get("lang", "en"))
+    return render_template("about.html", thresholds=legacy.get_thresholds(), session_lang=session.get("lang", "en"))
 
 
 @proposal_bp.route("/budget", endpoint="budget")
@@ -58,6 +59,9 @@ def proposals():
             conn,
             member_id=session["member_id"],
             filter_type=request.args.get("filter", "active"),
+            query=request.args.get("q", ""), sort=request.args.get("sort", "newest"),
+            age=request.args.get("age", ""), kind=request.args.get("kind", ""),
+            page=request.args.get("page", 1, type=int),
         )
     finally:
         conn.close()
@@ -98,7 +102,7 @@ def new_proposal():
         basic_supplies = 1 if request.form.get("basic_supplies") else 0
         if amount is None:
             flash("Amount must be positive", "error")
-            return _render_proposal_form("new_proposal.html")
+            return _render_proposal_form("new_proposal.html", field_errors={"amount": "Amount must be positive"})
         deadline_text = ""
         if voting_deadline:
             try:
@@ -106,7 +110,7 @@ def new_proposal():
                 deadline_text = deadline_dt.strftime("%Y-%m-%d %H:%M")
             except ValueError:
                 flash("Invalid voting deadline", "error")
-                return _render_proposal_form("new_proposal.html")
+                return _render_proposal_form("new_proposal.html", field_errors={"voting_deadline": "Invalid voting deadline"})
 
         try:
             image_filename = save_proposal_image(
@@ -272,7 +276,7 @@ def edit_proposal(proposal_id):
             basic_supplies = 1 if request.form.get("basic_supplies") else 0
             if amount is None:
                 flash("Amount must be positive", "error")
-                return _render_proposal_form("edit_proposal.html", proposal=proposal)
+                return _render_proposal_form("edit_proposal.html", proposal=proposal, field_errors={"amount": "Amount must be positive"})
 
             try:
                 new_image = save_proposal_image(

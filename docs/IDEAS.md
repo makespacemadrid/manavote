@@ -1,6 +1,6 @@
 # IDEAS — Forward Roadmap
 
-Last reviewed: 2026-10-08
+Last reviewed: 2026-10-29 (UX and visual audit; other backlog decisions unchanged)
 
 This is the backlog of unfinished work. Each item has a stable ID, a concrete outcome,
 and a completion signal. [SPRINTS.md](SPRINTS.md) owns scheduled scope and status;
@@ -31,6 +31,21 @@ Planned P2 sprints include discovery and policy gates; scheduling does not asser
 those decisions or measurements already exist.
 Priority does not authorize a broad rewrite. Follow [STYLE.md](STYLE.md), preserve
 compatibility, and choose the smallest slice with a testable outcome.
+
+## Latest UX and visual audit
+
+The [29 October 2026 audit](UX_AUDIT_2026-10-29.md) records 24 findings with screenshot
+evidence, priorities, acceptance criteria and a proposed visual direction. This is a historical assessment; delivered outcomes are recorded in CHANGELOG.
+
+The implementation is recorded in [CHANGELOG](CHANGELOG.md). The original P1 findings were: phone proposal overflow, accessible field names,
+contrast, mobile feedback review, registration markup, live governance thresholds and
+a focused review of Markdown HTML handling. Preserve the requested single-column About
+layout and the safeguards already delivered.
+
+UA-09 and UA-14 expand the evidence for existing UX-03/UX-04 in Sprint 20; reconcile
+them with that sprint's discovery gates rather than creating duplicate backlog items.
+The audit's remaining findings cover shared visual treatment, decision clarity and
+support workflows; use its proposed batches when selecting the next bounded slice.
 
 ## Architecture and API contracts
 

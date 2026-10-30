@@ -30,6 +30,7 @@ questions about future work or past decisions:
 | Question | Read | Document status |
 |---|---|---|
 | What might we build next? | [`IDEAS.md`](IDEAS.md) | Forward-looking backlog and audit findings |
+| Which UX and visual improvements have current evidence? | [29 October 2026 UX audit](UX_AUDIT_2026-10-29.md) | Prioritized findings, screenshots, acceptance criteria, and proposed visual direction |
 | What completed roadmap items and audit fixes shipped? | [`CHANGELOG.md`](CHANGELOG.md) | Concise shipped outcomes |
 | Where are detailed past audit findings and decisions? | [Roadmap audit archive](archive/ROADMAP_AUDITS.md) | Historical evidence; not active scope |
 | What remains to extract in Sprint 10? | [Route ownership inventory](SPRINT_10_INVENTORY.md) | Adapter classification, delivered slice, and remaining violations |

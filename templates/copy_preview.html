@@ -1,0 +1,19 @@
+{% extends "base.html" %}
+{% block content %}
+<section class="card copy-preview" aria-labelledby="copy-title">
+    <h1 id="copy-title">{{ 'Copy as new'|lang }}</h1>
+    <p class="help-text">{{ 'Copy preview help'|lang }}</p>
+    <dl><dt>{{ 'Source'|lang }}</dt><dd>{{ source.title }} · #{{ source_id }} · {{ source.status|lang }}</dd>
+        <dt>{{ 'New owner'|lang }}</dt><dd>{{ session.username|username }}</dd>
+        <dt>{{ 'New status'|lang }}</dt><dd>{{ ('active' if kind == 'proposal' else 'open')|lang }}</dd>
+        <dt>{{ 'Reset when copied'|lang }}</dt><dd>{{ 'Copy resets help'|lang }}</dd>
+    </dl>
+    <form method="POST" action="{{ url_for('admin.copy_from_web', kind=kind, source_id=source_id) }}">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+        <input type="hidden" name="idempotency_key" value="{{ request.form.get('idempotency_key') or copy_request_key() }}">
+        <label>{{ ('Question' if kind == 'poll' else 'Title')|lang }}<input name="label" value="{{ request.form.get('label', source.title) }}" required{% if kind == 'poll' %} minlength="5" maxlength="200"{% elif kind == 'group_purchase' %} maxlength="150"{% endif %}></label>
+        {% if kind != 'proposal' %}<label>{{ 'New deadline (optional)'|lang }}<input name="deadline" value="{{ request.form.get('deadline', '') }}"{% if kind == 'group_purchase' %} type="date"{% else %} type="text" placeholder="2030-12-31T18:00:00+01:00" aria-describedby="copy-deadline-help"{% endif %}></label>{% if kind == 'poll' %}<p id="copy-deadline-help" class="help-text">{{ 'Poll copy deadline help'|lang }}</p>{% endif %}{% endif %}
+        <div class="button-row"><button type="submit" class="btn">{{ 'Create new copy'|lang }}</button><a class="btn btn-secondary" href="{{ url_for('proposals.proposal_detail', proposal_id=source_id) if kind == 'proposal' else (url_for('polls.polls_page', _anchor='poll-' ~ source_id) if kind == 'poll' else url_for('group_purchases.group_purchases_page', _anchor='purchase-' ~ source_id)) }}">{{ 'Cancel'|lang }}</a></div>
+    </form>
+</section>
+{% endblock %}

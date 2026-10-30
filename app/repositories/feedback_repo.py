@@ -6,6 +6,23 @@ class FeedbackRepository:
     def get(self, feedback_id):
         return self.conn.execute('SELECT * FROM feedback WHERE id = ?', (feedback_id,)).fetchone()
 
+    def set_public_reason(self, feedback_id, reason):
+        self.conn.execute('UPDATE feedback SET public_reason=? WHERE id=?', (reason, feedback_id))
+
+    def add_status_event(self, feedback_id, status, reason=''):
+        self.conn.execute('INSERT INTO feedback_status_events(feedback_id,status,public_reason) VALUES (?,?,?)', (feedback_id, status, reason))
+
+    def for_member(self, member_id):
+        # Explicit projection: private notes/operator details never enter this read model.
+        rows = self.conn.execute('''SELECT id,message,category,section,status,public_reason,created_at
+            FROM feedback WHERE member_id=? ORDER BY id DESC LIMIT 100''', (member_id,)).fetchall()
+        items = [dict(row) for row in rows]
+        for item in items:
+            item['history'] = [dict(row) for row in self.conn.execute('''SELECT e.status,e.public_reason,e.created_at
+                FROM feedback_status_events e JOIN feedback f ON f.id=e.feedback_id
+                WHERE f.id=? AND f.member_id=? ORDER BY e.id''', (item['id'], member_id))]
+        return items
+
     def resolve_status(self, feedback_id, status, actor):
         self.conn.execute("UPDATE feedback SET status=?, resolved_by=?, resolved_at=CASE WHEN ?='resolved' THEN CURRENT_TIMESTAMP ELSE NULL END WHERE id=?", (status, actor, status, feedback_id))
 
@@ -49,6 +66,7 @@ class FeedbackRepository:
         self.conn.execute('UPDATE feedback SET message=?,category=? WHERE id=?', (message, category, feedback_id))
 
     def delete(self, feedback_id):
+        self.conn.execute('DELETE FROM feedback_status_events WHERE feedback_id=?', (feedback_id,))
         self.conn.execute('DELETE FROM feedback_notes WHERE feedback_id=?', (feedback_id,))
         self.conn.execute('DELETE FROM feedback_notifications WHERE feedback_id=?', (feedback_id,))
         self.conn.execute('DELETE FROM feedback WHERE id=?', (feedback_id,))

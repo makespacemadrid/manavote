@@ -8,7 +8,7 @@ from app.extensions import limiter
 from app.services import admin_actions_service, admin_page_service
 from app.services.assistant_health_service import build_assistant_health
 from app.services.error_report_service import list_errors, export_errors, capture_browser_error
-from app.services.copy_service import copy_item, CopyConflict, CopyNotFound
+from app.services.copy_service import copy_item, copy_preview, CopyConflict, CopyNotFound
 from app.integrations import telegram_agent
 from app.web.routes.helpers.admin_audit_helpers import log_admin_backup_event, log_telegram_link_event
 
@@ -17,6 +17,22 @@ from app.web.routes import main_routes as legacy
 from werkzeug.utils import secure_filename
 
 admin_bp = Blueprint("admin", __name__)
+
+
+@admin_bp.get('/admin/copy/<kind>/<int:source_id>')
+@login_required
+@admin_required
+def preview_copy(kind, source_id):
+    return _render_copy_preview(kind, source_id)
+
+
+def _render_copy_preview(kind, source_id, status=200):
+    try:
+        with closing(legacy.get_db()) as conn:
+            source = copy_preview(conn, kind=kind, source_id=source_id)
+    except CopyNotFound:
+        abort(404)
+    return render_template('copy_preview.html', source=source, kind=kind, source_id=source_id), status
 
 
 @admin_bp.post('/admin/copy/<kind>/<int:source_id>')
@@ -31,13 +47,14 @@ def copy_from_web(kind, source_id):
     try:
         with closing(legacy.get_db()) as conn:
             result = copy_item(conn, kind=kind, source_id=source_id, created_by=session['member_id'],
-                upload_folder=legacy.app.config['UPLOAD_FOLDER'], idempotency_key=key)
+                upload_folder=legacy.app.config['UPLOAD_FOLDER'], idempotency_key=key,
+                label=request.form.get('label') or None, deadline=request.form.get('deadline') or None)
     except (CopyConflict, CopyNotFound, ValueError):
         flash('Copy could not be created. Refresh the page and try again.', 'error')
-        return redirect(url_for('proposals'))
+        return _render_copy_preview(kind, source_id, 400)
     except (OSError, sqlite3.Error):
         flash('Copy storage is unavailable. Retry the same request.', 'error')
-        return redirect(url_for('proposals'))
+        return _render_copy_preview(kind, source_id, 503)
     flash('Item copied.' if not result['replayed'] else 'This request already created a copy.', 'success')
     for warning in result['warnings']:
         flash(warning, 'warning')

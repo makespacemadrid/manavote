@@ -4,20 +4,20 @@
 <div style="max-width: 400px; margin: 80px auto;">
     <div class="card">
         <h1 style="text-align: center;">🔧 MakeSpace Madrid</h1>
-        <p style="text-align: center; color: #888; margin-bottom: 30px;">{{ 'Register'|lang }}</p>
+        <p style="text-align: center; color: #b5b5b5; margin-bottom: 30px;">{{ 'Register'|lang }}</p>
         
         <form method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"
-            <label>{{ 'Username'|lang }}</label>
-            <input type="text" name="username" required autofocus>
+            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
+            <label>{{ 'Username'|lang }}
+            <input type="text" name="username" value="{{ request.form.get('username', '') }}" autocomplete="username" required autofocus></label>
             
-            <label>{{ 'Password'|lang }}</label>
-            <input type="password" name="password" required>
+            <label>{{ 'Password'|lang }}
+            <input type="password" name="password" autocomplete="new-password" required></label>
             
             <button type="submit" class="btn" style="width: 100%;">{{ 'Register'|lang }}</button>
         </form>
         
-        <p style="text-align: center; margin-top: 20px; color: #888;">
+        <p style="text-align: center; margin-top: 20px; color: #b5b5b5;">
             {{ 'Already have account'|lang }} <a href="{{ url_for('auth.login') }}" style="color: #00d9ff;">{{ 'Login'|lang }}</a>
         </p>
     </div>

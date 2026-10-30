@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-{% include "_top_nav.html" %}
+
 <div class="card">
     <h1>{{ 'Edit group purchase'|lang }}</h1>
     <form method="post" enctype="multipart/form-data">
@@ -12,7 +12,7 @@
         <label for="image">{{ 'Replace image (optional)'|lang }}</label><input id="image" type="file" name="image" accept=".jpg,.jpeg,.png,image/jpeg,image/png">
         <h2 style="margin-top:18px;">{{ 'Components and prices'|lang }}</h2>
         {% for component in components %}
-        <div style="display:grid;grid-template-columns:1fr 140px;gap:10px;">
+        <div class="group-component-input-row">
             <div><label for="component-name-{{ component.id }}">{{ 'Component'|lang }}</label><input id="component-name-{{ component.id }}" name="component_name_{{ component.id }}" maxlength="100" value="{{ component.name }}" required></div>
             <div><label for="component-price-{{ component.id }}">{{ 'Unit price'|lang }} (€)</label><input id="component-price-{{ component.id }}" name="component_price_{{ component.id }}" type="number" min="0" max="1000000" step="0.01" value="{{ component.unit_price }}" required></div>
         </div>
@@ -32,9 +32,9 @@
         <div id="edit-cost-rows">
         {% for cost_label, cost_amount in shared_costs %}
             <div class="edit-cost-row" style="display:grid;grid-template-columns:1fr 140px auto;gap:10px;align-items:end;">
-                <div><label>{{ 'Cost description'|lang }}</label><input name="cost_label" maxlength="100" value="{{ cost_label }}" required></div>
-                <div><label>{{ 'Amount'|lang }} (€)</label><input name="cost_amount" type="number" min="0" max="1000000" step="0.01" value="{{ cost_amount }}" required></div>
-                <button class="btn btn-secondary remove-edit-cost" type="button">×</button>
+                <div><label>{{ 'Cost description'|lang }}<input name="cost_label" maxlength="100" value="{{ cost_label }}" required></label></div>
+                <div><label>{{ 'Amount'|lang }} (€)<input name="cost_amount" type="number" min="0" max="1000000" step="0.01" value="{{ cost_amount }}" required></label></div>
+                <button class="btn btn-secondary remove-edit-cost" type="button" aria-label="{{ 'Remove'|lang }}">×</button>
             </div>
         {% endfor %}
         </div>
@@ -52,21 +52,10 @@
 </div>
 <template id="edit-cost-template">
     <div class="edit-cost-row" style="display:grid;grid-template-columns:1fr 140px auto;gap:10px;align-items:end;">
-        <div><label>{{ 'Cost description'|lang }}</label><input name="cost_label" maxlength="100" placeholder="{{ 'Shipping'|lang }}" required></div>
-        <div><label>{{ 'Amount'|lang }} (€)</label><input name="cost_amount" type="number" min="0" max="1000000" step="0.01" required></div>
-        <button class="btn btn-secondary remove-edit-cost" type="button">×</button>
+        <div><label>{{ 'Cost description'|lang }}<input name="cost_label" maxlength="100" placeholder="{{ 'Shipping'|lang }}" required></label></div>
+        <div><label>{{ 'Amount'|lang }} (€)<input name="cost_amount" type="number" min="0" max="1000000" step="0.01" required></label></div>
+        <button class="btn btn-secondary remove-edit-cost" type="button" aria-label="{{ 'Remove'|lang }}">×</button>
     </div>
 </template>
-<script>
-document.addEventListener('DOMContentLoaded', function () {
-    const rows = document.getElementById('edit-cost-rows');
-    const template = document.getElementById('edit-cost-template');
-    document.getElementById('add-edit-cost').addEventListener('click', function () {
-        if (rows.children.length < 20) rows.appendChild(template.content.cloneNode(true));
-    });
-    rows.addEventListener('click', function (event) {
-        if (event.target.classList.contains('remove-edit-cost')) event.target.closest('.edit-cost-row').remove();
-    });
-});
-</script>
+
 {% endblock %}

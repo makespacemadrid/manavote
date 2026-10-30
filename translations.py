@@ -1045,3 +1045,101 @@ for _message, _spanish in _ASSISTANT_ADMISSION_TRANSLATIONS_ES.items():
     TRANSLATIONS["en"].setdefault(_message, _message)
     TRANSLATIONS["es"].setdefault(_message, _spanish)
 del _message, _spanish
+
+# Shared UX, feedback receipts and clearer decision controls.
+_UX_TRANSLATIONS_ES = {
+    'Skip to content': 'Saltar al contenido',
+    'Sign in with MakeSpace SSO': 'Entrar con MakeSpace SSO',
+    'Basic supplies backers': 'Suministros básicos (%s%% de apoyos necesarios)',
+    'Auto-removed if over €20': 'Se desmarca automáticamente si supera los 20 €',
+    'Basic threshold live': 'Suministros básicos: umbral reducido (%s%%)',
+    'Standard threshold live': 'Compras estándar (hasta 50 €): umbral normal (%s%%)',
+    'Expensive threshold live': 'Compras caras (más de 50 €): umbral superior (%s%%)',
+    'Threshold rounding help': 'El número de apoyos se redondea hacia abajo, con un mínimo de uno. Se cuentan los votos a favor menos los votos en contra.',
+    'Search proposals': 'Buscar propuestas', 'Title or description': 'Título o descripción',
+    'Apply': 'Aplicar', 'Age and purchase type': 'Antigüedad y tipo de compra',
+    'matching proposals': 'propuestas coincidentes', 'Clear filters': 'Borrar filtros',
+    'No matching proposals': 'No hay propuestas que coincidan. Prueba otra búsqueda o borra los filtros.',
+    'Proposal pages': 'Páginas de propuestas',
+    'Chart series': 'Series del gráfico', 'Balance and commitments': 'Saldo y compromisos',
+    'Cash movements': 'Movimientos de caja', 'All series': 'Todas las series',
+    'Budget chart help': 'El saldo refleja los movimientos de caja. El saldo tras compromisos resta las propuestas pendientes de presupuesto. Activa series para compararlas; consulta los valores exactos en la tabla.',
+    'Chart data table': 'Tabla de datos del gráfico', 'Daily chart values in EUR': 'Valores diarios del gráfico en EUR',
+    'No chart data yet': 'Todavía no hay datos del gráfico',
+    'Pending commitments': 'Compromisos pendientes', 'After pending commitments': 'Tras compromisos pendientes',
+    'Member-facing reason': 'Explicación para el miembro',
+    'Public reason help': 'Visible para quien envió el comentario. Las notas de administración siguen siendo privadas.',
+    'Private admin notes': 'Notas privadas de administración', 'Save reason': 'Guardar explicación',
+    'My feedback': 'Mis comentarios', 'Status history': 'Historial de estados',
+    'Feedback history help': 'Tus 100 comentarios más recientes. Los cambios de estado se registran desde esta actualización.',
+    'Feedback receipt': 'Comentario recibido: #{}. Puedes seguir su estado en Mis comentarios.',
+    'View feedback': 'Ver comentario',
+    'Copy preview help': 'Revisa lo que se reutiliza antes de crear un elemento nuevo. La copia se publica de inmediato.',
+    'New owner': 'Nuevo creador', 'New status': 'Nuevo estado', 'Reset when copied': 'Se reinicia al copiar',
+    'Copy resets help': 'Se conservan el contenido y las opciones/componentes. No se copian votos, comentarios, participantes, pedidos, pagos ni historial. El plazo anterior se elimina; en compras conjuntas se mantienen los límites de participación e importe.',
+    'New deadline (optional)': 'Nuevo plazo (opcional)', 'Poll copy deadline help': 'Usa una fecha futura con zona horaria, por ejemplo 2030-12-31T18:00:00+01:00. Déjalo vacío para no fijar plazo.',
+    'Create new copy': 'Crear una copia nueva',
+    'Position': 'Posición', 'Koin ordering help': 'Orden inicial: de mayor deuda a mayor crédito. La posición sigue el orden visible; toca Saldo para invertirlo.',
+    'Open Telegram bot': 'Abrir el bot de Telegram', 'Copy /link': 'Copiar /link', 'Copied': 'Copiado',
+    'Copy command manually': 'Copia el comando manualmente', 'Check link status': 'Comprobar vinculación',
+    'Telegram bot link unavailable': 'El enlace al bot no está configurado. Pide a administración el nombre del bot y envíale /link en privado.',
+    'Preparing download': 'Preparando la descarga…', 'Errors archived. Refreshing list.': 'Errores archivados. Actualizando la lista…',
+    'Download failed. Refresh the list before retrying.': 'No se pudo completar la descarga. Actualiza la lista antes de reintentar.',
+    'Refresh after downloading to see the updated archive.': 'Actualiza la página después de descargar para ver el archivo actualizado.',
+    'New order total': 'Nuevo total del pedido', 'Over the €125 limit': 'Supera el límite de 125 €',
+    'Remaining headroom': 'Importe disponible hasta el límite',
+    'Joining is closed. The creator can place the order.': 'La participación está cerrada. El creador puede realizar el pedido.',
+    'Order placed. Track payments while waiting for delivery.': 'Pedido realizado. Revisa los pagos mientras esperas la entrega.',
+    'Shipment received. Arrange collection with the creator.': 'Pedido recibido. Acuerda la recogida con el creador.',
+    'Joining closed because the €125 limit was reached.': 'Participación cerrada al alcanzar el límite de 125 €.',
+    'Joining closed because the member limit was reached.': 'Participación cerrada al alcanzar el límite de miembros.',
+    'Account': 'Cuenta', 'Integrations': 'Integraciones', 'Preferences': 'Preferencias', 'Notifications': 'Notificaciones', 'Support': 'Ayuda',
+}
+_UX_TRANSLATIONS_EN = {
+    'Basic supplies backers': 'Basic supplies (%s%% backers required)',
+    'Basic threshold live': 'Basic supplies: lower threshold (%s%%)',
+    'Standard threshold live': 'Standard purchases (up to €50): default threshold (%s%%)',
+    'Expensive threshold live': 'Expensive purchases (over €50): higher threshold (%s%%)',
+    'Threshold rounding help': 'The required backer count rounds down, with a minimum of one. Net votes are votes in favour minus votes against.',
+    'No matching proposals': 'No matching proposals. Try another search or clear the filters.',
+    'Budget chart help': 'Balance follows cash movements. After pending commitments subtracts proposals waiting for budget. Enable series to compare them; use the data table for exact values.',
+    'Public reason help': 'Visible to the submitting member. Admin notes remain private.',
+    'Feedback history help': 'Your latest 100 submissions. Status changes are recorded from this update onward.',
+    'Feedback receipt': 'Feedback received: #{}. Follow its status in My feedback.',
+    'Copy preview help': 'Review what will be reused before creating a new item. The copy is published immediately.',
+    'Copy resets help': 'Content and options/components are retained. Votes, comments, participants, orders, payments and history are reset. The old deadline is cleared; group joining and amount limits are retained.',
+    'Poll copy deadline help': 'Use a future date with a timezone, for example 2030-12-31T18:00:00+01:00. Leave blank for no deadline.',
+    'Koin ordering help': 'Default order: largest debt to largest credit. Position follows the visible order; use Balance to reverse it.',
+    'Telegram bot link unavailable': 'The bot link is not configured. Ask an admin for the bot username and send /link in private.',
+}
+for _message, _spanish in _UX_TRANSLATIONS_ES.items():
+    TRANSLATIONS['en'][_message] = _UX_TRANSLATIONS_EN.get(_message, _message)
+    TRANSLATIONS['es'][_message] = _spanish
+# These long-standing labels were previously hardcoded in optional branches.
+TRANSLATIONS['en'].setdefault('or', 'or')
+TRANSLATIONS['es'].setdefault('or', 'o')
+del _message, _spanish
+_UX_DETAILS_ES = {
+    'Age': 'Antigüedad', 'Last 30 days': 'Últimos 30 días', 'Older than 30 days': 'Más de 30 días', 'Purchase type': 'Tipo de compra',
+    'Poll voting mode': 'Modo de votación de encuestas', 'Proposal voting mode': 'Modo de votación de propuestas',
+    'Effective vote policy': 'Política de votación vigente',
+    'Polls:': 'Encuestas:', 'Proposals:': 'Propuestas:',
+    'Members can vote from both Web and Telegram.': 'Los miembros pueden votar desde la web y Telegram.',
+    'Members can vote only on Web; Telegram vote attempts are blocked.': 'Solo se puede votar en la web; los votos desde Telegram están bloqueados.',
+    'Members can vote only on Telegram; Web vote controls are disabled.': 'Solo se puede votar en Telegram; los controles de la web están desactivados.',
+    'Telegram account linking requirement:': 'Vinculación de cuenta de Telegram:',
+    'Required': 'Obligatoria', 'Optional': 'Opcional',
+    'Choose where members can vote on polls.': 'Elige dónde pueden votar los miembros en las encuestas.',
+    'Choose where members can vote on proposals.': 'Elige dónde pueden votar los miembros en las propuestas.',
+    'Web only': 'Solo web', 'Telegram only': 'Solo Telegram', 'Web + Telegram': 'Web + Telegram',
+    'Update vote mode': 'Actualizar modo de votación', 'Update proposal vote mode': 'Actualizar modo de votación de propuestas',
+    'Telegram linked-account votes': 'Votos con cuenta vinculada de Telegram',
+    'Require Telegram accounts to be linked before /vote or /pvote is accepted.': 'Exigir una cuenta de Telegram vinculada para aceptar /vote o /pvote.',
+    'Require linked Telegram account for Telegram votes': 'Exigir una cuenta vinculada para votar desde Telegram',
+    'Update linked-account requirement': 'Actualizar requisito de vinculación',
+    'Poll end date': 'Fecha de cierre de la encuesta',
+}
+for _message, _spanish in _UX_DETAILS_ES.items():
+    TRANSLATIONS['en'].setdefault(_message, _message)
+    TRANSLATIONS['es'].setdefault(_message, _spanish)
+del _message, _spanish

@@ -184,6 +184,31 @@ If a proposal marked basic supplies has amount > €20, basic flag is auto-remov
 
 ## 7) UI/feature behavior
 
+### Shared interface and discovery
+
+- Member and Admin pages use labelled fields, a main landmark and skip link, shared
+  dark/yellow styling, distinct secondary/destructive actions, and contained table
+  scrolling with a keyboard-accessible overflow cue. About remains a single column
+  and displays configured voting thresholds with the minimum-one/rounding rule.
+- Proposal search matches literal, Unicode-casefolded title/description text. Status,
+  creation age and purchase type can combine; sort supports newest/oldest and amount.
+  Query state persists in pagination URLs (20 items per page). Legacy filter URLs remain supported.
+- Member-authored Markdown is sanitized to an inert formatting/link allowlist; active
+  elements, event attributes and unsafe URL schemes are removed.
+- Budget offers series checkboxes/presets, existing date controls, financial summaries
+  and a data-table alternative. Group quantities preview the resulting order total in
+  cents, including existing shared costs; the server remains authoritative for limits.
+- Koins defaults to signed balance ascending (largest debt first). Visible positions
+  follow subsequent sorting. Settings groups account, integrations, preferences,
+  notifications and support; configured Telegram bot links and command copying aid linking.
+- Admin Feedback uses a responsive list. Members receive submission references and can
+  view their latest 100 submissions at `/my-feedback`, including public explanations
+  and status changes recorded after this update. Private notes remain administrator-only.
+  The additive migration creates `feedback_status_events` and `feedback.public_reason`;
+  deleting feedback removes its status events as well as notes and notifications.
+- Successful error downloads refresh pending/archive state; failures show a retry message.
+  Without JavaScript, native downloads still work and the page explains manual refresh.
+
 ### MCP copying
 
 - Administrators can copy proposals, polls and group purchases into fresh records via
@@ -199,7 +224,8 @@ If a proposal marked basic supplies has amount > €20, basic flag is auto-remov
   original result, conflicting reuse is rejected, and identical requests without an
   explicit key reuse the original copy. Fresh keys allow intentional new copies.
 - Admins have Copy as new buttons on proposal details, polls and group purchases,
-  backed by the same service and CSRF-protected POST endpoint. A per-form key prevents
+  opening a preview of the source, new owner/status and reset fields before the
+  CSRF-protected POST. Rename and applicable new deadlines use the same service. A per-form key prevents
   duplicate copies from double submissions; new records are attributed to the session
   administrator, with the same fresh-state rules as MCP.
 

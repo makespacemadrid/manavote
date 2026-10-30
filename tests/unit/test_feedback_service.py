@@ -18,12 +18,13 @@ def conn():
     connection.executescript("""
         CREATE TABLE members (id INTEGER PRIMARY KEY, username TEXT);
         INSERT INTO members VALUES (1, 'member'), (2, 'admin');
+        CREATE TABLE feedback_status_events(id INTEGER PRIMARY KEY, feedback_id INTEGER, status TEXT, public_reason TEXT, created_at TEXT DEFAULT CURRENT_TIMESTAMP);
         CREATE TABLE feedback (
             id INTEGER PRIMARY KEY AUTOINCREMENT, member_id INTEGER NOT NULL,
             source TEXT NOT NULL, category TEXT NOT NULL, message TEXT NOT NULL,
             section TEXT,
             status TEXT NOT NULL DEFAULT 'new', created_at TEXT DEFAULT CURRENT_TIMESTAMP,
-            resolved_at TEXT, resolved_by INTEGER
+            resolved_at TEXT, resolved_by INTEGER, public_reason TEXT NOT NULL DEFAULT ''
         );
     """)
     connection.execute('CREATE TABLE feedback_notifications(id INTEGER PRIMARY KEY,feedback_id INTEGER,member_id INTEGER,message TEXT,read_at TEXT,created_at TEXT DEFAULT CURRENT_TIMESTAMP)')

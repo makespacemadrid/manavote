@@ -18,7 +18,8 @@ TEMPLATES_WITH_CSRF_FORMS = [
 
 def test_admin_uses_shared_top_nav_partial():
     admin_template = Path("templates/admin.html").read_text(encoding="utf-8")
-    assert '{% include "_top_nav.html" %}' in admin_template
+    assert '{% extends "base.html" %}' in admin_template
+    assert '{% include "_top_nav.html" %}' in Path("templates/base.html").read_text()
 
 
 def test_admin_warns_when_public_base_url_is_missing():
@@ -48,12 +49,13 @@ def test_csrf_hidden_inputs_are_well_formed_in_key_templates():
                 )
 
 
-def test_proposal_filters_use_shared_chips_and_expose_truncated_titles():
+def test_proposal_search_exposes_status_and_independent_refinements():
     template = Path("templates/proposals.html").read_text(encoding="utf-8")
 
-    assert "{% set filter_chips = [" in template
-    assert 'class="filter-chip{{' in template
-    assert 'aria-current="page"' in template
+    assert 'role="search"' in template
+    assert 'name="filter"' in template
+    assert 'name="age" form="proposal-query"' in template
+    assert 'name="kind" form="proposal-query"' in template
     assert 'title="{{ p.title }}"' in template
     assert 'class="vote-approve"' in template
 
@@ -74,7 +76,7 @@ def test_budget_chart_is_self_hosted_and_has_distinct_controls():
     assert "cdn.jsdelivr.net" not in template
     assert "vendor/chart.js/chart.umd.js" in template
     assert 'class="chart-range-btn active" data-days="90"' in template
-    assert "applyChartRange('90')" in template
+    assert "applyChartRange('90')" in Path("frontend/src/budget.js").read_text()
     assert "Activity table filters" in template
 
 

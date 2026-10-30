@@ -44,6 +44,8 @@ def build_budget_page(connection, *, sort_by="date_desc", page=1, per_page=20):
         "calendar_items": calendar_items,
         "daily_budget": daily_budget,
         "current_balance": daily_budget[-1]["cash_balance"] if daily_budget else 0,
+        "pending_balance": daily_budget[-1]["pending"] if daily_budget else 0,
+        "after_pending": (daily_budget[-1]["cash_balance"] - daily_budget[-1]["pending"]) if daily_budget else 0,
         "page": page,
         "total_pages": max(1, (total_items + per_page - 1) // per_page),
     }

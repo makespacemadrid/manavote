@@ -10,13 +10,22 @@ from app.repositories.vote_repo import VoteRepository
 from app.services.budget_service import calculate_min_backers
 
 
-def build_proposal_page(connection, *, member_id, filter_type="active", now=None):
+def build_proposal_page(connection, *, member_id, filter_type="active", now=None, query="", sort="newest", page=1, per_page=20, age="", kind=""):
     """Preserve listing/filter semantics while building the template's read model."""
     now = now if now is not None else datetime.now(timezone.utc)
     old_cutoff = (now - timedelta(days=30)).replace(tzinfo=None).isoformat(sep=" ")
     repo = ProposalRepository(connection)
+    filter_type = filter_type if filter_type in {"all", "active", "approved", "rejected", "over_budget", "recent", "old", "basic", "standard", "expensive", "purchased", "not_purchased"} else "all"
+    query = str(query or "").strip()[:200]
+    sort = sort if sort in {"newest", "oldest", "amount_desc", "amount_asc"} else "newest"
+    age = age if age in {'recent', 'old'} else ''
+    kind = kind if kind in {'basic', 'standard', 'expensive'} else ''
+    per_page = max(1, min(100, per_page))
+    matching_count = repo.list_for_page(filter_type, old_cutoff, query=query, count=True, age=age, kind=kind)
+    total_pages = max(1, (matching_count + per_page - 1) // per_page)
+    page = max(1, min(page, total_pages))
     votes = VoteRepository(connection)
-    proposals = [dict(row) for row in repo.list_for_page(filter_type, old_cutoff)]
+    proposals = [dict(row) for row in repo.list_for_page(filter_type, old_cutoff, query=query, sort=sort, limit=per_page, offset=(page-1)*per_page, age=age, kind=kind)]
     member_count = MemberRepository(connection).count()
     thresholds = SettingsRepository(connection).get_thresholds()
     for proposal in proposals:
@@ -38,7 +47,8 @@ def build_proposal_page(connection, *, member_id, filter_type="active", now=None
         entry["balance"] = running
     return {
         "proposals": proposals,
-        "filter": filter_type,
+        "filter": filter_type, "search_query": query, "proposal_sort": sort,
+        "proposal_age": age, "proposal_kind": kind, "matching_count": matching_count, "page": page, "total_pages": total_pages,
         "total_count": repo.count(),
         "current_budget": BudgetRepository(connection).current_budget(),
         "budget_history": list(reversed(history)),

@@ -7,24 +7,24 @@
 }}{% endmacro %}
 
 {% block content %}
-{% include "_top_nav.html" %}
+
 <p style="margin-bottom: 15px;"><a href="{{ url_for('proposals') }}">← {{ t('Proposals') }}</a></p>
 
-<div class="card">
-    <div style="display: flex; justify-content: space-between; align-items: start;">
+<div class="card proposal-detail">
+    <div class="page-heading">
         <div>
             <h1>{{ proposal.title }}</h1>
-            <p style="color: #888;">
+            <p style="color: #b5b5b5;">
                 {{ 'by'|lang }} {{ proposal.creator|username }} · {{ proposal.created_at|localtime("%Y-%m-%d") }}
                 {% if proposal.status == 'over_budget' %}
                 <span class="status" style="background: #ffa50022; color: #ffa500;">{{ 'pending_budget'|lang }}</span>
                 {% else %}
-                <span class="status status-{{ proposal.status }}">{{ proposal.status }}</span>
+                <span class="status status-{{ proposal.status }}">{{ proposal.status|lang }}</span>
                 {% endif %}
                 {% if proposal.basic_supplies %}<span class="status" style="background: #FFD700; color: #000; margin-left: 5px;">{{ 'basic'|lang }}</span>{% endif %}
                 {% if proposal.status == 'approved' and proposal.amount > 50 %}<span class="status" style="background: #9b59b622; color: #9b59b6; margin-left: 5px;">{{ 'expensive'|lang }}</span>{% endif %}
                 {% if proposal.status == 'approved' and not proposal.basic_supplies and proposal.amount <= 50 %}<span class="status" style="background: #00d9ff22; color: #00d9ff; margin-left: 5px;">{{ 'standard'|lang }}</span>{% endif %}
-                {% if proposal.purchased_at %}<span class="status" style="background: #4a4;">{{ 'purchased'|lang }}</span>{% endif %}
+                {% if proposal.purchased_at %}<span class="status" style="background: #254331;">{{ 'purchased'|lang }}</span>{% endif %}
             </p>
         </div>
         <div class="proposal-amount">€{{ proposal.amount|currency }}</div>
@@ -32,7 +32,7 @@
     
     {% if proposal.image_filename %}
     <div style="margin: 20px 0;">
-        <img src="{{ url_for('static', filename='uploads/' + proposal.image_filename) }}" style="max-width: 100%; max-height: 400px; border-radius: 4px;">
+        <img alt="{{ proposal.title }}" src="{{ url_for('static', filename='uploads/' + proposal.image_filename) }}" style="max-width: 100%; max-height: 400px; border-radius: 4px;">
     </div>
     {% endif %}
     
@@ -48,31 +48,31 @@
     </div>
     {% endif %}
     
-    <div style="display: flex; gap: 30px; margin: 20px 0; padding: 15px; background: #0f3460; border-radius: 4px;">
+    <div class="summary-grid">
         <div>
-            <div style="color: #888; font-size: 0.85em;">{{ t('Budget') }}</div>
+            <div style="color: #b5b5b5; font-size: 0.85em;">{{ t('Budget') }}</div>
             <div style="font-size: 1.3em;">€{{ current_budget|currency }}</div>
         </div>
         <div>
-            <div style="color: #888; font-size: 0.85em;">{{ t('Minimum Backers') }}</div>
+            <div style="color: #b5b5b5; font-size: 0.85em;">{{ t('Minimum Backers') }}</div>
             <div style="font-size: 1.3em;">{{ min_backers }} ({{ thresholds.basic if proposal.basic_supplies else (thresholds.over50 if proposal.amount > 50 else thresholds.default) }}% {{ 'of'|lang }} {{ member_count }})</div>
         </div>
         <div>
-            <div style="color: #888; font-size: 0.85em;">{{ t('In Favor') }}</div>
+            <div style="color: #b5b5b5; font-size: 0.85em;">{{ t('In Favor') }}</div>
             <div class="vote-approve" style="font-size: 1.3em;">{{ approve_count }}</div>
         </div>
         <div>
-            <div style="color: #888; font-size: 0.85em;">{{ t('Against') }}</div>
+            <div style="color: #b5b5b5; font-size: 0.85em;">{{ t('Against') }}</div>
             <div class="vote-reject" style="font-size: 1.3em;">{{ reject_count }}</div>
         </div>
         <div>
-            <div style="color: #888; font-size: 0.85em;">{{ t('Net Votes') }}</div>
+            <div style="color: #b5b5b5; font-size: 0.85em;">{{ t('Net Votes') }}</div>
             <div style="font-size: 1.3em; color: {{ '#00d9ff' if net_votes >= min_backers else '#ff6b6b' }};">{{ net_votes }}</div>
         </div>
     </div>
     
     {% if proposal.status == 'active' and not is_web_proposal_vote_enabled and proposal_vote_mode == 'telegram_only' %}
-    <p style="color: #e94560; margin: 10px 0;">{{ 'Proposal voting Telegram-only banner'|lang }}</p>
+    <p style="color: #ff8fa3; margin: 10px 0;">{{ 'Proposal voting Telegram-only banner'|lang }}</p>
     {% endif %}
 
     {% if proposal.status == 'active' and is_web_proposal_vote_enabled %}
@@ -89,7 +89,7 @@
         {% if user_vote %}
         <form method="POST" action="{{ url_for('proposals.withdraw_vote', proposal_id=proposal.id) }}">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-            <button type="submit" class="vote-btn" style="border-color: #888; color: #888;">{{ t('withdraw') }}</button>
+            <button type="submit" class="vote-btn" style="border-color: #b5b5b5; color: #b5b5b5;">{{ t('withdraw') }}</button>
         </form>
         {% endif %}
     </div>
@@ -142,7 +142,7 @@
         </tbody>
     </table>
     {% else %}
-    <p style="color: #666; text-align: center; padding: 20px;">{{ t('No votes yet') }}</p>
+    <p style="color: #aaa; text-align: center; padding: 20px;">{{ t('No votes yet') }}</p>
     {% endif %}
 </div>
 
@@ -151,18 +151,18 @@
     
     <form method="POST" style="margin-bottom: 20px;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-        <textarea name="comment" placeholder="{{ t('Add a comment') }}" required style="min-height: 60px;"></textarea>
+        <label>{{ t('Add a comment') }}<textarea name="comment" placeholder="{{ t('Add a comment') }}" required style="min-height: 60px;"></textarea></label>
         <button type="submit" class="btn">{{ t('Post Comment') }}</button>
     </form>
     
     {% if comments %}
     <div style="display: flex; flex-direction: column; gap: 10px;">
         {% for c in comments %}
-        <div style="padding: 10px; background: #0f3460; border-radius: 4px;">
+        <div class="comment-card">
             <div style="display: flex; justify-content: space-between; margin-bottom: 5px;">
                 <strong>{{ c.username|username }}</strong>
                 <span style="display: flex; align-items: center; gap: 10px;">
-                    <span style="color: #888; font-size: 0.85em;">{{ c.created_at|localtime("%Y-%m-%d %H:%M") }}</span>
+                    <span style="color: #b5b5b5; font-size: 0.85em;">{{ c.created_at|localtime("%Y-%m-%d %H:%M") }}</span>
                     {% if session.is_admin %}
                     <a href="{{ url_for('proposals.edit_comment', comment_id=c.id) }}" style="color: #4cc9f0; font-size: 0.85em;">{{ t('Edit') }}</a>
                     <form method="POST" action="{{ url_for('proposals.delete_comment', comment_id=c.id) }}" style="display: inline;" onsubmit="return confirmDangerAction(this, '{{ t('Delete comment') }}');">
@@ -177,7 +177,7 @@
         {% endfor %}
     </div>
     {% else %}
-    <p style="color: #666; text-align: center; padding: 20px;">{{ t('No comments yet') }}</p>
+    <p style="color: #aaa; text-align: center; padding: 20px;">{{ t('No comments yet') }}</p>
     {% endif %}
 </div>
 {% endblock %}

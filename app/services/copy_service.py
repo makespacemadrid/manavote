@@ -22,6 +22,16 @@ class CopyConflict(ValueError):
     pass
 
 
+def copy_preview(conn, *, kind, source_id):
+    if kind not in CopyRepository.TABLES:
+        raise CopyNotFound('Source item not found')
+    source = CopyRepository(conn).source(kind, source_id)
+    if source is None:
+        raise CopyNotFound('Source item not found')
+    return {'title': source['question' if kind == 'poll' else 'title'],
+            'status': source['status']}
+
+
 def copy_item(conn, *, kind, source_id, created_by, upload_folder, label=None, deadline=None, idempotency_key=None):
     if kind not in CopyRepository.TABLES:
         raise ValueError('Unknown copy kind')

@@ -1,6 +1,6 @@
 {% extends "base.html" %}
 {% block content %}
-{% include "_top_nav.html" %}
+
 <article class="about-page">
     <header class="about-intro">
         <p class="about-eyebrow">MakeSpace Madrid</p>
@@ -14,10 +14,10 @@
             <li><h3>{{ 'Suggest a purchase'|lang }}</h3><p>{{ 'About flow submit vote'|lang }}</p></li>
             <li><h3>{{ 'Vote together'|lang }}</h3>
                 <ul class="about-thresholds">
-                    <li>{{ 'Basic supplies threshold'|lang }}</li>
-                    <li>{{ 'Standard threshold'|lang }}</li>
-                    <li>{{ 'Expensive threshold'|lang }}</li>
-                </ul>
+                    <li>{{ 'Basic threshold live'|lang|format(thresholds.basic) }}</li>
+                    <li>{{ 'Standard threshold live'|lang|format(thresholds.default) }}</li>
+                    <li>{{ 'Expensive threshold live'|lang|format(thresholds.over50) }}</li>
+                </ul><p class="help-text">{{ 'Threshold rounding help'|lang }}</p>
             </li>
             <li><h3>{{ 'Put the decision into action'|lang }}</h3>
                 <p>{{ 'About flow approved'|lang }}</p>
