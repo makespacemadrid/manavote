@@ -535,3 +535,13 @@ form controls, IME composition and timer cancellation.
 Group summary regressions in `tests/test_group_purchases.py` cover both locales and all
 four lifecycle states, existing proportional cost rounding, payment receipt and a
 non-participant's zero share. Browser fixtures include all four order states.
+
+Form browser checks exercise offline retention, repeat-submit guards, submitter values,
+validation markers, rejected/accepted image filenames, cancelled submissions, unsaved
+changes and history restoration. Proposal fixtures include images and assert placement
+before all content, including a larger desktop presentation. Client checks supplement
+server image validation; they do not replace image decoding or server permissions.
+
+The UI CI job also captures Admin snapshots and runs `scripts/check_dialogs.mjs` at
+375/600/1280px in both languages, including real click-based member removal and
+submit-based Koins deletion confirmations without sending production requests.

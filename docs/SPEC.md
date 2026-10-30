@@ -184,6 +184,17 @@ If a proposal marked basic supplies has amount > €20, basic flag is auto-remov
 
 ## 7) UI/feature behavior
 
+Native POST forms announce submission and slow responses, prevent repeat submissions
+in the current page, and retain clicked action values. Browser-history restoration
+clears pending state. Offline submissions show an error without navigating away.
+Proposal and group-purchase creation/edit forms warn before leaving unsaved changes.
+JPG/PNG file selection is checked before submission, with authoritative image checks
+still on the server. Pending guards do not provide server-side idempotency or guarantee
+recovery after a tab closes; entered data is not copied into browser storage.
+Proposal-list images precede all card content, use a larger left column on desktop,
+and stack above the content on phones.
+
+
 ### Shared interface and discovery
 
 - Member and Admin pages use labelled fields, a main landmark and skip link, shared

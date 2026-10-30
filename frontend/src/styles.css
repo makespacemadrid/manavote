@@ -258,10 +258,23 @@ label { color:#d4d4cf; font-size:.9rem; font-weight:500; }
 .proposal-item { background:transparent; border:1px solid var(--border); padding:20px; gap:20px; align-items:flex-start; }
 .proposal-card-title { display:block; color:var(--text); font-size:1.125rem; font-weight:650; line-height:1.4; overflow-wrap:anywhere; margin-bottom:10px; }
 .proposal-card-tags { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
-.proposal-thumbnail { width:96px; height:72px; object-fit:cover; border-radius:6px; margin:0 0 12px; }
+.proposal-card-image { display:block; flex:0 0 clamp(180px,20vw,280px); overflow:hidden; border-radius:8px; }
+.proposal-thumbnail { display:block; width:100%; aspect-ratio:4/3; object-fit:contain; background:var(--surface-muted); }
 .proposal-card-actions { display:flex; flex-direction:column; align-items:flex-end; gap:12px; }
 .proposal-card-actions form { display:flex; flex-wrap:wrap; gap:8px; }
 .proposal-card-actions .proposal-amount { color:var(--text); }
+.form-status { flex-basis:100%; grid-column:1/-1; margin:12px 0 0; font-size:.875rem; color:var(--muted); overflow-wrap:anywhere; }
+.form-status.field-error { color:#ff9bad; }
+form[aria-busy=true] :is(button[type=submit],button:not([type]),input[type=submit]) { opacity:.65; cursor:wait; }
+textarea { resize:vertical; min-height:120px; }
+input,select,textarea { scroll-margin-block:100px; }
+@media (max-width:900px) {
+    .proposal-card-image { flex-basis:150px; }
+}
+@media (max-width:600px) {
+    .proposal-card-image { flex-basis:auto; width:100%; max-width:320px; }
+    .proposal-thumbnail { max-height:220px; }
+}
 .proposal-query { display:grid; grid-template-columns:minmax(160px,2fr) repeat(2,minmax(140px,1fr)) auto; gap:12px; align-items:end; margin:20px 0; }
 .proposal-query input, .proposal-query select { margin-bottom:0; }
 .proposal-refinements { margin-bottom:20px; }

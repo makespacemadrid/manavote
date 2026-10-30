@@ -59,18 +59,34 @@ export function initializeDialogs() {
   const dangerModal = document.getElementById('dangerActionModal');
   if (dangerModal) {
     let pendingForm = null;
+    let pendingSubmitter = null;
+    let approvedForm = null;
+    const submitters = new WeakMap();
+    document.addEventListener('submit', event => { submitters.set(event.target, event.submitter ?? null); }, true);
+    document.addEventListener('click', event => {
+      const button = event.target.closest('button,input[type=submit]');
+      if (button?.form && button.type === 'submit') submitters.set(button.form, button);
+    }, true);
     const dialog = createDialog(dangerModal, { onClose: () => { pendingForm = null; } });
     window.hideDangerAction = dialog.close;
     window.confirmDangerAction = (form, prompt) => {
+      if (form.getAttribute?.('aria-busy') === 'true') return false;
+      if (approvedForm === form) { approvedForm = null; return true; }
       pendingForm = form;
+      pendingSubmitter = submitters.get(form) ?? null;
       document.getElementById('dangerActionMessage').textContent = prompt;
       dialog.open();
       return false;
     };
     window.submitDangerAction = () => {
       const form = pendingForm;
+      const submitter = pendingSubmitter;
       dialog.close();
-      form?.submit();
+      if (form) {
+        approvedForm = form;
+        form.requestSubmit(submitter);
+        approvedForm = null;
+      }
     };
     dangerModal.querySelector('[data-danger-cancel]').addEventListener('click', dialog.close);
     dangerModal.querySelector('[data-danger-confirm]').addEventListener('click', window.submitDangerAction);

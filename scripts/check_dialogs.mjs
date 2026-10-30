@@ -116,8 +116,35 @@ try {
       assert.ok(await evaluate('document.activeElement.hasAttribute("data-danger-confirm")'));
       await key('Escape');
       assert.ok(await evaluate('document.getElementById("dangerActionModal").hidden'));
-      await evaluate('window.dialogSubmitted = false; window.confirmDangerAction({submit(){window.dialogSubmitted = true}}, "test confirmation"); document.querySelector("[data-danger-confirm]").click()');
+      await evaluate('window.dialogSubmitted = false; window.confirmDangerAction({requestSubmit(){window.dialogSubmitted = true}}, "test confirmation"); document.querySelector("[data-danger-confirm]").click()');
       assert.ok(await evaluate('window.dialogSubmitted && document.getElementById("dangerActionModal").hidden'));
+      assert.ok(await evaluate(`(()=>{
+        const button=document.querySelector('#members button[onclick*="confirmDangerAction"]');
+        const form=button.form;button.name='confirmed-action';button.value='keep-confirmed-value';
+        let sent=0,retained=false;
+        form.addEventListener('submit',event=>{if(!event.defaultPrevented){sent++;retained=new FormData(form,event.submitter).get('confirmed-action')==='keep-confirmed-value';}event.preventDefault();});
+        button.click();
+        if(form.hasAttribute('aria-busy'))return false;
+        document.querySelector('[data-danger-cancel]').click();
+        if(form.hasAttribute('aria-busy'))return false;
+        button.click();document.querySelector('[data-danger-confirm]').click();
+        if(sent!==1||!retained||form.getAttribute('aria-busy')!=='true')return false;
+        button.click();
+        const result=sent===1&&document.getElementById('dangerActionModal').hidden;
+        window.dispatchEvent(new Event('pageshow'));return result;
+      })()`), 'Confirmed actions must retain their submitter and guard repeat clicks; cancellation must not lock forms');
+      assert.ok(await evaluate(`(()=>{
+        const form=document.querySelector('.coin-admin-delete-form');
+        const button=form.querySelector('button[type=submit]');let sent=0;
+        form.addEventListener('submit',event=>{if(!event.defaultPrevented)sent++;event.preventDefault();});
+        form.requestSubmit(button);
+        if(form.hasAttribute('aria-busy')||document.getElementById('dangerActionModal').hidden)return false;
+        document.querySelector('[data-danger-confirm]').click();
+        if(sent!==1||form.getAttribute('aria-busy')!=='true')return false;
+        form.requestSubmit(button);
+        const result=sent===1&&document.getElementById('dangerActionModal').hidden;
+        window.dispatchEvent(new Event('pageshow'));return result;
+      })()`), 'Submit-event confirmations must submit once without recursively reopening');
       await evaluate('document.querySelector("[data-feedback-open]").click()');
       assert.equal(await evaluate('document.activeElement.id'), 'feedback-message');
       await key('Escape');
