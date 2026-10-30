@@ -19,7 +19,6 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 15
     env:
-      FLASK_ENV: test
       ADMIN_BOOTSTRAP_PASSWORD: ci-fixture-only
     steps:
       - uses: actions/checkout@v4
