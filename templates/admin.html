@@ -1,10 +1,10 @@
 {% extends "base.html" %}
 
 {% block content %}
-{% include "_top_nav.html" %}
+
 
 <div class="admin-page" data-default-tab="{{ active_admin_tab }}">
-<h2>{{ 'Admin'|lang }}</h2>
+<h1>{{ 'Admin'|lang }}</h1>
 
 <div class="admin-toolbar">
     {% for section, icon, label in [('members', '👥', 'Members'), ('budget', '💶', 'Budget'), ('polls', '📊', 'Polls'), ('coins', '🪙', 'Koins'), ('group_purchases', '🛒', 'Group purchases'), ('errors', '⚠️', 'Errors'), ('feedback', '💬', 'Feedback'), ('settings', '⚙️', 'Settings')] %}
@@ -104,16 +104,16 @@
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="add_member">
         <div style="flex: 1; min-width: 150px;">
-            <label>{{ 'Username'|lang }}</label>
-            <input type="text" name="username" required>
+            <label>{{ 'Username'|lang }}
+            <input type="text" name="username" required></label>
         </div>
         <div style="flex: 1; min-width: 150px;">
-            <label>{{ 'Password'|lang }}</label>
-            <input type="password" name="password" required>
+            <label>{{ 'Password'|lang }}
+            <input type="password" name="password" required></label>
         </div>
         <div style="flex: 1; min-width: 180px;">
-            <label>{{ 'Email'|lang }}</label>
-            <input type="email" name="email">
+            <label>{{ 'Email'|lang }}
+            <input type="email" name="email"></label>
         </div>
         <div>
             <label style="display: flex; align-items: center; gap: 5px;">
@@ -157,7 +157,7 @@
                         <div><strong>{{ 'User'|lang }}:</strong> {{ m.telegram_username if m.telegram_username else "(no username)" }}</div>
                         <div><strong>{{ 'ID'|lang }}:</strong> {{ m.telegram_user_id if m.telegram_user_id else "(no ID)" }}</div>
                     {% else %}
-                        <span style="color: #666;">{{ 'Not linked'|lang }}</span>
+                        <span style="color: #aaa;">{{ 'Not linked'|lang }}</span>
                     {% endif %}
                     <div class="link-timestamp"><strong>{{ 'Last linked'|lang }}:</strong> {% if m.last_linked_at %}<time datetime="{{ m.last_linked_at }}" title="{{ current_timezone }}">{{ m.last_linked_at|localtime }}</time>{% else %}{{ 'Not recorded'|lang }}{% endif %}</div>
                     <div class="link-timestamp"><strong>{{ 'Last unlinked'|lang }}:</strong> {% if m.last_unlinked_at %}<time datetime="{{ m.last_unlinked_at }}" title="{{ current_timezone }}">{{ m.last_unlinked_at|localtime }}</time>{% else %}{{ 'Not recorded'|lang }}{% endif %}</div>
@@ -188,7 +188,7 @@
                         <button type="button" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" data-password-open data-member-id="{{ m.id }}" data-username="{{ m.username }}" aria-haspopup="dialog" aria-controls="changePasswordModal">{{ 'Change Password'|lang }}</button>
                     </div>
                     {% else %}
-                    <span style="color: #666; font-size: 0.85em;">{{ '(you)'|lang }}</span>
+                    <span style="color: #aaa; font-size: 0.85em;">{{ '(you)'|lang }}</span>
                     {% endif %}
                 </td>
             </tr>
@@ -256,16 +256,16 @@
         <input type="hidden" name="action" value="update_thresholds">
         <div style="display: flex; gap: 15px; flex-wrap: wrap; align-items: flex-end;">
             <div style="flex: 1; min-width: 120px;">
-                <label>{{ 'Basic'|lang }} (%)</label>
-                <input type="number" name="threshold_basic" value="{{ thresholds.basic }}" min="1" max="100" step="1" required>
+                <label>{{ 'Basic'|lang }} (%)
+                <input type="number" name="threshold_basic" value="{{ thresholds.basic }}" min="1" max="100" step="1" required></label>
             </div>
             <div style="flex: 1; min-width: 120px;">
-                <label>{{ 'Over €50'|lang }} (%)</label>
-                <input type="number" name="threshold_over50" value="{{ thresholds.over50 }}" min="1" max="100" step="1" required>
+                <label>{{ 'Over €50'|lang }} (%)
+                <input type="number" name="threshold_over50" value="{{ thresholds.over50 }}" min="1" max="100" step="1" required></label>
             </div>
             <div style="flex: 1; min-width: 120px;">
-                <label>{{ 'Default'|lang }} (%)</label>
-                <input type="number" name="threshold_default" value="{{ thresholds.default }}" min="1" max="100" step="1" required>
+                <label>{{ 'Default'|lang }} (%)
+                <input type="number" name="threshold_default" value="{{ thresholds.default }}" min="1" max="100" step="1" required></label>
             </div>
             <button type="submit" class="btn">{{ 'Update'|lang }}</button>
         </div>
@@ -285,12 +285,12 @@
         <input type="hidden" name="action" value="add_budget">
         <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
             <div style="flex: 2; min-width: 200px;">
-                <label>{{ 'Description'|lang }}</label>
-                <input type="text" name="description" placeholder="{{ 'e.g. Donation, sponsorship'|lang }}" required>
+                <label>{{ 'Description'|lang }}
+                <input type="text" name="description" placeholder="{{ 'e.g. Donation, sponsorship'|lang }}" required></label>
             </div>
             <div style="flex: 1; min-width: 120px;">
-                <label>{{ 'Amount'|lang }} (EUR)</label>
-                <input type="number" name="amount" step="0.01" placeholder="{{ 'e.g. 50 or -20'|lang }}" required>
+                <label>{{ 'Amount'|lang }} (EUR)
+                <input type="number" name="amount" step="0.01" placeholder="{{ 'e.g. 50 or -20'|lang }}" required></label>
             </div>
             <button type="submit" class="btn">{{ 'Add Budget Item'|lang }}</button>
         </div>
@@ -346,7 +346,7 @@
             </tr>
             {% else %}
             <tr>
-                <td colspan="4" style="text-align: center; color: #888;">No proposal events yet.</td>
+                <td colspan="4" style="text-align: center; color: #b5b5b5;">No proposal events yet.</td>
             </tr>
             {% endfor %}
         </tbody>
@@ -358,17 +358,17 @@
     <form method="POST" style="margin-bottom: 15px;">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="create_poll">
-        <label>{{ 'Question'|lang }}</label>
-        <input type="text" name="question" required>
-        <label>{{ 'Options (one per line)'|lang }}</label>
-        <textarea name="options" rows="4" required placeholder="{{ 'Option examples'|lang }}"></textarea>
-        <label>Poll end date</label>
-        <input type="datetime-local" name="closes_at" required>
+        <label>{{ 'Question'|lang }}
+        <input type="text" name="question" required></label>
+        <label>{{ 'Options (one per line)'|lang }}
+        <textarea name="options" rows="4" required placeholder="{{ 'Option examples'|lang }}"></textarea></label>
+        <label>Poll end date
+        <input type="datetime-local" name="closes_at" required></label>
         <label style="display:flex; align-items:center; gap:8px; margin-top:10px;">
             <input type="checkbox" name="allow_multiple" style="width:auto;">
             {{ 'Allow selecting more than one option'|lang }}
         </label>
-        <small style="color:#888; display:block; margin-top:6px;">{{ 'Options format help'|lang }}</small>
+        <small style="color:#b5b5b5; display:block; margin-top:6px;">{{ 'Options format help'|lang }}</small>
         <button type="submit" class="btn">{{ 'Create Poll'|lang }}</button>
     </form>
 
@@ -448,7 +448,7 @@
                 </td>
             </tr>
             {% else %}
-            <tr><td colspan="5" style="text-align: center; color: #888;">{{ 'No group purchases yet'|lang }}</td></tr>
+            <tr><td colspan="5" style="text-align: center; color: #b5b5b5;">{{ 'No group purchases yet'|lang }}</td></tr>
             {% endfor %}
         </tbody>
     </table>
@@ -468,7 +468,7 @@
     <form method="post" action="{{ url_for('coins.create_coin_item') }}" class="coin-admin-create-form">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="return_to" value="admin">
-        <div class="coin-admin-field coin-admin-name-field"><label for="admin-coin-item-name">{{ 'Item name'|lang }}</label><input id="admin-coin-item-name" name="name" maxlength="100" placeholder="Icecream Minis mix" required></div>
+        <div class="coin-admin-field coin-admin-name-field"><label for="admin-coin-item-name">{{ 'Item name'|lang }}<input id="admin-coin-item-name" name="name" maxlength="100" placeholder="Icecream Minis mix" required></label></div>
         <div class="coin-admin-field"><label for="admin-coin-pack-size">{{ 'Purchase pack size'|lang }}</label><input id="admin-coin-pack-size" name="pack_size" type="number" min="1" max="1000" value="8" required></div>
         <button class="btn coin-admin-submit" type="submit">{{ 'Create koin item'|lang }}</button>
     </form>
@@ -515,11 +515,11 @@
 <div id="errors" class="card">
     <h3>{{ 'Errors'|lang }}</h3>
     <p>{{ 'Server and browser errors captured after this update. Latest 200 records; browser reports are labelled separately.'|lang }}</p>
-    <form method="POST" action="{{ url_for('admin.download_errors') }}">
+    <form method="POST" action="{{ url_for('admin.download_errors') }}" data-error-download data-busy-label="{{ 'Preparing download'|lang }}" data-success-label="{{ 'Errors archived. Refreshing list.'|lang }}" data-error-label="{{ 'Download failed. Refresh the list before retrying.'|lang }}" data-refresh-url="{{ url_for('admin.admin', tab='errors') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn" type="submit"{% if not error_reports %} disabled{% endif %}>{{ 'Download error report'|lang }}</button>
     </form>
-    <p>{{ 'Downloading marks pending errors as processed and archives them.'|lang }}</p>
+    <p>{{ 'Downloading marks pending errors as processed and archives them.'|lang }}</p><p role="status" data-error-download-status></p><noscript><p>{{ 'Refresh after downloading to see the updated archive.'|lang }}</p></noscript>
     {% for error in error_reports %}
     <details style="margin-top:12px;">
         <summary>{{ error.created_at|localtime }} · {{ error.level }} · {{ error.logger }}</summary>
@@ -535,72 +535,72 @@
 <div id="feedback" class="card">
     <h3>{{ 'Feedback'|lang }}</h3>
     {% if feedback_items %}
-    <div style="overflow-x: auto;"><table>
-        <thead><tr><th>{{ 'Date'|lang }}</th><th>{{ 'Member'|lang }}</th><th>{{ 'Type'|lang }}</th><th>{{ 'Section'|lang }}</th><th>{{ 'Message'|lang }}</th><th>{{ 'Status'|lang }}</th><th>{{ 'Action'|lang }}</th></tr></thead>
-        <tbody>{% for item in feedback_items %}<tr>
-            <td>{{ item.created_at|localtime }}</td><td>{{ item.username|username }}</td>
-            <td><span class="status status-{{ item.category }}">{{ item.category|lang }}</span><br><small>{{ item.source }}</small></td>
-            <td><code>{{ item.section or '—' }}</code></td>
-            <td style="white-space: normal; min-width: 240px;">{{ item.message }}</td>
-            <td><span class="status status-{{ item.status }}">{{ item.status|lang }}</span></td>
-            <td><form method="POST" class="button-row">
+    <div class="feedback-list">
+    {% for item in feedback_items %}<article class="feedback-item" id="feedback-{{ item.id }}">
+        <header><strong>#{{ item.id }}</strong><span class="status status-{{ item.status }}">{{ item.status|lang }}</span><span class="status status-{{ item.category }}">{{ item.category|lang }}</span></header>
+        <p class="feedback-message">{{ item.message }}</p>
+        <p class="help-text">{{ item.username|username }} · {{ item.created_at|localtime }} · {{ item.source }} · <code>{{ item.section or '—' }}</code></p>
+            <form method="POST" class="feedback-status-form">
                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="tab" value="feedback">
                 <input type="hidden" name="action" value="update_feedback_status"><input type="hidden" name="feedback_id" value="{{ item.id }}">
+                <label>{{ 'Member-facing reason'|lang }}<textarea name="public_reason" maxlength="4000" aria-describedby="reason-help-{{ item.id }}">{{ item.public_reason }}</textarea></label>
+                <p id="reason-help-{{ item.id }}" class="help-text">{{ 'Public reason help'|lang }}</p>
                 {% if item.status == 'new' %}<button class="btn btn-secondary" name="status" value="reviewed">{{ 'Mark reviewed'|lang }}</button>{% endif %}
                 {% if item.status != 'resolved' %}<button class="btn btn-success" name="status" value="resolved">{{ 'Resolve'|lang }}</button>{% endif %}
                 {% if item.status != 'rejected' %}<button class="btn btn-secondary" name="status" value="rejected">{{ 'Reject'|lang }}</button>{% endif %}
+                <button class="btn btn-secondary" name="status" value="{{ item.status }}">{{ 'Save reason'|lang }}</button>
             </form>
-            <details><summary>{{ 'Edit'|lang }} / {{ 'Notes'|lang }}</summary>
-                <form method="POST">
+            <details><summary>{{ 'Edit'|lang }} / {{ 'Private admin notes'|lang }}</summary>
+                <form method="POST"><input type="hidden" name="tab" value="feedback">
                     <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="edit_feedback"><input type="hidden" name="feedback_id" value="{{ item.id }}">
                     <label>{{ 'Message'|lang }}<textarea name="message" maxlength="4000" required>{{ item.message }}</textarea></label>
                     <label>{{ 'Type'|lang }}<select name="category">{% for category in ['bug', 'suggestion', 'other'] %}<option value="{{ category }}"{% if item.category == category %} selected{% endif %}>{{ category|lang }}</option>{% endfor %}</select></label>
                     <button class="btn" type="submit">{{ 'Save'|lang }}</button>
                 </form>
-                <form method="POST"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="delete_feedback"><input type="hidden" name="feedback_id" value="{{ item.id }}"><button class="btn btn-danger" type="submit" data-feedback-delete>{{ 'Delete feedback'|lang }}</button></form>
+                <form method="POST"><input type="hidden" name="tab" value="feedback"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="delete_feedback"><input type="hidden" name="feedback_id" value="{{ item.id }}"><button class="btn btn-danger" type="submit" data-feedback-delete>{{ 'Delete feedback'|lang }}</button></form>
                 {% for note in item.notes %}
                 <p>{{ note.username }} · {{ note.created_at|localtime }}</p>
-                <form method="POST"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="feedback_id" value="{{ item.id }}"><input type="hidden" name="note_id" value="{{ note.id }}">
+                <form method="POST"><input type="hidden" name="tab" value="feedback"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="feedback_id" value="{{ item.id }}"><input type="hidden" name="note_id" value="{{ note.id }}">
                     <label>{{ 'Notes'|lang }}<textarea name="message" maxlength="4000" required>{{ note.message }}</textarea></label>
                     <button class="btn" name="action" value="edit_feedback_note">{{ 'Save'|lang }}</button><button class="btn btn-danger" name="action" value="delete_feedback_note" formnovalidate>{{ 'Delete note'|lang }}</button>
                 </form>
                 {% endfor %}
-                <form method="POST"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="add_feedback_note"><input type="hidden" name="feedback_id" value="{{ item.id }}">
+                <form method="POST"><input type="hidden" name="tab" value="feedback"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="action" value="add_feedback_note"><input type="hidden" name="feedback_id" value="{{ item.id }}">
                     <label>{{ 'Add note'|lang }}<textarea name="message" maxlength="4000" required></textarea></label><button class="btn" type="submit">{{ 'Add note'|lang }}</button>
                 </form>
-            </details></td>
-        </tr>{% endfor %}</tbody>
-    </table></div>
+            </details>
+    </article>{% endfor %}
+    </div>
     {% else %}<p>{{ 'No feedback yet.'|lang }}</p>{% endif %}
 </div>
 
 <div id="settings" class="card">
     <h3>{{ 'Settings'|lang }}</h3>
-    <p style="color: #888; margin-bottom: 15px;">{{ 'Other settings'|lang }}</p>
+    <p style="color: #b5b5b5; margin-bottom: 15px;">{{ 'Other settings'|lang }}</p>
     {% set current_poll_mode = get_setting_value('poll_vote_mode', 'both') %}
     {% set current_proposal_mode = get_setting_value('proposal_vote_mode', 'both') %}
     {% set current_require_linked_telegram_vote = get_setting_value('telegram_require_linked_vote', 'false') %}
     <div style="margin-bottom: 14px; padding: 12px; border: 1px solid #3a3a3a; border-radius: 8px; background: rgba(58,58,58,0.35);">
-        <h4 style="margin: 0 0 8px 0;">Effective vote policy</h4>
+        <h4 style="margin: 0 0 8px 0;">{{ 'Effective vote policy'|lang }}</h4>
         <ul style="margin: 0 0 0 18px; color: #cbd5e1; font-size: 0.92em;">
             <li>
-                <strong>Polls:</strong>
+                <strong>{{ 'Polls:'|lang }}</strong>
                 {% if current_poll_mode == 'both' %}
-                    Members can vote from both Web and Telegram.
+                    {{ 'Members can vote from both Web and Telegram.'|lang }}
                 {% elif current_poll_mode == 'web_only' %}
-                    Members can vote only on Web; Telegram vote attempts are blocked.
+                    {{ 'Members can vote only on Web; Telegram vote attempts are blocked.'|lang }}
                 {% else %}
-                    Members can vote only on Telegram; Web vote controls are disabled.
+                    {{ 'Members can vote only on Telegram; Web vote controls are disabled.'|lang }}
                 {% endif %}
             </li>
             <li>
-                <strong>Proposals:</strong>
+                <strong>{{ 'Proposals:'|lang }}</strong>
                 {% if current_proposal_mode == 'both' %}
-                    Members can vote from both Web and Telegram.
+                    {{ 'Members can vote from both Web and Telegram.'|lang }}
                 {% elif current_proposal_mode == 'web_only' %}
-                    Members can vote only on Web; Telegram vote attempts are blocked.
+                    {{ 'Members can vote only on Web; Telegram vote attempts are blocked.'|lang }}
                 {% else %}
-                    Members can vote only on Telegram; Web vote controls are disabled.
+                    {{ 'Members can vote only on Telegram; Web vote controls are disabled.'|lang }}
                 {% endif %}
             </li>
         </ul>
@@ -609,37 +609,37 @@
         <form method="POST" class="settings-panel">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="action" value="update_poll_vote_mode">
-            <h4>Poll voting mode</h4>
-            <p>Choose where members can vote on polls.</p>
-            <select name="poll_vote_mode" required>
-                <option value="both" {{ 'selected' if current_poll_mode == 'both' else '' }}>Web + Telegram</option>
-                <option value="web_only" {{ 'selected' if current_poll_mode == 'web_only' else '' }}>Web only</option>
-                <option value="telegram_only" {{ 'selected' if current_poll_mode == 'telegram_only' else '' }}>Telegram only</option>
-            </select>
-            <button type="submit" class="btn">Update vote mode</button>
+            <h4>{{ 'Poll voting mode'|lang }}</h4>
+            <p>{{ 'Choose where members can vote on polls.'|lang }}</p>
+            <label>{{ 'Poll voting mode'|lang }}<select name="poll_vote_mode" required>
+                <option value="both" {{ 'selected' if current_poll_mode == 'both' else '' }}>{{ 'Web + Telegram'|lang }}</option>
+                <option value="web_only" {{ 'selected' if current_poll_mode == 'web_only' else '' }}>{{ 'Web only'|lang }}</option>
+                <option value="telegram_only" {{ 'selected' if current_poll_mode == 'telegram_only' else '' }}>{{ 'Telegram only'|lang }}</option>
+            </select></label>
+            <button type="submit" class="btn">{{ 'Update vote mode'|lang }}</button>
         </form>
         <form method="POST" class="settings-panel">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="action" value="update_proposal_vote_mode">
-            <h4>Proposal voting mode</h4>
-            <p>Choose where members can vote on proposals.</p>
-            <select name="proposal_vote_mode" required>
-                <option value="both" {{ 'selected' if current_proposal_mode == 'both' else '' }}>Web + Telegram</option>
-                <option value="web_only" {{ 'selected' if current_proposal_mode == 'web_only' else '' }}>Web only</option>
-                <option value="telegram_only" {{ 'selected' if current_proposal_mode == 'telegram_only' else '' }}>Telegram only</option>
-            </select>
-            <button type="submit" class="btn">Update proposal vote mode</button>
+            <h4>{{ 'Proposal voting mode'|lang }}</h4>
+            <p>{{ 'Choose where members can vote on proposals.'|lang }}</p>
+            <label>{{ 'Proposal voting mode'|lang }}<select name="proposal_vote_mode" required>
+                <option value="both" {{ 'selected' if current_proposal_mode == 'both' else '' }}>{{ 'Web + Telegram'|lang }}</option>
+                <option value="web_only" {{ 'selected' if current_proposal_mode == 'web_only' else '' }}>{{ 'Web only'|lang }}</option>
+                <option value="telegram_only" {{ 'selected' if current_proposal_mode == 'telegram_only' else '' }}>{{ 'Telegram only'|lang }}</option>
+            </select></label>
+            <button type="submit" class="btn">{{ 'Update proposal vote mode'|lang }}</button>
         </form>
         <form method="POST" class="settings-panel">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="action" value="update_telegram_linked_vote_requirement">
-            <h4>Telegram linked-account votes</h4>
-            <p>Require Telegram accounts to be linked before /vote or /pvote is accepted.</p>
+            <h4>{{ 'Telegram linked-account votes'|lang }}</h4>
+            <p>{{ 'Require Telegram accounts to be linked before /vote or /pvote is accepted.'|lang }}</p>
             <label style="display:flex; gap:8px; align-items:center; margin-bottom:10px;">
                 <input type="checkbox" name="telegram_require_linked_vote" {{ 'checked' if current_require_linked_telegram_vote == 'true' else '' }}>
-                <span>Require linked Telegram account for Telegram votes</span>
+                <span>{{ 'Require linked Telegram account for Telegram votes'|lang }}</span>
             </label>
-            <button type="submit" class="btn">Update linked-account requirement</button>
+            <button type="submit" class="btn">{{ 'Update linked-account requirement'|lang }}</button>
         </form>
     </div>
 </div>
@@ -651,7 +651,7 @@
         <input type="hidden" name="action" value="update_timezone">
         <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
             <div style="flex: 1; min-width: 200px;">
-                <label>{{ 'Timezone'|lang }}</label>
+                <label>{{ 'Timezone'|lang }}
                 <select name="timezone" required>
                     <option value="UTC" {{ 'selected' if current_timezone == 'UTC' else '' }}>UTC</option>
                     <option value="Europe/London" {{ 'selected' if current_timezone == 'Europe/London' else '' }}>Europe/London</option>
@@ -663,7 +663,7 @@
                     <option value="Asia/Tokyo" {{ 'selected' if current_timezone == 'Asia/Tokyo' else '' }}>Asia/Tokyo</option>
                     <option value="Asia/Shanghai" {{ 'selected' if current_timezone == 'Asia/Shanghai' else '' }}>Asia/Shanghai</option>
                     <option value="Australia/Sydney" {{ 'selected' if current_timezone == 'Australia/Sydney' else '' }}>Australia/Sydney</option>
-                </select>
+                </select></label>
             </div>
             <button type="submit" class="btn">{{ 'Update Timezone'|lang }}</button>
         </div>
@@ -672,7 +672,7 @@
 
 <div id="backup" class="card">
     <h3>{{ 'Backup Database'|lang }}</h3>
-    <p style="color: #888; margin-bottom: 15px;">
+    <p style="color: #b5b5b5; margin-bottom: 15px;">
         Backups are stored in the same directory as the database file.
         Auto-backup runs every 24 hours (if APScheduler is installed).
         Old backups (older than 7 days) are automatically pruned.
@@ -704,14 +704,14 @@
                     <td><a href="{{ url_for('download_backup_file', backup_type='db', filename=f.name) }}">Download</a></td>
                 </tr>
                 {% else %}
-                <tr><td colspan="5" style="color:#888;">No database backups yet.</td></tr>
+                <tr><td colspan="5" style="color:#b5b5b5;">No database backups yet.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
     </div>
 
     <h3 style="margin-top: 20px;">{{ 'Backup Uploaded Images'|lang }}</h3>
-    <p style="color: #888; margin-bottom: 15px;">
+    <p style="color: #b5b5b5; margin-bottom: 15px;">
         Image backups are stored as zip files in <code>static/uploads_backups</code>.
     </p>
     <form method="POST">
@@ -741,7 +741,7 @@
                     <td><a href="{{ url_for('download_backup_file', backup_type='images', filename=f.name) }}">Download</a></td>
                 </tr>
                 {% else %}
-                <tr><td colspan="5" style="color:#888;">No image backups yet.</td></tr>
+                <tr><td colspan="5" style="color:#b5b5b5;">No image backups yet.</td></tr>
                 {% endfor %}
             </tbody>
         </table>
@@ -762,8 +762,8 @@
         <input type="hidden" name="action" value="update_url">
         <div style="display: flex; gap: 10px; flex-wrap: wrap; align-items: flex-end;">
             <div style="flex: 2; min-width: 200px;">
-                <label>{{ 'Base URL for proposal links'|lang }}</label>
-                <input type="url" name="base_url" value="{{ telegram_base_url }}" placeholder="https://manavote.mksmad.org">
+                <label>{{ 'Base URL for proposal links'|lang }}
+                <input type="url" name="base_url" value="{{ telegram_base_url }}" placeholder="https://manavote.mksmad.org"></label>
             </div>
             <button type="submit" class="btn">{{ 'Update URL'|lang }}</button>
         </div>
@@ -778,7 +778,7 @@
 <div id="changePasswordModal" class="danger-modal" hidden role="dialog" aria-modal="true" aria-labelledby="changePasswordTitle" aria-describedby="changePasswordUser" data-changing-label="{{ 'Changing password for'|lang }}">
     <div class="danger-modal-panel" tabindex="-1">
         <h3 id="changePasswordTitle">{{ 'Change Password'|lang }}</h3>
-        <p id="changePasswordUser" style="color: #888;"></p>
+        <p id="changePasswordUser" style="color: #b5b5b5;"></p>
         <form method="POST">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="action" value="change_user_password">

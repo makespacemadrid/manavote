@@ -364,6 +364,7 @@ def apply_admin_action(conn, *, data, actor_id, is_admin, dependencies):
                 feedback_service.update_feedback_status(
                     conn, feedback_id=_optional_int(data.get("feedback_id")),
                     status=data.get("status", ""), resolved_by=actor_id, logger=logger,
+                    public_reason=data.get("public_reason"),
                 )
                 emit_message("Feedback status updated.", "success")
             except feedback_service.FeedbackValidationError as exc:

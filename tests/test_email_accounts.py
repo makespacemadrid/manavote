@@ -53,7 +53,7 @@ def test_member_can_add_email_only_once(monkeypatch, isolated_db_path):
     response = client.post("/settings", data={"email": "Alice@Example.org"})
     assert response.status_code == 302
     response = client.post("/settings", data={"email": "changed@example.org"})
-    assert response.status_code == 302
+    assert response.status_code == 200
 
     conn = auth_routes.legacy.get_db()
     email = conn.execute("SELECT email FROM members WHERE id = ?", (member_id,)).fetchone()["email"]

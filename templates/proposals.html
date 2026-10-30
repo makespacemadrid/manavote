@@ -1,7 +1,7 @@
 {% extends "base.html" %}
 
 {% block content %}
-{% include "_top_nav.html" %}
+
 
 <style>
     .proposal-image-wrap { position: relative; display: block; width: 100%; height: 100%; overflow: hidden; border-radius: 4px; }
@@ -12,9 +12,9 @@
     <h2>💰 {{ 'Available'|lang }}</h2>
     <div style="display: flex; gap: 20px; flex-wrap: wrap; align-items: center; margin-top: 8px;">
         <span><strong>€{{ current_budget|currency }}</strong></span>
-        <span style="color: #888;">· {{ member_count }} {{ 'members'|lang }}</span>
+        <span style="color: #b5b5b5;">· {{ member_count }} {{ 'members'|lang }}</span>
     </div>
-    <div style="margin-top: 8px; color: #888; font-size: 0.9em;">
+    <div style="margin-top: 8px; color: #b5b5b5; font-size: 0.9em;">
         {{ 'Votes required'|lang }}:
         · {{ 'Basic'|lang }}: {{ basic_votes }}
         · {{ 'Standard'|lang }}: {{ standard_votes }}
@@ -23,58 +23,37 @@
 </div>
 
     <div class="card">
-        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-            <h2>📋 {{ 'Proposals'|lang }}</h2>
+        <div class="page-heading">
+            <h1>{{ 'Proposals'|lang }}</h1>
             <a href="{{ url_for('proposals.new_proposal') }}" class="btn">+ {{ 'New Proposal'|lang }}</a>
         </div>
         
-        {% set filter_chips = [
-            ('all', 'All', all_sum, '#ffffff'), ('active', 'Active', active_proposals_sum, '#00d9ff'),
-            ('recent', 'Recent', recent_proposals_sum, '#00b8d4'), ('old', 'Old', old_proposals_sum, '#6abbd4'),
-            ('over_budget', 'Pending Budget', committed, '#c77dff'), ('approved', 'Approved', approved_sum, '#00d9ff'),
-            ('not_purchased', 'Pending Purchase', pending_purchase_sum, '#39d98a'), ('purchased', 'Purchased', purchased_sum, '#73c773'),
-            ('basic', 'Basic', basic_sum, '#cd7f32'), ('standard', 'Standard', standard_sum, '#c0c0c0'),
-            ('expensive', 'Expensive', expensive_sum, '#ffd700')
-        ] %}
-        <nav class="filter-row" aria-label="{{ 'Proposal filters'|lang }}">
-            {% for filter_value, label, amount, color in filter_chips %}
-            <a href="{{ url_for('proposals', filter=filter_value) }}" class="filter-chip{{ ' active' if filter == filter_value else '' }}" style="--filter-color: {{ color }};"{% if filter == filter_value %} aria-current="page"{% endif %}>{{ label|lang }} (€{{ amount|currency }})</a>
-            {% endfor %}
-        </nav>
-
-        {% if total_count is defined and total_count != proposals|length %}
-        <p style="color: #888; margin-bottom: 10px; font-size: 0.9em;">{{ proposals|length }} of {{ total_count }} proposals</p>
-        {% endif %}
-        
+        <form id="proposal-query" method="GET" class="proposal-query" role="search">
+            <label>{{ 'Search proposals'|lang }}<input type="search" name="q" value="{{ search_query }}" maxlength="200" placeholder="{{ 'Title or description'|lang }}"></label>
+            <label>{{ 'Status'|lang }}<select name="filter">{% for value, label in [('all','All'),('active','Active'),('over_budget','Pending Budget'),('approved','Approved'),('rejected','Rejected'),('not_purchased','Pending Purchase'),('purchased','Purchased')] %}<option value="{{ value }}"{% if filter == value %} selected{% endif %}>{{ label|lang }}</option>{% endfor %}</select></label>
+            <label>{{ 'Sort by'|lang }}<select name="sort">{% for value,label in [('newest','Date (Newest)'),('oldest','Date (Oldest)'),('amount_desc','Amount (Highest)'),('amount_asc','Amount (Lowest)')] %}<option value="{{ value }}"{% if proposal_sort == value %} selected{% endif %}>{{ label|lang }}</option>{% endfor %}</select></label>
+            <button class="btn btn-secondary" type="submit">{{ 'Apply'|lang }}</button>
+        </form>
+        <details class="proposal-refinements"{% if proposal_age or proposal_kind %} open{% endif %}><summary>{{ 'Age and purchase type'|lang }}</summary>
+        <div class="query-refinements">
+            <label>{{ 'Age'|lang }}<select name="age" form="proposal-query">{% for value,label in [('', 'All'),('recent','Last 30 days'),('old','Older than 30 days')] %}<option value="{{ value }}"{% if proposal_age == value %} selected{% endif %}>{{ label|lang }}</option>{% endfor %}</select></label>
+            <label>{{ 'Purchase type'|lang }}<select name="kind" form="proposal-query">{% for value,label in [('', 'All'),('basic','Basic'),('standard','Standard'),('expensive','Expensive')] %}<option value="{{ value }}"{% if proposal_kind == value %} selected{% endif %}>{{ label|lang }}</option>{% endfor %}</select></label>
+        </div></details>
+        <p class="help-text">{{ matching_count }} {{ 'matching proposals'|lang }} · <a href="{{ url_for('proposals', filter='all') }}">{{ 'Clear filters'|lang }}</a></p>
         {% if not is_web_proposal_vote_enabled and proposal_vote_mode == 'telegram_only' %}
-        <p style="color: #e94560; margin-bottom: 10px; font-size: 0.9em;">{{ 'Proposal voting Telegram-only banner'|lang }}</p>
+        <p style="color: #ff8fa3; margin-bottom: 10px; font-size: 0.9em;">{{ 'Proposal voting Telegram-only banner'|lang }}</p>
         {% endif %}
         {% if proposals %}
         <ul class="proposal-list">
             {% for p in proposals %}
             <li class="proposal-item">
                 <div class="proposal-info">
-                    <div style="display: flex; align-items: center; width: 100%;">
-                        <div style="flex-shrink: 0; margin-right: 10px; display: flex; gap: 5px;">
-                            {% if p.basic_supplies %}<span class="status" style="background: #CD7F32; color: #000;">{{ 'basic'|lang }}</span>{% endif %}
-                            {% if p.amount > 50 %}<span class="status" style="background: #FFD70022; color: #FFD700;">{{ 'expensive'|lang }}</span>{% endif %}
-                            {% if not p.basic_supplies and p.amount <= 50 %}<span class="status" style="background: #C0C0C022; color: #C0C0C0;">{{ 'standard'|lang }}</span>{% endif %}
-                            {% if p.old_age_threshold %}<span class="status" style="background: #e9456022; color: #e94560;">{{ 'old'|lang }}</span>{% endif %}
-                        </div>
-                        <div style="flex: 1; min-width: 0; overflow: hidden;">
-                            <a href="{{ url_for('proposals.proposal_detail', proposal_id=p.id) }}" title="{{ p.title }}" style="color: #eee; text-decoration: none; display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap;">{{ p.title }}</a>
-                        </div>
+                    <a class="proposal-card-title" title="{{ p.title }}" href="{{ url_for('proposals.proposal_detail', proposal_id=p.id) }}">{{ p.title }}</a>
+                    <div class="proposal-card-tags">
+                        {% if p.basic_supplies %}<span class="status status-other">{{ 'basic'|lang }}</span>{% elif p.amount > 50 %}<span class="status status-other">{{ 'expensive'|lang }}</span>{% else %}<span class="status status-other">{{ 'standard'|lang }}</span>{% endif %}
+                        {% if p.old_age_threshold %}<span class="status status-other">{{ 'old'|lang }}</span><span class="status status-other">{{ 'Over'|lang }} {{ p.old_age_threshold }} {{ 'days old'|lang }}</span>{% endif %}
                     </div>
-                    <div style="flex-shrink: 0; margin: 10px 0; width: 80px; height: 80px;">
-                        {% if p.image_filename %}
-                        <a href="{{ url_for('proposals.proposal_detail', proposal_id=p.id) }}" class="proposal-image-wrap">
-                            <img src="{{ url_for('static', filename='uploads/' + p.image_filename) }}" style="width: 100%; height: 100%; object-fit: cover; border-radius: 4px;">
-                            {% if p.old_age_threshold %}<span class="proposal-age-watermark">{{ 'Over'|lang }} {{ p.old_age_threshold }} {{ 'days old'|lang }}</span>{% endif %}
-                        </a>
-                        {% else %}
-                        <div style="width: 100%; height: 100%; background: #0a0a1a; border-radius: 4px;"></div>
-                        {% endif %}
-                    </div>
+                    {% if p.image_filename %}<img class="proposal-thumbnail" alt="" src="{{ url_for('static', filename='uploads/' + p.image_filename) }}">{% endif %}
                     <div class="proposal-meta" style="margin-bottom: 8px;">
                         {{ 'by'|lang }} {{ p.creator|username }} · {{ p.created_at|localtime("%Y-%m-%d") }}
                         {% if p.user_vote %}
@@ -82,15 +61,14 @@
                         {% endif %}
                     </div>
                     <div class="vote-counts">
-                        {% if p.purchased_at %}<span class="status" style="background: #4a4; color: #fff; margin-right: 10px;">{{ 'purchased'|lang }}</span>
+                        {% if p.purchased_at %}<span class="status" style="background: #254331; color: #c5f2da; margin-right: 10px;">{{ 'purchased'|lang }}</span>
                         {% elif p.status == 'approved' %}<span class="status status-approved" style="background: #ffd70022; color: #ffd700; margin-right: 10px;">{{ 'Pending Purchase'|lang }}</span>
                         {% elif p.status == 'over_budget' %}<span class="status status-over-budget" style="margin-right: 10px;">{{ 'pending_budget'|lang }}</span>
                         {% elif p.status == 'rejected' %}<span class="status status-rejected" style="margin-right: 10px;">{{ 'rejected'|lang }}</span>
                         {% elif p.status == 'active' %}<span class="status status-active" style="margin-right: 10px;">{{ 'active'|lang }}</span>{% endif %}
                         <span class="vote-approve">✓ {{ p.approve_count }} {{ 'in favor'|lang }}</span>
                         <span class="vote-reject">✗ {{ p.reject_count }} {{ 'against'|lang }}</span>
-                        <span style="color: {{ '#00d9ff' if p.net_votes >= p.min_backers else '#888' }};">({{ p.net_votes }} {{ 'net'|lang }})</span>
-                        <span style="color: #888;">({{ p.net_votes }} {{ 'votes out of'|lang }} {{ p.min_backers|int }} {{ 'required'|lang }})</span>
+                        <span style="color: #b5b5b5;">({{ p.net_votes }} {{ 'votes out of'|lang }} {{ p.min_backers|int }} {{ 'required'|lang }})</span>
                     </div>
                     {% if p.status == 'active' and (p.created_by == session.member_id or session.is_admin) %}
                     <div style="margin-top: 5px;">
@@ -100,11 +78,11 @@
                     {% if p.status == 'approved' and (p.created_by == session.member_id or session.is_admin) %}
                     <div style="margin-top: 5px; display: flex; gap: 10px; align-items: center;">
                         {% if p.purchased_at %}
-                            <span style="color: #4a4; font-size: 0.75em;">✓ {{ 'purchased'|lang }}</span>
+                            <span style="color: #75e6b0; font-size: 0.75em;">✓ {{ 'purchased'|lang }}</span>
                             {% if session.is_admin %}
                             <form method="POST" action="{{ url_for('proposals.unmark_purchased', proposal_id=p.id) }}" style="display: inline;">
                                 <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                                <button type="submit" style="background: none; border: none; color: #888; font-size: 0.75em; cursor: pointer; padding: 0;">{{ 'unmark'|lang }}</button>
+                                <button type="submit" style="background: none; border: none; color: #b5b5b5; font-size: 0.75em; cursor: pointer; padding: 0;">{{ 'unmark'|lang }}</button>
                             </form>
                             {% endif %}
                         {% else %}
@@ -122,14 +100,14 @@
                     </div>
                     {% endif %}
                 </div>
-                <div style="text-align: right;">
-                    <div class="proposal-amount" style="color: #888;">€{{ p.amount|currency }}</div>
+                <div class="proposal-card-actions">
+                    <div class="proposal-amount">€{{ p.amount|currency }}</div>
                     {% if is_web_proposal_vote_enabled and p.status == 'active' and p.user_vote %}
                     <div style="margin-top: 8px; display: flex; gap: 5px; justify-content: flex-end;">
                         <form method="POST" action="{{ url_for('proposals.quick_vote', proposal_id=p.id) }}">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-                            <button type="submit" name="vote" value="in_favor" class="vote-btn approve quick-vote-btn {{ 'active' if p.user_vote == 'in_favor' else '' }}">✓ {{ 'In Favor'|lang }}</button>
-                            <button type="submit" name="vote" value="against" class="vote-btn reject quick-vote-btn {{ 'active' if p.user_vote == 'against' else '' }}">✗ {{ 'Against'|lang }}</button>
+                            <button type="submit" name="vote" value="in_favor" class="vote-btn approve quick-vote-btn {{ 'active' if p.user_vote == 'in_favor' else '' }}" aria-pressed="{{ 'true' if p.user_vote == 'in_favor' else 'false' }}">✓ {{ 'In Favor'|lang }}</button>
+                            <button type="submit" name="vote" value="against" class="vote-btn reject quick-vote-btn {{ 'active' if p.user_vote == 'against' else '' }}" aria-pressed="{{ 'true' if p.user_vote == 'against' else 'false' }}">✗ {{ 'Against'|lang }}</button>
                         </form>
                     </div>
                     {% endif %}
@@ -146,8 +124,9 @@
             </li>
             {% endfor %}
         </ul>
+        {% include "_proposal_pagination.html" %}
         {% else %}
-        <p style="color: #666; text-align: center; padding: 40px;">{{ 'No proposals yet. Create one!'|lang }}</p>
+        <p style="color: #aaa; text-align: center; padding: 40px;">{{ 'No matching proposals'|lang }}</p>
         {% endif %}
     </div>
 

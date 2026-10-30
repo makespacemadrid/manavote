@@ -40,8 +40,9 @@ def submit_feedback(conn, *, member_id, source, category, message, section=None,
         "INSERT INTO feedback (member_id, source, category, message, section) VALUES (?, ?, ?, ?, ?)",
         (member_id, source, category, message, section),
     )
-    conn.commit()
     feedback_id = int(cursor.lastrowid)
+    FeedbackRepository(conn).add_status_event(feedback_id, 'new')
+    conn.commit()
     if logger:
         logger.info("event=feedback_submitted feedback_id=%s member_id=%s source=%s category=%s section=%s", feedback_id, member_id, source, category, section)
     return feedback_id
@@ -70,7 +71,7 @@ def list_feedback(conn, *, status=None, category=None, limit=50, offset=0):
     return [dict(row) for row in rows]
 
 
-def update_feedback_status(conn, *, feedback_id, status, resolved_by, logger=None):
+def update_feedback_status(conn, *, feedback_id, status, resolved_by, logger=None, public_reason=None):
     if status not in VALID_STATUSES:
         raise FeedbackValidationError("invalid_status", "status must be new, reviewed, resolved, or rejected")
     repo = FeedbackRepository(conn)
@@ -79,6 +80,12 @@ def update_feedback_status(conn, *, feedback_id, status, resolved_by, logger=Non
         item = repo.get(feedback_id)
         if item is None:
             raise FeedbackValidationError('feedback_not_found', 'feedback not found')
+        reason = item['public_reason'] if public_reason is None else str(public_reason).strip()
+        if len(reason) > MAX_MESSAGE_LENGTH:
+            raise FeedbackValidationError('invalid_public_reason', 'Public reason must be at most 4000 characters')
+        repo.set_public_reason(feedback_id, reason)
+        if item['status'] != status or item['public_reason'] != reason:
+            repo.add_status_event(feedback_id, status, reason)
         repo.resolve_status(feedback_id, status, resolved_by)
         if status == 'resolved' and item['status'] != 'resolved':
             notification_id = repo.notify(item)

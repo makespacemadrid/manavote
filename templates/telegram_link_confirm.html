@@ -1,8 +1,8 @@
 {% extends "base.html" %}
 {% block content %}
-{% include "_top_nav.html" %}
+
 <div class="card">
-    <h2>📱 {{ 'Connect Telegram account'|lang }}</h2>
+    <h1>📱 {{ 'Connect Telegram account'|lang }}</h1>
     <p>{{ 'Connect this Telegram identity to your signed-in ManaVote account?'|lang }}</p>
     <p><strong>{% if telegram_username %}@{{ telegram_username }}{% else %}Telegram ID {{ telegram_user_id }}{% endif %}</strong></p>
     <form method="post">

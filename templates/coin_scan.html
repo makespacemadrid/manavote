@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% block content %}{% include "_top_nav.html" %}
+{% extends "base.html" %}{% block content %}
 <div class="card coin-scan"><h1>{{ qr.item_name }}</h1><h2>{{ qr.action|capitalize }}</h2>
 <p>{% if qr.action == 'consume' %}{{ 'This will debit one koin from your ledger.'|lang }}{% else %}{{ 'Each can you add credits one koin to your ledger.'|lang }}{% endif %}</p>
 <form method="post" action="{{ url_for('coins.move') }}"><input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="item_id" value="{{ qr.item_id }}"><input type="hidden" name="action" value="{{ qr.action }}"><input type="hidden" name="source" value="qr"><input type="hidden" name="idempotency_key" value="{{ idempotency_key }}"><input type="hidden" name="return_to" value="{{ request.path }}">

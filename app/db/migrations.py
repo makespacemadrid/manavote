@@ -120,6 +120,15 @@ def run_migrations(cursor):
     )
     """)
     add_column_if_missing(cursor, "feedback", "section TEXT")
+    add_column_if_missing(cursor, "feedback", "public_reason TEXT NOT NULL DEFAULT ''")
+    cursor.execute('''CREATE TABLE IF NOT EXISTS feedback_status_events (
+        id INTEGER PRIMARY KEY AUTOINCREMENT,
+        feedback_id INTEGER NOT NULL,
+        status TEXT NOT NULL,
+        public_reason TEXT NOT NULL DEFAULT '',
+        created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP
+    )''')
+    cursor.execute('CREATE INDEX IF NOT EXISTS feedback_status_events_item ON feedback_status_events(feedback_id, id)')
     add_column_if_missing(cursor, "members", "feedback_telegram_notifications INTEGER NOT NULL DEFAULT 0")
     add_column_if_missing(cursor, "members", "feedback_notification_language TEXT NOT NULL DEFAULT 'en'")
     cursor.execute('''CREATE TABLE IF NOT EXISTS copy_requests (

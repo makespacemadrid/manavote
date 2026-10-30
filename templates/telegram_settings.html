@@ -1,17 +1,17 @@
 {% extends "base.html" %}
 
 {% block content %}
-{% include "_top_nav.html" %}
+
 
 <div class="card">
-    <h2>📱 {{ 'Telegram Settings'|lang }}</h2>
+    <h1>📱 {{ 'Telegram Settings'|lang }}</h1>
     {% set is_telegram_linked = (telegram_username or telegram_user_id) %}
     <div style="margin: 6px 0 10px;">
         {% with is_linked=is_telegram_linked, linked_text=('Linked'|lang), not_linked_text=('Not linked'|lang) %}
             {% include "_telegram_link_status.html" %}
         {% endwith %}
     </div>
-    <p style="color: #888; margin-bottom: 15px;">{{ 'Telegram link help'|lang }}</p>
+    <p style="color: #b5b5b5; margin-bottom: 15px;">{{ 'Telegram link help'|lang }}</p>
     <div style="margin: 10px 0 16px; padding: 12px; border: 1px solid #4a4a4a; border-radius: 8px; background: #2a2a2a;">
         <strong>{{ 'How to link your Telegram account'|lang }}</strong>
         <ol style="margin: 8px 0 0 20px; color: #c4c4c4;">
@@ -23,13 +23,18 @@
         </ol>
     </div>
 
-    <label>{{ 'Telegram Username (auto-linked from Telegram)'|lang }}</label>
-    <input type="text" value="{{ telegram_username or '' }}" placeholder="{{ 'Use /link in Telegram to set this'|lang }}" readonly disabled>
+    <div class="button-row" style="margin:16px 0;">
+        {% if bot_username %}<a class="btn" href="https://t.me/{{ bot_username }}" target="_blank" rel="noopener noreferrer">{{ 'Open Telegram bot'|lang }}</a>{% else %}<p class="help-text">{{ 'Telegram bot link unavailable'|lang }}</p>{% endif %}
+        <button class="btn btn-secondary" type="button" data-copy-command="/link" data-copied="{{ 'Copied'|lang }}" data-copy-failed="{{ 'Copy command manually'|lang }}">{{ 'Copy /link'|lang }}</button>
+        <a class="btn btn-secondary" href="{{ url_for('auth.telegram_settings') }}">{{ 'Check link status'|lang }}</a>
+    </div>
+    <label>{{ 'Telegram Username (auto-linked from Telegram)'|lang }}
+    <input type="text" value="{{ telegram_username or '' }}" placeholder="{{ 'Use /link in Telegram to set this'|lang }}" readonly disabled></label>
 
-    <label>{{ 'Telegram User ID (auto-linked from Telegram)'|lang }}</label>
-    <input type="text" value="{{ telegram_user_id or '' }}" placeholder="{{ 'Use /link in Telegram to set this'|lang }}" readonly disabled>
+    <label>{{ 'Telegram User ID (auto-linked from Telegram)'|lang }}
+    <input type="text" value="{{ telegram_user_id or '' }}" placeholder="{{ 'Use /link in Telegram to set this'|lang }}" readonly disabled></label>
 
-    <small style="color:#888; display:block; margin-top:8px;">{{ 'Telegram command hint'|lang }} <code>/link</code> {{ 'Telegram command hint suffix'|lang }}</small>
+    <small style="color:#b5b5b5; display:block; margin-top:8px;">{{ 'Telegram command hint'|lang }} <code>/link</code> {{ 'Telegram command hint suffix'|lang }}</small>
     {% if missing_public_username %}
     <div style="margin-top:10px; padding:10px; border:1px solid #f59e0b; border-radius:8px; background:#f59e0b22; color:#fef3c7;">
         <strong>{{ 'Telegram username missing title'|lang }}</strong>
@@ -41,7 +46,7 @@
     <form method="post" style="margin-top: 14px;" onsubmit="return confirmDangerAction(this, '{{ 'Unlink Telegram confirm'|lang }}');">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="unlink_telegram">
-        <button type="submit" class="btn danger">{{ 'Unlink Telegram account'|lang }}</button>
+        <button type="submit" class="btn btn-danger">{{ 'Unlink Telegram account'|lang }}</button>
     </form>
     {% endif %}
 </div>

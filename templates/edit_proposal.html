@@ -1,34 +1,34 @@
 {% extends "base.html" %}
 
 {% block content %}
-{% include "_top_nav.html" %}
+
 
 <div class="card">
-    <h2>{{ 'Edit Proposal'|lang }}</h2>
+    <h1>{{ 'Edit Proposal'|lang }}</h1>
     
-    <p style="color: #888; margin-bottom: 20px;">
+    <p style="color: #b5b5b5; margin-bottom: 20px;">
         {{ 'Budget'|lang }}: <strong>€{{ current_budget|currency }}</strong>
     </p>
     
     <form method="POST" enctype="multipart/form-data">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
-        <label>{{ 'Title'|lang }}</label>
-        <input type="text" name="title" value="{{ form_data.get('title', '') }}" required>
+        <label>{{ 'Title'|lang }}
+        <input type="text" name="title" value="{{ form_data.get('title', '') }}" required></label>
         
-        <label>{{ 'Description'|lang }}</label>
-        <textarea name="description">{{ form_data.get('description') or '' }}</textarea>
+        <label>{{ 'Description'|lang }}
+        <textarea name="description">{{ form_data.get('description') or '' }}</textarea></label>
         
-        <label>{{ 'Amount'|lang }} (EUR)</label>
-        <input type="number" name="amount" step="0.01" min="0.01" value="{{ form_data.get('amount', '') }}" required>
+        <label>{{ 'Amount'|lang }} (EUR)
+        <input type="number" id="amount" name="amount"{% if field_errors.get('amount') %} aria-invalid="true" aria-describedby="amount-error"{% endif %} step="0.01" min="0.01" value="{{ form_data.get('amount', '') }}" required></label>{% if field_errors.get('amount') %}<p class="field-error" id="amount-error">{{ field_errors['amount']|lang }}</p>{% endif %}
         
-        <label>{{ 'URL (optional)'|lang }}</label>
-        <input type="url" name="url" value="{{ form_data.get('url') or '' }}" placeholder="{{ 'Product URL placeholder'|lang }}">
+        <label>{{ 'URL (optional)'|lang }}
+        <input type="url" name="url" value="{{ form_data.get('url') or '' }}" placeholder="{{ 'Product URL placeholder'|lang }}"></label>
         
         <label for="proposal-image">{{ 'Image optional JPG PNG only'|lang }}</label>
         {% if proposal.image_filename %}
         <div style="margin: 10px 0;">
-            <img src="{{ url_for('static', filename='uploads/' + proposal.image_filename) }}" style="max-width: 200px; border-radius: 4px;">
-            <p style="color: #888; font-size: 0.85em;">{{ 'Current image upload new to replace'|lang }}</p>
+            <img alt="{{ proposal.title }}" src="{{ url_for('static', filename='uploads/' + proposal.image_filename) }}" style="max-width: 200px; border-radius: 4px;">
+            <p style="color: #b5b5b5; font-size: 0.85em;">{{ 'Current image upload new to replace'|lang }}</p>
         </div>
         {% endif %}
         <input type="file" id="proposal-image" name="image" accept=".jpg,.jpeg,.png"{% if image_error %} aria-invalid="true" aria-describedby="image-error"{% endif %}>
@@ -37,7 +37,7 @@
         {% endif %}
         
         <label style="margin-top: 10px;">
-            <input type="checkbox" name="basic_supplies" value="1" {{ 'checked' if form_data.get('basic_supplies') else '' }}> {{ 'Basic'|lang }} supplies ({{ thresholds.basic }}% backers required) <span style="color: #888; font-size: 0.85em;">(auto-removed if over €20)</span>
+            <input type="checkbox" name="basic_supplies" value="1" {{ 'checked' if form_data.get('basic_supplies') else '' }}> {{ 'Basic supplies backers'|lang|format(thresholds.basic) }} <span style="color: #b5b5b5; font-size: 0.85em;">{{ 'Auto-removed if over €20'|lang }}</span>
         </label>
         
         <div class="button-row">

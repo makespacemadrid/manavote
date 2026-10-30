@@ -1,4 +1,5 @@
 import logging
+import re
 from contextlib import closing
 from urllib.parse import urlencode
 
@@ -132,6 +133,7 @@ def login():
         "login.html",
         session_lang=session.get("lang", "en"),
         oidc_enabled=current_app.config["OIDC_ENABLED"],
+        registration_enabled=legacy.is_registration_enabled(),
     )
 
 
@@ -274,6 +276,7 @@ def telegram_settings():
             "telegram_settings.html",
             telegram_username=(member["telegram_username"] if member else None),
             telegram_user_id=(member["telegram_user_id"] if member else None),
+            bot_username=legacy.TELEGRAM_BOT_USERNAME.lstrip("@") if re.fullmatch(r"[A-Za-z0-9_]{5,32}", legacy.TELEGRAM_BOT_USERNAME.lstrip("@")) else None,
             missing_public_username=bool(member and member["telegram_user_id"] and not (member["telegram_username"] or "").strip()),
             session_lang=session.get("lang", "en"),
         )
@@ -295,29 +298,48 @@ def settings_page():
                 return redirect(url_for('auth.settings_page'))
             if request.form.get("action") == "submit_feedback":
                 try:
-                    feedback_service.submit_feedback(
+                    feedback_id = feedback_service.submit_feedback(
                         conn, member_id=session["member_id"], source="web",
                         category=request.form.get("category"), message=request.form.get("message"),
                         section=request.form.get("section"),
                         logger=current_app.logger,
                     )
                     flash("Feedback submitted. Thank you!", "success")
+                    flash(legacy.get_lang("Feedback receipt").format(feedback_id), "success")
                 except feedback_service.FeedbackValidationError as exc:
                     flash(str(exc), "error")
+                    return _render_settings(member)
                 return_to = request.form.get("return_to", "")
                 if not return_to.startswith("/") or return_to.startswith("//"):
                     return_to = url_for("auth.settings_page")
                 return redirect(return_to)
             error = auth_service.add_member_email(conn, session["member_id"], request.form.get("email", ""))
             flash(error or "Email address added.", "error" if error else "success")
+            if error:
+                return _render_settings(member)
             return redirect(url_for("auth.settings_page"))
 
-        email = (member["email"] or "").strip() if member else ""
-        return render_template(
-            "settings.html", email=email, session_lang=session.get("lang", "en"),
-            feedback_telegram_enabled=bool(member and member['feedback_telegram_notifications']),
-            feedback_telegram_linked=bool(member and member['telegram_user_id']),
-        )
+        return _render_settings(member)
+
+
+def _render_settings(member):
+    return render_template(
+        "settings.html", email=(member["email"] or "").strip() if member else "",
+        session_lang=session.get("lang", "en"),
+        feedback_telegram_enabled=bool(member and member['feedback_telegram_notifications']),
+        feedback_telegram_linked=bool(member and member['telegram_user_id']),
+    )
+
+
+@auth_bp.get('/my-feedback')
+@login_required
+def my_feedback():
+    with closing(legacy.get_db()) as conn:
+        items = FeedbackRepository(conn).for_member(session['member_id'])
+    response = current_app.make_response(render_template('my_feedback.html', items=items,
+        session_lang=session.get('lang', 'en')))
+    response.headers['Cache-Control'] = 'no-store'
+    return response
 
 
 @auth_bp.route("/register", methods=["GET", "POST"], endpoint="register")

@@ -37,7 +37,7 @@ def coins_page():
     repo = CoinRepository(connection)
     items = repo.list_items(session["member_id"])
     balance = repo.member_balance(session["member_id"])
-    rankings = repo.member_rankings()
+    rankings = sorted(repo.member_rankings(), key=lambda row: (row["balance"], row["id"]))
     movements = repo.recent_movements()
     connection.close()
     return render_template(
