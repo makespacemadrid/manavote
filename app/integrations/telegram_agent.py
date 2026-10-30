@@ -25,6 +25,28 @@ from app.integrations.assistant_safety import ModelLimits, SafetyRejection, chec
 _logger = logging.getLogger(__name__)
 
 
+def model_failure_details(exc):
+    """Return bounded diagnostics without provider text, URLs or response bodies."""
+    response = getattr(exc, 'response', None)
+    status = getattr(response, 'status_code', None)
+    status = status if type(status) is int and 100 <= status <= 599 else None
+    reason = 'model_request_failed'
+    if isinstance(exc, requests.Timeout):
+        reason = 'model_timeout'
+    elif isinstance(exc, requests.ConnectionError):
+        reason = 'model_connection_failed'
+    elif isinstance(exc, requests.HTTPError):
+        reason = {
+            400: 'model_invalid_request', 401: 'model_auth_failed',
+            403: 'model_access_denied', 404: 'model_endpoint_not_found',
+            408: 'model_timeout', 413: 'model_payload_too_large',
+            429: 'model_rate_limited',
+        }.get(status, 'model_upstream_unavailable' if status is not None and status >= 500 else 'model_http_failed')
+    elif isinstance(exc, (KeyError, IndexError, TypeError, ValueError)):
+        reason = 'model_invalid_response'
+    return {'reason_code': reason, 'http_status': status}
+
+
 def _tools_with_policy(policy):
     return {name for name, assigned in mcp_tool_registry.TELEGRAM_POLICIES.items() if assigned == policy}
 
@@ -612,7 +634,12 @@ def _answer(
             )
             response.raise_for_status()
             assistant = response.json()["choices"][0]["message"]
-        except (requests.RequestException, RuntimeError, KeyError, IndexError, TypeError, ValueError):
+        except (requests.RequestException, RuntimeError, KeyError, IndexError, TypeError, ValueError) as exc:
+            details = model_failure_details(exc)
+            _logger.warning(
+                "assistant_model_failed reason_code=%s http_status=%s error_type=%s model_round=%s",
+                details['reason_code'], details['http_status'], type(exc).__name__, round_number,
+            )
             if on_event is not None:
                 on_event('model_request_failed', {'model_latency_ms': round((time.monotonic() - model_started) * 1000, 2)})
             raise
