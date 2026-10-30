@@ -1,6 +1,7 @@
-export function initializeBudget() {
-const canvas = document.getElementById("budgetChart");
-if (!canvas || !window.Chart) return;
+export function initializeBudget(doc = document, browser = window) {
+initializeActivityFilters(doc);
+const canvas = doc.getElementById("budgetChart");
+if (!canvas || !browser.Chart) return;
 
 const dailyData = JSON.parse(canvas.dataset.budget);
 const chartLabels = JSON.parse(canvas.dataset.labels);
@@ -18,7 +19,7 @@ const pendingData = dailyData.map(d => d.pending || 0);
 const committedData = cashBalanceData.map((b, i) => b - pendingData[i]);
 
 const ctx = canvas.getContext('2d');
-const budgetChart = new window.Chart(ctx, {
+const budgetChart = new browser.Chart(ctx, {
     type: 'line',
     data: {
         labels: labels,
@@ -90,6 +91,8 @@ const budgetChart = new window.Chart(ctx, {
         maintainAspectRatio: false,
         plugins: {
             legend: {
+                // Labelled checkboxes own visibility; avoid a second independent control.
+                display: false,
                 labels: { color: '#aaa' }
             }
         },
@@ -111,7 +114,7 @@ const budgetChart = new window.Chart(ctx, {
     }
 });
 
-const chartRangeButtons = Array.from(document.querySelectorAll('.chart-range-btn'));
+const chartRangeButtons = Array.from(doc.querySelectorAll('.chart-range-btn'));
 function applyChartRange(days) {
     let startIndex = 0;
     if (days !== 'all' && dailyData.length) {
@@ -125,19 +128,19 @@ function applyChartRange(days) {
     [cashBalanceData, committedData, cashInData, cashOutData, unapprovedData, approvedData]
         .forEach((values, index) => { budgetChart.data.datasets[index].data = values.slice(startIndex); });
     budgetChart.update();
-    document.querySelectorAll('[data-budget-day]').forEach(row => { row.hidden = startIndex > 0 && row.dataset.budgetDay < dailyData[startIndex]?.day; });
+    doc.querySelectorAll('[data-budget-day]').forEach(row => { row.hidden = startIndex > 0 && row.dataset.budgetDay < dailyData[startIndex]?.day; });
     chartRangeButtons.forEach(button => { const selected = button.dataset.days === String(days); button.classList.toggle('active', selected); button.setAttribute('aria-pressed', String(selected)); });
 }
 chartRangeButtons.forEach(button => button.addEventListener('click', () => applyChartRange(button.dataset.days)));
 applyChartRange('90');
 
-const controls = [...document.querySelectorAll('[data-budget-series]')];
+const controls = [...doc.querySelectorAll('[data-budget-series]')];
 function syncSeries() {
     controls.forEach(control => budgetChart.setDatasetVisibility(Number(control.dataset.budgetSeries), control.checked));
     budgetChart.update();
 }
 controls.forEach(control => control.addEventListener('change', syncSeries));
-for (const preset of document.querySelectorAll('[data-chart-preset]')) {
+for (const preset of doc.querySelectorAll('[data-chart-preset]')) {
     preset.addEventListener('click', () => {
         const indexes = preset.dataset.chartPreset.split(',').map(Number);
         controls.forEach(control => { control.checked = indexes.includes(Number(control.dataset.budgetSeries)); });
@@ -147,9 +150,13 @@ for (const preset of document.querySelectorAll('[data-chart-preset]')) {
 syncSeries();
 
 
-(() => {
-    const rows = Array.from(document.querySelectorAll('.calendar-row'));
-    const buttons = Array.from(document.querySelectorAll('#calendarLegendFilters .calendar-legend-btn'));
+
+
+}
+
+export function initializeActivityFilters(doc = document) {
+    const rows = Array.from(doc.querySelectorAll('.calendar-row'));
+    const buttons = Array.from(doc.querySelectorAll('#calendarLegendFilters .calendar-legend-btn'));
     const activeFilters = new Set(['proposal', 'approved', 'budget_in', 'budget_out']);
 
     function syncButtons() {
@@ -195,6 +202,4 @@ syncSeries();
 
     syncButtons();
     applyFilter();
-})();
-
 }

@@ -282,3 +282,8 @@ archives, Telegram linking aids and grouped Settings. See [SPEC](SPEC.md#shared-
 The [audit](UX_AUDIT_2026-10-29.md) remains the historical assessment. Physical-device,
 screen-reader, live SSO/Telegram and member task research remain follow-up validation;
 no broad navigation restructuring was attempted without that evidence.
+
+Budget follow-up: removed the duplicate clickable canvas legend so labelled series
+checkboxes remain the single visibility control and cannot drift from chart state.
+Activity filters now initialize independently of the chart library, so a failed chart
+asset does not disable ledger filtering. A frontend regression covers this failure path.
