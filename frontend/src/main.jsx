@@ -3,6 +3,7 @@ import { Nav } from './Nav.jsx';
 import './styles.css';
 import { initializeProposalFilters } from './proposalFilters.js';
 import { initializeUX } from './ux.js';
+import { initializeForms } from './forms.js';
 import { initializeBudget } from './budget.js';
 import { initializeDialogs } from './dialogs.js';
 import { initializeBrowserErrors } from './browserErrors.js';
@@ -12,6 +13,7 @@ initializeBrowserErrors();
 initializeDialogs();
 initializeAdminTabs();
 initializeUX();
+initializeForms();
 initializeBudget();
 initializeProposalFilters();
 

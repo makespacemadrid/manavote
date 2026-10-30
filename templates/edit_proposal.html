@@ -10,7 +10,7 @@
         {{ 'Budget'|lang }}: <strong>€{{ current_budget|currency }}</strong>
     </p>
     
-    <form method="POST" enctype="multipart/form-data">
+    <form method="POST" enctype="multipart/form-data" data-protect-changes>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <label>{{ 'Title'|lang }}
         <input type="text" name="title" value="{{ form_data.get('title', '') }}" required></label>

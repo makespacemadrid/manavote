@@ -313,3 +313,15 @@ order/member totals and cap headroom, and separate order management from compone
 selection. Components use responsive cards; mobile payment rows show labelled member,
 amount and payment information without horizontal hunting. Financial regressions cover
 allocated shares, rounding, paid state and members without selections.
+
+Proposal cards now show a larger image to the left of the complete content on wide
+screens, stacking above the content on phones. Native POST actions announce pending
+and slow responses, guard repeat submissions without dropping clicked action values,
+and reset when restored from browser history. Offline submissions retain the current
+entries; proposal/group-purchase creation and editing warn before leaving unsaved
+changes. Mobile-friendly field errors and JPG/PNG selection checks keep corrections
+on the same form. Danger confirmations use the same guarded submission path.
+
+Confirmation prompts now safely encode member names (including apostrophes) and the
+Koins delete prompt. Persistent CI dialog checks exercise real click/submit
+confirmations, cancellation, retained submitter values and duplicate-click guards.

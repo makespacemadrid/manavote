@@ -47,13 +47,13 @@
         <ul class="proposal-list">
             {% for p in proposals %}
             <li class="proposal-item">
+                {% if p.image_filename %}<a class="proposal-card-image" tabindex="-1" aria-hidden="true" href="{{ url_for('proposals.proposal_detail', proposal_id=p.id) }}"><img class="proposal-thumbnail" alt="" loading="lazy" src="{{ url_for('static', filename='uploads/' + p.image_filename) }}"></a>{% endif %}
                 <div class="proposal-info">
                     <a class="proposal-card-title" title="{{ p.title }}" href="{{ url_for('proposals.proposal_detail', proposal_id=p.id) }}">{{ p.title }}</a>
                     <div class="proposal-card-tags">
                         {% if p.basic_supplies %}<span class="status status-other">{{ 'basic'|lang }}</span>{% elif p.amount > 50 %}<span class="status status-other">{{ 'expensive'|lang }}</span>{% else %}<span class="status status-other">{{ 'standard'|lang }}</span>{% endif %}
                         {% if p.old_age_threshold %}<span class="status status-other">{{ 'old'|lang }}</span><span class="status status-other">{{ 'Over'|lang }} {{ p.old_age_threshold }} {{ 'days old'|lang }}</span>{% endif %}
                     </div>
-                    {% if p.image_filename %}<img class="proposal-thumbnail" alt="" src="{{ url_for('static', filename='uploads/' + p.image_filename) }}">{% endif %}
                     <div class="proposal-meta" style="margin-bottom: 8px;">
                         {{ 'by'|lang }} {{ p.creator|username }} · {{ p.created_at|localtime("%Y-%m-%d") }}
                         {% if p.user_vote %}

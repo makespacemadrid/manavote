@@ -3,7 +3,7 @@
 
 <div class="card">
     <h1>{{ 'Edit group purchase'|lang }}</h1>
-    <form method="post" enctype="multipart/form-data">
+    <form method="post" enctype="multipart/form-data" data-protect-changes>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="title">{{ 'Title'|lang }}</label><input id="title" name="title" maxlength="150" value="{{ purchase.title or '' }}" required>
         <label for="description">{{ 'Description'|lang }}</label><textarea id="description" name="description">{{ purchase.description or '' }}</textarea>

@@ -127,7 +127,40 @@ try {
       assert.deepEqual(issues,[],`${page.file}/${width}`);
       if(width===1920)assert.equal(await evaluate('Math.round(document.querySelector(".container").getBoundingClientRect().width)'),1600);
       if(page.name==='proposals'){
+        assert.ok(await evaluate(`(()=>{const image=document.querySelector('.proposal-card-image');const info=document.querySelector('.proposal-info');if(!image)return false;const a=image.getBoundingClientRect(),b=info.getBoundingClientRect();return innerWidth<=600?a.bottom<=b.top+1:a.right<=b.left+1&&a.width>=150})()`), 'Proposal image must precede the entire content');
+        if(width>=1280)assert.ok(await evaluate('document.querySelector(".proposal-card-image").getBoundingClientRect().width>=180'));
         assert.ok(await evaluate(`(()=>{const form=document.querySelector('#proposal-query');form.requestSubmit=()=>{window.filterSubmits=(window.filterSubmits||0)+1};form.querySelector('select').dispatchEvent(new Event('change'));document.querySelector('[name=age]').dispatchEvent(new Event('change'));return window.filterSubmits===2&&form.querySelector('[data-query-submit]').getBoundingClientRect().height===0})()`));
+      }
+      if(page.name==='new-proposal'){
+        assert.ok(await evaluate(`(()=>{
+          const form=document.querySelector('form[data-protect-changes]');
+          const button=form.querySelector('button[type=submit]');
+          button.name='test-action';button.value='keep-me';
+          const title=form.elements.title;title.value='Keep my mobile entry';title.dispatchEvent(new Event('input',{bubbles:true}));
+          const leaving=new Event('beforeunload',{cancelable:true});window.dispatchEvent(leaving);
+          if(!leaving.defaultPrevented)return false;
+          title.dispatchEvent(new Event('invalid',{cancelable:true}));
+          if(title.getAttribute('aria-invalid')!=='true')return false;
+          title.dispatchEvent(new Event('input',{bubbles:true}));
+          if(title.hasAttribute('aria-invalid'))return false;
+          Object.defineProperty(navigator,'onLine',{configurable:true,value:false});
+          const offline=new SubmitEvent('submit',{cancelable:true,submitter:button});form.dispatchEvent(offline);
+          if(!offline.defaultPrevented||form.hasAttribute('aria-busy')||title.value!=='Keep my mobile entry')return false;
+          Object.defineProperty(navigator,'onLine',{configurable:true,value:true});
+          const first=new SubmitEvent('submit',{cancelable:true,submitter:button});form.dispatchEvent(first);
+          const second=new SubmitEvent('submit',{cancelable:true,submitter:button});form.dispatchEvent(second);
+          const data=new FormData(form,button);
+          if(first.defaultPrevented||!second.defaultPrevented||data.get('test-action')!=='keep-me'||button.disabled||form.getAttribute('aria-busy')!=='true')return false;
+          window.dispatchEvent(new Event('pageshow'));
+          if(form.hasAttribute('aria-busy')||button.hasAttribute('aria-disabled'))return false;
+          const cancelled=new SubmitEvent('submit',{cancelable:true,submitter:button});cancelled.preventDefault();form.dispatchEvent(cancelled);
+          if(form.hasAttribute('aria-busy'))return false;
+          const image=form.elements.image;
+          const bad=new DataTransfer();bad.items.add(new File(['invalid'],'phone.heic',{type:'image/heic'}));image.files=bad.files;image.dispatchEvent(new Event('change'));
+          if(image.validity.valid||title.value!=='Keep my mobile entry')return false;
+          const good=new DataTransfer();good.items.add(new File(['png'],'phone.PNG',{type:'image/png'}));image.files=good.files;image.dispatchEvent(new Event('change'));
+          return image.validity.valid&&!image.hasAttribute('aria-invalid');
+        })()`), 'Forms must retain entries offline, prevent repeat submits, preserve submitter values and reset on history navigation');
       }
       if(page.name==='groups'&&width<=600){
         assert.ok(await evaluate(`[...document.querySelectorAll('.purchase-debts-table')].every(table=>table.scrollWidth<=table.parentElement.clientWidth+1)`), 'Mobile payment rows must fit without scrolling');

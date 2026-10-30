@@ -175,14 +175,14 @@
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="action" value="remove_member">
                             <input type="hidden" name="member_id" value="{{ m.id }}">
-                            <button type="submit" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" onclick="return confirmDangerAction(this.form, 'Remove {{ m.username }} from members? This cannot be undone.')">{{ 'Remove'|lang }}</button>
+                            <button type="submit" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" onclick="return confirmDangerAction(this.form, {{ ('Remove ' ~ m.username ~ ' from members? This cannot be undone.')|tojson|forceescape }})">{{ 'Remove'|lang }}</button>
                         </form>
                         {% if m.telegram_username or m.telegram_user_id %}
                         <form method="POST" style="display: inline;">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
                             <input type="hidden" name="action" value="unlink_telegram">
                             <input type="hidden" name="member_id" value="{{ m.id }}">
-                            <button type="submit" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" onclick="return confirmDangerAction(this.form, '{{ ('Unlink Telegram account for %s? They will need to run /link again.')|lang|replace('%s', m.username) }}')">{{ 'Unlink Telegram'|lang }}</button>
+                            <button type="submit" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" onclick="return confirmDangerAction(this.form, {{ ('Unlink Telegram account for %s? They will need to run /link again.')|lang|replace('%s', m.username)|tojson|forceescape }})">{{ 'Unlink Telegram'|lang }}</button>
                         </form>
                         {% endif %}
                         <button type="button" class="btn btn-secondary" style="padding: 4px 8px; font-size: 0.75em;" data-password-open data-member-id="{{ m.id }}" data-username="{{ m.username }}" aria-haspopup="dialog" aria-controls="changePasswordModal">{{ 'Change Password'|lang }}</button>
@@ -484,7 +484,7 @@
         <div class="coin-admin-field"><label for="admin-coin-pack-size-{{ item.id }}">{{ 'Default purchase amount'|lang }}</label><input id="admin-coin-pack-size-{{ item.id }}" name="pack_size" type="number" min="1" max="1000" value="{{ item.pack_size }}" required></div>
         <button class="btn btn-secondary" type="submit">{{ 'Save item'|lang }}</button>
     </form>
-    <form class="coin-admin-delete-form" method="post" action="{{ url_for('coins.delete_coin_item', item_id=item.id) }}" onsubmit="return confirmDangerAction(this, {{ 'Delete this koin item? Its movement history will be preserved.'|lang|tojson }});">
+    <form class="coin-admin-delete-form" method="post" action="{{ url_for('coins.delete_coin_item', item_id=item.id) }}" onsubmit="return confirmDangerAction(this, {{ 'Delete this koin item? Its movement history will be preserved.'|lang|tojson|forceescape }});">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <button class="btn btn-danger" type="submit">{{ 'Delete item'|lang }}</button>
     </form>

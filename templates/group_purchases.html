@@ -18,7 +18,7 @@
 <div class="card">
     <h1>🛒 {{ 'Create group purchase'|lang }}</h1>
     <p class="hint">{{ 'Group purchases intro'|lang }}</p>
-    <form method="post" enctype="multipart/form-data">
+    <form method="post" enctype="multipart/form-data" data-protect-changes>
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="title">{{ 'Title'|lang }}</label>
         <input id="title" name="title" maxlength="150" required value="{{ submitted.get('title', '') }}" placeholder="{{ 'Group purchase example'|lang }}">

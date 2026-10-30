@@ -12,6 +12,7 @@ from app.web.routes import main_routes
 @pytest.mark.parametrize('language',['en','es'])
 def test_capture_ui_layouts(ui_client, language):
     conn=main_routes.get_db()
+    conn.execute("UPDATE proposals SET image_filename='layout-proposal.png' WHERE id=1")
     for id, status, multiple in [(1,'open',0),(2,'open',1),(3,'closed',0)]:
         conn.execute('INSERT INTO polls(id,question,options_json,created_by,status,allow_multiple) VALUES (?,?,?,?,?,?)',
             (id,'Which shared workshop should we run next?',json.dumps(['Soldering and electronics','Laser cutting: materials, safety and project planning','Maintaining and calibrating shared 3D printers']),1,status,multiple))
@@ -42,6 +43,7 @@ def test_capture_ui_layouts(ui_client, language):
         markup=response.get_data(as_text=True)
         if name=='polls':assert 'class="poll-option"' in markup and '<fieldset class="poll-options" disabled>' in markup
         if directory:
+            markup=markup.replace('/static/uploads/layout-proposal.png','/static/img/proposals.png')
             for image_path in re.findall(r'/koins/qr/[^" ]+\.png',markup):
                 image=ui_client.get(image_path);assert image.status_code==200
                 image_file=image_path.split('/')[-1];(directory/image_file).write_bytes(image.data)
