@@ -1143,3 +1143,6 @@ for _message, _spanish in _UX_DETAILS_ES.items():
     TRANSLATIONS['en'].setdefault(_message, _message)
     TRANSLATIONS['es'].setdefault(_message, _spanish)
 del _message, _spanish
+
+TRANSLATIONS['en']['QR images could not load. Refresh and try again.'] = 'QR images could not load. Refresh and try again.'
+TRANSLATIONS['es']['QR images could not load. Refresh and try again.'] = 'No se pudieron cargar los códigos QR. Actualiza la página e inténtalo de nuevo.'

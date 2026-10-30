@@ -642,3 +642,11 @@ gauges, exactly-once terminal counts/reasons, stage failures and bounded latency
 plus safe configuration. Responses omit identities, conversation contents and credentials
 and disable caching. Counters reset on process restart; health reports configuration and
 capacity, not an external provider liveness guarantee.
+
+### Printed consumable QR branding
+
+Coke labels use red COKE headings and embedded Coca-Cola artwork; Coke Zero uses a
+black COKE ZERO heading and black artwork with ZERO beneath it. Common Coke/Coca-Cola
+name variants use the same branding. Other items retain plain QR codes. The four-module
+quiet zone and high error correction remain intact. Print waits for all QR images to
+decode and reports loading errors instead of opening an incomplete print view.

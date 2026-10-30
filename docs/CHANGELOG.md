@@ -294,3 +294,8 @@ single column and full-width introductory paragraphs.
 Telegram assistant HTTP failures now include safe model-stage status/reason/round
 metadata in diagnostic warnings. Provider credentials, response text and prompts remain
 excluded. Historical generic HTTPError records cannot establish the upstream cause.
+
+Printed Coke/Coke Zero QRs now embed recognizable Coca-Cola artwork instead of a
+small text-circle placeholder, with a black Zero treatment and the large red/black
+headings preserved. Branding tolerates common item-name aliases. Printing waits for
+QR images to decode, reports image-loading failure, and preserves print colours.
