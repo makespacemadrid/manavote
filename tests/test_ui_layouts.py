@@ -12,7 +12,7 @@ from app.web.routes import main_routes
 @pytest.mark.parametrize('language',['en','es'])
 def test_capture_ui_layouts(ui_client, language):
     conn=main_routes.get_db()
-    conn.execute("UPDATE proposals SET image_filename='layout-proposal.png' WHERE id=1")
+    conn.execute("UPDATE proposals SET image_filename='layout-proposal.png',voting_deadline='2099-01-11T17:00:00' WHERE id=1")
     for id, status, multiple in [(1,'open',0),(2,'open',1),(3,'closed',0)]:
         conn.execute('INSERT INTO polls(id,question,options_json,created_by,status,allow_multiple) VALUES (?,?,?,?,?,?)',
             (id,'Which shared workshop should we run next?',json.dumps(['Soldering and electronics','Laser cutting: materials, safety and project planning','Maintaining and calibrating shared 3D printers']),1,status,multiple))

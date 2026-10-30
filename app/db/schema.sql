@@ -21,6 +21,7 @@ CREATE TABLE IF NOT EXISTS proposals (
     amount REAL NOT NULL,
     url TEXT,
     image_filename TEXT,
+    voting_deadline TEXT,
     created_by INTEGER NOT NULL,
     created_at TEXT DEFAULT CURRENT_TIMESTAMP,
     status TEXT DEFAULT 'active',

@@ -122,3 +122,18 @@ successful queued cancellation runs no model/tool work, removes the status messa
 where Telegram permits, and releases capacity once. Webhook retries remain deduplicated.
 Queued execution rechecks live identity/role; `/confirm` retains admission and its
 actor/role/schema/digest/expiry checks. See [operator limits](../OPERATIONS.md#assistant-operator-health).
+
+## Copy announcements and deadline warnings
+
+Confirmed assistant copies announce the newly created proposal, poll or group purchase
+to the configured platform group/thread, independently of the assistant's command reply.
+Web, REST and direct MCP copies use the same backend. Repeated requests reuse the
+original copy and never repeat its announcement. Proposal/poll announcements include
+the new record's voting controls when Telegram voting is enabled.
+
+The scheduler posts one warning during the final 24 hours of a specified voting or
+joining deadline. It checks every minute, deduplicates across workers/restarts, and
+skips closed, expired, deleted or changed periods. Purchase dates mean the end of that
+day in the configured timezone. Early member/amount-cap closures cannot be predicted.
+See [MCP deadline warnings](MCP.md#deadline-warnings) and
+[delivery operations](../OPERATIONS.md#platform-notifications) for failure semantics.

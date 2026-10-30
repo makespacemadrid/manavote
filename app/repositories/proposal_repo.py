@@ -2,7 +2,7 @@ class ProposalRepository:
     def __init__(self, conn):
         self.conn = conn
 
-    def create(self, title, description, amount, url, created_by, basic_supplies, image_filename=None):
+    def create(self, title, description, amount, url, created_by, basic_supplies, image_filename=None, *, voting_deadline=None):
         """Insert a proposal; auto-clears basic_supplies when amount exceeds the €20 threshold."""
         cur = self.conn.cursor()
         if image_filename is None:
@@ -19,6 +19,8 @@ class ProposalRepository:
                 (title, description, amount, url, image_filename, created_by, basic_supplies),
             )
         proposal_id = cur.lastrowid
+        if voting_deadline:
+            self.set_voting_deadline(proposal_id,voting_deadline)
         if basic_supplies and amount > 20.0:
             cur.execute("UPDATE proposals SET basic_supplies = 0 WHERE id = ?", (proposal_id,))
             cur.execute(
@@ -32,6 +34,9 @@ class ProposalRepository:
         cur = self.conn.cursor()
         cur.execute("SELECT * FROM proposals WHERE id = ?", (proposal_id,))
         return cur.fetchone()
+
+    def set_voting_deadline(self, proposal_id, deadline):
+        self.conn.execute('UPDATE proposals SET voting_deadline=? WHERE id=?', (deadline,proposal_id))
 
     def detail_with_creator(self, proposal_id):
         return self.conn.execute(
@@ -57,7 +62,7 @@ class ProposalRepository:
 
     def api_details(self, proposal_id):
         return self.conn.execute(
-            "SELECT id, title, description, amount, url, created_by, status, created_at, basic_supplies FROM proposals WHERE id = ?",
+            "SELECT id, title, description, amount, url, created_by, status, created_at, basic_supplies, voting_deadline FROM proposals WHERE id = ?",
             (proposal_id,),
         ).fetchone()
 
@@ -74,7 +79,7 @@ class ProposalRepository:
             params.append(cutoff)
         where = " WHERE " + " AND ".join(conditions) if conditions else ""
         return self.conn.execute(
-            """SELECT p.id, p.title, p.description, p.amount, p.url, p.created_by, p.status, p.created_at, p.basic_supplies,
+            """SELECT p.id, p.title, p.description, p.amount, p.url, p.created_by, p.status, p.created_at, p.basic_supplies, p.voting_deadline,
                       COALESCE(SUM(CASE WHEN v.vote = 'in_favor' THEN 1 ELSE 0 END), 0) AS yes_votes,
                       COALESCE(SUM(CASE WHEN v.vote = 'against' THEN 1 ELSE 0 END), 0) AS no_votes
                FROM proposals p LEFT JOIN votes v ON v.proposal_id = p.id""" + where +

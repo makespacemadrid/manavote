@@ -24,6 +24,9 @@
         <label>{{ 'URL (optional)'|lang }}
         <input type="url" name="url" value="{{ form_data.get('url') or '' }}" placeholder="{{ 'Product URL placeholder'|lang }}"></label>
         
+        <label>{{ 'Voting deadline (optional)'|lang }}
+        <input type="datetime-local" id="voting_deadline" name="voting_deadline" value="{{ form_data.get('voting_deadline') or '' }}"{% if field_errors.get('voting_deadline') %} aria-invalid="true" aria-describedby="voting_deadline-error"{% endif %}></label>
+        {% if field_errors.get('voting_deadline') %}<p class="field-error" id="voting_deadline-error">{{ field_errors['voting_deadline']|lang }}</p>{% endif %}
         <label for="proposal-image">{{ 'Image optional JPG PNG only'|lang }}</label>
         {% if proposal.image_filename %}
         <div style="margin: 10px 0;">

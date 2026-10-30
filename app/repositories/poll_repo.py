@@ -5,12 +5,14 @@ class PollRepository:
     def __init__(self, conn):
         self.conn = conn
 
-    def create(self, question, options, created_by, allow_multiple=False):
+    def create(self, question, options, created_by, allow_multiple=False, *, closes_at=None):
         cur = self.conn.cursor()
         cur.execute(
             "INSERT INTO polls (question, options_json, created_by, status, allow_multiple) VALUES (?, ?, ?, 'open', ?)",
             (question, json.dumps(options), created_by, 1 if allow_multiple else 0),
         )
+        if closes_at:
+            self.conn.execute('UPDATE polls SET closes_at=? WHERE id=?', (closes_at,cur.lastrowid))
         self.conn.commit()
         return cur.lastrowid
 
@@ -38,7 +40,7 @@ class PollRepository:
 
     def list_for_api(self, limit, offset):
         return self.conn.execute('''SELECT p.id, p.question, p.options_json, p.status, p.created_at,
-            p.created_by, p.allow_multiple,
+            p.created_by, p.allow_multiple, p.closes_at,
             (SELECT COUNT(*) FROM poll_votes pv WHERE pv.poll_id = p.id) AS total_votes
             FROM polls p ORDER BY p.created_at DESC LIMIT ? OFFSET ?''', (limit, offset)).fetchall()
 

@@ -230,7 +230,7 @@ and stack above the content on phones.
   participation, approval, purchase, payment, or historical deadline state. Optional new
   titles/questions and future deadlines are supported. Group purchases retain their
   member/amount closing rules and obey them on creation. Sources and budgets are unchanged;
-  no announcements are sent. See the [MCP reference](interfaces/MCP.md#copy-tools).
+  fresh copies announce to Telegram through a durable shared notification queue. Replays do not announce again. See the [MCP reference](interfaces/MCP.md#copy-tools).
 - Copy tools now persist creator-scoped idempotency keys. Same-key retries return the
   original result, conflicting reuse is rejected, and identical requests without an
   explicit key reuse the original copy. Fresh keys allow intentional new copies.
@@ -682,3 +682,23 @@ without selections sees a zero share and explicit no-selection state. Responsive
 component cards and labelled mobile payment rows preserve the existing quantities,
 allocation calculations and creator/admin permissions; lifecycle badges reflect the
 actual open/closed/ordered/received state.
+
+### Platform notification deadlines
+
+Web, REST, MCP and Telegram-assistant copies share transactional notification keys.
+A fresh copy queues an announcement; same-request replays do not create or send one.
+REST exposes `/api/proposals/<id>/copy`, `/api/polls/<id>/copy`, and
+`/api/group-purchases/<id>/copy` under the existing admin-key boundary.
+Proposal deadlines are now persisted as `proposals.voting_deadline`; creation accepts
+`voting_deadline`, poll creation accepts `closes_at`, and all copy kinds accept
+`deadline`. UTC-normalized deadlines are exposed in REST/MCP reads. Web local datetime
+inputs use the configured platform timezone.
+
+A minute scheduler posts Telegram warnings for active proposals/open polls/open
+purchases within 24 hours of their specified deadline, deduplicated by item and
+deadline across workers and restarts. Date-only purchase deadlines use next local
+midnight, respecting timezone/DST. Late startup catches up before expiry. Missing,
+expired, changed or already-closed periods are skipped; member/amount thresholds
+cannot be predicted. These warnings do not change approval rules or lifecycle states.
+Delivery attempts are claimed before network I/O; ambiguous failures are logged and
+not automatically resent. Missing bot/chat configuration leaves events pending.

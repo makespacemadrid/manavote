@@ -120,7 +120,7 @@ class TestScheduledBackupJob(unittest.TestCase):
             scheduler = backup_service.start_scheduler(app, "/tmp/app.db", "/tmp/uploads")
             try:
                 jobs = {job.id: job for job in scheduler.get_jobs()}
-                self.assertEqual(set(jobs), {"daily_backup", "daily_uploads_backup"})
+                self.assertEqual(set(jobs), {"daily_backup", "daily_uploads_backup", "platform_notifications"})
 
                 with patch("app.web.routes.helpers.admin_audit_helpers.log_admin_backup_event") as log_mock:
                     db_job = jobs["daily_backup"]

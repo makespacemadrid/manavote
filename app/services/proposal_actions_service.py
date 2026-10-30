@@ -147,7 +147,7 @@ def update_comment(connection, *, comment_id, member_id, is_admin, content):
     return {"proposal_id": comment["proposal_id"], "updated": True}
 
 
-def update_api_proposal(connection, *, proposal_id, title, description, amount, url, basic_supplies):
+def update_api_proposal(connection, *, proposal_id, title, description, amount, url, basic_supplies, voting_deadline=...):
     proposal = ProposalRepository(connection).get_by_id(proposal_id)
     if proposal is None:
         raise ProposalActionError('proposal_not_found')
@@ -155,6 +155,8 @@ def update_api_proposal(connection, *, proposal_id, title, description, amount, 
         raise ProposalActionError('proposal_processed')
     try:
         ProposalRepository(connection).update_fields(proposal_id, title, description, amount, url, basic_supplies)
+        if voting_deadline is not ...:
+            ProposalRepository(connection).set_voting_deadline(proposal_id,voting_deadline)
         connection.commit()
     except sqlite3.Error:
         connection.rollback()
@@ -173,24 +175,28 @@ def get_proposal_for_web_edit(connection, *, proposal_id, member_id, is_admin):
 
 
 def create_web_proposal(connection, *, title, description, amount, url, image_filename,
-                        member_id, basic_supplies, process_proposal):
+                        member_id, basic_supplies, process_proposal, voting_deadline=None):
     from app.repositories.member_repo import MemberRepository
     proposal_id = ProposalRepository(connection).create(
         title, description, amount, url, member_id, basic_supplies, image_filename,
     )
     VoteRepository(connection).insert_creator_vote(proposal_id, member_id)
+    if voting_deadline:
+        ProposalRepository(connection).set_voting_deadline(proposal_id,voting_deadline)
     connection.commit()
     process_proposal(proposal_id)
     return proposal_id, MemberRepository(connection).get_by_id(member_id)['username']
 
 
 def update_web_proposal(connection, *, proposal_id, member_id, is_admin, title, description,
-                        amount, url, image_filename, basic_supplies):
+                        amount, url, image_filename, basic_supplies, voting_deadline=...):
     get_proposal_for_web_edit(connection, proposal_id=proposal_id, member_id=member_id, is_admin=is_admin)
     repo = ProposalRepository(connection)
     try:
         repo.update_fields(proposal_id, title, description, amount, url, basic_supplies,
                            image_filename, update_image=True)
+        if voting_deadline is not ...:
+            repo.set_voting_deadline(proposal_id,voting_deadline)
         if basic_supplies and amount > 20.0:
             repo.set_basic_supplies(proposal_id, 0)
             CommentRepository(connection).create(proposal_id, member_id, 'Auto-removed basic supplies flag: amount over €20')

@@ -565,3 +565,41 @@ authenticate it. Authorized requests return JSON with `scope`, `reset`, `queued`
 `status`; responses use `Cache-Control: no-store`. Anonymous/non-admin requests redirect.
 See [OPERATIONS](../OPERATIONS.md#assistant-operator-health) for exact meanings and
 process-local limitations. No new MCP tool or public health endpoint is introduced.
+
+## Copy existing items
+
+Admin-key authenticated JSON endpoints (`X-Admin-Key`, same authorization as creation):
+
+| Endpoint | Optional label override |
+| --- | --- |
+| `POST /api/proposals/<id>/copy` | `title` |
+| `POST /api/polls/<id>/copy` | `question` |
+| `POST /api/group-purchases/<id>/copy` | `title` |
+
+Body: required positive integer `created_by`; optional label, `deadline`, and
+`idempotency_key`. Unknown fields are rejected. These use the same service, retry
+keys and Telegram announcements as the web Copy buttons and MCP copy tools.
+`deadline` is a future timezone-qualified ISO datetime for proposals/polls, or
+current/future YYYY-MM-DD for purchases. Omit/null clears the old deadline.
+
+Fresh success: HTTP 201, e.g.
+`{"success":true,"source_id":42,"proposal_id":43,"warnings":[],"replayed":false}`.
+A retry returns HTTP 200 with the original ID and `replayed:true`, without another
+announcement. Creator-scoped keys work across transports; reuse the same arguments
+for retries, or use a fresh key for an intentional extra copy. Without a key, identical
+arguments reuse their original result. Errors retain the standard envelope: 400
+invalid fields, 404 missing source/creator, 409 conflicting key, 503 storage unavailable.
+
+## Deadlines and Telegram warnings
+
+`POST /api/proposals` and `PUT/PATCH /api/proposals/<id>` accept optional
+`voting_deadline`; `POST /api/polls` accepts optional `closes_at`. Supply a future ISO
+datetime with timezone, e.g. `2099-01-11T18:00:00+01:00`; null clears a proposal
+deadline on edit, while omission leaves it unchanged. Invalid values return HTTP 400
+(`invalid_voting_deadline` / `invalid_closes_at`). Proposal and poll reads expose
+these fields as UTC-naive ISO strings or null.
+
+Still-open items receive one Telegram warning per deadline during their final
+24 hours, checked every minute. Purchase dates use the end of the day in the platform
+timezone; caps can close joining earlier. See [MCP deadline warnings](MCP.md#deadline-warnings)
+for scheduling and delivery semantics shared by all entry points.

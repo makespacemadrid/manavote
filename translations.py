@@ -1173,3 +1173,6 @@ TRANSLATIONS['es']['No selection yet'] = 'Todavía no has elegido unidades'
 
 TRANSLATIONS['en']['Order management'] = 'Order management'
 TRANSLATIONS['es']['Order management'] = 'Gestionar pedido'
+
+TRANSLATIONS['en']['Voting deadline'] = 'Voting deadline'
+TRANSLATIONS['es']['Voting deadline'] = 'Plazo de votación'

@@ -363,3 +363,26 @@ captures this warning alongside the webhook's generic `assistant_failed` warning
 Old exports that only contain `HTTPError` cannot identify the status or prove which
 configuration/provider condition failed. This change improves evidence for the next
 failure; it does not retroactively diagnose those events or automatically replay actions.
+
+## Platform notifications
+
+The existing production APScheduler now runs `platform_notifications` every minute
+alongside backups. Test-mode startup still disables the scheduler. It uses
+`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, optional `TELEGRAM_THREAD_ID`, and settings
+`url`/`timezone` (Europe/Madrid fallback). No extra cron service is required.
+
+`platform_notifications` stores copy/deadline event keys and delivery states:
+`pending`, `sending`, `sent`, `failed`, `skipped`. Missing Telegram configuration leaves
+events pending; the next scheduled run can deliver once configured. Claims commit
+before network I/O, so multiple workers/restarts cannot duplicate sends. A crash after
+claim or an ambiguous transport failure is not automatically retried: investigate
+`event=platform_notification` logs and the group's message history before any manual
+resend. `failed`/`sending` must not be blindly reset; Telegram has no idempotency token.
+Notification failures never undo an already-committed copy.
+
+Warnings are queued once per item/deadline in the final 24 hours, skip stale/closed
+items at delivery, and never send after expiry. No deadline means no warning. Purchase
+dates mean the end of that local day; early closures at member/amount limits cannot
+receive a reliable 24-hour advance warning. Older proposal deadlines were only included
+in announcement text and cannot be reconstructed automatically; set them explicitly
+through the edit form or API if needed. Warnings do not change lifecycle policies.
