@@ -29,6 +29,7 @@
         </div>
         <div class="proposal-amount">€{{ proposal.amount|currency }}</div>
     </div>
+    {% if proposal.voting_deadline %}<p class="help-text">{{ 'Voting deadline'|lang }}: {{ proposal.voting_deadline|localtime('%Y-%m-%d %H:%M') }}</p>{% endif %}
     
     {% if proposal.image_filename %}
     <div style="margin: 20px 0;">

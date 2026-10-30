@@ -12,6 +12,7 @@ from app.db.transactions import write_transaction
 from app.repositories.copy_repo import CopyRepository
 from app.repositories.group_purchase_repo import GroupPurchaseRepository
 from app.services import group_purchase_service
+from app.services.platform_notification_service import queue_copy, deliver_pending
 
 
 class CopyNotFound(ValueError):
@@ -61,21 +62,21 @@ def copy_item(conn, *, kind, source_id, created_by, upload_folder, label=None, d
                 result['replayed'] = True
                 return result
             if deadline is not None:
-                if kind == 'proposal' or not isinstance(deadline, str):
+                if not isinstance(deadline, str):
                     raise ValueError('Invalid deadline')
                 try:
-                    if kind == 'poll':
+                    if kind in {'poll', 'proposal'}:
                         parsed = datetime.fromisoformat(deadline.replace('Z', '+00:00'))
                         if parsed.tzinfo is None:
-                            raise ValueError('Poll deadline must include a timezone')
+                            raise ValueError('Voting deadline must include a timezone')
                         if parsed <= datetime.now(timezone.utc):
-                            raise ValueError('Poll deadline must be in the future')
+                            raise ValueError('Voting deadline must be in the future')
                         # Existing poll scheduling compares UTC-naive ISO timestamps.
                         deadline = parsed.astimezone(timezone.utc).replace(tzinfo=None).isoformat()
                     elif date.fromisoformat(deadline) < date.today():
                         raise ValueError('Order deadline must not be in the past')
                 except (TypeError, ValueError) as exc:
-                    raise ValueError('Supply a future timezone-qualified poll deadline or current/future order date') from exc
+                    raise ValueError('Supply a future timezone-qualified voting deadline or current/future order date') from exc
             if not repo.member_exists(created_by):
                 raise CopyNotFound('Creator member not found')
             source = repo.source(kind, source_id)
@@ -97,7 +98,7 @@ def copy_item(conn, *, kind, source_id, created_by, upload_folder, label=None, d
                 else:
                     warnings.append('Source image was unavailable; copied without an image.')
             if kind == 'proposal':
-                new_id = repo.proposal(source, created_by, title, new_image)
+                new_id = repo.proposal(source, created_by, title, new_image, deadline)
             elif kind == 'poll':
                 new_id = repo.poll(source, created_by, title, deadline)
             else:
@@ -118,9 +119,14 @@ def copy_item(conn, *, kind, source_id, created_by, upload_folder, label=None, d
                 group_purchase_service.enforce_purchase_limits(groups, new_id)
             result = {'success': True, 'source_id': source_id, kind + '_id': new_id, 'warnings': warnings, 'replayed': False}
             repo.save_request(created_by, request_key, fingerprint, json.dumps(result, ensure_ascii=False))
+            queue_copy(conn, kind, new_id)
         committed = True
     finally:
         if new_image and not committed:
             (Path(upload_folder) / new_image).unlink(missing_ok=True)
     logging.getLogger(__name__).info('event=item_copied kind=%s source_id=%s new_id=%s actor_id=%s', kind, source_id, new_id, created_by)
+    try:
+        deliver_pending(conn,event_key=f'copy:{kind}:{new_id}')
+    except Exception:
+        logging.getLogger(__name__).warning('event=copy_notification_deferred kind=%s new_id=%s', kind, new_id)
     return result

@@ -27,6 +27,7 @@ from app.repositories.coin_repo import CoinRepository
 from app.services import coin_service, feedback_service, pagination_service, poll_service, voting_settings_service
 from app.services import mcp_application
 from app.services.copy_service import copy_item, CopyNotFound, CopyConflict
+from app.services.platform_notification_service import normalize_voting_deadline
 from app.services import telegram_messaging_service
 from app.services.creation_validation_service import normalize_poll_options
 from app.services.telegram_link_diagnostics import LINKED_CONDITION_SQL, link_state_case_sql
@@ -79,12 +80,14 @@ def _create_proposal_record(
     created_by_val: int,
     basic_supplies: int,
     image_filename: str | None = None,
+    voting_deadline: str | None = None,
 ) -> int:
     conn = sqlite3.connect(DB_PATH)
     try:
         return int(
             ProposalRepository(conn).create(
-                title, description, amount_val, url, created_by_val, basic_supplies, image_filename
+                title, description, amount_val, url, created_by_val, basic_supplies, image_filename,
+                **({'voting_deadline':voting_deadline} if voting_deadline else {})
             )
             or 0
         )
@@ -419,6 +422,7 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "required": ["title", "amount", "created_by"],
                 "properties": {
                     "title": {"type": "string", "minLength": 1},
+                    "voting_deadline": {"type": ["string", "null"], "description": "Future ISO datetime with timezone; optional."},
                     "description": {"type": "string"},
                     "amount": {"type": "number", "exclusiveMinimum": 0},
                     "url": {"type": "string"},
@@ -451,6 +455,7 @@ def tool_definitions() -> list[dict[str, Any]]:
                 "required": ["question", "options", "created_by"],
                 "properties": {
                     "question": {"type": "string", "minLength": 5, "maxLength": 200},
+                    "closes_at": {"type": ["string", "null"], "description": "Future ISO datetime with timezone; optional."},
                     "options": {
                         "type": "array",
                         "minItems": 2,
@@ -467,12 +472,12 @@ def tool_definitions() -> list[dict[str, Any]]:
         },
     ] + [
         {'name': 'copy_' + kind,
-         'description': f'Copy an existing {kind.replace("_", " ")} into a fresh item. No votes, comments, orders, payments or lifecycle history are copied. Old deadlines are cleared. Does not send announcements. Admin-only action.',
+         'description': f'Copy an existing {kind.replace("_", " ")} into a fresh item. No votes, comments, orders, payments or lifecycle history are copied. Old deadlines are cleared. Announces fresh copies to Telegram; retries do not announce again. Admin-only action.',
          'inputSchema': {'type': 'object', 'required': ['source_id', 'created_by'], 'additionalProperties': False,
              'properties': {'source_id': {'type': 'integer', 'minimum': 1}, 'created_by': {'type': 'integer', 'minimum': 1},
                  ('question' if kind == 'poll' else 'title'): {'type': 'string', 'minLength': 1},
                  'idempotency_key': {'type': 'string', 'minLength': 1, 'maxLength': 128, 'description': 'Reuse for retries; use a fresh key for another intentional copy. Without a key, identical copy arguments reuse their original result.'},
-                 **({'deadline': {'type': ['string', 'null'], 'description': 'New future ISO datetime including timezone for polls; current/future YYYY-MM-DD for orders. Omit to clear.'}} if kind != 'proposal' else {})}}}
+                 'deadline': {'type': ['string', 'null'], 'description': 'New future ISO datetime including timezone for proposals/polls; current/future YYYY-MM-DD for orders. Omit to clear.'}}}}
         for kind in ('proposal', 'poll', 'group_purchase')
     ]
 
@@ -494,7 +499,7 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
     if normalized_name in {'copy_proposal', 'copy_poll', 'copy_group_purchase'}:
         kind = normalized_name.removeprefix('copy_')
         label_key = 'question' if kind == 'poll' else 'title'
-        allowed = {'source_id', 'created_by', label_key, 'idempotency_key'} | ({'deadline'} if kind != 'proposal' else set())
+        allowed = {'source_id', 'created_by', label_key, 'idempotency_key', 'deadline'}
         if set(arguments) - allowed:
             return _error(req_id, -32602, 'Invalid params: unsupported copy fields')
         if label_key in arguments and arguments[label_key] is None:
@@ -544,7 +549,7 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
             return pagination_error
         query = (
             "SELECT p.id,p.title,p.description,p.amount,p.url,p.image_filename,p.status,"
-            "p.created_at,p.processed_at,p.over_budget_at,p.purchased_at,p.basic_supplies,"
+            "p.created_at,p.processed_at,p.over_budget_at,p.purchased_at,p.basic_supplies,p.voting_deadline,"
             "p.created_by,m.username, "
             "(SELECT COUNT(*) FROM votes v WHERE v.proposal_id = p.id AND v.vote = 'in_favor') AS yes_votes, "
             "(SELECT COUNT(*) FROM votes v WHERE v.proposal_id = p.id AND v.vote = 'against') AS no_votes, "
@@ -961,6 +966,10 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
         return _tool_text(req_id, {"success": True, "feedback_id": feedback_id})
 
     if normalized_name == "create_proposal":
+        try:
+            voting_deadline = normalize_voting_deadline(arguments.get('voting_deadline'))
+        except ValueError as exc:
+            return _error(req_id,-32602,str(exc))
         title = str(arguments.get("title") or "").strip()
         description = str(arguments.get("description") or "")
         url = str(arguments.get("url") or "")
@@ -990,7 +999,8 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
                 return _error(req_id, -32602, f"Invalid params: {exc}")
         try:
             proposal_id = _create_proposal_record(
-                title, description, amount_val, url, created_by_val, basic_supplies, image_filename
+                title, description, amount_val, url, created_by_val, basic_supplies, image_filename,
+                **({'voting_deadline':voting_deadline} if voting_deadline else {})
             )
         except sqlite3.IntegrityError as exc:
             _remove_uploaded_image(image_filename)
@@ -1004,6 +1014,10 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
         return _tool_text(req_id, payload)
 
     if normalized_name == "create_poll":
+        try:
+            closes_at = normalize_voting_deadline(arguments.get('closes_at'))
+        except ValueError as exc:
+            return _error(req_id,-32602,str(exc))
         question = str(arguments.get("question") or "").strip()
         options = arguments.get("options")
         created_by = arguments.get("created_by")
@@ -1030,7 +1044,8 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
             return _error(req_id, -32004, "Not found: creator member not found")
         conn = sqlite3.connect(DB_PATH)
         try:
-            poll_id = PollRepository(conn).create(question, cleaned, created_by_val, allow_multiple)
+            poll_id = PollRepository(conn).create(question, cleaned, created_by_val, allow_multiple,
+                **({'closes_at':closes_at} if closes_at else {}))
         finally:
             conn.close()
         telegram_messaging_service.send_telegram_message(
@@ -1038,7 +1053,7 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
             TELEGRAM_BOT_TOKEN,
             TELEGRAM_CHAT_ID,
             TELEGRAM_THREAD_ID,
-            poll_service.build_poll_announcement_message(question, cleaned, allow_multiple=allow_multiple),
+            poll_service.build_poll_announcement_message(question, cleaned, closes_at=closes_at, allow_multiple=allow_multiple),
             poll_id,
             cleaned,
         )

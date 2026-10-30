@@ -33,7 +33,7 @@ If key is missing/invalid, server responds with JSON-RPC error code `-32001` and
 Telegram assistant they require administrator confirmation and bind `created_by` to the
 linked administrator rather than trusting model-supplied attribution.
 
-- `copy_proposal`: optionally override `title`. Copies description, amount, product URL,
+- `copy_proposal`: optionally override `title` and `deadline` (future ISO datetime with timezone). Copies description, amount, product URL,
   basic-supplies flag (subject to the €20 rule), and an independent local image. Starts
   active with no votes, comments, approval/purchase timestamps, or budget/ledger changes.
 - `copy_poll`: optionally override `question` and `deadline`. Copies options and multiple-
@@ -50,7 +50,7 @@ Example tool arguments: `{"source_id":42,"created_by":7,"title":"Next month's or
 for `copy_group_purchase`. Other override fields are rejected. Success returns `success`,
 `source_id`, the new `proposal_id`/`poll_id`/`group_purchase_id`, and `warnings`.
 Missing source/creator returns `-32004`, invalid inputs `-32602`, and storage failures
-`-32012`. Copying is transactional and does not send announcements or modify the source.
+`-32012`. Copying is transactional and does not modify the source. Fresh copies queue a Telegram announcement through the shared backend; web, REST and Telegram-assistant copies behave identically. Replayed requests do not announce again.
 Copy tools accept optional `idempotency_key` (1–128 letters, digits, dots, underscores,
 colons or hyphens). Retrying the same key and arguments returns the saved result with
 `replayed: true`; initial success includes `replayed: false`. Reusing a key with different
@@ -229,3 +229,25 @@ be null; votes/comments are arrays with member identity and creation timestamps.
 public links are null. Keep status/age, exact proposal-ID/creator filtering, ordering,
 and pagination checks. REST's `success` field and smaller row shape are intentionally
 separate; no new matching `total` is implied.
+
+## Deadline warnings
+
+`create_proposal` accepts optional `voting_deadline`; `create_poll` accepts optional
+`closes_at`. Both require future ISO datetimes including timezone, or null for none.
+They are normalized to UTC-naive ISO strings in storage and exposed in read results.
+All three copy tools accept optional `deadline`: future timezone-qualified datetime
+for proposals/polls, current/future YYYY-MM-DD for group purchases. Old deadlines
+are always cleared unless an override is supplied.
+
+The platform checks once per minute for still-open voting/joining periods entering
+the final 24 hours and posts one warning per item/deadline to the configured Telegram
+group/thread. It catches up within that window after downtime and skips expired,
+closed, deleted or changed deadlines. Group-purchase dates end at the following local
+midnight in the configured platform timezone (Europe/Madrid by default), accounting
+for DST. Member-count and amount caps may close joining earlier without a predictable
+24-hour warning. Records without deadlines receive no warning.
+
+Notification claims are durable across restarts/workers. Missing Telegram configuration
+leaves delivery pending. An attempted send with an ambiguous failure is recorded as
+failed and not automatically replayed, avoiding duplicate announcements; creation and
+copy success are not undone. See [operations](../OPERATIONS.md#platform-notifications).

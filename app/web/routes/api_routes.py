@@ -9,6 +9,8 @@ from app.repositories.poll_repo import PollRepository
 from app.repositories.member_repo import MemberRepository
 from app.services import auth_service, poll_page_service, proposal_actions_service, proposal_page_service
 from app.repositories.proposal_repo import ProposalRepository
+from app.services.copy_service import copy_item, CopyConflict, CopyNotFound
+from app.services.platform_notification_service import normalize_voting_deadline
 from app.services import feedback_service, poll_service, voting_settings_service
 from app.services.pagination_service import REASON_MESSAGES, parse_limit_offset
 from app.services.user_statistics import user_statistics_rows
@@ -24,6 +26,34 @@ from app.web.routes.helpers.api_helpers import (
 )
 
 api_bp = Blueprint("api", __name__)
+
+
+@api_bp.post('/api/<collection>/<int:source_id>/copy')
+@csrf.exempt
+def api_copy_item(collection, source_id):
+    auth_error = require_api_key(legacy.ADMIN_API_KEY)
+    if auth_error: return auth_error
+    kinds = {'proposals':'proposal','polls':'poll','group-purchases':'group_purchase'}
+    if collection not in kinds: return api_error('not_found','Unknown item type',404)
+    data, error = require_json_body()
+    if error: return error
+    kind = kinds[collection]
+    label_key = 'question' if kind == 'poll' else 'title'
+    if set(data) - {'created_by',label_key,'deadline','idempotency_key'}:
+        return api_error('invalid_copy_fields','Unsupported copy fields',400)
+    if label_key in data and data[label_key] is None:
+        return api_error('invalid_copy_label','Title/question cannot be null',400)
+    conn = legacy.get_db()
+    try:
+        result = copy_item(conn,kind=kind,source_id=source_id,created_by=data.get('created_by'),
+            upload_folder=current_app.config['UPLOAD_FOLDER'],label=data.get(label_key),
+            deadline=data.get('deadline'),idempotency_key=data.get('idempotency_key'))
+        return jsonify(result), 200 if result['replayed'] else 201
+    except CopyConflict as exc: return api_error('copy_conflict',str(exc),409)
+    except CopyNotFound as exc: return api_error('copy_not_found',str(exc),404)
+    except ValueError as exc: return api_error('invalid_copy',str(exc),400)
+    except (OSError,sqlite3.Error): return api_error('copy_unavailable','Copy unavailable; retry the same request',503)
+    finally: conn.close()
 
 
 @api_bp.route("/api/feedback", methods=["POST"], endpoint="api_create_feedback")
@@ -169,6 +199,10 @@ def api_create_proposal():
     if basic_supplies_flag is None:
         return api_error("invalid_basic_supplies", "basic_supplies must be boolean", 400)
     basic_supplies = 1 if basic_supplies_flag else 0
+    try:
+        voting_deadline = normalize_voting_deadline(data.get('voting_deadline'))
+    except ValueError as exc:
+        return api_error('invalid_voting_deadline',str(exc),400)
 
     conn = legacy.get_db()
     if MemberRepository(conn).get_by_id(created_by) is None:
@@ -176,7 +210,8 @@ def api_create_proposal():
         return api_error("creator_member_not_found", "Creator member not found", 404)
 
     try:
-        proposal_id = ProposalRepository(conn).create(title, description, amount, url, created_by, basic_supplies)
+        proposal_id = ProposalRepository(conn).create(title, description, amount, url, created_by, basic_supplies,
+            **({'voting_deadline':voting_deadline} if voting_deadline else {}))
         conn.close()
         return jsonify({"success": True, "message": "Proposal created", "proposal_id": proposal_id}), 201
     except sqlite3.Error:
@@ -249,6 +284,11 @@ def api_edit_proposal(proposal_id):
     amount = data.get("amount", proposal["amount"])
     url = data.get("url", proposal["url"])
     basic_supplies = 1 if data.get("basic_supplies", proposal["basic_supplies"]) else 0
+    try:
+        deadline_fields = {'voting_deadline':normalize_voting_deadline(data['voting_deadline'])} if 'voting_deadline' in data else {}
+    except ValueError as exc:
+        conn.close()
+        return api_error('invalid_voting_deadline',str(exc),400)
 
     amount = parse_positive_amount(amount)
     if amount is None:
@@ -259,6 +299,7 @@ def api_edit_proposal(proposal_id):
         proposal_actions_service.update_api_proposal(
             conn, proposal_id=proposal_id, title=title, description=description,
             amount=amount, url=url, basic_supplies=basic_supplies,
+            **deadline_fields,
         )
         conn.close()
         return jsonify({"success": True, "message": "Proposal updated", "proposal_id": proposal_id})
@@ -426,6 +467,10 @@ def api_create_poll():
     if allow_multiple is None and "allow_multiple" in data:
         return api_error("invalid_allow_multiple", "allow_multiple must be a boolean", 400)
     allow_multiple = bool(allow_multiple)
+    try:
+        closes_at = normalize_voting_deadline(data.get('closes_at'))
+    except ValueError as exc:
+        return api_error('invalid_closes_at',str(exc),400)
     if len(question) < 5 or len(question) > 200:
         return api_error("invalid_poll_question", "question must be between 5 and 200 characters", 400)
     if options is None:
@@ -442,13 +487,14 @@ def api_create_poll():
         conn.close()
         return api_error("creator_member_not_found", "Creator member not found", 404)
     try:
-        poll_id = PollRepository(conn).create(question, options, created_by, allow_multiple)
+        poll_id = PollRepository(conn).create(question, options, created_by, allow_multiple,
+            **({'closes_at':closes_at} if closes_at else {}))
     except sqlite3.Error:
         return api_error("poll_create_failed", "Failed to create poll", 500)
     finally:
         conn.close()
     legacy.send_telegram_message(
-        poll_service.build_poll_announcement_message(question, options, allow_multiple=allow_multiple),
+        poll_service.build_poll_announcement_message(question, options, closes_at=closes_at, allow_multiple=allow_multiple),
         poll_id,
         options,
     )

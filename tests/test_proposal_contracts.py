@@ -68,7 +68,7 @@ def test_read_shapes_types_filters_pagination_and_resources(proposal_db):
         assert isinstance(row['created_at'],str) and row['status'] == 'active'
         assert isinstance(row['description'], (str,type(None)))
     assert rest['success'] is True and 'success' not in mcp
-    assert set(rest['proposals'][0]) == {'id','title','description','amount','url','created_by','status','created_at','basic_supplies','yes_votes','no_votes'}
+    assert set(rest['proposals'][0]) == {'id','title','description','amount','url','created_by','status','created_at','basic_supplies','yes_votes','no_votes','voting_deadline'}
     richer = mcp['proposals'][0]
     assert richer['proposal_url'] == 'https://vote.example/proposal/1'
     assert richer['image_url'] is None and richer['purchased_at'] is None

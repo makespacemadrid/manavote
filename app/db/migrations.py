@@ -55,6 +55,11 @@ def _migrate_poll_votes_for_multi_select(cursor):
 
 
 def run_migrations(cursor):
+    add_column_if_missing(cursor, 'proposals', 'voting_deadline TEXT')
+    cursor.execute('''CREATE TABLE IF NOT EXISTS platform_notifications (
+        event_key TEXT PRIMARY KEY, kind TEXT NOT NULL, item_id INTEGER NOT NULL,
+        deadline TEXT, status TEXT NOT NULL DEFAULT 'pending', attempted_at TEXT)''')
+    cursor.execute('CREATE INDEX IF NOT EXISTS platform_notifications_pending ON platform_notifications(status)')
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS coin_items (
         id INTEGER PRIMARY KEY AUTOINCREMENT,

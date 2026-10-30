@@ -545,3 +545,9 @@ server image validation; they do not replace image decoding or server permission
 The UI CI job also captures Admin snapshots and runs `scripts/check_dialogs.mjs` at
 375/600/1280px in both languages, including real click-based member removal and
 submit-based Koins deletion confirmations without sending production requests.
+
+`tests/test_platform_notifications.py` covers fresh/replayed copies across web, REST
+and MCP, shared request keys, concurrent delivery claims, failed transport outcomes,
+exact 24-hour boundaries, expiry/closure/configuration changes, rescheduled deadlines,
+Madrid DST date handling and deadline persistence through creation/edit/read contracts.
+All outbound Telegram clients are fakes; the tests never send actual messages.

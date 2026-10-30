@@ -17,10 +17,13 @@ class CopyRepository:
     def save_request(self, creator, key, fingerprint, result):
         self.conn.execute('INSERT INTO copy_requests(creator_id,request_key,fingerprint,result_json) VALUES (?,?,?,?)', (creator, key, fingerprint, result))
 
-    def proposal(self, source, creator, title, image):
-        return self.conn.execute('''INSERT INTO proposals(title,description,amount,url,image_filename,created_by,basic_supplies,status)
+    def proposal(self, source, creator, title, image, deadline=None):
+        item_id = self.conn.execute('''INSERT INTO proposals(title,description,amount,url,image_filename,created_by,basic_supplies,status)
             VALUES (?,?,?,?,?,?,?,'active')''', (title, source['description'], source['amount'], source['url'], image, creator,
             int(bool(source['basic_supplies']) and source['amount'] <= 20))).lastrowid
+        if deadline:
+            self.conn.execute('UPDATE proposals SET voting_deadline=? WHERE id=?', (deadline,item_id))
+        return item_id
 
     def poll(self, source, creator, question, closes_at):
         return self.conn.execute("INSERT INTO polls(question,options_json,created_by,allow_multiple,closes_at,status) VALUES (?,?,?,?,?,'open')",

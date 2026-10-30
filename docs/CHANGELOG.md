@@ -325,3 +325,10 @@ on the same form. Danger confirmations use the same guarded submission path.
 Confirmation prompts now safely encode member names (including apostrophes) and the
 Koins delete prompt. Persistent CI dialog checks exercise real click/submit
 confirmations, cancellation, retained submitter values and duplicate-click guards.
+
+Copying through web, REST, MCP or the Telegram assistant now announces fresh records
+to the configured Telegram group/thread, without duplicate sends for retried copies.
+Added admin-key REST copy endpoints, proposal deadline persistence and deadline fields
+in REST/MCP creation/read contracts. A minute scheduler sends one final-24-hour warning
+per still-open voting/joining deadline, with timezone/DST-aware purchase date handling
+and durable delivery claims. Updated MCP/REST references, specification and operations.

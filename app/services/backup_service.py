@@ -101,7 +101,10 @@ def _scheduled_backup_job(app, backup_type, backup_fn, *args):
 
 
 def start_scheduler(app, db_path, upload_dir=None):
+    from app.services.platform_notification_service import run_notifications
     scheduler = BackgroundScheduler()
+    scheduler.add_job(run_notifications, 'interval', minutes=1, args=[db_path],
+                      id='platform_notifications', replace_existing=True, max_instances=1, coalesce=True)
     scheduler.add_job(
         _scheduled_backup_job,
         "interval",

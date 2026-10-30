@@ -1,11 +1,13 @@
 from contextlib import closing
-from datetime import datetime
+from datetime import datetime, timezone
 
 from flask import Blueprint, flash, redirect, render_template, request, session, url_for
 
 from app.services import proposal_actions_service
 from app.services.creation_validation_service import parse_positive_amount
 from app.services.proposal_image_service import InvalidProposalImage, save_proposal_image, remove_proposal_image
+from app.web.routes.helpers.main_helpers import get_app_timezone
+from app.services.platform_notification_service import normalize_voting_deadline
 from app.services.budget_service import build_budget_page
 from app.services.proposal_page_service import build_proposal_page, build_proposal_detail
 from app.web.decorators import admin_required, login_required
@@ -16,6 +18,9 @@ proposal_bp = Blueprint("proposals", __name__)
 
 def _render_proposal_form(template, *, proposal=None, image_error=False, field_errors=None):
     form_data = request.form if request.method == "POST" else (dict(proposal) if proposal is not None else {})
+    if request.method == 'GET' and form_data.get('voting_deadline'):
+        stored = datetime.fromisoformat(form_data['voting_deadline']).replace(tzinfo=timezone.utc)
+        form_data['voting_deadline'] = stored.astimezone(get_app_timezone(legacy.get_db)).strftime('%Y-%m-%dT%H:%M')
     return render_template(
         template,
         proposal=proposal,
@@ -104,9 +109,11 @@ def new_proposal():
             flash("Amount must be positive", "error")
             return _render_proposal_form("new_proposal.html", field_errors={"amount": "Amount must be positive"})
         deadline_text = ""
+        stored_deadline = None
         if voting_deadline:
             try:
                 deadline_dt = datetime.fromisoformat(voting_deadline)
+                stored_deadline = normalize_voting_deadline(voting_deadline,local_zone=get_app_timezone(legacy.get_db))
                 deadline_text = deadline_dt.strftime("%Y-%m-%d %H:%M")
             except ValueError:
                 flash("Invalid voting deadline", "error")
@@ -127,6 +134,7 @@ def new_proposal():
                 conn, title=title, description=description, amount=amount, url=url,
                 image_filename=image_filename, member_id=session["member_id"],
                 basic_supplies=basic_supplies, process_proposal=process_proposal,
+                voting_deadline=stored_deadline,
             )
         finally:
             conn.close()
@@ -274,6 +282,11 @@ def edit_proposal(proposal_id):
             amount = parse_positive_amount(request.form["amount"])
             url = request.form.get("url", "").strip()
             basic_supplies = 1 if request.form.get("basic_supplies") else 0
+            try:
+                deadline_fields = {'voting_deadline':normalize_voting_deadline(request.form['voting_deadline'],local_zone=get_app_timezone(legacy.get_db))} if 'voting_deadline' in request.form else {}
+            except ValueError:
+                flash('Invalid voting deadline','error')
+                return _render_proposal_form('edit_proposal.html',proposal=proposal,field_errors={'voting_deadline':'Invalid voting deadline'})
             if amount is None:
                 flash("Amount must be positive", "error")
                 return _render_proposal_form("edit_proposal.html", proposal=proposal, field_errors={"amount": "Amount must be positive"})
@@ -293,6 +306,7 @@ def edit_proposal(proposal_id):
                     conn, proposal_id=proposal_id, member_id=session["member_id"], is_admin=session.get("is_admin"),
                     title=title, description=description, amount=amount, url=url,
                     image_filename=image_filename, basic_supplies=basic_supplies,
+                    **deadline_fields,
                 )
             except Exception:
                 # Compensate the new file if the database update fails; keep the old image.
