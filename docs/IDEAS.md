@@ -1,6 +1,6 @@
 # IDEAS — Forward Roadmap
 
-Last reviewed: 2026-10-29 (UX and visual audit; other backlog decisions unchanged)
+Last reviewed: 2026-10-30 (UX delivery reconciliation; other backlog decisions unchanged)
 
 This is the backlog of unfinished work. Each item has a stable ID, a concrete outcome,
 and a completion signal. [SPRINTS.md](SPRINTS.md) owns scheduled scope and status;
@@ -15,10 +15,10 @@ Current behavior and contracts belong in [SPEC.md](SPEC.md) and [APIDOC.md](APID
 | P2 | OPS-01 / OPS-02: bootstrap and key rotation | Sprint 17: secure development bootstrap and active/next REST/MCP keys; retrieval and rollout decisions precede implementation |
 | P2 | BOT-05 / BOT-07: history lifecycle and interaction | Sprint 18: retention/deletion and selected deterministic status/localization gaps; policy and in-flight ownership decisions required |
 | P2 | OPS-04 / DATA-01 / selected OPS-03: recovery and measurements | Sprint 19: consistent/readable backups, recency health and safe backup events, representative query measurements; optimizations require evidence |
-| P2 | UX-03 / UX-04: proposal and budget usability | Sprint 20: search/filter/sort and chart series controls; task feedback and interaction defaults precede implementation |
+| P2 | UX-03 / UX-04: proposal and budget usability | Implementation delivered in PRs #127–128; remaining scope is member task validation and representative query measurements |
 | P2 | BOT-04 / remaining OPS-03 / DATA-02 | Unscheduled: running-call interruption, general REST telemetry, and new participation analytics require supported cancellation or a concrete operator workflow |
 
-Sprints 12–15 are complete. Sprints 16–20 are planned for sequential execution, with
+Sprints 12–15 are complete. Sprints 16–19 remain planned for sequential execution; Sprint 20 implementation shipped through the UX audit work, with validation still open, with
 dependencies, decision gates, deferred scope, and acceptance checks in
 [SPRINTS.md](SPRINTS.md). Scheduling a slice does not imply that the whole backlog
 item is complete. Keep remaining scope here until its completion signal is met.
@@ -42,10 +42,8 @@ contrast, mobile feedback review, registration markup, live governance threshold
 a focused review of Markdown HTML handling. Preserve the requested single-column About
 layout and the safeguards already delivered.
 
-UA-09 and UA-14 expand the evidence for existing UX-03/UX-04 in Sprint 20; reconcile
-them with that sprint's discovery gates rather than creating duplicate backlog items.
-The audit's remaining findings cover shared visual treatment, decision clarity and
-support workflows; use its proposed batches when selecting the next bounded slice.
+UA-09 and UA-14 were implemented in PRs #127–128. Sprint 20 retains only its
+member task validation and query-measurement follow-up; do not rebuild delivered controls.
 
 ## Architecture and API contracts
 
@@ -136,13 +134,13 @@ responses, missing status messages, and transport errors.
 
 ## Member and administrator UX
 
-The remaining findings were checked against code on 2026-10-08. Legacy audit numbers
-refer to the original findings preserved in CHANGELOG; they are provenance, not priority.
+Implementation shipped on 30 October in PRs #127–128; see [CHANGELOG](CHANGELOG.md).
+Only the validation portions below remain open.
 
 | ID | Priority | Remaining problem / outcome | Completion signal |
 |---|---|---|---|
-| UX-03 | P2 | Proposal status and size filter chips compete; no search/sort (audits 12, 27) | An agreed filter/search/sort interaction preserves selected state, server filtering, and usable mobile navigation |
-| UX-04 | P2 | Six budget datasets are dense; legend-only series toggling is hard to discover (audit 15) | A clear series/density control complements the existing date-range control and labelled table filters |
+| UX-03 | P2 | Validate delivered proposal discovery with member tasks and representative query measurements | Members find older proposals without coaching; query measurements establish whether indexes are warranted |
+| UX-04 | P2 | Validate delivered chart controls and summaries with members and assistive technology | Members isolate/interpret series; physical-device and screen-reader checks confirm usability |
 
 ## Discovery before broader UX work
 

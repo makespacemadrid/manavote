@@ -287,3 +287,6 @@ Budget follow-up: removed the duplicate clickable canvas legend so labelled seri
 checkboxes remain the single visibility control and cannot drift from chart state.
 Activity filters now initialize independently of the chart library, so a failed chart
 asset does not disable ledger filtering. A frontend regression covers this failure path.
+
+About now uses the same available content width as the other pages, preserving its
+single column and full-width introductory paragraphs.
