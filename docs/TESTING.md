@@ -514,3 +514,21 @@ deployment credentials; the Docker publishing workflow remains separate.
 widths using the optional test-only `zxing-cpp==3.1.1` dependency (installed by CI).
 Production QR generation requires only the existing Pillow/qrcode dependencies and
 checked-in brand PNG; SVG rasterization tools are not needed at runtime.
+
+### Browser layout and action alignment
+
+```bash
+MANAVOTE_UI_LAYOUT_DIR=/tmp/manavote-layouts pytest -q tests/test_ui_layouts.py
+node scripts/check_ui_layouts.mjs /tmp/manavote-layouts
+```
+
+The `UI layout checks` CI job runs these commands using Chrome. The populated,
+synthetic fixtures cover 25 screens per locale at 320/375/600/1280/1600/1920px.
+Assertions check button edges and field/action baselines, document overflow, shared
+wide-screen width, hydration, automatic proposal filters and native poll keyboard
+selection. Fixtures include open/closed and single/multiple polls, member/admin
+forms, group components/costs and feedback notes. No production forms are submitted.
+Set `CHROMIUM` to override the browser executable and `MANAVOTE_LAYOUT_SCREENSHOTS=1`
+to save representative phone/wide screenshots in the fixture directory.
+`frontend/src/proposalFilters.test.js` additionally verifies typing debounce, external
+form controls, IME composition and timer cancellation.

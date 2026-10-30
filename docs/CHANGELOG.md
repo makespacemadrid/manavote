@@ -299,3 +299,11 @@ Printed Coke/Coke Zero QRs now embed recognizable Coca-Cola artwork instead of a
 small text-circle placeholder, with a black Zero treatment and the large red/black
 headings preserved. Branding tolerates common item-name aliases. Printing waits for
 QR images to decode, reports image-loading failure, and preserves print colours.
+
+The shared desktop container now grows to 1600px. Polls have larger selectable option
+cards, saved-vote markers, clear single/multi-choice instructions, disabled closed-poll
+choices and quieter participation details. Settings identifies the active language.
+Proposal filters submit on selection; search debounces typing, with native submission
+retained as the no-JavaScript fallback. Admin, Koins and group-purchase actions now use
+consistent shared rows and field baselines. Persistent bilingual Chromium checks cover
+300 populated layouts, alignment, automatic filtering and native poll keyboard input.

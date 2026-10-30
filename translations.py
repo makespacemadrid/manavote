@@ -1146,3 +1146,22 @@ del _message, _spanish
 
 TRANSLATIONS['en']['QR images could not load. Refresh and try again.'] = 'QR images could not load. Refresh and try again.'
 TRANSLATIONS['es']['QR images could not load. Refresh and try again.'] = 'No se pudieron cargar los códigos QR. Actualiza la página e inténtalo de nuevo.'
+
+_POLL_PRESENTATION_ES = {
+    'Choose one option': 'Elige una opción',
+    'Choose one or more options': 'Elige una o varias opciones',
+    'Saved vote': 'Voto guardado',
+    'Poll selection help': 'Tu selección se guarda al pulsar Votar.',
+    'Poll additive selection help': 'Votar añade las opciones seleccionadas. Para retirar votos guardados, usa Borrar mis votos.',
+    'Unlinked voter hint': '(sin vincular, usa /link)',
+}
+for _message, _spanish in _POLL_PRESENTATION_ES.items():
+    TRANSLATIONS['en'][_message] = {
+        'Poll selection help': 'Your selection is saved when you press Vote.',
+        'Poll additive selection help': 'Voting adds selected options. Use Clear my votes to remove saved votes.',
+        'Unlinked voter hint': '(not linked, use /link)',
+    }.get(_message, _message)
+    TRANSLATIONS['es'][_message] = _spanish
+del _message, _spanish
+TRANSLATIONS['en']['Open'] = 'Open'
+TRANSLATIONS['es']['Open'] = 'Abierta'
