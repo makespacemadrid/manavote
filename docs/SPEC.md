@@ -702,3 +702,10 @@ expired, changed or already-closed periods are skipped; member/amount thresholds
 cannot be predicted. These warnings do not change approval rules or lifecycle states.
 Delivery attempts are claimed before network I/O; ambiguous failures are logged and
 not automatically resent. Missing bot/chat configuration leaves events pending.
+
+The web proposals view defaults to `age=recent` (strictly less than 30 days) when no
+age was selected; explicit `age=` selects all ages, and `age=old` selects 30 days or
+older. Legacy `filter=old/recent` bookmarks retain their behavior. Clear filters
+explicitly restores all statuses/ages. Filter selection survives populated rendering
+and pagination. Old proposal photos show the exact whole-day age over the image,
+regardless of status. REST/MCP age-filter defaults are unchanged.

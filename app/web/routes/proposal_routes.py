@@ -58,14 +58,18 @@ def budget():
 @proposal_bp.route("/proposals", endpoint="proposals")
 @login_required
 def proposals():
+    filter_type = request.args.get('filter', 'active')
+    default_age = filter_type if filter_type in {'old', 'recent'} else 'recent'
+    if filter_type in {'old', 'recent'}:
+        filter_type = 'active'
     conn = legacy.get_db()
     try:
         model = build_proposal_page(
             conn,
             member_id=session["member_id"],
-            filter_type=request.args.get("filter", "active"),
+            filter_type=filter_type,
             query=request.args.get("q", ""), sort=request.args.get("sort", "newest"),
-            age=request.args.get("age", ""), kind=request.args.get("kind", ""),
+            age=request.args.get("age", default_age), kind=request.args.get("kind", ""),
             page=request.args.get("page", 1, type=int),
         )
     finally:

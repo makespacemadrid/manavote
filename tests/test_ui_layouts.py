@@ -13,6 +13,7 @@ from app.web.routes import main_routes
 def test_capture_ui_layouts(ui_client, language):
     conn=main_routes.get_db()
     conn.execute("UPDATE proposals SET image_filename='layout-proposal.png',voting_deadline='2099-01-11T17:00:00' WHERE id=1")
+    conn.execute("INSERT INTO proposals(title,amount,created_by,created_at,image_filename) VALUES ('Older proposal with photo',10,1,datetime('now','-45 days'),'layout-proposal.png')")
     for id, status, multiple in [(1,'open',0),(2,'open',1),(3,'closed',0)]:
         conn.execute('INSERT INTO polls(id,question,options_json,created_by,status,allow_multiple) VALUES (?,?,?,?,?,?)',
             (id,'Which shared workshop should we run next?',json.dumps(['Soldering and electronics','Laser cutting: materials, safety and project planning','Maintaining and calibrating shared 3D printers']),1,status,multiple))
@@ -38,6 +39,7 @@ def test_capture_ui_layouts(ui_client, language):
     with ui_client.session_transaction() as session:session['lang']=language
     manifest=[]
     for name,path in routes.items():
+        if name=='proposals': path += '?age='
         response=ui_client.get(path)
         assert response.status_code==200, path
         markup=response.get_data(as_text=True)

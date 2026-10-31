@@ -551,3 +551,8 @@ and MCP, shared request keys, concurrent delivery claims, failed transport outco
 exact 24-hour boundaries, expiry/closure/configuration changes, rescheduled deadlines,
 Madrid DST date handling and deadline persistence through creation/edit/read contracts.
 All outbound Telegram clients are fakes; the tests never send actual messages.
+
+`tests/test_proposal_age_view.py` verifies the 30-day boundary, default/all/legacy web
+views, exact bilingual photo overlays and age-filter persistence through pagination.
+Browser fixtures include an older photo and check that its label stays within the
+image at every tested width.

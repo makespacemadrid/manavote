@@ -258,7 +258,8 @@ label { color:#d4d4cf; font-size:.9rem; font-weight:500; }
 .proposal-item { background:transparent; border:1px solid var(--border); padding:20px; gap:20px; align-items:flex-start; }
 .proposal-card-title { display:block; color:var(--text); font-size:1.125rem; font-weight:650; line-height:1.4; overflow-wrap:anywhere; margin-bottom:10px; }
 .proposal-card-tags { display:flex; flex-wrap:wrap; gap:6px; margin-bottom:12px; }
-.proposal-card-image { display:block; flex:0 0 clamp(180px,20vw,280px); overflow:hidden; border-radius:8px; }
+.proposal-card-image { position:relative; display:block; flex:0 0 clamp(180px,20vw,280px); overflow:hidden; border-radius:8px; }
+.proposal-age-watermark { position:absolute; inset:auto 0 0; padding:8px 12px; background:rgba(110,25,40,.94); color:#fff; font-size:.875rem; font-weight:650; line-height:1.4; text-align:center; pointer-events:none; }
 .proposal-thumbnail { display:block; width:100%; aspect-ratio:4/3; object-fit:contain; background:var(--surface-muted); }
 .proposal-card-actions { display:flex; flex-direction:column; align-items:flex-end; gap:12px; }
 .proposal-card-actions form { display:flex; flex-wrap:wrap; gap:8px; }

@@ -1176,3 +1176,8 @@ TRANSLATIONS['es']['Order management'] = 'Gestionar pedido'
 
 TRANSLATIONS['en']['Voting deadline'] = 'Voting deadline'
 TRANSLATIONS['es']['Voting deadline'] = 'Plazo de votación'
+
+TRANSLATIONS['en']['Less than 30 days'] = 'Less than 30 days'
+TRANSLATIONS['es']['Less than 30 days'] = 'Menos de 30 días'
+TRANSLATIONS['en']['30 days or older'] = '30 days or older'
+TRANSLATIONS['es']['30 days or older'] = '30 días o más'
