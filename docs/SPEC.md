@@ -192,7 +192,10 @@ JPG/PNG file selection is checked before submission, with authoritative image ch
 still on the server. Pending guards do not provide server-side idempotency or guarantee
 recovery after a tab closes; entered data is not copied into browser storage.
 Proposal-list images precede all card content, use a larger left column on desktop,
-and stack above the content on phones.
+and stack above the content on phones. Active proposals older than 30 days keep a
+rotated red age ribbon over their photo. The default proposal view shows only the
+last 30 days of active proposals; older ones remain available through the Age
+refinement or an explicit status filter.
 
 
 ### Shared interface and discovery
@@ -203,7 +206,8 @@ and stack above the content on phones.
   and displays configured voting thresholds with the minimum-one/rounding rule.
 - Proposal search matches literal, Unicode-casefolded title/description text. Status,
   creation age and purchase type can combine; sort supports newest/oldest and amount.
-  Query state persists in pagination URLs (20 items per page). Legacy filter URLs remain supported.
+  The unfiltered default limits active proposals to the last 30 days. Query state
+  persists in pagination URLs (20 items per page). Legacy filter URLs remain supported.
 - Member-authored Markdown is sanitized to an inert formatting/link allowlist; active
   elements, event attributes and unsafe URL schemes are removed.
 - Budget offers series checkboxes/presets, existing date controls, financial summaries

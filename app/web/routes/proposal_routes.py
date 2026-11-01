@@ -58,6 +58,12 @@ def budget():
 @proposal_bp.route("/proposals", endpoint="proposals")
 @login_required
 def proposals():
+    # The default view focuses on fresh active proposals. Older proposals stay
+    # reachable through the Age refinement (age=old) or an explicit status filter.
+    age_arg = request.args.get("age")
+    age = age_arg
+    if age is None:
+        age = "recent" if request.args.get("filter") is None else ""
     conn = legacy.get_db()
     try:
         model = build_proposal_page(
@@ -65,7 +71,7 @@ def proposals():
             member_id=session["member_id"],
             filter_type=request.args.get("filter", "active"),
             query=request.args.get("q", ""), sort=request.args.get("sort", "newest"),
-            age=request.args.get("age", ""), kind=request.args.get("kind", ""),
+            age=age, kind=request.args.get("kind", ""),
             page=request.args.get("page", 1, type=int),
         )
     finally:
@@ -73,6 +79,7 @@ def proposals():
     return render_template(
         "proposals.html",
         **model,
+        proposal_age_is_default=age_arg is None,
         session_lang=session.get("lang", "en"),
         is_web_proposal_vote_enabled=legacy.is_web_proposal_voting_enabled(),
         proposal_vote_mode=legacy.get_proposal_vote_mode(),

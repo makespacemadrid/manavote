@@ -7,6 +7,13 @@ history. [IDEAS.md](IDEAS.md) contains unfinished work; [SPRINTS.md](SPRINTS.md)
 records iteration scope and progress. Detailed historical findings and decisions are
 preserved in the [roadmap audit archive](archive/ROADMAP_AUDITS.md).
 
+## Unreleased — Older proposals hidden by default
+
+- The default proposal view now limits active proposals to the last 30 days; older
+  proposals remain reachable through the Age refinement or an explicit status filter.
+- Active proposals older than 30 days again show the rotated age ribbon over their
+  photo in the proposal list.
+
 ## Unreleased — Copy retry protection, web copies and Telegram preferences
 
 - MCP copies persist creator-scoped request keys: retries reuse the original result,

@@ -4,7 +4,7 @@
 
 
 <style>
-    .proposal-image-wrap { position: relative; display: block; width: 100%; height: 100%; overflow: hidden; border-radius: 4px; }
+    .proposal-image-wrap { position: relative; display: block; width: 100%; height: 100%; overflow: hidden; border-radius: 8px; }
     .proposal-age-watermark { position: absolute; left: -23px; top: 28px; width: 126px; padding: 3px 0; transform: rotate(-35deg); background: rgba(233, 69, 96, 0.9); color: #fff; font-size: 0.58rem; font-weight: 700; line-height: 1.1; text-align: center; text-transform: uppercase; box-shadow: 0 1px 3px #0008; pointer-events: none; }
 </style>
 
@@ -34,7 +34,7 @@
             <label>{{ 'Sort by'|lang }}<select name="sort">{% for value,label in [('newest','Date (Newest)'),('oldest','Date (Oldest)'),('amount_desc','Amount (Highest)'),('amount_asc','Amount (Lowest)')] %}<option value="{{ value }}"{% if proposal_sort == value %} selected{% endif %}>{{ label|lang }}</option>{% endfor %}</select></label>
             <button class="btn btn-secondary" type="submit" data-query-submit>{{ 'Apply'|lang }}</button>
         </form>
-        <details class="proposal-refinements"{% if proposal_age or proposal_kind %} open{% endif %}><summary>{{ 'Age and purchase type'|lang }}</summary>
+        <details class="proposal-refinements"{% if proposal_kind or (proposal_age and not proposal_age_is_default) %} open{% endif %}><summary>{{ 'Age and purchase type'|lang }}</summary>
         <div class="query-refinements">
             <label>{{ 'Age'|lang }}<select name="age" form="proposal-query">{% for value,label in [('', 'All'),('recent','Last 30 days'),('old','Older than 30 days')] %}<option value="{{ value }}"{% if proposal_age == value %} selected{% endif %}>{{ label|lang }}</option>{% endfor %}</select></label>
             <label>{{ 'Purchase type'|lang }}<select name="kind" form="proposal-query">{% for value,label in [('', 'All'),('basic','Basic'),('standard','Standard'),('expensive','Expensive')] %}<option value="{{ value }}"{% if proposal_kind == value %} selected{% endif %}>{{ label|lang }}</option>{% endfor %}</select></label>
@@ -47,7 +47,7 @@
         <ul class="proposal-list">
             {% for p in proposals %}
             <li class="proposal-item">
-                {% if p.image_filename %}<a class="proposal-card-image" tabindex="-1" aria-hidden="true" href="{{ url_for('proposals.proposal_detail', proposal_id=p.id) }}"><img class="proposal-thumbnail" alt="" loading="lazy" src="{{ url_for('static', filename='uploads/' + p.image_filename) }}"></a>{% endif %}
+                {% if p.image_filename %}<a class="proposal-card-image proposal-image-wrap" tabindex="-1" aria-hidden="true" href="{{ url_for('proposals.proposal_detail', proposal_id=p.id) }}"><img class="proposal-thumbnail" alt="" loading="lazy" src="{{ url_for('static', filename='uploads/' + p.image_filename) }}">{% if p.old_age_threshold %}<span class="proposal-age-watermark">{{ 'Over'|lang }} {{ p.old_age_threshold }} {{ 'days old'|lang }}</span>{% endif %}</a>{% endif %}
                 <div class="proposal-info">
                     <a class="proposal-card-title" title="{{ p.title }}" href="{{ url_for('proposals.proposal_detail', proposal_id=p.id) }}">{{ p.title }}</a>
                     <div class="proposal-card-tags">

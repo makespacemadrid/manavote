@@ -67,6 +67,13 @@ def test_proposal_filters_preserve_membership_order_and_thirty_day_boundary(page
     assert model["total_count"] == 6
 
 
+@pytest.mark.parametrize("age,expected", [("recent", [1]), ("old", [2]), ("", [1, 2])])
+def test_proposal_age_filter_survives_per_item_age_calculation(page_db, age, expected):
+    model = build_proposal_page(page_db, member_id=2, filter_type="active", now=NOW, age=age)
+    assert [p["id"] for p in model["proposals"]] == expected
+    assert model["proposal_age"] == age
+
+
 def test_proposal_balances_votes_ages_and_chip_totals(page_db):
     model = build_proposal_page(page_db, member_id=2, filter_type="active", now=NOW)
     recent, old = model["proposals"]

@@ -255,6 +255,10 @@ class TestBudgetAdminRefactor(unittest.TestCase):
             client = budget_app.app.test_client()
             _set_admin_session(client)
 
+            default_html = client.get("/proposals").data.decode("utf-8")
+            self.assertIn("Recent proposal", default_html)
+            self.assertNotIn("Old proposal", default_html)
+
             recent_html = client.get("/proposals?filter=recent").data.decode("utf-8")
             self.assertIn("Recent proposal", recent_html)
             self.assertNotIn("Old proposal", recent_html)
@@ -264,9 +268,14 @@ class TestBudgetAdminRefactor(unittest.TestCase):
             self.assertIn("Old proposal", old_html)
             self.assertIn("Very old proposal", old_html)
             self.assertIn(">old</span>", old_html)
-            self.assertIn("Over 30 days old", old_html)
-            self.assertIn("Over 90 days old", old_html)
-            self.assertIn("proposal-age-watermark", old_html)
+            self.assertIn(
+                '<span class="proposal-age-watermark">Over 30 days old</span>',
+                old_html,
+            )
+            self.assertIn(
+                '<span class="proposal-age-watermark">Over 90 days old</span>',
+                old_html,
+            )
 
 
 if __name__ == "__main__":

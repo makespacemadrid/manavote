@@ -32,9 +32,9 @@ def build_proposal_page(connection, *, member_id, filter_type="active", now=None
         created_at = datetime.fromisoformat(str(proposal["created_at"]).replace("Z", "+00:00"))
         if created_at.tzinfo is None:
             created_at = created_at.replace(tzinfo=timezone.utc)
-        age = max(0, (now - created_at.astimezone(timezone.utc)).days)
-        proposal["age_days"] = age
-        proposal["old_age_threshold"] = (age // 30) * 30 if proposal["status"] == "active" and age >= 30 else None
+        age_days = max(0, (now - created_at.astimezone(timezone.utc)).days)
+        proposal["age_days"] = age_days
+        proposal["old_age_threshold"] = (age_days // 30) * 30 if proposal["status"] == "active" and age_days >= 30 else None
         proposal["min_backers"] = calculate_min_backers(member_count, proposal["amount"], proposal.get("basic_supplies"), thresholds)
         proposal["approve_count"], proposal["reject_count"] = votes.get_counts(proposal["id"])
         proposal["net_votes"] = proposal["approve_count"] - proposal["reject_count"]
