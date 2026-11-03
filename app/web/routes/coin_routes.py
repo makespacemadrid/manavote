@@ -9,7 +9,7 @@ from flask import Blueprint, abort, current_app, flash, redirect, render_templat
 from app.repositories.coin_repo import CoinRepository
 from app.repositories.settings_repo import SettingsRepository
 from app.services import coin_service
-from app.services.coin_service import CoinNotFoundError, CoinValidationError, adjust_inventory, contribute_to_jar, create_item, delete_item, record_movement, update_item, update_movement
+from app.services.coin_service import CoinNotFoundError, CoinValidationError, adjust_inventory, contribute_and_consume, contribute_to_jar, create_item, delete_item, record_movement, update_item, update_movement
 from app.web.decorators import admin_required, login_required
 from app.web.routes import main_routes as legacy
 
@@ -81,14 +81,36 @@ def move():
 def contribute():
     connection = legacy.get_db()
     try:
-        result = contribute_to_jar(
-            connection,
-            member_id=session["member_id"],
-            amount=request.form.get("amount"),
-            note=request.form.get("note", ""),
-            idempotency_key=request.form.get("idempotency_key"),
-        )
-        flash(f"Added to the jar: +{result['coin_delta']} koins; balance {result['resulting_coin_balance']}", "success")
+        item_id = (request.form.get("item_id") or "").strip()
+        if item_id:
+            result = contribute_and_consume(
+                connection,
+                member_id=session["member_id"],
+                amount=request.form.get("amount"),
+                item=item_id,
+                quantity=request.form.get("quantity", 1),
+                note=request.form.get("note", ""),
+                idempotency_key=request.form.get("idempotency_key"),
+            )
+            flash(
+                "Logged: +{contrib:+d} koins to the jar and {item}: {consume:+d} koins; "
+                "balance {balance}".format(
+                    contrib=result["contribution"]["coin_delta"],
+                    item=result["consumption"]["item"],
+                    consume=result["consumption"]["coin_delta"],
+                    balance=result["resulting_coin_balance"],
+                ),
+                "success",
+            )
+        else:
+            result = contribute_to_jar(
+                connection,
+                member_id=session["member_id"],
+                amount=request.form.get("amount"),
+                note=request.form.get("note", ""),
+                idempotency_key=request.form.get("idempotency_key"),
+            )
+            flash(f"Logged contribution: +{result['coin_delta']} koins; balance {result['resulting_coin_balance']}", "success")
     except (CoinValidationError, CoinNotFoundError) as exc:
         flash(str(exc), "error")
     finally:

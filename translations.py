@@ -1043,11 +1043,15 @@ _COIN_TRANSLATIONS_ES = {
     "Pick any item": "Elige cualquier artículo",
     "Scan to browse all items and consume or replenish.": "Escanea para ver todos los artículos y consumir o reponer.",
     "Contribute to the jar": "Contribuir al bote",
-    "Contribute to the jar help": "Añade dinero al bote sin comprar un artículo concreto, por ejemplo para cerrar la diferencia entre el dinero recaudado y el inventario registrado.",
+    "Log a jar contribution": "Registrar una contribución al bote",
+    "This logs money already put in the jar in person — it does not process a payment, it only records it.": "Esto registra dinero que ya has puesto en el bote en persona; no procesa ningún pago, solo lo anota.",
     "€ added": "€ añadidos",
     "optional": "opcional",
-    "Add to the jar": "Añadir al bote",
+    "Log contribution": "Registrar contribución",
     "Jar contribution": "Contribución al bote",
+    "Also taking an item?": "¿Te llevas también un artículo?",
+    "Just the contribution": "Solo la contribución",
+    "Paying cash for an item taken right now? Pick it below — the contribution and the item are logged together.": "¿Pagas en efectivo por un artículo que te llevas ahora mismo? Elígelo abajo: la contribución y el artículo se registran juntos.",
 }
 for _message, _spanish in _COIN_TRANSLATIONS_ES.items():
     TRANSLATIONS["en"].setdefault(_message, _message)

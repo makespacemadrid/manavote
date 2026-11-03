@@ -8,13 +8,20 @@
     </div>
 </header>
 <section class="card">
-    <h2>{{ 'Contribute to the jar'|lang }}</h2>
-    <p class="help-text">{{ 'Contribute to the jar help'|lang }}</p>
+    <h2>{{ 'Log a jar contribution'|lang }}</h2>
+    <p class="help-text">{{ "This logs money already put in the jar in person — it does not process a payment, it only records it."|lang }}</p>
     <form method="post" action="{{ url_for('coins.contribute') }}">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="idempotency_key" value="{{ range(1000000000, 9999999999)|random }}">
         <label for="contribute-amount">{{ '€ added'|lang }}</label><input id="contribute-amount" name="amount" type="number" min="1" max="1000" value="1" required>
+        <p class="help-text">{{ "Paying cash for an item taken right now? Pick it below — the contribution and the item are logged together."|lang }}</p>
+        <label for="contribute-item">{{ 'Also taking an item?'|lang }}</label>
+        <select id="contribute-item" name="item_id">
+            <option value="">{{ 'Just the contribution'|lang }}</option>
+            {% for item in items %}<option value="{{ item.id }}">{{ item.name }}</option>{% endfor %}
+        </select>
+        <label for="contribute-quantity">{{ 'Quantity'|lang }}</label><input id="contribute-quantity" name="quantity" type="number" min="1" max="1000" value="1">
         <label for="contribute-note">{{ 'Note'|lang }} ({{ 'optional'|lang }})</label><input id="contribute-note" name="note" maxlength="250">
-        <button class="btn btn-success" type="submit">{{ 'Add to the jar'|lang }}</button>
+        <button class="btn btn-success" type="submit">{{ 'Log contribution'|lang }}</button>
     </form>
 </section>
 <div class="coin-grid">

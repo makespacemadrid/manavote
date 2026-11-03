@@ -345,8 +345,8 @@ def tool_definitions() -> list[dict[str, Any]]:
         },
         {
             "name": "contribute_to_jar",
-            "description": "Credit a member's koin balance for money added to the jar at 1 EUR = 1 koin, not tied to any item and without changing inventory (e.g. a cash contribution that doesn't correspond to a specific item purchase).",
-            "inputSchema": {"type": "object", "required": ["amount", "member_id"], "properties": {"amount": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "EUR amount added, 1 EUR = 1 koin."}, "member_id": {"type": "integer", "minimum": 1}, "note": {"type": "string", "maxLength": 250}, "idempotency_key": {"type": "string"}}},
+            "description": "Credit a member's koin balance for money added to the jar at 1 EUR = 1 koin. With no item, this is a plain cash contribution that doesn't change inventory. With an item and quantity, it logs the same contribution and takes that item in one move (e.g. paying cash for a can on the spot).",
+            "inputSchema": {"type": "object", "required": ["amount", "member_id"], "properties": {"amount": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "EUR amount added, 1 EUR = 1 koin."}, "member_id": {"type": "integer", "minimum": 1}, "item": {"oneOf": [{"type": "string"}, {"type": "integer", "minimum": 1}]}, "quantity": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "Only used together with item; defaults to 1."}, "note": {"type": "string", "maxLength": 250}, "idempotency_key": {"type": "string"}}},
         },
         *[
             {
@@ -370,8 +370,8 @@ def tool_definitions() -> list[dict[str, Any]]:
         ],
         {
             "name": "admin_contribute_to_jar",
-            "description": "Administrator action: credit a selected member's koin balance for money added to the jar at 1 EUR = 1 koin, not tied to any item and without changing inventory. Requires Telegram confirmation.",
-            "inputSchema": {"type": "object", "required": ["amount", "member_id"], "properties": {"amount": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "EUR amount added, 1 EUR = 1 koin."}, "member_id": {"type": "integer", "minimum": 1}, "note": {"type": "string", "maxLength": 250}, "idempotency_key": {"type": "string"}}},
+            "description": "Administrator action: credit a selected member's koin balance for money added to the jar at 1 EUR = 1 koin. With no item, this doesn't change inventory. With an item and quantity, it logs the same contribution and takes that item in one move. Requires Telegram confirmation.",
+            "inputSchema": {"type": "object", "required": ["amount", "member_id"], "properties": {"amount": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "EUR amount added, 1 EUR = 1 koin."}, "member_id": {"type": "integer", "minimum": 1}, "item": {"oneOf": [{"type": "string"}, {"type": "integer", "minimum": 1}]}, "quantity": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "Only used together with item; defaults to 1."}, "note": {"type": "string", "maxLength": 250}, "idempotency_key": {"type": "string"}}},
         },
         {
             "name": "list_member_telegram_links",
@@ -892,14 +892,27 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
         conn = sqlite3.connect(DB_PATH)
         conn.row_factory = sqlite3.Row
         try:
-            result = coin_service.contribute_to_jar(
-                conn,
-                member_id=arguments.get("member_id"),
-                amount=arguments.get("amount"),
-                note=arguments.get("note"),
-                source="mcp",
-                idempotency_key=arguments.get("idempotency_key"),
-            )
+            item = arguments.get("item")
+            if item is not None:
+                result = coin_service.contribute_and_consume(
+                    conn,
+                    member_id=arguments.get("member_id"),
+                    amount=arguments.get("amount"),
+                    item=item,
+                    quantity=arguments.get("quantity", 1),
+                    note=arguments.get("note"),
+                    source="mcp",
+                    idempotency_key=arguments.get("idempotency_key"),
+                )
+            else:
+                result = coin_service.contribute_to_jar(
+                    conn,
+                    member_id=arguments.get("member_id"),
+                    amount=arguments.get("amount"),
+                    note=arguments.get("note"),
+                    source="mcp",
+                    idempotency_key=arguments.get("idempotency_key"),
+                )
             return _tool_text(req_id, result)
         except coin_service.CoinValidationError as exc:
             return _error(req_id, -32602, f"Invalid params: {exc}")
