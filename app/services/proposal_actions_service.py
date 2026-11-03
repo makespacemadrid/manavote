@@ -37,6 +37,7 @@ def undo_approval(connection, *, proposal_id, member_id, is_admin,
     if not is_admin:
         raise ProposalActionError("admin_required")
     repo = ProposalRepository(connection)
+    votes = VoteRepository(connection)
     budget = BudgetRepository(connection)
     with write_transaction(connection):
         proposal = repo.get_by_id(proposal_id)
@@ -44,9 +45,19 @@ def undo_approval(connection, *, proposal_id, member_id, is_admin,
             return False
         restored_budget = budget.current_budget() + proposal["amount"]
         repo.reset_approval(proposal_id)
+        # Existing votes predate this undo, so they must not immediately
+        # re-trigger approval below -- only a vote cast/changed after this
+        # point should count again. Without this, process_proposal() below
+        # would see the same votes that led to approval and re-approve the
+        # proposal right away. A vote-id cutoff (rather than a timestamp) is
+        # exact even when a fresh vote lands in the same wall-clock second as
+        # this undo, which a `datetime.now()` cutoff can't reliably tell apart
+        # given SQLite's one-second CURRENT_TIMESTAMP resolution.
+        repo.bump_votes_valid_after_id(proposal_id, votes.max_vote_id(proposal_id))
         SettingsRepository(connection).set_value("current_budget", restored_budget)
         budget.add_log(proposal["amount"], f"Undo approval: {proposal['title']}", proposal_id=proposal_id)
-    # These callbacks use their own connections and may immediately approve again.
+    # These callbacks use their own connections; the votes_valid_after_id bump
+    # above keeps them from immediately re-approving off the same, now-stale votes.
     process_proposal(proposal_id)
     check_over_budget_proposals()
     logger.info("event=proposal_approval_undone actor_id=%s proposal_id=%s reason_code=ok", member_id, proposal_id)

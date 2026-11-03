@@ -54,6 +54,60 @@ def _migrate_poll_votes_for_multi_select(cursor):
     cursor.execute("ALTER TABLE poll_votes_new RENAME TO poll_votes")
 
 
+def _coin_movements_allows_contributions(cursor):
+    """True once coin_movements' item_id column is nullable, which a
+    'contribution' movement (money added to the jar, not tied to any one
+    item or inventory change) needs."""
+    cursor.execute("PRAGMA table_info('coin_movements')")
+    for row in cursor.fetchall():
+        if row[1] == "item_id":
+            return row[3] == 0  # notnull column: 0 = nullable
+    return False
+
+
+def _migrate_coin_movements_for_contributions(cursor):
+    """Existing databases have item_id NOT NULL and a CHECK tying every
+    non-adjustment kind's inventory_delta to its coin_delta, neither of which
+    a 'contribution' movement can satisfy (no item, no inventory change, but
+    a positive coin_delta). SQLite can't alter a CHECK/NOT NULL constraint in
+    place, so rebuild the table with the wider constraints, preserving every
+    existing row -- each already satisfies the new, looser constraints too."""
+    if _coin_movements_allows_contributions(cursor):
+        return
+    cursor.execute(
+        """
+        CREATE TABLE coin_movements_new (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            item_id INTEGER,
+            member_id INTEGER NOT NULL,
+            inventory_delta INTEGER NOT NULL,
+            coin_delta INTEGER NOT NULL,
+            kind TEXT NOT NULL CHECK (kind IN ('consume', 'replenish', 'adjustment', 'contribution')),
+            source TEXT NOT NULL CHECK (source IN ('web', 'qr', 'mcp', 'admin')),
+            idempotency_key TEXT NOT NULL UNIQUE,
+            note TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (item_id) REFERENCES coin_items(id),
+            FOREIGN KEY (member_id) REFERENCES members(id),
+            CHECK (inventory_delta <> 0 OR coin_delta <> 0),
+            CHECK (kind IN ('adjustment', 'contribution') OR inventory_delta = coin_delta),
+            CHECK (kind <> 'contribution' OR (item_id IS NULL AND inventory_delta = 0)),
+            CHECK (kind = 'contribution' OR item_id IS NOT NULL)
+        )
+        """
+    )
+    cursor.execute(
+        "INSERT INTO coin_movements_new "
+        "(id, item_id, member_id, inventory_delta, coin_delta, kind, source, idempotency_key, note, created_at) "
+        "SELECT id, item_id, member_id, inventory_delta, coin_delta, kind, source, idempotency_key, note, created_at "
+        "FROM coin_movements"
+    )
+    cursor.execute("DROP TABLE coin_movements")
+    cursor.execute("ALTER TABLE coin_movements_new RENAME TO coin_movements")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_coin_movements_item_created ON coin_movements(item_id, created_at DESC)")
+    cursor.execute("CREATE INDEX IF NOT EXISTS idx_coin_movements_member_created ON coin_movements(member_id, created_at DESC)")
+
+
 def run_migrations(cursor):
     add_column_if_missing(cursor, 'proposals', 'voting_deadline TEXT')
     cursor.execute('''CREATE TABLE IF NOT EXISTS platform_notifications (
@@ -73,11 +127,11 @@ def run_migrations(cursor):
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS coin_movements (
         id INTEGER PRIMARY KEY AUTOINCREMENT,
-        item_id INTEGER NOT NULL,
+        item_id INTEGER,
         member_id INTEGER NOT NULL,
         inventory_delta INTEGER NOT NULL,
         coin_delta INTEGER NOT NULL,
-        kind TEXT NOT NULL CHECK (kind IN ('consume', 'replenish', 'adjustment')),
+        kind TEXT NOT NULL CHECK (kind IN ('consume', 'replenish', 'adjustment', 'contribution')),
         source TEXT NOT NULL CHECK (source IN ('web', 'qr', 'mcp', 'admin')),
         idempotency_key TEXT NOT NULL UNIQUE,
         note TEXT,
@@ -85,7 +139,9 @@ def run_migrations(cursor):
         FOREIGN KEY (item_id) REFERENCES coin_items(id),
         FOREIGN KEY (member_id) REFERENCES members(id),
         CHECK (inventory_delta <> 0 OR coin_delta <> 0),
-        CHECK (kind = 'adjustment' OR inventory_delta = coin_delta)
+        CHECK (kind IN ('adjustment', 'contribution') OR inventory_delta = coin_delta),
+        CHECK (kind <> 'contribution' OR (item_id IS NULL AND inventory_delta = 0)),
+        CHECK (kind = 'contribution' OR item_id IS NOT NULL)
     )
     """)
     cursor.execute("CREATE INDEX IF NOT EXISTS idx_coin_movements_item_created ON coin_movements(item_id, created_at DESC)")
@@ -255,6 +311,7 @@ def run_migrations(cursor):
     add_column_if_missing(cursor, "proposals", "image_filename TEXT")
     add_column_if_missing(cursor, "proposals", "purchased_at TEXT")
     add_column_if_missing(cursor, "proposals", "over_budget_at TEXT")
+    add_column_if_missing(cursor, "proposals", "votes_valid_after_id INTEGER")
     add_column_if_missing(cursor, "activity_log", "created_by INTEGER")
     add_column_if_missing(cursor, "activity_log", "proposal_id INTEGER")
     add_column_if_missing(cursor, "polls", "status TEXT DEFAULT 'open'")
@@ -274,6 +331,7 @@ def run_migrations(cursor):
     add_column_if_missing(cursor, "polls", "closes_at TEXT")
     add_column_if_missing(cursor, "polls", "allow_multiple INTEGER NOT NULL DEFAULT 0")
     _migrate_poll_votes_for_multi_select(cursor)
+    _migrate_coin_movements_for_contributions(cursor)
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('poll_vote_mode', 'both')")
     cursor.execute("INSERT OR IGNORE INTO settings (key, value) VALUES ('proposal_vote_mode', 'both')")
     cursor.execute(

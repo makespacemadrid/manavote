@@ -9,6 +9,7 @@ from app.repositories.proposal_repo import ProposalRepository
 from app.repositories.settings_repo import SettingsRepository
 from app.repositories.vote_repo import VoteRepository
 from app.services.budget_service import calculate_min_backers
+from app.services.vote_staleness_service import apply_age_staleness
 
 logger = logging.getLogger(__name__)
 
@@ -37,7 +38,8 @@ class ProposalService:
             current_budget = self.budget.current_budget()
             thresholds = self.settings.get_thresholds()
             min_backers = calculate_min_backers(self.members.count(), proposal["amount"], proposal["basic_supplies"], thresholds)
-            approve_count, reject_count = self.votes.get_counts(proposal_id)
+            votes_valid_after_id = apply_age_staleness(self.proposals, self.votes, proposal)
+            approve_count, reject_count = self.votes.get_counts(proposal_id, after_id=votes_valid_after_id)
             if approve_count - reject_count < min_backers:
                 return None
             if proposal["amount"] > current_budget:

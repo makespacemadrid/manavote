@@ -211,8 +211,7 @@ def test_proposal_creation_edit_autoflag_and_detail_have_direct_contract(db):
         title='Revised', description='text', amount=30, url='', image_filename=None, basic_supplies=1)
     model = build_proposal_detail(db, proposal_id=proposal_id, member_id=1,
         get_member_count=lambda: 2, get_current_budget=BudgetRepository(db).current_budget,
-        get_thresholds=SettingsRepository(db).get_thresholds, calculate_min_backers=calculate_min_backers,
-        get_vote_counts=lambda cursor, proposal_id: (1, 0))
+        get_thresholds=SettingsRepository(db).get_thresholds, calculate_min_backers=calculate_min_backers)
     assert model['proposal']['title'] == 'Revised' and model['proposal']['basic_supplies'] == 0
     assert model['user_vote'] == 'in_favor' and len(model['comments']) == 2
 

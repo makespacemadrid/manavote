@@ -30,6 +30,11 @@
         <div class="proposal-amount">€{{ proposal.amount|currency }}</div>
     </div>
     {% if proposal.voting_deadline %}<p class="help-text">{{ 'Voting deadline'|lang }}: {{ proposal.voting_deadline|localtime('%Y-%m-%d %H:%M') }}</p>{% endif %}
+    {% if has_stale_votes %}
+    <div style="margin:10px 0;padding:10px;background:#f59e0b22;border:1px solid #f59e0b;border-radius:8px;font-size:0.9em;color:#fcd34d;">
+        {{ 'Stale votes banner'|lang }}
+    </div>
+    {% endif %}
     
     {% if proposal.image_filename %}
     <div style="margin: 20px 0;">
@@ -94,6 +99,9 @@
         </form>
         {% endif %}
     </div>
+    {% if user_vote_is_stale %}
+    <p style="color:#fcd34d;font-size:0.85em;margin-top:6px;">{{ 'Your vote is stale'|lang }}</p>
+    {% endif %}
     {% endif %}
 
     {% if (proposal.status == 'active' and (proposal.created_by == session.member_id or session.is_admin)) or session.is_admin %}
@@ -136,6 +144,7 @@
                 <td>{{ v.username|username }}</td>
                 <td class="{{ 'vote-approve' if v.vote == 'in_favor' else 'vote-reject' }}">
                     {{ '✓ ' + t('In Favor') if v.vote == 'in_favor' else '✗ ' + t('Against') }}
+                    {% if v.is_stale %}<span class="status" style="background:#f59e0b22;color:#fcd34d;margin-left:4px;">{{ 'Stale'|lang }}</span>{% endif %}
                 </td>
                 <td>{{ v.created_at|localtime("%Y-%m-%d %H:%M") }}</td>
             </tr>

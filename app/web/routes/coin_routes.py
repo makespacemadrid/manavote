@@ -9,7 +9,7 @@ from flask import Blueprint, abort, current_app, flash, redirect, render_templat
 from app.repositories.coin_repo import CoinRepository
 from app.repositories.settings_repo import SettingsRepository
 from app.services import coin_service
-from app.services.coin_service import CoinNotFoundError, CoinValidationError, adjust_inventory, create_item, delete_item, record_movement, update_item, update_movement
+from app.services.coin_service import CoinNotFoundError, CoinValidationError, adjust_inventory, contribute_to_jar, create_item, delete_item, record_movement, update_item, update_movement
 from app.web.decorators import admin_required, login_required
 from app.web.routes import main_routes as legacy
 
@@ -28,6 +28,12 @@ def _public_scan_url(connection, token):
     base_url = str(SettingsRepository(connection).get_value("url", "")).strip().rstrip("/")
     path = url_for("coins.scan", token=token)
     return f"{base_url}{path}" if base_url else url_for("coins.scan", token=token, _external=True)
+
+
+def _public_menu_url(connection):
+    base_url = str(SettingsRepository(connection).get_value("url", "")).strip().rstrip("/")
+    path = url_for("coins.coins_page")
+    return f"{base_url}{path}" if base_url else url_for("coins.coins_page", _external=True)
 
 
 @coin_bp.get("/koins")
@@ -70,6 +76,26 @@ def move():
     return redirect(return_to)
 
 
+@coin_bp.post("/koins/contribute")
+@login_required
+def contribute():
+    connection = legacy.get_db()
+    try:
+        result = contribute_to_jar(
+            connection,
+            member_id=session["member_id"],
+            amount=request.form.get("amount"),
+            note=request.form.get("note", ""),
+            idempotency_key=request.form.get("idempotency_key"),
+        )
+        flash(f"Added to the jar: +{result['coin_delta']} koins; balance {result['resulting_coin_balance']}", "success")
+    except (CoinValidationError, CoinNotFoundError) as exc:
+        flash(str(exc), "error")
+    finally:
+        connection.close()
+    return redirect(url_for("coins.coins_page"))
+
+
 @coin_bp.get("/koins/scan/<token>")
 def scan(token):
     if "member_id" not in session:
@@ -94,6 +120,19 @@ def qr_image(token):
     scan_url = _public_scan_url(connection, token)
     connection.close()
     image = render_coin_qr(scan_url, row['item_name'])
+    output = io.BytesIO()
+    image.save(output, format="PNG")
+    output.seek(0)
+    return send_file(output, mimetype="image/png", max_age=0)
+
+
+@coin_bp.get("/koins/qr/menu.png")
+@login_required
+def menu_qr_image():
+    connection = legacy.get_db()
+    menu_url = _public_menu_url(connection)
+    connection.close()
+    image = render_coin_qr(menu_url, None)
     output = io.BytesIO()
     image.save(output, format="PNG")
     output.seek(0)

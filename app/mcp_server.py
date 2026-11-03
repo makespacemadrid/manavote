@@ -343,6 +343,11 @@ def tool_definitions() -> list[dict[str, Any]]:
             "description": "Record cans bought by a member, crediting one koin per can.",
             "inputSchema": {"type": "object", "required": ["item", "quantity", "member_id"], "properties": {"item": {"oneOf": [{"type": "string"}, {"type": "integer", "minimum": 1}]}, "quantity": {"type": "integer", "minimum": 1, "maximum": 1000}, "member_id": {"type": "integer", "minimum": 1}, "idempotency_key": {"type": "string"}}},
         },
+        {
+            "name": "contribute_to_jar",
+            "description": "Credit a member's koin balance for money added to the jar at 1 EUR = 1 koin, not tied to any item and without changing inventory (e.g. a cash contribution that doesn't correspond to a specific item purchase).",
+            "inputSchema": {"type": "object", "required": ["amount", "member_id"], "properties": {"amount": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "EUR amount added, 1 EUR = 1 koin."}, "member_id": {"type": "integer", "minimum": 1}, "note": {"type": "string", "maxLength": 250}, "idempotency_key": {"type": "string"}}},
+        },
         *[
             {
                 "name": name,
@@ -363,6 +368,11 @@ def tool_definitions() -> list[dict[str, Any]]:
                 ("admin_replenish_coin_item", "Administrator action: record replenishment for a selected member, adding one koin and one can to stock per quantity. Requires Telegram confirmation."),
             )
         ],
+        {
+            "name": "admin_contribute_to_jar",
+            "description": "Administrator action: credit a selected member's koin balance for money added to the jar at 1 EUR = 1 koin, not tied to any item and without changing inventory. Requires Telegram confirmation.",
+            "inputSchema": {"type": "object", "required": ["amount", "member_id"], "properties": {"amount": {"type": "integer", "minimum": 1, "maximum": 1000, "description": "EUR amount added, 1 EUR = 1 koin."}, "member_id": {"type": "integer", "minimum": 1}, "note": {"type": "string", "maxLength": 250}, "idempotency_key": {"type": "string"}}},
+        },
         {
             "name": "list_member_telegram_links",
             "description": "List members and Telegram link information.",
@@ -550,14 +560,20 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
         query = (
             "SELECT p.id,p.title,p.description,p.amount,p.url,p.image_filename,p.status,"
             "p.created_at,p.processed_at,p.over_budget_at,p.purchased_at,p.basic_supplies,p.voting_deadline,"
+            "p.votes_valid_after_id,"
             "p.created_by,m.username, "
-            "(SELECT COUNT(*) FROM votes v WHERE v.proposal_id = p.id AND v.vote = 'in_favor') AS yes_votes, "
-            "(SELECT COUNT(*) FROM votes v WHERE v.proposal_id = p.id AND v.vote = 'against') AS no_votes, "
+            "(SELECT COUNT(*) FROM votes v WHERE v.proposal_id = p.id AND v.vote = 'in_favor' "
+            "AND (p.votes_valid_after_id IS NULL OR v.id > p.votes_valid_after_id)) AS yes_votes, "
+            "(SELECT COUNT(*) FROM votes v WHERE v.proposal_id = p.id AND v.vote = 'against' "
+            "AND (p.votes_valid_after_id IS NULL OR v.id > p.votes_valid_after_id)) AS no_votes, "
             "COALESCE((SELECT json_group_array(json_object("
             "'id', ordered_votes.id, 'member_id', ordered_votes.member_id, "
             "'username', ordered_votes.username, 'vote', ordered_votes.vote, "
-            "'created_at', ordered_votes.created_at)) FROM ("
-            "SELECT v.id,v.member_id,vm.username,v.vote,v.created_at FROM votes v "
+            "'created_at', ordered_votes.created_at, 'is_stale', ordered_votes.is_stale)) FROM ("
+            "SELECT v.id,v.member_id,vm.username,v.vote,v.created_at,"
+            "CASE WHEN p.votes_valid_after_id IS NOT NULL AND v.id <= p.votes_valid_after_id "
+            "THEN json('true') ELSE json('false') END AS is_stale "
+            "FROM votes v "
             "JOIN members vm ON vm.id = v.member_id WHERE v.proposal_id = p.id "
             "ORDER BY v.created_at ASC,v.id ASC) AS ordered_votes), '[]') AS votes_json, "
             "COALESCE((SELECT json_group_array(json_object("
@@ -856,6 +872,31 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
                 member_id=arguments.get("member_id"),
                 action="consume" if normalized_name in {"consume_coin_item", "admin_consume_coin_item"} else "replenish",
                 quantity=arguments.get("quantity", 1),
+                source="mcp",
+                idempotency_key=arguments.get("idempotency_key"),
+            )
+            return _tool_text(req_id, result)
+        except coin_service.CoinValidationError as exc:
+            return _error(req_id, -32602, f"Invalid params: {exc}")
+        except coin_service.CoinNotFoundError as exc:
+            return _error(req_id, -32004, str(exc))
+        finally:
+            conn.close()
+
+    if normalized_name in {"contribute_to_jar", "admin_contribute_to_jar"}:
+        if normalized_name.startswith("admin_"):
+            for field in ("member_id", "amount"):
+                value = arguments.get(field)
+                if isinstance(value, bool) or not isinstance(value, int) or value < 1:
+                    return _error(req_id, -32602, f"Invalid params: {field} must be a positive integer")
+        conn = sqlite3.connect(DB_PATH)
+        conn.row_factory = sqlite3.Row
+        try:
+            result = coin_service.contribute_to_jar(
+                conn,
+                member_id=arguments.get("member_id"),
+                amount=arguments.get("amount"),
+                note=arguments.get("note"),
                 source="mcp",
                 idempotency_key=arguments.get("idempotency_key"),
             )

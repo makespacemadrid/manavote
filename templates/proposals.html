@@ -53,11 +53,12 @@
                     <div class="proposal-card-tags">
                         {% if p.basic_supplies %}<span class="status status-other">{{ 'basic'|lang }}</span>{% elif p.amount > 50 %}<span class="status status-other">{{ 'expensive'|lang }}</span>{% else %}<span class="status status-other">{{ 'standard'|lang }}</span>{% endif %}
                         {% if p.old_age_threshold %}<span class="status status-other">{{ 'old'|lang }}</span><span class="status status-other">{{ 'Over'|lang }} {{ p.old_age_threshold }} {{ 'days old'|lang }}</span>{% endif %}
+                        {% if p.has_stale_votes %}<span class="status status-other" style="background:#f59e0b22;color:#fcd34d;">{{ 'Stale votes'|lang }}</span>{% endif %}
                     </div>
                     <div class="proposal-meta" style="margin-bottom: 8px;">
                         {{ 'by'|lang }} {{ p.creator|username }} · {{ p.created_at|localtime("%Y-%m-%d") }}
                         {% if p.user_vote %}
-                        · {{ 'Your vote'|lang }}: <strong>{{ 'In Favor'|lang if p.user_vote == 'in_favor' else 'Against'|lang }}</strong>
+                        · {{ 'Your vote'|lang }}: <strong>{{ 'In Favor'|lang if p.user_vote == 'in_favor' else 'Against'|lang }}</strong>{% if p.user_vote_is_stale %} <span style="color:#fcd34d;">({{ 'stale'|lang }})</span>{% endif %}
                         {% endif %}
                     </div>
                     <div class="vote-counts">
