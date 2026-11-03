@@ -121,7 +121,7 @@ class CoinRepository:
         where = " WHERE " + " AND ".join(conditions) if conditions else ""
         return self.connection.execute(
             """SELECT cm.*, ci.name AS item_name, m.username
-               FROM coin_movements cm JOIN coin_items ci ON ci.id = cm.item_id
+               FROM coin_movements cm LEFT JOIN coin_items ci ON ci.id = cm.item_id
                JOIN members m ON m.id = cm.member_id
             """ + where + " ORDER BY cm.id DESC LIMIT ? OFFSET ?",
             tuple(params) + (limit, offset),
@@ -138,6 +138,17 @@ class CoinRepository:
                (item_id, member_id, inventory_delta, coin_delta, kind, source, idempotency_key)
                VALUES (?, ?, ?, ?, ?, ?, ?)""",
             (item_id, member_id, delta, delta, kind, source, key),
+        )
+        return cursor.lastrowid
+
+    def insert_contribution(self, member_id, amount, source, key, note=None):
+        """A member crediting their koin balance for money added to the jar,
+        decoupled from any one item or inventory change."""
+        cursor = self.connection.execute(
+            """INSERT INTO coin_movements
+               (item_id, member_id, inventory_delta, coin_delta, kind, source, idempotency_key, note)
+               VALUES (NULL, ?, 0, ?, 'contribution', ?, ?, ?)""",
+            (member_id, amount, source, key, note),
         )
         return cursor.lastrowid
 
@@ -163,6 +174,6 @@ class CoinRepository:
     def movements_for_admin(self):
         return self.connection.execute("""
             SELECT cm.*, ci.name AS item_name, m.username
-                         FROM coin_movements cm JOIN coin_items ci ON ci.id = cm.item_id
+                         FROM coin_movements cm LEFT JOIN coin_items ci ON ci.id = cm.item_id
                          JOIN members m ON m.id = cm.member_id ORDER BY cm.id DESC LIMIT 100
         """).fetchall()

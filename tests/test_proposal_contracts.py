@@ -68,7 +68,7 @@ def test_read_shapes_types_filters_pagination_and_resources(proposal_db):
         assert isinstance(row['created_at'],str) and row['status'] == 'active'
         assert isinstance(row['description'], (str,type(None)))
     assert rest['success'] is True and 'success' not in mcp
-    assert set(rest['proposals'][0]) == {'id','title','description','amount','url','created_by','status','created_at','basic_supplies','yes_votes','no_votes','voting_deadline'}
+    assert set(rest['proposals'][0]) == {'id','title','description','amount','url','created_by','status','created_at','basic_supplies','yes_votes','no_votes','voting_deadline','votes_valid_after_id'}
     richer = mcp['proposals'][0]
     assert richer['proposal_url'] == 'https://vote.example/proposal/1'
     assert richer['image_url'] is None and richer['purchased_at'] is None
@@ -131,7 +131,7 @@ def test_failed_approval_rolls_back_state_balance_and_ledger(proposal_db):
     assert service(conn).process_proposal(1) is True
 
 
-def test_over_budget_rechecks_and_undo_reapproval_are_idempotent(proposal_db):
+def test_over_budget_rechecks_idempotent_and_undo_does_not_reapprove_without_a_fresh_vote(proposal_db):
     conn, _ = proposal_db
     conn.execute('UPDATE proposals SET amount=150 WHERE id=1')
     conn.commit()
@@ -144,10 +144,20 @@ def test_over_budget_rechecks_and_undo_reapproval_are_idempotent(proposal_db):
     assert conn.execute('SELECT SUM(amount) FROM activity_log').fetchone()[0] == 50
     assert undo_approval(conn, proposal_id=1, member_id=1, is_admin=True,
                          process_proposal=worker.process_proposal, check_over_budget_proposals=worker.check_over_budget_proposals)
-    assert conn.execute('SELECT SUM(amount) FROM activity_log').fetchone()[0] == 50
-    assert conn.execute('SELECT status FROM proposals WHERE id=1').fetchone()[0] == 'approved'
-    assert conn.execute('SELECT COUNT(*) FROM activity_log WHERE proposal_id=1').fetchone()[0] == 3
+    # Undo restores the full 150 back to the budget (50 -> 200) and must NOT
+    # immediately re-spend it by re-approving off the same, now-stale vote --
+    # that was the exact loop bug this fixes.
+    assert conn.execute('SELECT SUM(amount) FROM activity_log').fetchone()[0] == 200
+    assert conn.execute('SELECT status FROM proposals WHERE id=1').fetchone()[0] == 'active'
+    assert conn.execute('SELECT COUNT(*) FROM activity_log WHERE proposal_id=1').fetchone()[0] == 2
     assert worker.process_proposal(1) is None
+
+    # A fresh vote (the normal vote-casting path) re-triggers approval.
+    conn.execute("INSERT INTO members(id,username,password_hash) VALUES (2,'second','unused')")
+    conn.execute("INSERT INTO votes(proposal_id,member_id,vote) VALUES (1,2,'in_favor')")
+    conn.commit()
+    assert worker.process_proposal(1) is True
+    assert conn.execute('SELECT status FROM proposals WHERE id=1').fetchone()[0] == 'approved'
 
 
 def test_concurrent_undo_without_reapproval_restores_once(proposal_db):

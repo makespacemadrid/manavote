@@ -44,3 +44,12 @@ balance by one. These are ledger actions, not balance-only adjustments.
 Telegram exposes these tools only to administrators and requires `/confirm` before
 execution. The target member is preserved; regular member tools remain bound to the
 caller's linked account. External MCP clients use the existing MCP API-key authentication.
+
+`contribute_to_jar` (member) and `admin_contribute_to_jar` (administrator, same
+confirmation/target-member rules as above) credit a member's koin balance for money
+added to the jar at a flat 1 EUR = 1 koin rate. Unlike the consume/replenish tools
+above, these take `amount` (1..1000 EUR, not `item`/`quantity`) and never touch any
+item's inventory — the resulting ledger row has no `item`, so it's excluded from
+per-item stock totals. Both accept an optional `note` (≤250 characters) and
+`idempotency_key`.
+

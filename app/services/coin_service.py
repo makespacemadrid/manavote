@@ -170,6 +170,70 @@ def record_movement(connection, *, item, member_id, action, quantity=1, source="
     return result
 
 
+def contribute_to_jar(connection, *, member_id, amount, note=None, idempotency_key=None, source="web"):
+    """Credit a member's koin balance for money added to the jar (e.g. a stock
+    restock paid without scanning any one item, or a plain donation) at a flat
+    1 EUR = 1 koin rate. Unlike record_movement, this never touches inventory
+    -- it exists specifically to close the loop between money collected and
+    inventory tracked when the two don't line up to a single item purchase.
+    """
+    try:
+        member_id = int(member_id)
+    except (TypeError, ValueError) as exc:
+        raise CoinValidationError("Member is required") from exc
+    if isinstance(amount, bool):
+        raise CoinValidationError("Amount must be a positive integer")
+    try:
+        amount = int(amount)
+    except (TypeError, ValueError) as exc:
+        raise CoinValidationError("Amount must be a positive integer") from exc
+    if amount < 1 or amount > MAX_QUANTITY:
+        raise CoinValidationError(f"Amount must be between 1 and {MAX_QUANTITY}")
+    if connection.execute("SELECT 1 FROM members WHERE id = ?", (member_id,)).fetchone() is None:
+        raise CoinNotFoundError("Member not found")
+    note = str(note or "").strip() or None
+    if note is not None and len(note) > 250:
+        raise CoinValidationError("Note must be 250 characters or fewer")
+
+    repo = CoinRepository(connection)
+    key = str(idempotency_key or secrets.token_urlsafe(24))
+    existing = repo.movement_by_key(key)
+    if existing is not None:
+        if (
+            existing["kind"] != "contribution"
+            or int(existing["member_id"]) != member_id
+            or int(existing["coin_delta"]) != amount
+        ):
+            raise CoinValidationError("Idempotency key was already used for another action")
+        return _contribution_result(repo, member_id, existing, replayed=True)
+
+    try:
+        movement_id = repo.insert_contribution(member_id, amount, source, key, note)
+        movement = connection.execute("SELECT * FROM coin_movements WHERE id = ?", (movement_id,)).fetchone()
+        result = _contribution_result(repo, member_id, movement, replayed=False)
+        connection.commit()
+    except sqlite3.IntegrityError:
+        connection.rollback()
+        existing = repo.movement_by_key(key)
+        if existing is None:
+            raise
+        return _contribution_result(repo, member_id, existing, replayed=True)
+    logger.info(
+        "coin_contribution_recorded movement_id=%s member_id=%s amount=%s source=%s resulting_coin_balance=%s",
+        movement_id, member_id, amount, source, result["resulting_coin_balance"],
+    )
+    return result
+
+
+def _contribution_result(repo, member_id, movement, replayed):
+    return {
+        "movement_id": int(movement["id"]),
+        "coin_delta": int(movement["coin_delta"]),
+        "resulting_coin_balance": repo.member_balance(member_id),
+        "replayed": replayed,
+    }
+
+
 def adjust_inventory(connection, *, item, member_id, inventory_delta, note=None, idempotency_key=None):
     """Adjust physical stock without changing any member's koin balance."""
     try:

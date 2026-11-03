@@ -169,7 +169,7 @@ Threshold selection:
 
 ### 6.2 Approval criteria
 A proposal is approvable when both are true:
-1. `net_votes = in_favor - against >= min_backers`
+1. `net_votes = in_favor - against >= min_backers`, counting only votes that are not stale (§6.5)
 2. `amount <= current_budget` (where current budget = sum of `activity_log`)
 
 ### 6.3 Proposal lifecycle
@@ -177,10 +177,21 @@ A proposal is approvable when both are true:
 - If threshold reached and budget available: `approved`, budget log gets negative entry, Telegram notification sent.
 - If threshold reached but budget unavailable: `over_budget`. When marked over_budget, `over_budget_at` timestamp is set.
 - Over-budget proposals are reconsidered and auto-approved when funds appear.
-- Admin can undo approval, returning status to `active`, restoring budget, and clearing `processed_at` and `purchased_at` timestamps.
+- Admin can undo approval, returning status to `active`, restoring budget, and clearing `processed_at` and `purchased_at` timestamps. Undoing approval does **not** immediately re-approve the proposal even if its existing votes still meet the threshold: undo freezes out every vote that exists at that moment (§6.5), so the proposal only becomes approvable again once a member casts or changes a vote afterward (any member — not specifically an admin).
 
 ### 6.4 Basic supplies guardrail
 If a proposal marked basic supplies has amount > €20, basic flag is auto-removed and a comment is inserted.
+
+### 6.5 Stale votes
+Two events freeze a proposal's existing votes out of its approval threshold until each is recast:
+- An admin undoing its approval (§6.3).
+- The proposal sitting `active` and unresolved for more than 60 days.
+
+Both are represented by the same `proposals.votes_valid_after_id` column (`app/services/vote_staleness_service.py`): once set, only a vote with `id` strictly greater than that cutoff counts toward `net_votes`. The cutoff is a vote-id ratchet (always moves forward, never backward) rather than a timestamp, so it stays exact even when the triggering event and a vote re-check happen within the same wall-clock second (SQLite's `CURRENT_TIMESTAMP` only has 1-second resolution — a timestamp-based cutoff could not reliably tell those apart, which was the root cause of the undo-approval loop bug above).
+
+The 60-day age cutoff is applied lazily and only once per proposal (whenever the proposal is next viewed or evaluated for approval, via `vote_staleness_service.apply_age_staleness`): once a cutoff exists for a proposal — from either trigger — further age checks are a no-op, so a member's recast after the cutoff is never itself swept back up by a later evaluation.
+
+Members see which of their own and others' votes are stale on the proposal detail page, the proposal list (a "Stale votes" badge), and via REST/MCP's `votes_valid_after_id`/per-vote `is_stale` fields; recasting a vote (clicking vote again, even for the same choice) always counts, since it gets a fresh `id` greater than any existing cutoff.
 
 ## 7) UI/feature behavior
 
@@ -353,7 +364,10 @@ Committed series behavior:
   and edit the 100 most recent ledger movements. Ledger edits may change item, member,
   type, quantity, and note while retaining the movement ID, idempotency key, and creation
   timestamp. Corrected rows use `source = admin`. Consume/replenish edits update stock
-  and balance together; adjustment edits affect stock only.
+  and balance together; adjustment edits affect stock only. The ledger-edit form only
+  covers `consume`/`replenish`/`adjustment` rows — `contribution` movements (jar
+  contributions, below) have no item and are excluded from this table, since its
+  item/type selects can't represent them.
 - **Settings tab**: Registration toggle, timezone selector (UTC, Europe/London, Europe/Paris, Europe/Madrid, America/New_York, America/Chicago, America/Los_Angeles, Asia/Tokyo, Asia/Shanghai, Australia/Sydney).
 - **Timezone tab**: Configure display timezone for all datetime fields.
 - **Backup tab**: Manual backup, list existing backups.
@@ -407,7 +421,24 @@ Committed series behavior:
   consumed quantity.
 - The **Koin credit & debts per member** table shows every member's balance and
   lifetime consume/purchase totals.
-- Recent movement history shows the latest 30 movements from all members, newest first.
+- Recent movement history shows the latest 30 movements from all members, newest first;
+  a jar contribution (below) shows as "Jar contribution" in place of an item name.
+- **Contribute to the jar**: any member may credit their own koin balance for money
+  added to the jar at a flat 1 EUR = 1 koin rate, without selecting an item and without
+  changing any item's inventory — e.g. a stock restock paid without scanning a specific
+  item, or a plain cash donation. Implemented as a `contribution`-kind `coin_movements`
+  row with `item_id = NULL` and `inventory_delta = 0`, so it never appears in any
+  per-item stock total; this is what "closes the loop" between money collected and
+  inventory tracked when the two don't line up to one item purchase. `POST
+  /koins/contribute` (web) and the `contribute_to_jar`/`admin_contribute_to_jar` MCP
+  tools share this path; the admin variant can target any member and requires Telegram
+  confirmation like the other admin Koins tools.
+- **Single-QR menu**: alongside each item's own consume QR label, the printable labels
+  page (`/admin/koins/qr-labels`) includes one additional "Koins Menu" label whose QR
+  code links straight to `/koins` — scanning it (after signing in) shows every active
+  item to pick from, rather than landing on one pre-selected item. This doesn't replace
+  the per-item labels, which stay useful for a quick single-tap action at a specific
+  item's physical location.
 
 ### Group purchases page (`/group-purchases`)
 - Creators and administrators can append components when editing a purchase, including

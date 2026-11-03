@@ -138,7 +138,7 @@ def test_admin_printable_qr_labels_and_png(coin_client):
     client, _ = coin_client
     response = client.get("/admin/koins/qr-labels")
     assert response.status_code == 200
-    assert response.data.count(b'class="qr-label"') == 3
+    assert response.data.count(b'class="qr-label"') == 4
     assert b"debits 1 koin" in response.data
     assert response.data.count(b"Debit from my account") == 3
     assert b"Pay later" not in response.data
@@ -146,6 +146,8 @@ def test_admin_printable_qr_labels_and_png(coin_client):
     assert b">Replenish</h2>" not in response.data
     assert b"/koins/scan/" not in response.data
     assert b"Coke Zero" in response.data
+    assert b"Koins Menu" in response.data
+    assert b"/koins/qr/menu.png" in response.data
     token_path = response.data.split(b'/koins/qr/', 1)[1].split(b'.png', 1)[0].decode()
     png = client.get(f"/koins/qr/{token_path}.png")
     assert png.status_code == 200
@@ -157,6 +159,40 @@ def test_admin_printable_qr_labels_and_png(coin_client):
     spanish_response = client.get("/admin/koins/qr-labels")
     assert b"koins" in spanish_response.data
     assert spanish_response.data.count("Restar de mi crédito".encode()) == 3
+
+
+def test_single_menu_qr_links_to_coins_page_and_serves_png(coin_client):
+    client, _ = coin_client
+    response = client.get("/admin/koins/qr-labels")
+    assert response.status_code == 200
+    assert b"Koins Menu" in response.data
+    assert b"Pick any item" in response.data
+    assert b'/koins/qr/menu.png"' in response.data
+
+    png = client.get("/koins/qr/menu.png")
+    assert png.status_code == 200
+    assert png.mimetype == "image/png"
+    assert png.data.startswith(b"\x89PNG")
+
+    # Any logged-in member (not just an admin) can fetch the menu QR image
+    # itself -- matching the existing per-item qr_image route's access level.
+    with client.session_transaction() as user_session:
+        user_session["is_admin"] = 0
+    assert client.get("/koins/qr/menu.png").status_code == 200
+
+
+def test_menu_qr_uses_configured_public_base_url(coin_client):
+    client, db_path = coin_client
+    with sqlite3.connect(db_path) as connection:
+        connection.execute("INSERT OR REPLACE INTO settings (key, value) VALUES ('url', 'https://vote.example')")
+        connection.commit()
+    assert client.get("/koins/qr/menu.png").status_code == 200
+    from app.web.routes.coin_routes import _public_menu_url
+    connection = sqlite3.connect(db_path)
+    connection.row_factory = sqlite3.Row
+    with app.test_request_context():
+        assert _public_menu_url(connection) == "https://vote.example/koins"
+    connection.close()
 
 
 def test_qr_uses_configured_public_base_url(coin_client):
@@ -205,7 +241,7 @@ def test_admin_can_create_item_with_custom_pack_size(coin_client):
     )
     assert response.status_code == 200
     assert b"Koin item created" in response.data
-    assert response.data.count(b'class="qr-label"') == 4
+    assert response.data.count(b'class="qr-label"') == 5
     page = client.get("/koins")
     assert b"Icecream Minis mix" in page.data
     assert b"I bought 8" in page.data
@@ -494,3 +530,112 @@ def test_admin_mcp_coin_actions_target_another_member_and_replay_safely(coin_cli
     for invalid in ({"member_id": target}, {"member_id": True, "quantity": 1}, {"member_id": target, "quantity": 1.5}):
         result = mcp_server.execute_tool_command("admin_consume_coin_item", {"item": "Coke", **invalid})
         assert result["error"]["code"] == -32602
+
+
+def test_web_contribute_to_jar_credits_balance_without_touching_inventory(coin_client):
+    client, db_path = coin_client
+    response = client.post(
+        "/koins/contribute",
+        data={"amount": 5, "note": "Covered a Costco run", "idempotency_key": "contrib-1"},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"Added to the jar" in response.data
+
+    with sqlite3.connect(db_path) as connection:
+        connection.row_factory = sqlite3.Row
+        movement = connection.execute(
+            "SELECT * FROM coin_movements WHERE idempotency_key = 'contrib-1'"
+        ).fetchone()
+        stock_total = connection.execute("SELECT COALESCE(SUM(inventory_delta), 0) FROM coin_movements").fetchone()[0]
+    assert movement["kind"] == "contribution"
+    assert movement["item_id"] is None
+    assert movement["inventory_delta"] == 0
+    assert movement["coin_delta"] == 5
+    assert movement["note"] == "Covered a Costco run"
+    assert stock_total == 0  # No inventory anywhere changed.
+
+    page = client.get("/koins")
+    assert b"Your koin balance" in page.data
+    assert b"Jar contribution" in page.data
+    assert b"Contribute to the jar" in page.data
+
+
+def test_contribute_to_jar_validates_amount_and_is_idempotent(coin_client):
+    client, db_path = coin_client
+    bad = client.post("/koins/contribute", data={"amount": 0, "idempotency_key": "bad-1"}, follow_redirects=True)
+    assert b"Amount must be between 1 and 1000" in bad.data
+    bad2 = client.post("/koins/contribute", data={"amount": "many", "idempotency_key": "bad-2"}, follow_redirects=True)
+    assert b"Amount must be a positive integer" in bad2.data
+
+    client.post("/koins/contribute", data={"amount": 3, "idempotency_key": "same-key"})
+    client.post("/koins/contribute", data={"amount": 3, "idempotency_key": "same-key"})
+    with sqlite3.connect(db_path) as connection:
+        count = connection.execute(
+            "SELECT COUNT(*) FROM coin_movements WHERE idempotency_key = 'same-key'"
+        ).fetchone()[0]
+        balance = connection.execute("SELECT SUM(coin_delta) FROM coin_movements WHERE member_id = 1").fetchone()[0]
+    assert count == 1
+    assert balance == 3
+
+
+def test_admin_ledger_edit_table_excludes_jar_contributions(coin_client):
+    client, db_path = coin_client
+    client.post("/koins/contribute", data={"amount": 4, "note": "unmistakable-jar-note", "idempotency_key": "ledger-exclude"})
+    page = client.get("/admin?tab=coins")
+    assert page.status_code == 200
+    # The ledger-edit form's item/kind selects don't model contributions, so a
+    # contribution row must not appear there (it would otherwise default to
+    # "consume" of the first listed item if an admin hit Save unchanged).
+    assert b"unmistakable-jar-note" not in page.data
+
+
+def test_mcp_contribute_to_jar_self_and_admin_target_another_member(coin_client, monkeypatch):
+    _, db_path = coin_client
+    monkeypatch.setattr(mcp_server, "DB_PATH", str(db_path))
+    with sqlite3.connect(db_path) as conn:
+        target = conn.execute("INSERT INTO members (username, password_hash) VALUES ('jar-target', 'unused')").lastrowid
+
+    own = mcp_server.execute_tool_command("contribute_to_jar", {"amount": 2, "member_id": 1})
+    own_payload = json.loads(own["result"]["content"][0]["text"])
+    assert own_payload["coin_delta"] == 2
+    assert own_payload["resulting_coin_balance"] == 2
+
+    admin_args = {"amount": 10, "member_id": target, "note": "Cash from the drawer", "idempotency_key": "admin-contrib"}
+    admin_result = mcp_server.execute_tool_command("admin_contribute_to_jar", admin_args)
+    admin_payload = json.loads(admin_result["result"]["content"][0]["text"])
+    assert admin_payload["coin_delta"] == 10
+    replay = mcp_server.execute_tool_command("admin_contribute_to_jar", admin_args)
+    assert json.loads(replay["result"]["content"][0]["text"])["replayed"] is True
+
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute(
+            "SELECT SUM(coin_delta), COUNT(*) FROM coin_movements WHERE member_id = ?", (target,)
+        ).fetchone() == (10, 1)
+        row = conn.execute(
+            "SELECT item_id, inventory_delta, kind, note FROM coin_movements WHERE member_id = ?", (target,)
+        ).fetchone()
+        assert row == (None, 0, "contribution", "Cash from the drawer")
+
+    for invalid in ({"member_id": target}, {"member_id": True, "amount": 1}, {"member_id": target, "amount": 1.5}):
+        result = mcp_server.execute_tool_command("admin_contribute_to_jar", invalid)
+        assert result["error"]["code"] == -32602
+
+
+def test_telegram_member_write_tools_force_own_member_id_for_contribute(monkeypatch, coin_client):
+    _, db_path = coin_client
+    from app.services.mcp_application import Actor, execute_tool
+    monkeypatch.setattr(mcp_server, "DB_PATH", str(db_path))
+
+    def executor(tool_name, arguments, *, req_id):
+        return mcp_server.execute_tool_command(tool_name, arguments, req_id=req_id)
+
+    # A natural-language Telegram actor can never smuggle in someone else's
+    # member_id for a MEMBER_WRITE-tier tool -- the boundary forces their own.
+    response = execute_tool(
+        executor, "contribute_to_jar", {"amount": 1, "member_id": 999}, actor=Actor("member", member_id=1)
+    )
+    payload = json.loads(response["result"]["content"][0]["text"])
+    assert payload["resulting_coin_balance"] == 1
+    with sqlite3.connect(db_path) as conn:
+        assert conn.execute("SELECT member_id FROM coin_movements").fetchone()[0] == 1

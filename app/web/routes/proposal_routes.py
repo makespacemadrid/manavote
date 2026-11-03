@@ -170,7 +170,6 @@ def proposal_detail(proposal_id):
             conn, proposal_id=proposal_id, member_id=session["member_id"],
             get_member_count=legacy.get_member_count, get_current_budget=legacy.get_current_budget,
             get_thresholds=legacy.get_thresholds, calculate_min_backers=legacy.calculate_min_backers,
-            get_vote_counts=legacy.get_vote_counts,
         )
         if model is None:
             flash("Proposal not found", "error")

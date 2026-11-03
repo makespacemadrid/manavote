@@ -28,7 +28,8 @@ CREATE TABLE IF NOT EXISTS proposals (
     processed_at TEXT,
     over_budget_at TEXT,
     purchased_at TEXT,
-    basic_supplies INTEGER DEFAULT 0
+    basic_supplies INTEGER DEFAULT 0,
+    votes_valid_after_id INTEGER
 );
 CREATE TABLE IF NOT EXISTS votes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -152,11 +153,11 @@ CREATE TABLE IF NOT EXISTS coin_items (
 );
 CREATE TABLE IF NOT EXISTS coin_movements (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    item_id INTEGER NOT NULL,
+    item_id INTEGER,
     member_id INTEGER NOT NULL,
     inventory_delta INTEGER NOT NULL,
     coin_delta INTEGER NOT NULL,
-    kind TEXT NOT NULL CHECK (kind IN ('consume', 'replenish', 'adjustment')),
+    kind TEXT NOT NULL CHECK (kind IN ('consume', 'replenish', 'adjustment', 'contribution')),
     source TEXT NOT NULL CHECK (source IN ('web', 'qr', 'mcp', 'admin')),
     idempotency_key TEXT NOT NULL UNIQUE,
     note TEXT,
@@ -164,7 +165,9 @@ CREATE TABLE IF NOT EXISTS coin_movements (
     FOREIGN KEY (item_id) REFERENCES coin_items(id),
     FOREIGN KEY (member_id) REFERENCES members(id),
     CHECK (inventory_delta <> 0 OR coin_delta <> 0),
-    CHECK (kind = 'adjustment' OR inventory_delta = coin_delta)
+    CHECK (kind IN ('adjustment', 'contribution') OR inventory_delta = coin_delta),
+    CHECK (kind <> 'contribution' OR (item_id IS NULL AND inventory_delta = 0)),
+    CHECK (kind = 'contribution' OR item_id IS NOT NULL)
 );
 CREATE INDEX IF NOT EXISTS idx_coin_movements_item_created
     ON coin_movements(item_id, created_at DESC);

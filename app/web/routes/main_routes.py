@@ -31,7 +31,6 @@ from app.integrations.telegram_webhook import TelegramUpdateDeduplicator
 from app.repositories.settings_repo import SettingsRepository
 from app.repositories.budget_repo import BudgetRepository
 from app.repositories.member_repo import MemberRepository
-from app.repositories.vote_repo import VoteRepository
 from app.services.auth_service import verify_and_migrate_password
 from app.services.budget_service import calculate_min_backers
 from app.services.proposal_service import ProposalService
@@ -195,10 +194,6 @@ def get_thresholds():
     return thresholds
 
 
-
-
-def get_vote_counts(cursor, proposal_id):
-    return VoteRepository(cursor.connection).get_counts(proposal_id)
 
 
 def is_registration_enabled():

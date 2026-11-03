@@ -79,9 +79,9 @@ class ProposalRepository:
             params.append(cutoff)
         where = " WHERE " + " AND ".join(conditions) if conditions else ""
         return self.conn.execute(
-            """SELECT p.id, p.title, p.description, p.amount, p.url, p.created_by, p.status, p.created_at, p.basic_supplies, p.voting_deadline,
-                      COALESCE(SUM(CASE WHEN v.vote = 'in_favor' THEN 1 ELSE 0 END), 0) AS yes_votes,
-                      COALESCE(SUM(CASE WHEN v.vote = 'against' THEN 1 ELSE 0 END), 0) AS no_votes
+            """SELECT p.id, p.title, p.description, p.amount, p.url, p.created_by, p.status, p.created_at, p.basic_supplies, p.voting_deadline, p.votes_valid_after_id,
+                      COALESCE(SUM(CASE WHEN v.vote = 'in_favor' AND (p.votes_valid_after_id IS NULL OR v.id > p.votes_valid_after_id) THEN 1 ELSE 0 END), 0) AS yes_votes,
+                      COALESCE(SUM(CASE WHEN v.vote = 'against' AND (p.votes_valid_after_id IS NULL OR v.id > p.votes_valid_after_id) THEN 1 ELSE 0 END), 0) AS no_votes
                FROM proposals p LEFT JOIN votes v ON v.proposal_id = p.id""" + where +
             " GROUP BY p.id ORDER BY p.created_at DESC LIMIT ? OFFSET ?",
             (*params, limit, offset),
@@ -96,6 +96,15 @@ class ProposalRepository:
         self.conn.execute(
             "UPDATE proposals SET status = 'active', processed_at = NULL, purchased_at = NULL WHERE id = ?",
             (proposal_id,),
+        )
+
+    def bump_votes_valid_after_id(self, proposal_id, vote_id_cutoff):
+        """Ratchet votes_valid_after_id forward to `vote_id_cutoff`, never backward
+        -- a no-op if the proposal's cutoff is already at or past it."""
+        self.conn.execute(
+            "UPDATE proposals SET votes_valid_after_id = ? "
+            "WHERE id = ? AND (votes_valid_after_id IS NULL OR votes_valid_after_id < ?)",
+            (vote_id_cutoff, proposal_id, vote_id_cutoff),
         )
 
     def delete(self, proposal_id):

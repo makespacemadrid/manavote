@@ -8,6 +8,7 @@ from app.repositories.proposal_repo import ProposalRepository
 from app.repositories.settings_repo import SettingsRepository
 from app.repositories.vote_repo import VoteRepository
 from app.services.budget_service import calculate_min_backers
+from app.services.vote_staleness_service import apply_age_staleness, is_vote_stale
 
 
 def build_proposal_page(connection, *, member_id, filter_type="active", now=None, query="", sort="newest", page=1, per_page=20, age="", kind=""):
@@ -36,9 +37,14 @@ def build_proposal_page(connection, *, member_id, filter_type="active", now=None
         proposal["age_days"] = age_days
         proposal["old_age_threshold"] = (age_days // 30) * 30 if proposal["status"] == "active" and age_days >= 30 else None
         proposal["min_backers"] = calculate_min_backers(member_count, proposal["amount"], proposal.get("basic_supplies"), thresholds)
-        proposal["approve_count"], proposal["reject_count"] = votes.get_counts(proposal["id"])
+        votes_valid_after_id = apply_age_staleness(repo, votes, proposal)
+        proposal["has_stale_votes"] = bool(votes_valid_after_id)
+        proposal["approve_count"], proposal["reject_count"] = votes.get_counts(proposal["id"], after_id=votes_valid_after_id)
         proposal["net_votes"] = proposal["approve_count"] - proposal["reject_count"]
-        proposal["user_vote"] = votes.get_member_vote(proposal["id"], member_id)
+        vote_row = votes.get_member_vote_row(proposal["id"], member_id)
+        proposal["user_vote"] = vote_row["vote"] if vote_row else None
+        proposal["user_vote_is_stale"] = bool(vote_row) and is_vote_stale(vote_row["id"], votes_valid_after_id)
+    connection.commit()  # Persist any votes_valid_after_id ratchets from apply_age_staleness above.
 
     history = [dict(row) for row in BudgetRepository(connection).history()]
     running = 0
@@ -62,22 +68,32 @@ def build_proposal_page(connection, *, member_id, filter_type="active", now=None
 
 
 def build_proposal_detail(connection, *, proposal_id, member_id, get_member_count,
-                          get_current_budget, get_thresholds, calculate_min_backers, get_vote_counts):
+                          get_current_budget, get_thresholds, calculate_min_backers):
     from app.repositories.comment_repo import CommentRepository
-    proposal = ProposalRepository(connection).detail_with_creator(proposal_id)
+    repo = ProposalRepository(connection)
+    proposal = repo.detail_with_creator(proposal_id)
     if proposal is None:
         return None
     member_count = get_member_count()
     current_budget = get_current_budget()
     thresholds = get_thresholds()
-    approve_count, reject_count = get_vote_counts(connection.cursor(), proposal_id)
+    votes_repo = VoteRepository(connection)
+    votes_valid_after_id = apply_age_staleness(repo, votes_repo, proposal)
+    connection.commit()  # Persist any votes_valid_after_id ratchet from apply_age_staleness above.
+    approve_count, reject_count = votes_repo.get_counts(proposal_id, after_id=votes_valid_after_id)
+    vote_rows = [dict(row) for row in votes_repo.list_with_members(proposal_id)]
+    for row in vote_rows:
+        row["is_stale"] = is_vote_stale(row["id"], votes_valid_after_id)
+    vote_row = votes_repo.get_member_vote_row(proposal_id, member_id)
     return dict(
-        proposal=proposal, votes=VoteRepository(connection).list_with_members(proposal_id),
+        proposal=proposal, votes=vote_rows,
         comments=CommentRepository(connection).list_with_members(proposal_id),
         approve_count=approve_count, reject_count=reject_count, net_votes=approve_count - reject_count,
         member_count=member_count, min_backers=calculate_min_backers(
             member_count, proposal['amount'], proposal['basic_supplies'], thresholds),
-        current_budget=current_budget, user_vote=VoteRepository(connection).get_member_vote(proposal_id, member_id),
+        current_budget=current_budget, user_vote=vote_row["vote"] if vote_row else None,
+        user_vote_is_stale=bool(vote_row) and is_vote_stale(vote_row["id"], votes_valid_after_id),
+        has_stale_votes=bool(votes_valid_after_id),
         thresholds=thresholds,
     )
 

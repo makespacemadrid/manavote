@@ -114,7 +114,13 @@ def build_admin_page(conn, *, db_path, get_thresholds, is_registration_enabled, 
         item['notes'] = FeedbackRepository(conn).notes(item['id'])
 
     coin_items = [dict(row) for row in CoinRepository(conn).list_for_admin()]
-    coin_movements = [dict(row) for row in CoinRepository(conn).movements_for_admin()]
+    # Jar contributions have no item and aren't covered by the ledger-edit
+    # form below (its item/kind selects don't include them), so excluding
+    # them here avoids the form silently defaulting an untouched contribution
+    # row to "consume" of the first listed item if an admin hits Save.
+    coin_movements = [
+        dict(row) for row in CoinRepository(conn).movements_for_admin() if row["kind"] != "contribution"
+    ]
 
     tz_row = SettingsRepository(conn).get_value("timezone", "Europe/Madrid")
     current_timezone = tz_row

@@ -49,7 +49,8 @@ class TestProposalService(unittest.TestCase):
                 processed_at TEXT,
                 over_budget_at TEXT,
                 purchased_at TEXT,
-                basic_supplies INTEGER DEFAULT 0
+                basic_supplies INTEGER DEFAULT 0,
+                votes_valid_after_id INTEGER
             )
             """
         )
@@ -59,7 +60,8 @@ class TestProposalService(unittest.TestCase):
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 proposal_id INTEGER NOT NULL,
                 member_id INTEGER NOT NULL,
-                vote TEXT NOT NULL
+                vote TEXT NOT NULL,
+                created_at TEXT DEFAULT CURRENT_TIMESTAMP
             )
             """
         )
@@ -95,21 +97,33 @@ class TestProposalService(unittest.TestCase):
         c.execute("INSERT INTO settings (key, value) VALUES ('current_budget', '100')")
         self.conn.commit()
 
-    def _insert_proposal(self, title, amount, basic_supplies=0, status="active", over_budget_at=None):
+    def _insert_proposal(self, title, amount, basic_supplies=0, status="active", over_budget_at=None, created_at=None):
         c = self.conn.cursor()
-        c.execute(
-            "INSERT INTO proposals (title, amount, created_by, basic_supplies, status, over_budget_at) VALUES (?, ?, 1, ?, ?, ?)",
-            (title, amount, basic_supplies, status, over_budget_at),
-        )
+        if created_at is None:
+            c.execute(
+                "INSERT INTO proposals (title, amount, created_by, basic_supplies, status, over_budget_at) VALUES (?, ?, 1, ?, ?, ?)",
+                (title, amount, basic_supplies, status, over_budget_at),
+            )
+        else:
+            c.execute(
+                "INSERT INTO proposals (title, amount, created_by, basic_supplies, status, over_budget_at, created_at) VALUES (?, ?, 1, ?, ?, ?, ?)",
+                (title, amount, basic_supplies, status, over_budget_at, created_at),
+            )
         self.conn.commit()
         return c.lastrowid
 
-    def _insert_vote(self, proposal_id, member_id, vote):
+    def _insert_vote(self, proposal_id, member_id, vote, created_at=None):
         c = self.conn.cursor()
-        c.execute(
-            "INSERT INTO votes (proposal_id, member_id, vote) VALUES (?, ?, ?)",
-            (proposal_id, member_id, vote),
-        )
+        if created_at is None:
+            c.execute(
+                "INSERT INTO votes (proposal_id, member_id, vote) VALUES (?, ?, ?)",
+                (proposal_id, member_id, vote),
+            )
+        else:
+            c.execute(
+                "INSERT INTO votes (proposal_id, member_id, vote, created_at) VALUES (?, ?, ?, ?)",
+                (proposal_id, member_id, vote, created_at),
+            )
         self.conn.commit()
 
     def _add_budget(self, amount, description="seed"):
@@ -228,6 +242,73 @@ class TestProposalService(unittest.TestCase):
         budget_row = c.execute("SELECT value FROM settings WHERE key = 'current_budget'").fetchone()
         self.assertIsNotNone(budget_row)
         self.assertEqual(float(budget_row[0]), 100.0)
+
+    def test_undo_approval_does_not_immediately_reapprove(self):
+        # Regression test: undoing approval used to call process_proposal() right
+        # after resetting status, and since the existing votes still met the
+        # threshold, the proposal was immediately approved again -- undo had no
+        # real effect. The votes_valid_after_id cutoff set by undo_approval must
+        # keep those pre-existing votes from counting until recast.
+        proposal_id = self._insert_proposal("Loop bug repro", 30, status="approved")
+        self._add_budget(100, "initial")
+        self._insert_vote(proposal_id, 1, "in_favor")
+        self._add_budget(-30, "Approved: Loop bug repro")
+        self.conn.execute("UPDATE settings SET value = '70' WHERE key = 'current_budget'")
+        self.conn.commit()
+
+        self.assertTrue(undo_approval(
+            self.conn, proposal_id=proposal_id, member_id=1, is_admin=True,
+            process_proposal=self.service.process_proposal,
+            check_over_budget_proposals=self.service.check_over_budget_proposals,
+        ))
+
+        status = self.conn.execute("SELECT status FROM proposals WHERE id = ?", (proposal_id,)).fetchone()[0]
+        self.assertEqual(status, "active")
+
+    def test_undo_approval_then_fresh_vote_reapproves(self):
+        proposal_id = self._insert_proposal("Loop bug repro 2", 30, status="approved")
+        self._add_budget(100, "initial")
+        self._insert_vote(proposal_id, 1, "in_favor")
+        self._add_budget(-30, "Approved: Loop bug repro 2")
+        self.conn.execute("UPDATE settings SET value = '70' WHERE key = 'current_budget'")
+        self.conn.commit()
+        undo_approval(
+            self.conn, proposal_id=proposal_id, member_id=1, is_admin=True,
+            process_proposal=self.service.process_proposal,
+            check_over_budget_proposals=self.service.check_over_budget_proposals,
+        )
+
+        # A different member casting a brand new vote (the normal vote-casting
+        # path, which re-invokes process_proposal) should re-trigger approval.
+        self._insert_vote(proposal_id, 2, "in_favor")
+        result = self.service.process_proposal(proposal_id)
+
+        self.assertTrue(result)
+        status = self.conn.execute("SELECT status FROM proposals WHERE id = ?", (proposal_id,)).fetchone()[0]
+        self.assertEqual(status, "approved")
+
+    def test_process_proposal_ignores_votes_stale_from_sitting_active_60_plus_days(self):
+        old_created_at = "2026-01-01 00:00:00"
+        proposal_id = self._insert_proposal("Ancient proposal", 30, created_at=old_created_at)
+        self._insert_vote(proposal_id, 1, "in_favor", created_at=old_created_at)
+        self._add_budget(100, "initial")
+
+        result = self.service.process_proposal(proposal_id)
+
+        self.assertIsNone(result)
+        row = self.conn.execute(
+            "SELECT status, votes_valid_after_id FROM proposals WHERE id = ?", (proposal_id,)
+        ).fetchone()
+        self.assertEqual(row[0], "active")
+        self.assertIsNotNone(row[1])
+
+        # A fresh recast after the staleness cutoff counts again.
+        self._insert_vote(proposal_id, 1, "in_favor")
+        result = self.service.process_proposal(proposal_id)
+
+        self.assertTrue(result)
+        status = self.conn.execute("SELECT status FROM proposals WHERE id = ?", (proposal_id,)).fetchone()[0]
+        self.assertEqual(status, "approved")
 
 
 if __name__ == "__main__":
