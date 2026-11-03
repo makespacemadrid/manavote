@@ -1,11 +1,36 @@
 # CHANGELOG — Delivered Roadmap Items
 
-Last reviewed: 2026-10-29
+Last reviewed: 2026-11-03
 
 Shipped outcomes from the roadmap, newest first. This is not a complete release
 history. [IDEAS.md](IDEAS.md) contains unfinished work; [SPRINTS.md](SPRINTS.md)
 records iteration scope and progress. Detailed historical findings and decisions are
 preserved in the [roadmap audit archive](archive/ROADMAP_AUDITS.md).
+
+## Unreleased — Proposal undo-approval fix, stale votes, Koins menu QR and jar contributions
+
+- Fixed: undoing a proposal's approval immediately re-approved it, since the existing
+  votes still met the threshold and `process_proposal()` ran again right away before
+  undo returned. A proposal now stays `active` after undo until a member casts or
+  changes a vote afterward.
+- Added: votes on a proposal that's been `active` for more than 60 days are now stale
+  and must be recast before they count again. Shares the undo fix's mechanism (an
+  exact, monotonic vote-id cutoff per proposal, immune to the 1-second precision loss
+  a timestamp cutoff hit when undo's own immediate re-check landed in the same second).
+  Stale votes are shown, not hidden, in the web UI, REST, and MCP.
+- Added: a single "Koins Menu" QR label, printed alongside the existing per-item
+  consume labels, links straight to `/koins` so scanning it shows every active item to
+  pick from instead of landing on one pre-selected item.
+- Added: "Contribute to the jar" lets a member log money already added to the jar in
+  person (cash, bank transfer, a stock restock not tied to scanning one item) at a
+  flat 1 EUR = 1 koin rate — explicitly a log entry, not an in-app payment. With an
+  item and quantity also given (e.g. paying cash for a can on the spot instead of
+  drawing down koin credit), the same contribution is logged together with taking
+  that item in one move, leaving inventory untouched only for the pure-contribution
+  case. Exposed via the web UI and matching `contribute_to_jar` /
+  `admin_contribute_to_jar` MCP tools.
+- Validation: full Python suite passed, 1078 tests, 6 pre-existing skips (optional
+  `zxingcpp` test dependency).
 
 ## Unreleased — Older proposals hidden by default
 

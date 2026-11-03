@@ -540,7 +540,7 @@ def test_web_contribute_to_jar_credits_balance_without_touching_inventory(coin_c
         follow_redirects=True,
     )
     assert response.status_code == 200
-    assert b"Added to the jar" in response.data
+    assert b"Logged contribution" in response.data
 
     with sqlite3.connect(db_path) as connection:
         connection.row_factory = sqlite3.Row
@@ -558,7 +558,7 @@ def test_web_contribute_to_jar_credits_balance_without_touching_inventory(coin_c
     page = client.get("/koins")
     assert b"Your koin balance" in page.data
     assert b"Jar contribution" in page.data
-    assert b"Contribute to the jar" in page.data
+    assert b"Log a jar contribution" in page.data
 
 
 def test_contribute_to_jar_validates_amount_and_is_idempotent(coin_client):
@@ -639,3 +639,81 @@ def test_telegram_member_write_tools_force_own_member_id_for_contribute(monkeypa
     assert payload["resulting_coin_balance"] == 1
     with sqlite3.connect(db_path) as conn:
         assert conn.execute("SELECT member_id FROM coin_movements").fetchone()[0] == 1
+
+
+def test_web_contribute_and_take_item_logs_both_in_one_move(coin_client):
+    client, db_path = coin_client
+    response = client.post(
+        "/koins/contribute",
+        data={"amount": 1, "item_id": "Coke", "quantity": 1, "idempotency_key": "combo-1"},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"Logged" in response.data
+    assert b"Coke" in response.data
+
+    with sqlite3.connect(db_path) as connection:
+        connection.row_factory = sqlite3.Row
+        rows = connection.execute(
+            "SELECT kind, item_id, inventory_delta, coin_delta FROM coin_movements "
+            "WHERE idempotency_key IN ('combo-1:contribute', 'combo-1:consume') ORDER BY kind"
+        ).fetchall()
+        balance = connection.execute("SELECT SUM(coin_delta) FROM coin_movements WHERE member_id = 1").fetchone()[0]
+    kinds = {row["kind"]: row for row in rows}
+    assert kinds["contribution"]["item_id"] is None
+    assert kinds["contribution"]["inventory_delta"] == 0
+    assert kinds["contribution"]["coin_delta"] == 1
+    assert kinds["consume"]["inventory_delta"] == -1
+    assert kinds["consume"]["coin_delta"] == -1
+    # Paying cash for exactly what was taken leaves the member's balance unchanged.
+    assert balance == 0
+
+
+def test_web_contribute_and_take_rejects_unknown_item_without_logging_contribution(coin_client):
+    client, db_path = coin_client
+    response = client.post(
+        "/koins/contribute",
+        data={"amount": 3, "item_id": "Not A Real Item", "quantity": 1, "idempotency_key": "combo-bad"},
+        follow_redirects=True,
+    )
+    assert response.status_code == 200
+    assert b"Koin item not found" in response.data
+    with sqlite3.connect(db_path) as connection:
+        count = connection.execute("SELECT COUNT(*) FROM coin_movements WHERE member_id = 1").fetchone()[0]
+    assert count == 0
+
+
+def test_contribute_and_consume_service_is_idempotent_per_leg(coin_client):
+    _, db_path = coin_client
+    from app.services.coin_service import contribute_and_consume
+    connection = sqlite3.connect(db_path)
+    connection.row_factory = sqlite3.Row
+
+    first = contribute_and_consume(connection, member_id=1, amount=2, item="Coke Zero", quantity=2, idempotency_key="svc-key")
+    replay = contribute_and_consume(connection, member_id=1, amount=2, item="Coke Zero", quantity=2, idempotency_key="svc-key")
+
+    assert first["contribution"]["replayed"] is False
+    assert first["consumption"]["replayed"] is False
+    assert replay["contribution"]["replayed"] is True
+    assert replay["consumption"]["replayed"] is True
+    assert connection.execute("SELECT COUNT(*) FROM coin_movements WHERE member_id = 1").fetchone()[0] == 2
+    connection.close()
+
+
+def test_mcp_contribute_to_jar_with_item_logs_both_movements(coin_client, monkeypatch):
+    _, db_path = coin_client
+    monkeypatch.setattr(mcp_server, "DB_PATH", str(db_path))
+
+    result = mcp_server.execute_tool_command(
+        "contribute_to_jar", {"amount": 1, "member_id": 1, "item": "Coke", "quantity": 1, "idempotency_key": "mcp-combo"}
+    )
+    payload = json.loads(result["result"]["content"][0]["text"])
+    assert payload["contribution"]["coin_delta"] == 1
+    assert payload["consumption"]["coin_delta"] == -1
+    assert payload["consumption"]["item"] == "Coke"
+    assert payload["resulting_coin_balance"] == 0
+
+    without_item = mcp_server.execute_tool_command("contribute_to_jar", {"amount": 5, "member_id": 1})
+    plain_payload = json.loads(without_item["result"]["content"][0]["text"])
+    assert "contribution" not in plain_payload
+    assert plain_payload["coin_delta"] == 5

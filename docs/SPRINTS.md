@@ -1,6 +1,6 @@
 # SPRINTS — Implementation Planning and Progress Tracking
 
-Last updated: 2026-10-08
+Last updated: 2026-11-03
 
 This document tracks implementation sequencing, active sprint scope, and completion status.
 Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
@@ -50,6 +50,18 @@ their dependent implementation, not the independent discovery work.
 - Running-call cancellation (BOT-04), general REST telemetry (remaining OPS-03),
   participation analytics (DATA-02), and broader navigation redesign remain
   unscheduled. Promote them only with client capability, operator need, or feedback.
+
+### Out-of-sequence delivery (3 November 2026)
+
+Ahead of Sprint 16, a user-reported proposal-approval bug and three Koins requests
+shipped directly (PR #136), outside the IDEAS.md backlog/sprint sequence: undoing a
+proposal's approval no longer immediately re-approves it off the same pre-undo votes
+(an exact, monotonic vote-id cutoff freezes them until a member recasts); the same
+cutoff retires votes on proposals left `active` over 60 days; a single Koins Menu QR
+links straight to `/koins`; and members can log jar contributions (1 EUR = 1 koin, no
+inventory change) via web and MCP. See [CHANGELOG.md](CHANGELOG.md). This does not
+substitute for Sprint 16's planned transaction-race protections on proposal
+purchase/deletion/withdrawal/edit, which remain unstarted below.
 
 ---
 

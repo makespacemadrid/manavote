@@ -46,10 +46,17 @@ execution. The target member is preserved; regular member tools remain bound to 
 caller's linked account. External MCP clients use the existing MCP API-key authentication.
 
 `contribute_to_jar` (member) and `admin_contribute_to_jar` (administrator, same
-confirmation/target-member rules as above) credit a member's koin balance for money
-added to the jar at a flat 1 EUR = 1 koin rate. Unlike the consume/replenish tools
-above, these take `amount` (1..1000 EUR, not `item`/`quantity`) and never touch any
-item's inventory — the resulting ledger row has no `item`, so it's excluded from
-per-item stock totals. Both accept an optional `note` (≤250 characters) and
-`idempotency_key`.
+confirmation/target-member rules as above) log a member's koin balance credit for
+money added to the jar at a flat 1 EUR = 1 koin rate — these never collect or process
+a payment, they only log a contribution that already happened. Unlike the
+consume/replenish tools above, these take `amount` (1..1000 EUR). With no `item`,
+the resulting ledger row has no item and never touches any item's inventory, so it's
+excluded from per-item stock totals. With `item` (and optional `quantity`, default 1)
+also given — e.g. paying cash for a can on the spot instead of drawing down koin
+credit — the same contribution is logged together with a `consume` movement for that
+item/quantity in one call; the response then has `contribution` and `consumption`
+sub-objects plus a top-level `resulting_coin_balance`, rather than the flat
+`{movement_id, coin_delta, resulting_coin_balance, replayed}` shape returned when no
+item is given. The item is validated before the contribution is recorded. Both
+accept an optional `note` (≤250 characters) and `idempotency_key`.
 

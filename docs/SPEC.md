@@ -423,16 +423,26 @@ Committed series behavior:
   lifetime consume/purchase totals.
 - Recent movement history shows the latest 30 movements from all members, newest first;
   a jar contribution (below) shows as "Jar contribution" in place of an item name.
-- **Contribute to the jar**: any member may credit their own koin balance for money
-  added to the jar at a flat 1 EUR = 1 koin rate, without selecting an item and without
-  changing any item's inventory — e.g. a stock restock paid without scanning a specific
-  item, or a plain cash donation. Implemented as a `contribution`-kind `coin_movements`
-  row with `item_id = NULL` and `inventory_delta = 0`, so it never appears in any
-  per-item stock total; this is what "closes the loop" between money collected and
-  inventory tracked when the two don't line up to one item purchase. `POST
-  /koins/contribute` (web) and the `contribute_to_jar`/`admin_contribute_to_jar` MCP
-  tools share this path; the admin variant can target any member and requires Telegram
-  confirmation like the other admin Koins tools.
+- **Contribute to the jar**: any member may log money they already added to the jar
+  in person (cash, bank transfer, a stock restock paid without scanning a specific
+  item) at a flat 1 EUR = 1 koin rate. This logs a record of the contribution — it
+  never collects or processes a payment through the app. With no item selected it
+  credits the member's koin balance without touching any item's inventory: a
+  `contribution`-kind `coin_movements` row with `item_id = NULL` and
+  `inventory_delta = 0`, so it never appears in any per-item stock total; this is
+  what "closes the loop" between money collected and inventory tracked when the two
+  don't line up to one item purchase. With an item and quantity also given (e.g.
+  paying cash for a can on the spot instead of drawing down koin credit), the same
+  contribution is logged together with a `consume` row for that item/quantity in one
+  move — two linked ledger rows sharing one idempotency key (`<key>:contribute` /
+  `<key>:consume`), so a whole-request retry replays both consistently; the item is
+  validated before the contribution is recorded, so an invalid item never leaves an
+  orphaned contribution with nothing taken for it. `POST /koins/contribute` (web,
+  `item_id`/`quantity` optional) and the `contribute_to_jar`/`admin_contribute_to_jar`
+  MCP tools (same optional `item`/`quantity`) share this path; the admin variant can
+  target any member and requires Telegram confirmation like the other admin Koins
+  tools. The admin ledger-edit table (above) excludes `contribution` rows regardless
+  of whether an item was also taken in the same move.
 - **Single-QR menu**: alongside each item's own consume QR label, the printable labels
   page (`/admin/koins/qr-labels`) includes one additional "Koins Menu" label whose QR
   code links straight to `/koins` — scanning it (after signing in) shows every active

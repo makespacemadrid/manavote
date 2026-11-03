@@ -234,6 +234,34 @@ def _contribution_result(repo, member_id, movement, replayed):
     }
 
 
+def contribute_and_consume(connection, *, member_id, amount, item, quantity=1, note=None, idempotency_key=None, source="web"):
+    """Log a cash contribution to the jar and take item(s) in the same move --
+    e.g. paying cash for a can on the spot instead of drawing down existing
+    koin credit. Two linked ledger rows (a 'contribution' crediting `amount`
+    koins and a 'consume' debiting `quantity` koins), derived from one
+    idempotency key so a whole-call retry replays both consistently.
+
+    The item is validated before the contribution is recorded, so an invalid
+    item never leaves a contribution logged with nothing taken for it.
+    """
+    if CoinRepository(connection).find_item(item) is None:
+        raise CoinNotFoundError("Koin item not found")
+    base_key = str(idempotency_key or secrets.token_urlsafe(24))
+    contribution = contribute_to_jar(
+        connection, member_id=member_id, amount=amount, note=note,
+        idempotency_key=f"{base_key}:contribute", source=source,
+    )
+    consumption = record_movement(
+        connection, item=item, member_id=member_id, action="consume", quantity=quantity,
+        source=source, idempotency_key=f"{base_key}:consume",
+    )
+    return {
+        "contribution": contribution,
+        "consumption": consumption,
+        "resulting_coin_balance": consumption["resulting_coin_balance"],
+    }
+
+
 def adjust_inventory(connection, *, item, member_id, inventory_delta, note=None, idempotency_key=None):
     """Adjust physical stock without changing any member's koin balance."""
     try:
