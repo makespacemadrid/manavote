@@ -63,7 +63,8 @@ def proposals():
     age_arg = request.args.get("age")
     age = age_arg
     if age is None:
-        age = "recent" if request.args.get("filter") is None else ""
+        legacy_filter = request.args.get('filter')
+        age = legacy_filter if legacy_filter in {'old', 'recent'} else ('recent' if legacy_filter is None else '')
     conn = legacy.get_db()
     try:
         model = build_proposal_page(

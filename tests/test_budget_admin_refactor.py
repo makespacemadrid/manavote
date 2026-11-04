@@ -269,11 +269,11 @@ class TestBudgetAdminRefactor(unittest.TestCase):
             self.assertIn("Very old proposal", old_html)
             self.assertIn(">old</span>", old_html)
             self.assertIn(
-                '<span class="proposal-age-watermark">Over 30 days old</span>',
+                '<span class="proposal-age-watermark">31 days old</span>',
                 old_html,
             )
             self.assertIn(
-                '<span class="proposal-age-watermark">Over 90 days old</span>',
+                '<span class="proposal-age-watermark">95 days old</span>',
                 old_html,
             )
 

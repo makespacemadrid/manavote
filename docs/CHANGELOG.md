@@ -364,3 +364,11 @@ Added admin-key REST copy endpoints, proposal deadline persistence and deadline 
 in REST/MCP creation/read contracts. A minute scheduler sends one final-24-hour warning
 per still-open voting/joining deadline, with timezone/DST-aware purchase date handling
 and durable delivery claims. Updated MCP/REST references, specification and operations.
+
+## 4 November 2026 — Proposal photo ages
+
+Old proposal photos now show their exact whole-day age in a readable overlay,
+including approved/rejected proposals, while retaining the recent-only default view
+and explicit status-filter behavior added on main. Age labels clearly separate
+Less than 30 days from 30 days or older. Legacy age bookmarks select their actual
+age refinement. Added bilingual boundary/pagination tests and browser overlay checks.

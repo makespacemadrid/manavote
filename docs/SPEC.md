@@ -747,3 +747,9 @@ expired, changed or already-closed periods are skipped; member/amount thresholds
 cannot be predicted. These warnings do not change approval rules or lifecycle states.
 Delivery attempts are claimed before network I/O; ambiguous failures are logged and
 not automatically resent. Missing bot/chat configuration leaves events pending.
+
+Proposal photo overlays show the exact whole-day age once an item is at least
+30 days old, regardless of status. The default web view remains recent active
+proposals; explicit status filters without an age retain all ages. Members can
+choose All or 30 days or older in the age refinement. Legacy recent/old bookmarks
+select the matching age refinement. REST/MCP defaults are unchanged.
