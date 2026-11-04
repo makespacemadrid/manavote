@@ -383,3 +383,11 @@ Drafts are separated by account and form/record. Confirmed server success clears
 only the submitted draft, preserving newer edits, and validation failures retain it.
 Expired/corrupt drafts are removed, competing tabs are flagged and storage failures
 leave the form usable with an honest status message.
+
+## 4 November 2026 — Roadmap reconciliation
+
+Reconciled IDEAS and SPRINTS with recent delivered notifications, drafts and UX work.
+Sprint 20 now checks off delivered implementation/documentation while keeping member,
+physical-device, screen-reader and query evidence open. Sprint 16 remains next, using
+the current REST/MCP contracts; Sprints 17–19 and their decision gates remain planned.
+The proposed notification dashboard is recorded as an unscheduled OPS-03 candidate.
