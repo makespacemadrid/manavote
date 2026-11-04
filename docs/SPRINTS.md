@@ -1,6 +1,6 @@
 # SPRINTS — Implementation Planning and Progress Tracking
 
-Last updated: 2026-11-03
+Last updated: 2026-11-04
 
 This document tracks implementation sequencing, active sprint scope, and completion status.
 Backlog strategy and long-range direction live in [`IDEAS.md`](IDEAS.md).
@@ -50,6 +50,26 @@ their dependent implementation, not the independent discovery work.
 - Running-call cancellation (BOT-04), general REST telemetry (remaining OPS-03),
   participation analytics (DATA-02), and broader navigation redesign remain
   unscheduled. Promote them only with client capability, operator need, or feedback.
+
+### Current execution position — 4 November 2026
+
+Sprint 16 is the next implementation sprint. Sprints 17–19 retain their existing
+order and decision gates; Sprint 20 has delivered implementation with validation
+still open. Recent user-requested deliveries do not close the remaining transaction,
+credential, history-retention, recovery or performance work.
+
+PRs #130–135 and #138–139 delivered safer Telegram diagnostics, branded printable
+QRs, wider/aligned layouts, automatic proposal filters, group-purchase summaries,
+submission/offline feedback, deadline warnings and copy announcements across web,
+REST/MCP/Telegram, exact proposal photo ages and local recoverable form drafts.
+These outcomes are recorded in [CHANGELOG](CHANGELOG.md), not additional unfinished
+sprint scope. Copy/deadline work extended the current contracts; Sprint 16 must freeze
+those current fields and retry semantics rather than an older interface snapshot.
+
+The proposed notification-delivery dashboard and controlled retry workflow remain an
+unscheduled operator candidate under remaining OPS-03. Sprint 20 already owns member,
+physical-device and assistive-technology validation; use those findings to prioritize
+further accessibility work rather than treating automated layout coverage as completion.
 
 ### Out-of-sequence delivery (3 November 2026)
 
@@ -102,11 +122,17 @@ client-side replacement of server filtering, and unrelated chart types.
 ### Progress
 
 - [ ] Record task evidence and approve interaction/query defaults.
-- [ ] Implement proposal discovery controls and query regression coverage.
-- [ ] Implement chart controls and bilingual responsive/keyboard checks.
-- [ ] Update SPEC, relevant interface docs, TESTING, IDEAS, and CHANGELOG; pass close-out checks.
+- [x] Implement proposal discovery controls and query regression coverage.
+- [x] Implement chart controls and bilingual responsive/keyboard checks.
+- [x] Document delivered behavior in SPEC, relevant interface docs, TESTING, IDEAS and CHANGELOG.
+- [ ] Record physical-device/screen-reader results and Sprint 19 query evidence; complete remaining close-out checks.
 
-**Status:** Planned. Task evidence and control semantics must be resolved before implementation.
+Follow-up verification now includes 300 populated bilingual browser layouts, field/action
+alignment, native keyboard controls and draft recovery through reloads/closed tabs.
+Automated checks supplement the outstanding member/device/assistive-technology evidence.
+
+**Status:** Implementation delivered; validation open. Remaining work is evidence collection
+and query measurement, not rebuilding delivered controls.
 
 ---
 
@@ -289,7 +315,9 @@ write transaction, allowing state to change between validation and the mutation.
 - Select REST proposal creation and the existing MCP `create_proposal` tool as the
   contract pair. Freeze accepted fields, defaults, response types, and error mapping in
   their canonical references; preserve intentional web/API creator-vote and basic-supplies
-  differences. MCP has no proposal-edit tool; this sprint does not add one.
+  differences. Include the proposal deadline and copy/retry extensions delivered since
+  planning; copying is a separate operation from creation. MCP has no proposal-edit
+  tool; this sprint does not add one.
 
 ### Scope
 

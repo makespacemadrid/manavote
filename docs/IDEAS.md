@@ -1,6 +1,6 @@
 # IDEAS — Forward Roadmap
 
-Last reviewed: 2026-10-30 (UX delivery reconciliation; other backlog decisions unchanged)
+Last reviewed: 2026-11-04 (delivery reconciliation; sprint order and decision gates retained)
 
 This is the backlog of unfinished work. Each item has a stable ID, a concrete outcome,
 and a completion signal. [SPRINTS.md](SPRINTS.md) owns scheduled scope and status;
@@ -31,6 +31,26 @@ Planned P2 sprints include discovery and policy gates; scheduling does not asser
 those decisions or measurements already exist.
 Priority does not authorize a broad rewrite. Follow [STYLE.md](STYLE.md), preserve
 compatibility, and choose the smallest slice with a testable outcome.
+
+## Delivery reconciliation — 4 November 2026
+
+Recent delivered work includes copy announcements and deadline warnings across web,
+REST/MCP and the Telegram assistant; consistent action/offline feedback; exact photo
+age overlays and recent proposal defaults; and account/form-scoped local drafts with
+reload/closed-tab recovery. Branded QR printing, wider layouts, automatic filters and
+group-purchase presentation are delivered too. See [CHANGELOG](CHANGELOG.md) for the
+implementation record and [SPRINTS](SPRINTS.md#current-execution-position--4-november-2026)
+for the execution position. These are not fresh backlog items.
+
+Sprint 16 remains next: protect purchase/deletion/withdrawal/edit transactions and
+freeze current REST/MCP creation contracts, including the newer deadline fields.
+Sprints 17–19 remain planned. Sprint 20 retains member task, physical-device,
+screen-reader and representative query validation; automated UI coverage does not
+close those evidence requirements.
+
+A notification-delivery dashboard with controlled retries is a proposed operator
+workflow for the remaining OPS-03 slice. Scope and retry semantics must account for
+ambiguous Telegram sends before scheduling it; it does not displace Sprint 16.
 
 ## Latest UX and visual audit
 
