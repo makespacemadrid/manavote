@@ -10,6 +10,7 @@ from flask import Blueprint, abort, current_app, flash, redirect, render_templat
 from urllib.parse import urlparse
 
 from app.extensions import limiter, oauth
+from app.web.draft_receipts import complete_draft
 from app.services import auth_service
 from app.repositories.member_repo import MemberRepository
 from app.repositories.feedback_repo import FeedbackRepository
@@ -305,6 +306,7 @@ def settings_page():
                         logger=current_app.logger,
                     )
                     flash("Feedback submitted. Thank you!", "success")
+                    complete_draft('feedback:' + request.form.get('section', ''))
                     flash(legacy.get_lang("Feedback receipt").format(feedback_id), "success")
                 except feedback_service.FeedbackValidationError as exc:
                     flash(str(exc), "error")

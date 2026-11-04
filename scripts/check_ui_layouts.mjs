@@ -74,6 +74,22 @@ try {
     assert.equal(result.exceptionDetails, undefined, `Browser expression failed: ${expression}`);
     return result.result.value;
   };
+  const openDraftTab = async (file) => {
+    const target = await (await fetch(`http://${address.host}/json/new?${encodeURIComponent(base+'/'+file)}`, {method:'PUT'})).json();
+    const tabSocket = new WebSocket(target.webSocketDebuggerUrl);
+    await new Promise((resolve,reject)=>{tabSocket.onopen=resolve;tabSocket.onerror=reject;});
+    let serial=0;const requests=new Map();
+    tabSocket.onmessage=({data})=>{const message=JSON.parse(data);const request=requests.get(message.id);if(!request)return;requests.delete(message.id);message.error?request.reject(new Error(message.error.message)):request.resolve(message.result);};
+    const run=async expression=>{
+      const result=await new Promise((resolve,reject)=>{const id=++serial;requests.set(id,{resolve,reject});tabSocket.send(JSON.stringify({id,method:'Runtime.evaluate',params:{expression,returnByValue:true,awaitPromise:true}}));});
+      assert.equal(result.exceptionDetails,undefined,'Draft tab browser exception');return result.result.value;
+    };
+    for(let attempt=0;attempt<50;attempt++){
+      if(await run('document.readyState==="complete"&&!!document.querySelector("[data-draft-key] .draft-controls")'))return {run,close:async()=>{tabSocket.close();await fetch(`http://${address.host}/json/close/${target.id}`);}};
+      await new Promise(resolve=>setTimeout(resolve,100));
+    }
+    tabSocket.close();throw new Error('Draft tab did not initialize');
+  };
   const key = async (name, shift = false) => {
     const code = name === 'Tab' ? 9 : name === 'Escape' ? 27 : 13;
     for (const type of ['keyDown', 'keyUp']) await cdp('Input.dispatchKeyEvent', {
@@ -85,7 +101,7 @@ try {
   await cdp('Page.bringToFront');
   await cdp('Runtime.enable');
   let checks=0;
-  for (const language of ['en','es']) {
+  for (const language of (process.env.MANAVOTE_DRAFT_ONLY==='1'?[]:['en','es'])) {
     const pages=JSON.parse(await readFile(join(snapshots,`manifest-${language}.json`),'utf8'));
     for (const page of pages) for (const width of [320,375,600,1280,1600,1920]) {
       consoleErrors.length=0;
@@ -181,6 +197,83 @@ try {
     }
   }
   console.log(`Passed ${checks} bilingual layouts: button alignment, field/action baselines, responsive width, filter submission, poll keyboard controls and hydration.`);
+  await cdp('Page.navigate',{url:`${base}/about-en.html`});
+  for(let attempt=0;attempt<50;attempt++){
+    if(await evaluate(`document.readyState==='complete'&&location.origin===${JSON.stringify(base)}`))break;
+    await new Promise(resolve=>setTimeout(resolve,100));
+  }
+  for(const language of ['en','es']) for(const page of ['new-proposal','new-group','edit-group','admin-polls','proposal']){
+    await evaluate('localStorage.clear()');
+    await cdp('Page.navigate',{url:`${base}/${page}-${language}.html`});
+    for(let attempt=0;attempt<50;attempt++){
+      if(await evaluate(`document.readyState==='complete'&&document.body?.dataset.layoutFixture===${JSON.stringify(page+'-'+language+'.html')}&&!!document.querySelector('[data-draft-key] .draft-controls')`))break;
+      await new Promise(resolve=>setTimeout(resolve,100));
+    }
+    const draftKey=page==='proposal'?'proposal:comment:1':page==='admin-polls'?'poll:new':page==='new-proposal'?'proposal:new':page==='new-group'?'group:new':'group:edit:1';
+    const field=page==='proposal'?'comment':page==='admin-polls'?'question':'title';
+    assert.ok(await evaluate(`(()=>{
+      const form=document.querySelector('[data-draft-key="${draftKey}"]');
+      const set=(name,value)=>{const input=form.elements.namedItem(name);input.value=value;input.dispatchEvent(new Event('input',{bubbles:true}));};
+      set('${field}','Saved draft across tabs');
+      if('${page}'==='new-proposal'){
+        set('description','<script>window.draftXss=true</script> Draft text');set('amount','11');form.elements.basic_supplies.checked=true;
+      }
+      if('${page}'==='admin-polls'){set('options','First option\\nSecond option');set('closes_at','2099-01-01T12:00');form.elements.allow_multiple.checked=true;}
+      const password=document.createElement('input');password.name='password';password.type='password';password.value='SECRET-PASSWORD';form.append(password);
+      const note=document.createElement('textarea');note.name='private_note';note.value='SECRET-UNDECLARED';form.append(note);
+      if('${page}'==='new-group'){
+        form.querySelector('#add-component').click();form.querySelector('#add-cost').click();
+        const names=form.querySelectorAll('[name=component_name]');names[0].value='AA';names[1].value='BB';
+        form.querySelector('[name=cost_label]').value='Shipping';form.querySelector('[name=cost_amount]').value='5';
+        form.elements.cap_at_125.checked=true;
+      }
+      if('${page}'==='edit-group'){
+        form.querySelector('[data-add-group-component]').click();form.querySelector('#add-edit-cost').click();
+        form.querySelectorAll('[name=new_component_name]')[1].value='New part';
+        form.querySelectorAll('[name=cost_label]')[1].value='Handling';
+        form.querySelectorAll('[name=cost_amount]')[1].value='3';
+        form.elements.component_name_1.value='Changed connector';
+      }
+      set('${field}','Saved draft across tabs');
+      const key='manavote:draft:v1:1:'+encodeURIComponent('${draftKey}');const raw=localStorage.getItem(key);
+      return raw&&!raw.includes('SECRET-')&&!raw.includes('csrf_token')&&!raw.includes('"image"')&&!raw.includes('_draft_nonce');
+    })()`),'Only declared non-sensitive draft fields may be stored');
+    let tab=await openDraftTab(`${page}-${language}.html`);
+    assert.ok(await tab.run(`(()=>{
+      const form=document.querySelector('[data-draft-key="${draftKey}"]');
+      if(form.elements.namedItem('${field}').value==='Saved draft across tabs')return false;
+      form.querySelector('[data-draft-restore]').click();
+      if(form.elements.namedItem('${field}').value!=='Saved draft across tabs')return false;
+      if('${page}'==='new-proposal'&&(!form.elements.description.value.includes('<script>')||window.draftXss||form.elements.amount.value!=='11'||!form.elements.basic_supplies.checked))return false;
+      if('${page}'==='admin-polls'&&(!form.elements.options.value.includes('Second option')||form.elements.closes_at.value!=='2099-01-01T12:00'||!form.elements.allow_multiple.checked))return false;
+      if('${page}'==='new-group'&&(form.querySelectorAll('[name=component_name]').length!==2||form.querySelectorAll('[name=component_name]')[1].value!=='BB'||form.elements.cost_label.value!=='Shipping'||!form.elements.cap_at_125.checked))return false;
+      if('${page}'==='edit-group'&&(form.querySelectorAll('[name=new_component_name]').length!==2||form.querySelectorAll('[name=new_component_name]')[1].value!=='New part'||form.elements.component_name_1.value!=='Changed connector'||form.querySelectorAll('[name=cost_label]').length!==2||form.querySelectorAll('[name=cost_label]')[1].value!=='Handling'))return false;
+      const input=form.elements.namedItem('${field}');input.value='Recovered after closed tab';input.dispatchEvent(new Event('input',{bubbles:true}));return true;
+    })()`),'Draft restore must recover text, checkboxes and repeated component/cost rows');
+    await tab.run('location.reload();true');
+    let reloaded=false;
+    for(let attempt=0;attempt<50;attempt++){
+      reloaded=await tab.run(`document.readyState==='complete'&&!!document.querySelector('[data-draft-key="${draftKey}"] [data-draft-restore]:not([hidden])')`);
+      if(reloaded)break;
+      await new Promise(resolve=>setTimeout(resolve,100));
+    }
+    assert.ok(reloaded,'Reload must offer saved draft recovery');
+    assert.ok(await tab.run(`(()=>{const form=document.querySelector('[data-draft-key="${draftKey}"]');form.querySelector('[data-draft-restore]').click();return form.elements.namedItem('${field}').value==='Recovered after closed tab'})()`),'Reload must retain entered draft text');
+    await tab.close();
+    tab=await openDraftTab(`${page}-${language}.html`);
+    assert.ok(await tab.run(`(()=>{
+      const form=document.querySelector('[data-draft-key="${draftKey}"]');form.querySelector('[data-draft-restore]').click();
+      if(form.elements.namedItem('${field}').value!=='Recovered after closed tab')return false;
+      form.querySelector('[data-draft-discard]').click();
+      const key='manavote:draft:v1:1:'+encodeURIComponent('${draftKey}');
+      if(localStorage.getItem(key)!==null||form.elements.namedItem('${field}').value!=='Recovered after closed tab')return false;
+      const original=Storage.prototype.setItem;Storage.prototype.setItem=()=>{throw new Error('quota denied')};
+      const input=form.elements.namedItem('${field}');input.value='Still editable';input.dispatchEvent(new Event('input',{bubbles:true}));Storage.prototype.setItem=original;
+      return form.querySelector('.draft-controls p').textContent.includes('${language==='es'?'No se pudo':'unavailable'}');
+    })()`),'Closed-tab recovery, discard and storage-failure feedback must work');
+    await tab.close();
+  }
+  console.log('Passed bilingual draft recovery across reloads/closed tabs, dynamic rows, sensitive-field exclusion, discard and blocked-storage feedback.');
 
 } finally {
   socket?.close();

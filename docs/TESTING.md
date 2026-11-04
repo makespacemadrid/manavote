@@ -556,3 +556,13 @@ All outbound Telegram clients are fakes; the tests never send actual messages.
 explicit all-age and legacy views, bilingual photo ages, non-active proposals and
 filter persistence through pagination. Browser fixtures include an older photo and
 assert that the exact-age label stays inside its image at all tested widths.
+
+Draft coverage: `frontend/src/drafts.test.js` verifies account/form keys, expiry, data
+validation and receipt cleanup that preserves newer edits/other accounts.
+`tests/test_form_drafts.py` verifies successful receipt creation for web entry points,
+validation retention and absence of draft text in session cookies. The persistent UI
+job additionally tests English/Spanish recovery through reloads and closed tabs for
+proposals, new/edited group purchases, polls and comments, including dynamic rows,
+checkboxes, discard, sensitive-field exclusion and storage-quota failures.
+Run `MANAVOTE_DRAFT_ONLY=1 node scripts/check_ui_layouts.mjs <fixture-directory>` to
+exercise recovery without repeating the 300-layout matrix. All fixtures are synthetic.

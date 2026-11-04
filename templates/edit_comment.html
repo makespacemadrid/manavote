@@ -6,8 +6,8 @@
 <div class="card">
     <h1>{{ 'Edit Comment'|lang }}</h1>
     
-    <form method="POST">
-            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"
+    <form method="POST" data-protect-changes data-draft-key="comment:edit:{{ comment.id }}" data-draft-fields="content">
+        <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label>{{ 'Comments'|lang }}
         <textarea name="content" required style="min-height: 100px;">{{ comment.content }}</textarea></label>
         

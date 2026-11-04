@@ -753,3 +753,26 @@ Proposal photo overlays show the exact whole-day age once an item is at least
 proposals; explicit status filters without an age retain all ages. Members can
 choose All or 30 days or older in the age refinement. Legacy recent/old bookmarks
 select the matching age refinement. REST/MCP defaults are unchanged.
+
+### Local form drafts
+
+Opt-in forms declare stable `data-draft-key` and `data-draft-fields` attributes for
+proposal/group-purchase creation/editing, Admin poll creation, proposal comments and
+page-specific feedback. The frontend stores only declared supported field values,
+checkbox/radio state and validated dynamic row counts in localStorage, separated by
+signed-in account and form/record. No passwords, hidden fields, tokens or files are
+saved. Text remains on that browser, is not synchronized to other devices, and expires
+after seven days. Browser storage deletion or unavailable storage prevents recovery.
+
+Restoring/discarding is explicit; a pending saved draft is not overwritten until the
+member chooses. Dynamic rows use existing bounded add/remove controls; changed form
+structure retains the saved draft for review. Discard removes the saved copy and keeps
+current entries on screen; subsequent changes begin a new draft. Competing-tab updates
+pause saving and offer recovery. Forms remain usable if browser storage is blocked/full.
+
+Successful web submission emits a bounded account-session receipt containing only a
+form key and client nonce. The next rendered page removes the matching submitted
+local draft; newer edits without that nonce remain intact. Validation errors and
+interrupted requests do not clear drafts. Browser-history restoration never recreates
+a successfully cleared draft merely by leaving the old page. Uploads require manual
+reselection. API/MCP contracts and server-side CSRF/permissions remain unchanged.

@@ -3,7 +3,7 @@
 
 <div class="card">
     <h1>{{ 'Edit group purchase'|lang }}</h1>
-    <form method="post" enctype="multipart/form-data" data-protect-changes>
+    <form method="post" enctype="multipart/form-data" data-protect-changes data-draft-key="group:edit:{{ purchase.id }}" data-draft-fields="title description url payment_method deadline join_member_limit cap_at_125 component_name_* component_price_* new_component_name new_component_price cost_label cost_amount">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <label for="title">{{ 'Title'|lang }}</label><input id="title" name="title" maxlength="150" value="{{ purchase.title or '' }}" required>
         <label for="description">{{ 'Description'|lang }}</label><textarea id="description" name="description">{{ purchase.description or '' }}</textarea>

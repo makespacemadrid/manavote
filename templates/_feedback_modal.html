@@ -2,7 +2,7 @@
     <div class="danger-modal-panel feedback-modal-panel" tabindex="-1">
         <h3 id="feedbackModalTitle">{{ 'Feedback'|lang }}</h3>
         <p>{{ 'Report a bug or suggest an improvement.'|lang }}</p>
-        <form method="POST" action="{{ url_for('auth.settings_page') }}" class="email-settings-form">
+        <form method="POST" action="{{ url_for('auth.settings_page') }}" class="email-settings-form" data-protect-changes data-draft-key="feedback:{{ request.path }}" data-draft-fields="category message">
             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
             <input type="hidden" name="action" value="submit_feedback">
             <input type="hidden" name="section" value="{{ request.path }}">

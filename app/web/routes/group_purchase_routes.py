@@ -12,6 +12,7 @@ from app.services.group_purchase_service import (
     _allocate_shared_costs, _valid_product_url, _valid_deadline,
 )
 from app.web.decorators import login_required
+from app.web.draft_receipts import complete_draft
 from app.web.routes import main_routes as legacy
 from translations import TRANSLATIONS
 
@@ -141,6 +142,7 @@ def group_purchases_page():
                         details.append(f"👉 {base_url}/group-purchases#purchase-{purchase_id}")
                     legacy.send_telegram_message("\n".join(details))
                     flash("Group purchase created", "success")
+                    complete_draft('group:new')
                     return redirect(url_for("group_purchases.group_purchases_page"))
 
         purchases = purchases_service.build_purchase_page(conn, session["member_id"])
@@ -272,6 +274,7 @@ def edit_purchase(purchase_id):
                             if os.path.exists(old_path):
                                 os.remove(old_path)
                         flash("Group purchase updated", "success")
+                        complete_draft(f'group:edit:{purchase_id}')
                         return redirect(url_for("group_purchases.group_purchases_page") + f"#purchase-{purchase_id}")
 
         purchase_data = dict(purchase)
