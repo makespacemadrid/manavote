@@ -5,6 +5,7 @@ import sqlite3
 from flask import Blueprint, abort, flash, redirect, render_template, request, send_file, session, url_for
 
 from app.extensions import limiter
+from app.web.draft_receipts import complete_draft
 from app.services import admin_actions_service, admin_page_service
 from app.services.assistant_health_service import build_assistant_health
 from app.services.error_report_service import list_errors, export_errors, capture_browser_error
@@ -183,6 +184,8 @@ def admin():
                 session["username"] = username
             for message in messages:
                 flash(*message)
+            if request.form.get('action') == 'create_poll' and ('Poll created!', 'success') in messages:
+                complete_draft('poll:new')
         model = admin_page_service.build_admin_page(
             conn, db_path=legacy.DB_PATH, get_thresholds=legacy.get_thresholds,
             is_registration_enabled=legacy.is_registration_enabled,

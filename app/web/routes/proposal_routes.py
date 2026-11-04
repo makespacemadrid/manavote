@@ -11,6 +11,7 @@ from app.services.platform_notification_service import normalize_voting_deadline
 from app.services.budget_service import build_budget_page
 from app.services.proposal_page_service import build_proposal_page, build_proposal_detail
 from app.web.decorators import admin_required, login_required
+from app.web.draft_receipts import complete_draft
 from app.web.routes import main_routes as legacy
 
 proposal_bp = Blueprint("proposals", __name__)
@@ -157,6 +158,7 @@ def new_proposal():
             send_telegram_message(message)
 
         flash("Proposal created!", "success")
+        complete_draft('proposal:new')
         return redirect(url_for("proposals"))
 
     return _render_proposal_form("new_proposal.html")
@@ -190,6 +192,7 @@ def proposal_detail(proposal_id):
                 if proposal_actions_service.add_comment(conn, proposal_id=proposal_id,
                         member_id=session["member_id"], content=request.form["comment"]):
                     flash("Comment added!", "success")
+                    complete_draft(f'proposal:comment:{proposal_id}')
             return redirect(url_for("proposals.proposal_detail", proposal_id=proposal_id))
     finally:
         conn.close()
@@ -216,6 +219,7 @@ def edit_comment(comment_id):
             )
             if result["updated"]:
                 flash("Comment updated!", "success")
+                complete_draft(f'comment:edit:{comment_id}')
             return redirect(url_for("proposals.proposal_detail", proposal_id=result["proposal_id"]))
     except proposal_actions_service.ProposalActionError as exc:
         flash("Admin access required" if exc.code == "admin_required" else "Comment not found", "error")
@@ -323,6 +327,7 @@ def edit_proposal(proposal_id):
                 remove_proposal_image(proposal["image_filename"], upload_folder=app.config["UPLOAD_FOLDER"])
 
             flash("Proposal updated!", "success")
+            complete_draft(f'proposal:edit:{proposal_id}')
             return redirect(url_for("proposals.proposal_detail", proposal_id=proposal_id))
 
         return _render_proposal_form("edit_proposal.html", proposal=proposal)

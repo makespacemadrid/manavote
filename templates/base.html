@@ -5,6 +5,8 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <meta name="frontend-build" content="{{ asset_version('react/app.js') }}">
     {% if session.get('member_id') %}
+    <meta name="draft-owner" content="{{ session.member_id }}">
+    <meta name="draft-receipts" content="{{ (session.pop('_draft_receipts') if '_draft_receipts' in session else [])|tojson|forceescape }}">
     <meta name="csrf-token" content="{{ csrf_token() }}">
     <meta name="browser-error-endpoint" content="{{ url_for('admin.browser_error') }}">
     {% endif %}

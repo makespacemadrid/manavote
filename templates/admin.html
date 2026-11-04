@@ -355,7 +355,7 @@
 
 <div id="polls" class="card">
     <h3>{{ 'Polls'|lang }}</h3>
-    <form method="POST" style="margin-bottom: 15px;">
+    <form method="POST" style="margin-bottom: 15px;" data-protect-changes data-draft-key="poll:new" data-draft-fields="question options closes_at allow_multiple">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}">
         <input type="hidden" name="action" value="create_poll">
         <label>{{ 'Question'|lang }}

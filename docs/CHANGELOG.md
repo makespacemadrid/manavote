@@ -372,3 +372,14 @@ including approved/rejected proposals, while retaining the recent-only default v
 and explicit status-filter behavior added on main. Age labels clearly separate
 Less than 30 days from 30 days or older. Legacy age bookmarks select their actual
 age refinement. Added bilingual boundary/pagination tests and browser overlay checks.
+
+## 4 November 2026 — Recoverable form drafts
+
+Proposal and group-purchase creation/editing, poll creation, comments and feedback
+now save declared text/options locally for seven days. Recovery is explicit through
+Restore/Discard controls and survives reloads and closed tabs on the same browser.
+Component/cost rows and checkboxes are restored; files must be selected again.
+Drafts are separated by account and form/record. Confirmed server success clears
+only the submitted draft, preserving newer edits, and validation failures retain it.
+Expired/corrupt drafts are removed, competing tabs are flagged and storage failures
+leave the form usable with an honest status message.

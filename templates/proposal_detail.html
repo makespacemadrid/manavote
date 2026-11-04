@@ -159,7 +159,7 @@
 <div class="card">
     <h3>{{ t('Comments') }} ({{ comments|length }})</h3>
     
-    <form method="POST" style="margin-bottom: 20px;">
+    <form method="POST" style="margin-bottom: 20px;" data-protect-changes data-draft-key="proposal:comment:{{ proposal.id }}" data-draft-fields="comment">
         <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"/>
         <label>{{ t('Add a comment') }}<textarea name="comment" placeholder="{{ t('Add a comment') }}" required style="min-height: 60px;"></textarea></label>
         <button type="submit" class="btn">{{ t('Post Comment') }}</button>

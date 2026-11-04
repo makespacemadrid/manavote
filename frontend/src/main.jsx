@@ -4,6 +4,7 @@ import './styles.css';
 import { initializeProposalFilters } from './proposalFilters.js';
 import { initializeUX } from './ux.js';
 import { initializeForms } from './forms.js';
+import { initializeDrafts } from './drafts.js';
 import { initializeBudget } from './budget.js';
 import { initializeDialogs } from './dialogs.js';
 import { initializeBrowserErrors } from './browserErrors.js';
@@ -39,6 +40,8 @@ for (const rows of document.querySelectorAll('[data-new-component-rows]')) {
   });
   updateLimit();
 }
+
+initializeDrafts();
 
 function readProps(root) {
   try {
