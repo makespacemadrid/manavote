@@ -136,6 +136,13 @@ CREATE TABLE IF NOT EXISTS group_purchase_payments (
     received_at TEXT DEFAULT CURRENT_TIMESTAMP,
     PRIMARY KEY (group_purchase_id, member_id)
 );
+CREATE TABLE IF NOT EXISTS group_purchase_deliveries (
+    group_purchase_id INTEGER NOT NULL,
+    member_id INTEGER NOT NULL,
+    delivered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    delivered_by INTEGER NOT NULL,
+    PRIMARY KEY (group_purchase_id, member_id)
+);
 CREATE TABLE IF NOT EXISTS group_purchase_shared_costs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     group_purchase_id INTEGER NOT NULL,

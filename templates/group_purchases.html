@@ -157,10 +157,11 @@
     </div>
     <section class="component purchase-payments" style="margin-top:16px;">
         <h3>💶 {{ 'Amounts owed'|lang }}</h3>
+        {% if purchase.status == 'received' and purchase.debts %}<p class="help-text">{{ 'Deliveries completed'|lang }}: {{ purchase.delivered_members }} / {{ purchase.joined_members }}</p>{% endif %}
         {% if purchase.debts %}
             <table class="purchase-debts-table" role="table">
                 <caption class="sr-only">{{ 'Amounts owed'|lang }}: {{ purchase.title }}</caption>
-                <thead><tr><th>{{ 'Member'|lang }}</th><th>{{ 'Amount owed'|lang }}</th><th>{{ 'Payment'|lang }}</th></tr></thead>
+                <thead><tr><th>{{ 'Member'|lang }}</th><th>{{ 'Amount owed'|lang }}</th><th>{{ 'Payment'|lang }}</th><th>{{ 'Delivery'|lang }}</th></tr></thead>
                 <tbody>{% for debt in purchase.debts %}<tr>
                     <td data-label="{{ 'Member'|lang }}">{{ debt.username|username }}</td><td data-label="{{ 'Amount owed'|lang }}">€{{ debt.amount_owed|currency }}<br><span class="proposal-meta">€{{ debt.selection_amount|currency }} + €{{ debt.shared_cost_share|currency }} ({{ '%.1f'|format(debt.selection_percentage) }}%)</span></td>
                     <td data-label="{{ 'Payment'|lang }}">
@@ -169,6 +170,18 @@
                         <form method="post" action="{{ url_for('group_purchases.update_payment', purchase_id=purchase.id, member_id=debt.member_id) }}" style="display:inline;margin-left:8px;">
                             <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="received" value="{{ '0' if debt.received_at else '1' }}">
                             <button class="btn btn-secondary" type="submit" style="padding:5px 8px;">{% if debt.received_at %}{{ 'Undo payment'|lang }}{% else %}{{ 'Mark payment received'|lang }}{% endif %}</button>
+                        </form>
+                        {% endif %}
+                    </td>
+                    <td data-label="{{ 'Delivery'|lang }}">
+                        {% if debt.delivered_at %}
+                        <span class="amount-positive">✓ {{ 'Delivered'|lang }}</span><br><small class="proposal-meta">{{ debt.delivered_at|localtime('%Y-%m-%d %H:%M') }}</small>
+                        {% elif purchase.status == 'received' %}<span class="proposal-meta">{{ 'Awaiting collection'|lang }}</span>
+                        {% else %}<span class="proposal-meta">{{ 'Awaiting shipment'|lang }}</span>{% endif %}
+                        {% if purchase.status == 'received' and purchase.created_by == session.member_id %}
+                        <form method="post" action="{{ url_for('group_purchases.update_delivery', purchase_id=purchase.id, member_id=debt.member_id) }}">
+                            <input type="hidden" name="csrf_token" value="{{ csrf_token() }}"><input type="hidden" name="delivered" value="{{ '0' if debt.delivered_at else '1' }}">
+                            <button class="btn btn-secondary" type="submit">{{ ('Undo delivery' if debt.delivered_at else 'Mark delivered')|lang }}</button>
                         </form>
                         {% endif %}
                     </td>

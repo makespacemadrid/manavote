@@ -251,3 +251,11 @@ Notification claims are durable across restarts/workers. Missing Telegram config
 leaves delivery pending. An attempted send with an ambiguous failure is recorded as
 failed and not automatically replayed, avoiding duplicate announcements; creation and
 copy success are not undone. See [operations](../OPERATIONS.md#platform-notifications).
+
+## Group-purchase delivery visibility
+
+`list_group_purchases` participants include `delivered_at` (UTC timestamp or null),
+independent of `paid`. Each purchase also includes `delivered_participant_count`,
+counting positive-quantity participants with a recorded handoff. Organizers record or
+undo handoffs in the web participant table after shipment receipt. Individual handoffs
+send no Telegram notification; copying never carries delivery records to the new order.

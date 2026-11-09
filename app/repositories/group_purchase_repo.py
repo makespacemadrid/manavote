@@ -30,11 +30,12 @@ class GroupPurchaseRepository:
 
     def debts(self, purchase_id):
         return self.conn.execute('''SELECT m.id AS member_id, m.username,
-            SUM(q.quantity * c.unit_price) AS selection_amount, pp.received_at
+            SUM(q.quantity * c.unit_price) AS selection_amount, pp.received_at, d.delivered_at
             FROM group_purchase_quantities q JOIN group_purchase_components c ON c.id = q.component_id
             JOIN members m ON m.id = q.member_id LEFT JOIN group_purchase_payments pp
             ON pp.group_purchase_id = c.group_purchase_id AND pp.member_id = m.id
-            WHERE c.group_purchase_id = ? AND q.quantity > 0 GROUP BY m.id, m.username, pp.received_at
+            LEFT JOIN group_purchase_deliveries d ON d.group_purchase_id=c.group_purchase_id AND d.member_id=m.id
+            WHERE c.group_purchase_id = ? AND q.quantity > 0 GROUP BY m.id, m.username, pp.received_at, d.delivered_at
             ORDER BY m.username COLLATE NOCASE''', (purchase_id,)).fetchall()
 
     def create(self, title, description, deadline, url, image_filename, payment_method, member_id):
@@ -78,6 +79,7 @@ class GroupPurchaseRepository:
         self.conn.execute('''DELETE FROM group_purchase_quantities WHERE component_id IN
             (SELECT id FROM group_purchase_components WHERE group_purchase_id = ?)''', (purchase_id,))
         self.conn.execute('DELETE FROM group_purchase_payments WHERE group_purchase_id = ?', (purchase_id,))
+        self.conn.execute('DELETE FROM group_purchase_deliveries WHERE group_purchase_id = ?', (purchase_id,))
         self.delete_shared_costs(purchase_id)
         self.conn.execute('DELETE FROM group_purchase_components WHERE group_purchase_id = ?', (purchase_id,))
         self.conn.execute('DELETE FROM group_purchases WHERE id = ?', (purchase_id,))
@@ -113,6 +115,13 @@ class GroupPurchaseRepository:
             self.conn.execute('INSERT OR REPLACE INTO group_purchase_payments (group_purchase_id, member_id) VALUES (?, ?)', (purchase_id, member_id))
         else:
             self.conn.execute('DELETE FROM group_purchase_payments WHERE group_purchase_id = ? AND member_id = ?', (purchase_id, member_id))
+
+    def set_delivery(self, purchase_id, member_id, actor_id, delivered):
+        if delivered:
+            self.conn.execute('INSERT OR IGNORE INTO group_purchase_deliveries(group_purchase_id,member_id,delivered_by) VALUES (?,?,?)',
+                              (purchase_id,member_id,actor_id))
+        else:
+            self.conn.execute('DELETE FROM group_purchase_deliveries WHERE group_purchase_id=? AND member_id=?', (purchase_id,member_id))
 
     def list_for_admin(self):
         return self.conn.execute("""

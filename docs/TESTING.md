@@ -566,3 +566,10 @@ proposals, new/edited group purchases, polls and comments, including dynamic row
 checkboxes, discard, sensitive-field exclusion and storage-quota failures.
 Run `MANAVOTE_DRAFT_ONLY=1 node scripts/check_ui_layouts.mjs <fixture-directory>` to
 exercise recovery without repeating the 300-layout matrix. All fixtures are synthetic.
+
+`tests/test_group_deliveries.py` verifies organizer-only participant handoffs after
+shipment receipt, repeat marks/undo, payment independence, invalid states/actors,
+rollback, deletion cleanup and MCP visibility. English/Spanish checks prove individual
+handoffs never send Telegram and order-status notifications omit the joining deadline.
+Browser group fixtures include received orders with both collected/uncollected members
+to exercise mobile delivery rows and organizer controls.

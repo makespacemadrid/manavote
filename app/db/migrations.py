@@ -109,6 +109,10 @@ def _migrate_coin_movements_for_contributions(cursor):
 
 
 def run_migrations(cursor):
+    cursor.execute('''CREATE TABLE IF NOT EXISTS group_purchase_deliveries (
+        group_purchase_id INTEGER NOT NULL, member_id INTEGER NOT NULL,
+        delivered_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP, delivered_by INTEGER NOT NULL,
+        PRIMARY KEY(group_purchase_id, member_id))''')
     add_column_if_missing(cursor, 'proposals', 'voting_deadline TEXT')
     cursor.execute('''CREATE TABLE IF NOT EXISTS platform_notifications (
         event_key TEXT PRIMARY KEY, kind TEXT NOT NULL, item_id INTEGER NOT NULL,

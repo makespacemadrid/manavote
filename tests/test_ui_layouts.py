@@ -29,6 +29,8 @@ def test_capture_ui_layouts(ui_client, language):
     conn.execute("INSERT INTO group_purchase_components(id,group_purchase_id,name,unit_price,position) VALUES (5,1,'AA rechargeable batteries',3.75,1)")
     conn.execute("INSERT INTO group_purchase_components(id,group_purchase_id,name,unit_price,position) VALUES (6,1,'ESP32 development boards',6.25,2)")
     conn.execute('INSERT INTO group_purchase_quantities(component_id,member_id,quantity) VALUES (5,2,2)')
+    conn.execute('INSERT INTO group_purchase_quantities(component_id,member_id,quantity) VALUES (4,2,1)')
+    conn.execute('INSERT INTO group_purchase_deliveries(group_purchase_id,member_id,delivered_by) VALUES (4,1,1)')
     conn.execute("INSERT INTO feedback(id,member_id,source,category,message) VALUES (1,1,'web','suggestion','Make shared purchases easier to find on mobile.')")
     conn.execute("INSERT INTO feedback_notes(feedback_id,author_id,message) VALUES (1,1,'Private note for alignment checks')")
     conn.commit();conn.close()

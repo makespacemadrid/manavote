@@ -391,3 +391,12 @@ Sprint 20 now checks off delivered implementation/documentation while keeping me
 physical-device, screen-reader and query evidence open. Sprint 16 remains next, using
 the current REST/MCP contracts; Sprints 17–19 and their decision gates remain planned.
 The proposed notification dashboard is recorded as an unscheduled OPS-03 candidate.
+
+## 9 November 2026 — Individual group-purchase deliveries
+
+Organizers can mark and undo handoffs to individual participants once a shipment is
+received. The participant table shows awaiting/delivered state and delivery time, with
+a completed/total count. Handoffs are independent of payments and send no Telegram
+notifications. Delivery state persists, is exposed in MCP reads, is cleared on deletion
+and never follows a new copy. Order-placed and shipment-received Telegram updates
+no longer include the joining deadline; creation announcements and warnings retain it.

@@ -555,8 +555,8 @@ def test_tools_call_list_group_purchases_returns_costs_participants_and_payments
             return [{"label": "Shipping", "amount": 10}]
         if "FROM group_purchase_quantities" in query:
             return [
-                {"member_id": 2, "username": "alice", "selection_amount": 40, "paid": 1},
-                {"member_id": 3, "username": "bob", "selection_amount": 20, "paid": 0},
+                {"member_id": 2, "username": "alice", "selection_amount": 40, "paid": 1, "delivered_at": None},
+                {"member_id": 3, "username": "bob", "selection_amount": 20, "paid": 0, "delivered_at": None},
             ]
         captured.update(query=query, params=params)
         return [{
@@ -580,6 +580,8 @@ def test_tools_call_list_group_purchases_returns_costs_participants_and_payments
     assert purchase["total_cost"] == 70
     assert purchase["participant_count"] == 2
     assert purchase["paid_participant_count"] == 1
+    assert purchase['delivered_participant_count'] == 0
+    assert all(person['delivered_at'] is None for person in purchase['participants'])
     assert [person["amount_owed"] for person in purchase["participants"]] == [46.67, 23.33]
 
 
