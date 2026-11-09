@@ -648,7 +648,7 @@ def test_purchase_summary_uses_own_allocated_share_and_real_status(group_purchas
     assert '2 / 4' in summary
     assert f'status-{ "active" if status=="open" else status }' in html
     assert 'class="purchase-debts-table"' in html
-    assert html.count('data-label=') == 6
+    assert html.count('data-label=') == 8
     with sqlite3.connect(path) as conn:
         conn.execute('INSERT INTO group_purchase_payments(group_purchase_id,member_id) VALUES (1,1)')
     paid=client.get('/group-purchases').get_data(as_text=True)

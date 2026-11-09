@@ -205,6 +205,7 @@ def build_purchase_page(connection, member_id):
         purchase['order_total'] = purchase_amount(repo.selected_prices(purchase['id']), [(c['label'], c['amount']) for c in purchase['shared_costs']])
         purchase['debts'] = [dict(row) for row in repo.debts(purchase['id'])]
         purchase['joined_members'] = len(purchase['debts'])
+        purchase['delivered_members'] = sum(bool(row['delivered_at']) for row in purchase['debts'])
         purchase['order_total_cents'] = int(purchase['order_total'] * 100)
         purchase['remaining_headroom'] = max(Decimal('0'), Decimal('125') - purchase['order_total'])
         for component in purchase['components']:
@@ -343,3 +344,13 @@ def update_payment(connection, *, purchase_id, member_id, actor_id, received):
         raise ValueError('Payment cannot be updated')
     with _transaction(connection):
         repo.set_payment(purchase_id, member_id, received)
+
+
+def update_delivery(connection, *, purchase_id, member_id, actor_id, delivered):
+    repo = GroupPurchaseRepository(connection)
+    with _transaction(connection):
+        purchase = repo.get_by_id(purchase_id)
+        if (not isinstance(delivered,bool) or purchase is None or purchase['created_by'] != actor_id
+                or purchase['status'] != 'received' or not repo.is_participant(purchase_id,member_id)):
+            raise ValueError('Delivery cannot be updated')
+        repo.set_delivery(purchase_id,member_id,actor_id,delivered)

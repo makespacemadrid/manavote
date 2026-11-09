@@ -778,14 +778,16 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
             )
             participants = _db_rows(
                 """SELECT m.id AS member_id,m.username,SUM(q.quantity*c.unit_price) AS selection_amount,
-                          CASE WHEN pp.member_id IS NULL THEN 0 ELSE 1 END AS paid
+                          CASE WHEN pp.member_id IS NULL THEN 0 ELSE 1 END AS paid, d.delivered_at
                    FROM group_purchase_quantities q
                    JOIN group_purchase_components c ON c.id = q.component_id
                    JOIN members m ON m.id = q.member_id
                    LEFT JOIN group_purchase_payments pp
                      ON pp.group_purchase_id = c.group_purchase_id AND pp.member_id = m.id
+                   LEFT JOIN group_purchase_deliveries d
+                     ON d.group_purchase_id = c.group_purchase_id AND d.member_id = m.id
                    WHERE c.group_purchase_id = ? AND q.quantity > 0
-                   GROUP BY m.id,m.username,pp.member_id ORDER BY m.username COLLATE NOCASE""",
+                   GROUP BY m.id,m.username,pp.member_id,d.delivered_at ORDER BY m.username COLLATE NOCASE""",
                 (purchase_id,),
             )
             shared_total = sum(float(cost["amount"]) for cost in shared_costs)
@@ -808,6 +810,7 @@ def execute_tool_command(tool_name: str, arguments: dict[str, Any], *, req_id: A
             purchase["participants"] = participants
             purchase["participant_count"] = len(participants)
             purchase["paid_participant_count"] = sum(int(person["paid"]) for person in participants)
+            purchase['delivered_participant_count'] = sum(bool(person['delivered_at']) for person in participants)
             purchases.append(purchase)
         return _tool_text(
             req_id,

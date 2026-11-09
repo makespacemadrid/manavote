@@ -47,8 +47,6 @@ def _send_status_notification(purchase, status):
         status_labels[status],
         f"{catalog['By']}: {session['username'].split('@')[0]}",
     ]
-    if purchase["deadline"]:
-        details.append(f"📅 {catalog['Order deadline']}: {purchase['deadline']}")
     base_url = legacy.get_base_url().rstrip("/")
     if base_url:
         details.append(f"👉 {base_url}/group-purchases#purchase-{purchase['id']}")
@@ -350,3 +348,19 @@ def update_payment(purchase_id, member_id):
             return redirect(url_for("group_purchases.group_purchases_page") + f"#purchase-{purchase_id}")
     flash("Payment updated", "success")
     return redirect(url_for("group_purchases.group_purchases_page") + f"#purchase-{purchase_id}")
+
+
+@group_purchase_bp.post('/group-purchases/<int:purchase_id>/deliveries/<int:member_id>')
+@login_required
+def update_delivery(purchase_id,member_id):
+    with closing(legacy.get_db()) as conn:
+        try:
+            if request.form.get('delivered') not in {'0','1'}:
+                raise ValueError('Delivery cannot be updated')
+            purchases_service.update_delivery(conn,purchase_id=purchase_id,member_id=member_id,
+                actor_id=session['member_id'],delivered=request.form['delivered']=='1')
+        except ValueError as exc:
+            flash(str(exc),'error')
+        else:
+            flash('Delivery updated','success')
+    return redirect(url_for('group_purchases.group_purchases_page')+f'#purchase-{purchase_id}')

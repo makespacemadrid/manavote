@@ -776,3 +776,20 @@ local draft; newer edits without that nonce remain intact. Validation errors and
 interrupted requests do not clear drafts. Browser-history restoration never recreates
 a successfully cleared draft merely by leaving the old page. Uploads require manual
 reselection. API/MCP contracts and server-side CSRF/permissions remain unchanged.
+
+### Individual group-purchase handoffs
+
+Once a group purchase is `received`, its creator can mark each positive-quantity
+participant's complete selection delivered, or undo a mistaken mark. Other members
+and administrators who are not the creator cannot change handoffs. Marking a delivery
+is independent of payment receipt and leaves quantities, costs and overall status
+unchanged. Repeated marks preserve the original delivery timestamp. Checks and writes
+share a write transaction; missing orders/nonparticipants and pre-receipt states reject.
+
+The participant table shows delivery state/time and a completed/total count. The
+additive `group_purchase_deliveries` table records purchase, member, delivery time and
+organizer ID. Deletion removes those rows; copying starts without deliveries. The
+CSRF-protected web endpoint is POST `/group-purchases/<id>/deliveries/<member_id>`
+with `delivered=1` to mark or `0` to undo. No individual handoff sends Telegram.
+Existing order-placed/shipment-received Telegram updates retain title, organizer and
+link, but omit the joining deadline. Creation and 24-hour warnings are unchanged.
