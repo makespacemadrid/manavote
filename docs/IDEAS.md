@@ -37,9 +37,6 @@ completed items move to `CHANGELOG.md`.
 
 ## P1 — Usability & Accessibility Gaps
 
-- [ ] **Proposal validation UX** — Member task validation for proposal creation
-  (member limits, budget checks). *Delivered in PRs #127–128; remaining scope
-  tracked here.*
 - [ ] **Budget threshold adjustments** — Update `threshold_default`, `threshold_over50`,
   `threshold_basic` values based on recent transaction data. *P2; requires
   evidence.*
@@ -64,18 +61,6 @@ completed items move to `CHANGELOG.md`.
 
 ---
 
-## → Scheduled (Sprints 16–19)
-
-| Sprint | Priority | Item | Disposition |
-|---|---|---|---|
-| 16 | P1 | API-01 / API-02: remaining contracts and lifecycle rules | REST/MCP proposal-creation, edit compatibility, purchase/deletion/withdrawal/edit safety |
-| 16 | P2 | OPS-01 / OPS-02: bootstrap and key rotation | Secure dev bootstrap and active/next REST/MCP keys |
-| 17 | P2 | BOT-05 / BOT-07: history lifecycle and interaction | Retention/deletion and selected deterministic status/localization gaps |
-| 18 | P2 | OPS-04 / DATA-01 / selected OPS-03: recovery and measurements | Consistent/readable backups, recency health, safe backup events, measurements |
-| 19 | P2 | UX-03 / UX-04: proposal and budget usability | Member task validation and representative query measurements |
-| 19 | P2 | BOT-04 / remaining OPS-03 / DATA-02 | Running-call interruption, general REST telemetry, participation analytics |
-
----
 
 ## 📋 Completed (reference)
 
@@ -84,45 +69,6 @@ outcomes from Sprints 10–15 live in `CHANGELOG.md`.
 
 P0 protects core correctness; P1 addresses concrete safety, contract, or
 accessibility gaps; P2 needs usage or operational evidence before expansion.
-
----
-
-## Source-of-truth rules (aligned with `docs/INDEX.md`)
-
-| Information | Canonical owner | This file’s role |
-|---|---|---|
-| Environment variable names and setup steps | `QUICKSTART.md` | Link to relevant headings; not duplicated here |
-| User-visible behavior and business rules | `SPEC.md` | Items here reflect gaps vs. current behavior |
-| Request/response fields, tool inputs, and API errors | `APIDOC.md` | Items reflected as P1/P2 gaps |
-| Commands for tests and what each suite proves | `TESTING.md` | Not duplicated; gaps noted as P2 |
-| Production checks and incident response | `OPERATIONS.md` | Not duplicated; gaps noted as P2 |
-| Diagrammed flows | `DIAGRAMS.md` | Not duplicated; gaps noted as P2 |
-| Coding and delivery policy | `STYLE.md` | Not duplicated |
-| Uncommitted future work | `IDEAS.md` | This file is the *pending* subset; items promoted here become sprint candidates |
-| Shipped roadmap outcomes | `CHANGELOG.md` | Items removed from this file once delivered |
-| Detailed historical audits and decisions | `archive/ROADMAP_AUDITS.md` | Not duplicated; reference only |
-| Iteration scope, status, and sprint history | `SPRINTS.md` | Items promoted from here are removed from this file |
-
-### Precedence when scopes touch
-
-1. The code and database migrations define what the application actually does.
-2. `SPEC.md` defines the intended product and domain behavior.
-3. `APIDOC.md` defines the externally observable wire contract.
-4. `QUICKSTART.md` and `OPERATIONS.md` define how to configure and operate it.
-5. `TESTING.md` explains how that behavior is verified.
-6. `DIAGRAMS.md` is explanatory; if it disagrees with a normative document, update the diagram.
-
-### Quick routing examples
-
-- A new API field: document its wire contract in `APIDOC.md`; document any new
-  product behavior in `SPEC.md`; add the verification command only to `TESTING.md`.
-- A new environment flag: define it in `QUICKSTART.md`; describe operational failure
-  signals in `OPERATIONS.md` only if operators can act on them.
-- A proposed feature: record it in `IDEAS.md`, not `SPEC.md`. Once implemented,
-  describe the resulting behavior in `SPEC.md`, move the idea to `CHANGELOG.md`,
-  and retain its sprint execution record in `SPRINTS.md`. Items promoted from
-  `IDEAS.md` to scheduled status move into this file; once delivered, they move to
-  `CHANGELOG.md` and are removed from this file.
 
 ---
 

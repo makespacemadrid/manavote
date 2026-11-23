@@ -35,15 +35,12 @@ At startup, the application reports:
 
 ### Manual backup
 
-To create a manual backup:
+Backups are created from the Admin panel → Settings tab → Backup section:
 
-```bash
-# Database backup
-python -m app.web.routes.admin_routes backup db
+- Click "Backup Now" to back up the database
+- Click "Backup Images Now" to back up uploaded images
 
-# Image backup
-python -m app.web.routes.admin_routes backup images
-```
+Old backups (older than 7 days) are automatically pruned by the daily scheduled job.
 
 ### Scheduled backups
 
@@ -62,8 +59,8 @@ Structured audit events are emitted for all backup operations:
 - `db`: `backup_type=db`, `file_name=app_20261118_155618.db`, `status=ok`
 - `images`: `backup_type=images`, `file_name=uploads_20261118_155618.zip`, `status=ok`
 
-These events are emitted to the Telegram assistant and can be audited via the Admin
-panel → Events tab.
+These events are emitted to the Telegram assistant and recorded in the structured
+audit log (viewable in the Admin panel).
 
 ### Backup retention
 
@@ -72,14 +69,14 @@ panel → Events tab.
 
 ### Backup from the Admin panel
 
-1. Navigate to Admin → Backup tab
+1. Navigate to Admin → Settings tab → Backup section
 2. Click "Create backup" for DB or Images
 3. Download the generated file from the provided link
 4. Verify the backup by checking the audit events
 
 ### Restoring from backup
 
-1. Navigate to Admin → Backup tab
+1. Navigate to Admin → Settings tab → Backup section
 2. Click "Restore" next to the desired backup
 3. Follow the on-screen instructions
 4. Verify the application is functioning correctly after restoration
@@ -150,8 +147,7 @@ thread. It processes incoming updates and handles confirmed mutations.
 ### Starting/stopping
 
 - The assistant starts automatically when `MCP_SERVER_ENABLED` is true
-- It can be stopped and restarted via the Admin panel
-- Manual restart is possible via `python -c "from app import app; app.restart_assistant()"`
+- It runs as an in-process thread alongside the Flask app
 
 ### Assistant events
 
@@ -229,11 +225,9 @@ contact an administrator.
 
 ## API rate limiting
 
-- **REST API**: 100 requests/minute per IP; 1000 requests/minute per admin key
-- **MCP server**: 60 requests/minute per key
-- **Telegram bot**: Per-user, per-chat limits apply
-
+Rate limits are defined per surface in [`APIDOC.md`](APIDOC.md) and [`interfaces/REST.md`](interfaces/REST.md).
 Rate limit exceeded responses include:
+
 - HTTP 429 status code
 - `Retry-After` header indicating how long to wait
 - Error envelope with code `-32003` (rate limited)
@@ -270,23 +264,6 @@ If a security incident is suspected:
 4. Review audit logs for suspicious activity
 5. Notify relevant stakeholders
 6. Update monitoring to prevent recurrence
-
-## Maintenance windows
-
-Scheduled maintenance is performed during off-hours (typically weekends, 02:00-04:00 UTC).
-
-- **Database maintenance**: Index optimization, vacuum
-- **Backup rotation**: Old backups pruned according to policy
-- **Dependency updates**: Python and dependency version checks
-- **Log rotation**: Access and error log rotation
-
-Maintenance notifications are sent via the Telegram assistant to administrators.
-
-## Emergency contacts
-
-- **Primary**: System administrator (contact via Telegram admin group)
-- **Secondary**: Development team (contact via project channel)
-- **Emergency**: If the application is completely down, restart via `docker restart projects-web-1`
 
 ---
 *Last updated: 2026-11-23*

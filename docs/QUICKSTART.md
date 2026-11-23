@@ -53,10 +53,11 @@ When running with Docker Compose:
   - `app_data` → `/data` (database at `/data/app.db`)
   - `uploads_data` → `/app/static/uploads`
 
-### Migrating an existing Docker database
+### Migrating an existing Docker database (legacy)
 
-Older Compose configurations mounted `./app.db` directly. Back it up before moving to
-the named volume, then copy it into the new container after the volume is created:
+Named Docker volumes (`app_data:/data`) are now the settled state for new installations.
+This section applies only to upgrading from an older configuration that mounted `./app.db`
+directly. Back it up before moving to the named volume:
 
 ```bash
 cp app.db app.db.backup
@@ -66,9 +67,8 @@ docker compose run --rm --no-deps --user root web chown appuser:appuser /data/ap
 docker compose up
 ```
 
-Skip this migration for a new installation. Do not remove the original database or
-its backup until the application starts and the expected proposals and members are
-visible.
+Do not remove the original database or its backup until the application starts and the
+expected proposals and members are visible.
 
 | Variable | Default | Purpose |
 |---|---:|---|

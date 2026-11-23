@@ -400,3 +400,10 @@ a completed/total count. Handoffs are independent of payments and send no Telegr
 notifications. Delivery state persists, is exposed in MCP reads, is cleared on deletion
 and never follows a new copy. Order-placed and shipment-received Telegram updates
 no longer include the joining deadline; creation announcements and warnings retain it.
+
+## 10 November 2026 — Proposal validation UX (PRs #127–128)
+
+Member task validation for proposal creation is delivered: member limits and budget
+checks are enforced when creating or editing proposals, with validation errors shown
+inline and the form state preserved on retry. Remaining P1 scope (budget threshold
+adjustments, localized error messages) stays open in ROADMAP.md and IDEAS.md.

@@ -488,7 +488,7 @@ tracked frontend assets used by server-rendered pages.
 
 ## Queued cancellation and operator health regressions
 
-Run `pytest -q tests/unit/test_assistant_jobs.py tests/unit/test_member_admission.py tests/unit/test_telegram_agent.py tests/test_telegram_natural_language_webhook.py tests/test_admin_interface.py` for owned futures, completion-before-attachment,
+Run `pytest -q tests/unit/test_member_admission.py tests/unit/test_telegram_agent.py tests/test_telegram_natural_language_webhook.py tests/test_admin_interface.py` for owned futures, completion-before-attachment,
 start/cancel races, capacity release, queued cancellation without model/MCP work,
 webhook deduplication, pending-action ownership, relinking/role changes, running status,
 cleanup failures, model/MCP/delivery telemetry, bounded summaries, and administrator-only
