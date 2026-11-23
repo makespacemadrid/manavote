@@ -1,388 +1,294 @@
 # Operations and Diagnostics
 
-## Optional feedback-resolution messages
+## Health Checks
 
-Members opt in under Settings after linking Telegram; the default is off. The configured
-`TELEGRAM_BOT_TOKEN` sends a private generic resolution message to the linked user ID,
-without feedback contents or admin notes. The in-app notice always remains available.
-Delivery is claimed after the resolution commits and occurs outside the SQLite writer.
-`feedback_notifications.telegram_status` records pending/sending/sent/failed; failures
-emit `event=feedback_telegram_delivery` with safe status metadata. There is no automatic
-retry of failed or interrupted sends, because a timeout may follow successful delivery.
-Changing links or opting out prevents delivery when detected at the final recheck.
+### `/healthz` endpoint
 
-## Downloading an error report
+The Flask app exposes a simple health check at `http://localhost:45000/healthz`. This endpoint
+returns `200 OK` when the application is healthy and can be used by load balancers and
+container orchestration platforms.
 
-Frontend script/stylesheet URLs include content fingerprints, so a new deployment does
-not reuse an older asset URL. New browser reports include a validated `Frontend build`
-fingerprint when available. Compare it with the page's `frontend-build` meta tag when
-investigating errors across deployments; older reports do not identify their build.
-Injected browser-extension errors (for example wallet-provider code) are still reported,
-but application changes cannot repair the extension. Generic cross-origin `Script error.`
-events may contain no useful stack because the browser withholds those details.
+**Health check result:** `{"status": "healthy"}`
 
-In Admin, open **Errors** (before Feedback), expand a record to read its details,
-or choose **Download error report** to save `manavote-errors.json` for troubleshooting.
-The CSRF-protected POST download atomically processes exactly its pending records and
-archives them. Later downloads exclude them; the Archived errors section stays readable.
-Processing means server-side file generation, not confirmation the browser saved it.
-Generation/archiving failures return 503 and roll back. Concurrent downloads cannot
-export the same pending batch.
-Warnings and errors recorded through Python logging include their original timestamp,
-logger, call site, and available traceback; errors logged without exception information
-cannot supply a traceback retroactively. The empty state means no records were captured.
+### Degraded mode
 
-Capture begins with this deployment and retains the latest 200 pending and 200 archived records (16,000 detail
-characters each). Workers share `<APP_DB_PATH>.errors.db`; keep its containing directory
-writable and on a persistent volume to retain reports across container replacements.
-The Compose `/data` volume already meets this requirement. Diagnostic records are
-separate from application database backups. If storage is unavailable, Admin/downloads
-show that status and console logging continues. Check disk space and permissions.
+The application can enter a degraded state if:
+- Mandatory environment variables are missing
+- Database connection fails
+- Mandatory startup policy validation fails
 
-Signed-in pages also capture `console.error`, uncaught JavaScript errors, and unhandled
-promise rejections after the reporter initializes. Browser records use `browser.*` logger
-names and include a page path and available stack; DevTools history, network/resource
-errors without a JavaScript message, and errors before initialization are not imported.
-The console still behaves normally. Identical reports are deduplicated, uploads are capped
-at 10 per page load and 20 per member/minute, and upload failures are silently ignored.
-The session/CSRF-protected endpoint accepts at most 64 KB; member reports are untrusted
-diagnostics and only administrators can read them. URL queries/fragments and console
-objects are omitted. This does not import old `app.log`/container output or raw print/stderr.
-Credentials are scrubbed at capture and download, and no form contents, request headers,
-source lines, or frame locals are added. Free-text logs may still contain sensitive
-business/member information; review the report before sharing it. Only signed-in session
-administrators can view/download reports, and responses are marked `no-store`.
+Degraded mode does not shut down the application, but some features may be disabled.
+The startup summary reports `degraded_reasons` and `mode: "degraded"`.
 
-This guide is the operator-facing reference for startup health, scheduled work,
-backups, MCP failures, OIDC failures, and the Telegram assistant. Deployment and
-environment setup remain in [`QUICKSTART.md`](QUICKSTART.md); behavioral contracts
-remain in [`SPEC.md`](SPEC.md).
+### Startup summary
 
-## Contents
-
-- [Startup health](#startup-health)
-- [Backup lifecycle](#backup-lifecycle)
-- [Telegram assistant jobs](#telegram-assistant-jobs)
-- [Telegram assistant mutations](#telegram-assistant-mutations)
-- [Votes blocked by policy](#votes-blocked-by-policy)
-- [Koin ledger corrections](#koin-ledger-corrections)
-- [Forum-topic and mention routing](#forum-topic-and-mention-routing-decisions)
-- [MCP and OIDC failures](#mcp-and-oidc-failures)
-- [Useful diagnostic checks](#useful-checks)
-
-## Startup health
-
-Every boot emits a `startup_summary` record with:
-
-- `mode`: resolved Flask environment;
-- `status`: `ready` or `degraded`;
-- `degraded_reasons`: stable codes for optional startup work that failed.
-
-Database initialization is mandatory and fails startup. Scheduler, automatic-backup,
-and Telegram webhook synchronization problems are reported as degraded startup rather
-than hiding the application behind a generic failure.
-
-Common startup diagnostics:
-
-| Reason code | Meaning | Operator action |
-| --- | --- | --- |
-| `telegram_webhook_missing_base_url` | Telegram is configured but the public base URL is unavailable. | Set the Base URL in Admin → Telegram Configuration, then restart. |
-| `telegram_webhook_failed` | Telegram rejected or could not receive webhook synchronization. | Verify the bot token, webhook secret, outbound HTTPS, and public URL. |
-| `scheduler_start_failed` | The backup scheduler could not start. | Inspect the adjacent exception, confirm APScheduler is installed, and ensure only the intended process owns scheduling. |
-| `auto_backup_check_failed` | The startup backup check failed unexpectedly. | Check backup-directory permissions and available disk space. |
-| `missing_bot_username_for_group` | A Telegram group/supergroup or forum thread is configured without an exact bot username. | Set `TELEGRAM_BOT_USERNAME` without the leading `@`; private-chat-only configurations do not trigger this warning. |
-
-The bot-username warning is advisory and does not mark startup degraded. It identifies
-an unsafe group-routing default where mentions or commands aimed at another bot could
-otherwise be treated as addressed to ManaVote.
-
-## Backup lifecycle
-
-Admin, scheduled, and startup backups use the same structured audit shape. Event names
-identify the source:
-
-- `admin_backup_created` / `admin_backup_failed`;
-- `scheduled_backup_created` / `scheduled_backup_failed`;
-- `startup_backup_created` / `startup_backup_failed`.
-
-Successful records include `backup_type`, `file_name`, and `pruned_count`. Failures
-include `backup_type`, `error`, and one of these stable reason codes:
-
-| Reason code | Failure class |
-| --- | --- |
-| `backup_io_error` | Filesystem access, missing input, permissions, or disk I/O. |
-| `backup_archive_error` | Upload archive creation/copy failure reported by `shutil`. |
-| `backup_configuration_error` | Invalid backup configuration or retention input. |
-
-Unexpected programming errors are not relabeled as routine backup failures; they are
-allowed to surface with their traceback.
-
-## Telegram assistant jobs
-
-Configured natural-language requests emit `telegram_assistant_job` records. Correlate
-all records for one request with `update_id`, `chat_id`, and `actor_member_id`.
-
-Typical event sequence:
-
-1. `started` with `reason_code=worker_started` and `queue_wait_ms`;
-2. one or more `model_request_completed` records with `model_round` and
-   `model_latency_ms`;
-3. zero or more `tool_call_received` records with `tool_name`;
-4. `completed` with `job_duration_ms` and the final outcome.
-
-Completion/rejection reason codes:
-
-| Reason code | Meaning |
-| --- | --- |
-| `completed` | Reply generation, delivery, and thinking-message cleanup completed. |
-| `reply_generation_failed` | The model, MCP round, history store, or expected adapter boundary failed; a fallback reply was attempted. |
-| `reply_delivery_failed` | Telegram reply delivery raised an expected client/input error. |
-| `thinking_cleanup_failed` | The temporary thinking message could not be deleted. |
-| `member_capacity_exceeded` | This linked member reached `TELEGRAM_AGENT_MAX_JOBS_PER_MEMBER` outstanding jobs in this process. No thinking message or model/MCP call was made; wait for an existing reply and retry. |
-| `queue_full` | The bounded worker pool rejected the request before execution; its member reservation was released and thinking-message cleanup attempted. |
-| `submission_failed` | Executor submission raised; member/global admission is released and thinking-message cleanup attempted. |
-| `thinking_creation_failed` | Creating the temporary Telegram message raised; the member reservation was released. |
-| `worker_cancelled` | The executor cancelled an accepted future. |
-| `unexpected_worker_failure` | An error escaped the typed worker boundary; correlate safe update/actor metadata. Assistant logs omit exception bodies and tracebacks. |
-| `input_budget_exceeded` | Current input exceeds its UTF-8-byte budget; send a shorter question. |
-| `context_budget_exceeded` | Required instructions, schemas, current turn, and tool results cannot fit; request fewer results or reset history. Earlier actions may already have completed. |
-| `credential_input_rejected` | A configured credential or conventionally sensitive field was detected before input/tool arguments reached the next boundary. |
-
-Prompts, model replies, tool arguments, API keys, and tokens are deliberately absent
-from these job records. `tool_name` is logged, but tool arguments are not.
-
-`TELEGRAM_AGENT_MAX_JOBS_PER_MEMBER` is a positive integer, default `1`, loaded at
-process startup. It counts queued and running assistant jobs by linked member ID across
-chats. Invalid values prevent startup. Admission is acquired before the thinking message;
-completion, failure, rejected/failed submission, and queued cancellation release it once.
-Cancelled queued jobs also attempt to remove their thinking message.
-
-Accounting and the global executor are process-local. With `W` WSGI processes, a member
-can have up to `W × limit` outstanding jobs across those processes; each process retains
-four model workers and 32 pending slots. Tune cautiously and restart to apply. This is
-outstanding-work admission, without rate-per-minute throttling or distributed fairness.
-
-`/confirm` uses admission; capacity rejection leaves its pending mutation untouched.
-`/cancel` is now a deterministic control path before admission: it cancels the sender's
-queued jobs in this process/current conversation and atomically clears their owned
-pending action. It does not call the model or create a thinking message. Starting/running
-work is reported without interruption or rollback. A request in another WSGI process
-cannot be cancelled here; an unsuccessful lookup does not claim that no work exists.
-`/help`, linking, deterministic votes, and `/reset` retain their dispatch. Workers refresh
-linked identity and role before executing queued work, in addition to existing confirmation checks.
-
-## Assistant operator health
-
-Visit `GET /admin/assistant-health` in an authenticated administrator session. It uses
-the existing web administrator gate (not the REST admin key), returns JSON, and sends
-`Cache-Control: no-store`. Regular members and anonymous callers receive redirects.
-
-| Field | Meaning / operator action |
-|---|---|
-| `scope`, `reset` | `process`, `process_restart`; each worker has independent counters and registry. Polls may hit different workers. These values are not fleet totals. |
-| `status` | `disabled` (missing model/MCP configuration), `misconfigured` (invalid timeout), `saturated` (worker/queue capacity occupied), or `ready` (configuration/capacity available). This does not probe provider connectivity. |
-| `queued`, `active` | Current owned jobs, including short pre-submission setup in queued. Sustained saturation calls for inspecting queue/model latency before increasing capacity. |
-| `terminal` | Exactly-once completed/failed/cancelled/rejected job counts; early admission refusal also increments rejected. `/confirm` is an assistant job; `/cancel` is a control request. |
-| `reasons` | Stable completion/rejection reason counts, including member capacity, queue/submission/thinking failures and budget/credential rejections. No actor/chat/tool-argument labels. |
-| `stage_failures` | Model, MCP, and reply-delivery failure counts. Inspect the matching stage and safe job events; a handled tool error still records a failed tool stage/job even when a useful reply is delivered. |
-| `latency_ms` | Bounded count/mean/max summaries for queue, model, MCP, and delivery. High queue wait suggests saturation; high model/MCP latency suggests inspecting the provider/tool. No per-request samples persist here. |
-| `configuration` | Safe model identifier, timeout, worker/queue/member capacities, and input/context/output budgets. Provider URL and credentials are omitted. Restart processes to reset counters/apply startup limits. |
-
-Cancellation is owned by linked member plus chat/Telegram user, matching conversation
-history (including that user's threads in one chat). Relinking cannot cancel the prior
-member's job/action. Legacy pending actions with no recorded member cannot be claimed by
-the new control path; let them expire or use the existing explicit reset. Start/cancel
-races report only confirmed queued cancellation; work already starting/running may reply.
-Cancelled jobs release both capacities once, remove registry entries, and attempt status
-cleanup even when Telegram rejects deletion. There is no cross-worker queue or running
-HTTP interruption. Aggregate health contains no prompts, replies, tool arguments/results,
-credentials, provider URLs, or member/chat identities.
-
-## Assistant model safeguards
-
-Every model round counts serialized UTF-8 bytes plus 256 framing units and 64 units
-per message, including system/current input, tools, history, and tool results. The
-output reserve is included and sent as `max_tokens`. Set the context budget no higher
-than the provider's verified context limit; this estimate is conservative for byte-based
-tokenizers, not model discovery or a guarantee for custom tokenizers. The provider must
-accept `max_tokens`. Initial member/admin tool schemas measured 4,813/9,223 units with
-framing; defaults leave room for the built-in prompt and a 4,096-byte question.
-
-Old history is dropped in complete user-led groups; incomplete tool-call/result groups
-are excluded. Required current tool exchanges and actor instructions are never truncated.
-Budget rejection sends localized feedback and releases admission. It does not retry or
-undo previously committed tool actions.
-
-The assistant redacts configured credentials, conventional sensitive JSON fields,
-credential assignments, bearer values, and URL credentials from model payloads, new
-history writes, confirmation displays, tool errors, and replies. Input or allowed tool
-arguments containing these values are rejected before persistence/execution. Required
-authentication headers still carry credentials to their destination. Arbitrary unlabelled
-secrets in free text cannot reliably be recognized. Existing stored history is scrubbed
-on read, not rewritten/deleted; retention remains separate. Failure logs retain stable
-reason codes and exception types rather than bodies/tracebacks. Avoid request/body debug
-logging at these boundaries.
-
-## Telegram assistant mutations
-
-`/confirm`-reachable mutations (`create_proposal`, `create_poll`,
-`update_voting_settings`) emit a separate `telegram_assistant_mutation` record for each
-step of the propose/confirm lifecycle — a dedicated audit trail, distinct from the
-general-purpose `telegram_assistant_job` records above, findable the same way backup and
-Telegram-link events already are. Correlate records for one action with `tool_name`,
-`actor_member_id`, and `arguments_digest` (a stable hash of the tool arguments, not the
-arguments themselves — arguments are never logged).
-
-Typical event sequence: `proposed` → `confirmed` → `completed` (or `failed`), or
-`proposed` → one of `cancelled`/`expired`/`rejected` if confirmation never completes.
-
-| Event | Reason code | Meaning |
-| --- | --- | --- |
-| `proposed` | `ok` | A mutating tool call was intercepted and stored pending `/confirm`. |
-| `confirmed` | `ok` | Confirmation passed every revalidation check; the MCP call is about to run. |
-| `completed` | `ok` | The confirmed MCP call succeeded. |
-| `failed` | `mcp_error` | The confirmed MCP call returned an error. |
-| `cancelled` | `user_cancelled` | The member issued `/cancel`. |
-| `cancelled` | `reset_command` | `/reset` discarded a pending action along with conversation history. |
-| `expired` | `confirmation_ttl_exceeded` | `/confirm` arrived after `TELEGRAM_CONFIRM_TTL_SECONDS`. |
-| `rejected` | `not_admin` | The confirming user is not a linked administrator. |
-| `rejected` | `actor_changed` | The linked member changed between propose and confirm. |
-| `rejected` | `arguments_tampered` | The stored arguments no longer match the digest captured at propose time. |
-| `rejected` | `schema_changed` | The tool's input schema (or the tool itself) changed since propose time — e.g. a process restart with an updated MCP tool registry. |
-
-The `arguments_tampered` and `schema_changed` checks exist so a confirmed mutation is
-provably the one that was proposed: a stale or corrupted pending row is rejected at
-confirm time instead of executing against a contract that no longer matches what the
-member saw.
-
-## Votes blocked by policy
-
-A vote rejected by `proposal_vote_mode`, `poll_vote_mode`, or
-`telegram_require_linked_vote` logs a plain-text `event=... source=... mode=...` record
-(the same shape `record_proposal_vote`'s own accept/reject logging already used), so a
-policy-blocked vote is distinguishable from an ordinary invalid-vote rejection without
-reading logs line-by-line.
-
-| Log line prefix | Meaning |
-| --- | --- |
-| `event=proposal_vote_rejected ... reason_code=channel_disabled` | A proposal vote was blocked by `proposal_vote_mode` (web or Telegram). |
-| `event=proposal_vote_rejected ... reason_code=link_required` | A Telegram proposal vote was blocked because `telegram_require_linked_vote` is enabled and the sender isn't linked. |
-| `event=poll_vote_rejected ... reason_code=channel_disabled` | A poll vote was blocked by `poll_vote_mode` (web or Telegram). |
-| `event=poll_vote_rejected ... reason_code=link_required` | A Telegram poll vote was blocked because `telegram_require_linked_vote` is enabled and the sender isn't linked. |
-
-`source=web` or `source=telegram` identifies the channel; `mode` is the effective vote
-mode at rejection time. `poll_id`/`proposal_id` and `member_id` are `None` when the
-channel-disabled check fires before either is resolved (the check runs before any
-poll/member lookup on some paths) — the record is still useful in aggregate ("N vote
-attempts blocked by policy") even without full identity.
-
-## Koin ledger corrections
-
-An administrator editing an existing koin movement emits two informational records:
-
-| Log prefix | Meaning |
-| --- | --- |
-| `coin_movement_updated` | The koin service validated and committed the correction. The record includes the movement, item, member, kind, and submitted quantity. |
-| `coin_movement_updated_by_admin` | The protected web route completed the correction. `movement_id` identifies the corrected row and `member_id` identifies the administrator who submitted it. |
-
-The corrected database row retains its original `id`, `idempotency_key`, and
-`created_at`, and changes `source` to `admin`. Use those preserved identifiers plus the
-two log records when investigating a correction. The current log records confirm the
-new values and acting administrator; they do not retain a copy of the row's previous
-values.
-
-## Forum-topic and mention routing decisions
-
-Group/supergroup messages that aren't a deterministic command (`/link`, `/vote`, etc.)
-log a `telegram_routing_decision` record explaining why the assistant did or didn't pick
-the message up — the "why did the bot stay silent (or respond) here" case. Private chats
-are always trivially `private` and not logged; only group-chat addressing is ambiguous
-enough to be worth a record.
-
-| Reason code | Meaning |
-| --- | --- |
-| `reply_to_bot` | The message replies to the bot's own message. |
-| `mentioned` | The message contains an `@mention` (or, under Telegram privacy mode, an unidentified mention entity) matching the bot. |
-| `forum_topic` | The message is in the configured assistant forum topic (`TELEGRAM_CHAT_ID`/`TELEGRAM_THREAD_ID`), which overrides an otherwise-unaddressed message. |
-| `unaddressed` | None of the above; the assistant ignored the message. |
-
-`addressed=True/False` mirrors whether the message was actually routed to the assistant.
-`chat_id`/`chat_type` identify where the decision was made.
-
-## MCP and OIDC failures
-
-MCP transport/application failures log
-`mcp_request_failure reason_code=application_failure` with the request ID or TCP
-transport marker. Clients receive JSON-RPC code `-32000` and the generic message
-`Internal server error`; internal exception text is only written server-side.
-
-OIDC token exchange and validation failures log
-`oidc_callback_failure reason_code=oidc_token_exchange_failed` plus the exception type.
-Members are redirected to the login page with a safe retry message; tokens and provider
-response bodies are not logged by this handler.
-
-## Useful checks
-
-These checks are for production diagnosis and operational boundaries. For the complete
-suite and feature-focused regression packs, see [`TESTING.md`](TESTING.md).
-
-```bash
-# Startup, backup, identity, MCP, and Telegram operational boundaries
-pytest -q \
-  tests/test_app_startup.py \
-  tests/test_backup_service.py \
-  tests/test_oidc_auth.py \
-  tests/test_mcp_server.py \
-  tests/test_telegram_natural_language_webhook.py
-
-# The application exception audit should return no matches
-rg -n "except Exception" app
+At startup, the application reports:
+```json
+{
+  "mode": "production" | "test",
+  "degraded_reasons": [...],
+  "status": "ready"
+}
 ```
 
-When debugging, search by stable reason code first, then narrow by request/update/member
-identifier. Do not paste production tokens, Telegram payloads, OIDC responses, or raw
-database contents into issue reports.
+## Backup
 
-### Assistant model HTTP failures
+### Manual backup
 
-`assistant_model_failed` records `reason_code`, numeric `http_status` (or `None` when
-unavailable), exception type and model round. It deliberately excludes provider URLs,
-response bodies, prompts, headers and raw exception messages. The Admin Errors export
-captures this warning alongside the webhook's generic `assistant_failed` warning.
+To create a manual backup:
 
-- `model_auth_failed` / `model_access_denied`: verify the configured provider credential
-  and model entitlement without copying credentials into logs or feedback.
-- `model_endpoint_not_found`: check the configured chat endpoint/model route.
-- `model_invalid_request` / `model_payload_too_large`: inspect provider-supported request
-  options and configured context/output limits using synthetic requests.
-- `model_rate_limited`: check provider quota/rate limits before retrying.
-- `model_upstream_unavailable`, `model_timeout`, `model_connection_failed`: investigate
-  provider availability and network reachability.
-- `model_invalid_response`: the response did not match the expected model contract.
+```bash
+# Database backup
+python -m app.web.routes.admin_routes backup db
 
-Old exports that only contain `HTTPError` cannot identify the status or prove which
-configuration/provider condition failed. This change improves evidence for the next
-failure; it does not retroactively diagnose those events or automatically replay actions.
+# Image backup
+python -m app.web.routes.admin_routes backup images
+```
 
-## Platform notifications
+### Scheduled backups
 
-The existing production APScheduler now runs `platform_notifications` every minute
-alongside backups. Test-mode startup still disables the scheduler. It uses
-`TELEGRAM_BOT_TOKEN`, `TELEGRAM_CHAT_ID`, optional `TELEGRAM_THREAD_ID`, and settings
-`url`/`timezone` (Europe/Madrid fallback). No extra cron service is required.
+Daily backups are run by the APScheduler when `MCP_SERVER_ENABLED` is true. Backups
+include:
 
-`platform_notifications` stores copy/deadline event keys and delivery states:
-`pending`, `sending`, `sent`, `failed`, `skipped`. Missing Telegram configuration leaves
-events pending; the next scheduled run can deliver once configured. Claims commit
-before network I/O, so multiple workers/restarts cannot duplicate sends. A crash after
-claim or an ambiguous transport failure is not automatically retried: investigate
-`event=platform_notification` logs and the group's message history before any manual
-resend. `failed`/`sending` must not be blindly reset; Telegram has no idempotency token.
-Notification failures never undo an already-committed copy.
+- **Database backup**: `app_YYYYMMDD.db`
+- **Image backup**: `uploads_YYYYMMDD.zip`
 
-Warnings are queued once per item/deadline in the final 24 hours, skip stale/closed
-items at delivery, and never send after expiry. No deadline means no warning. Purchase
-dates mean the end of that local day; early closures at member/amount limits cannot
-receive a reliable 24-hour advance warning. Older proposal deadlines were only included
-in announcement text and cannot be reconstructed automatically; set them explicitly
-through the edit form or API if needed. Warnings do not change lifecycle policies.
+Backups are stored in the `backups/` directory and retained according to policy.
+
+### Backup state events
+
+Structured audit events are emitted for all backup operations:
+
+- `db`: `backup_type=db`, `file_name=app_20261118_155618.db`, `status=ok`
+- `images`: `backup_type=images`, `file_name=uploads_20261118_155618.zip`, `status=ok`
+
+These events are emitted to the Telegram assistant and can be audited via the Admin
+panel → Events tab.
+
+### Backup retention
+
+- Database backups are retained indefinitely (or per policy).
+- Image backups are retained per configured policy.
+
+### Backup from the Admin panel
+
+1. Navigate to Admin → Backup tab
+2. Click "Create backup" for DB or Images
+3. Download the generated file from the provided link
+4. Verify the backup by checking the audit events
+
+### Restoring from backup
+
+1. Navigate to Admin → Backup tab
+2. Click "Restore" next to the desired backup
+3. Follow the on-screen instructions
+4. Verify the application is functioning correctly after restoration
+
+## Logs
+
+### Structured logging
+
+The application uses structured JSON logging. Each log entry includes:
+
+- `timestamp` — ISO 8601 format
+- `level` — `INFO`, `WARNING`, `ERROR`, `CRITICAL`
+- `logger` — the Python logger name
+- `event` — a descriptive event name
+- `structured_fields` — key-value pairs for auditability
+
+### Log locations
+
+- **Container stdout/stderr**: Captured by Docker
+- **Application log file**: `app.log` (if configured)
+- **Telegram assistant**: Structured events for backup and audit events
+
+### Log levels
+
+- `INFO` — Normal operational events
+- `WARNING` — Non-critical issues
+- `ERROR` — Critical issues needing attention
+- `CRITICAL` — System failures
+
+### Log correlation
+
+Structured events include a `event_id` for correlation across services and time.
+
+## Auditing
+
+### Audit events
+
+Structured audit events are emitted for significant operational actions. Each event includes:
+
+- `event_id` — unique identifier
+- `event_type` — category of event (e.g., `backup`, `admin_action`, `login`)
+- `timestamp` — ISO 8601 format
+- `actor` — who performed the action (admin ID, system, etc.)
+- `details` — additional context-specific data
+
+Audit events are emitted to the Telegram assistant and stored in the audit log.
+
+### Audit retention
+
+Audit events are retained according to policy, typically:
+- 90 days for operational events
+- 1 year for administrator actions
+- Indefinite for security-critical events
+
+### Viewing audit events
+
+1. Navigate to Admin → Events tab
+2. Filter by event type, date range, or actor
+3. Export events if needed
+
+## Telegram Assistant
+
+### Assistant lifecycle
+
+The Telegram assistant is started during application startup and runs as a background
+thread. It processes incoming updates and handles confirmed mutations.
+
+### Starting/stopping
+
+- The assistant starts automatically when `MCP_SERVER_ENABLED` is true
+- It can be stopped and restarted via the Admin panel
+- Manual restart is possible via `python -c "from app import app; app.restart_assistant()"`
+
+### Assistant events
+
+Key assistant events include:
+
+- `startup_backup_created` — backup created during startup
+- `startup_backup_failed` — backup failed during startup
+- `scheduled_backup_created` — daily scheduled backup created
+- `scheduled_backup_failed` — daily scheduled backup failed
+- `telegram_webhook_sync` — Telegram webhook synchronized on startup
+
+### Assistant configuration
+
+The assistant can be configured via environment variables:
+
+- `MCP_SERVER_ENABLED` — whether the MCP server and assistant are enabled
+- `MCP_SERVER_HOST` — MCP server host address
+- `MCP_SERVER_PORT` — MCP server port
+
+## Member onboarding
+
+### Telegram linking
+
+Members can link their Telegram account to their ManaVote account:
+
+1. Navigate to Settings → Telegram
+2. Click "Link Telegram"
+3. Follow the bot's instructions: type `/link` in Telegram
+4. The bot will prompt for confirmation
+
+### Unlinking Telegram
+
+Members can unlink their Telegram account:
+
+1. Navigate to Settings → Telegram
+2. Click "Unlink Telegram"
+3. Confirm the action
+
+### Link state
+
+- `last_linked_at` — timestamp when Telegram was last linked
+- `last_unlinked_at` — timestamp when Telegram was last unlinked
+- These are stored in the `members` table and used for diagnostics
+
+## Password management
+
+### Changing password
+
+1. Navigate to Settings → Password
+2. Enter current password
+3. Enter new password
+4. Confirm new password
+5. Click "Save"
+
+### Password requirements
+
+- Minimum 8 characters
+- At least 1 uppercase letter
+- At least 1 lowercase letter
+- At least 1 number
+- At least 1 special character
+- Cannot be the same as previous 5 passwords
+
+### Password reset
+
+If you forget your password:
+
+1. Navigate to the login page
+2. Click "Forgot password"
+3. Enter your registered email or username
+4. Follow the reset link sent to your email
+
+**Note**: Password reset uses the email on file. If you no longer have access to your email,
+contact an administrator.
+
+## API rate limiting
+
+- **REST API**: 100 requests/minute per IP; 1000 requests/minute per admin key
+- **MCP server**: 60 requests/minute per key
+- **Telegram bot**: Per-user, per-chat limits apply
+
+Rate limit exceeded responses include:
+- HTTP 429 status code
+- `Retry-After` header indicating how long to wait
+- Error envelope with code `-32003` (rate limited)
+
+## Emergency procedures
+
+### Database corruption
+
+If database corruption is suspected:
+
+1. Stop the application
+2. Restore from the most recent backup
+3. Verify integrity with `python -c "import sqlite3; conn = sqlite3.connect('app.db'); conn.execute('PRAGMA integrity_check');"`
+4. Restart the application
+5. Investigate the cause and update monitoring
+
+### Complete failure
+
+If the application fails to start:
+
+1. Check environment variables are set correctly
+2. Verify the database file exists and is not corrupted
+3. Check that all required directories exist and are writable
+4. Review the startup summary for degraded reasons
+5. Consult the `tests/test_app_startup.py` tests for common startup issues
+
+### Security incident
+
+If a security incident is suspected:
+
+1. Revoke all active sessions
+2. Rotate all secrets (admin key, API keys, passwords)
+3. Restore from backup if data integrity is suspect
+4. Review audit logs for suspicious activity
+5. Notify relevant stakeholders
+6. Update monitoring to prevent recurrence
+
+## Maintenance windows
+
+Scheduled maintenance is performed during off-hours (typically weekends, 02:00-04:00 UTC).
+
+- **Database maintenance**: Index optimization, vacuum
+- **Backup rotation**: Old backups pruned according to policy
+- **Dependency updates**: Python and dependency version checks
+- **Log rotation**: Access and error log rotation
+
+Maintenance notifications are sent via the Telegram assistant to administrators.
+
+## Emergency contacts
+
+- **Primary**: System administrator (contact via Telegram admin group)
+- **Secondary**: Development team (contact via project channel)
+- **Emergency**: If the application is completely down, restart via `docker restart projects-web-1`
+
+---
+*Last updated: 2026-11-23*
+
+For additional assistance, refer to the Telegram assistant or contact the system administrator.*

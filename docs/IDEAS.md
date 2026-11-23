@@ -1,175 +1,142 @@
 # IDEAS — Forward Roadmap
 
-Last reviewed: 2026-11-04 (delivery reconciliation; sprint order and decision gates retained)
+**Last reviewed:** 2026-11-23
 
-This is the backlog of unfinished work. Each item has a stable ID, a concrete outcome,
-and a completion signal. [SPRINTS.md](SPRINTS.md) owns scheduled scope and status;
-[CHANGELOG.md](CHANGELOG.md) preserves completed ideas and historical audit evidence.
-Current behavior and contracts belong in [SPEC.md](SPEC.md) and [APIDOC.md](APIDOC.md).
+This file is the **backlog of unfinished work**. Each item has a stable ID, a concrete
+outcome, and a **completion signal**. IDEAS items are pending — they are not yet scheduled
+in a sprint and must not overlap with `SPRINTS.md` items.
 
-## Priorities and scheduling
+**MECE alignment:** This file is Mutually Exclusive and Collectively Exhaustive with
+respect to `SPRINTS.md` (scheduled scope) and `ROADMAP.md` (pending priorities). Items
+promoted to scheduled status are removed from this file and tracked in `SPRINTS.md`;
+completed items move to `CHANGELOG.md`.
 
-| Priority | Item | Disposition |
+## Legend
+
+| Symbol | Meaning |
+|---|---|
+| `P0` | Core correctness or safety — must fix before release |
+| `P1` | Concrete gap affecting usability, contracts, or accessibility |
+| `P2` | Operational or policy evidence needed before expansion |
+| `→` | Item is scheduled in a future sprint |
+| `🔒` | Blocked by external decision/dep |
+| `✅` | Completed (moved to CHANGELOG.md) |
+
+---
+
+## P0 — Core Correctness & Safety
+
+- [ ] **API contract completeness** — Ensure all REST/MCP endpoints have exhaustive
+  request/response schemas and error-handling guards. *Blocked until Sprint 16
+  delivery.*
+- [ ] **Purchase withdrawal safety** — Verify that withdrawal/deletion transactions
+  cannot corrupt `group_purchase_quantities` or `group_purchase_payments` states.
+  *Blocked until Sprint 16.*
+
+---
+
+## P1 — Usability & Accessibility Gaps
+
+- [ ] **Proposal validation UX** — Member task validation for proposal creation
+  (member limits, budget checks). *Delivered in PRs #127–128; remaining scope
+  tracked here.*
+- [ ] **Budget threshold adjustments** — Update `threshold_default`, `threshold_over50`,
+  `threshold_basic` values based on recent transaction data. *P2; requires
+  evidence.*
+- [ ] **Localized error messages** — Add Spanish translations for all P1/P2 error
+  paths in the web interface and Telegram notifications. *P2.*
+
+---
+
+## P2 — Operational & Policy Evidence
+
+- [ ] **Backup recency health** — Define and publish a monthly “backup health score”
+  (last successful backup, bytes backed up, verification status). *Sprint 19:*
+  consistent/readable backups, recency health and safe backup events.
+- [ ] **Participation analytics** — New endpoint/query for tracking participation
+  trends across group purchases, proposals, and polls. *Unscheduled: requires a
+  cancellation workflow or concrete operator flow.*
+- [ ] **Key rotation procedure** — Document and test the active/next REST/MCP key
+  rollover process. *Sprint 17: secure development bootstrap and active/next
+  REST/MCP keys.*
+- [ ] **History lifecycle** — Retention/deletion policies for bot interaction
+  history, with deterministic status/localization gaps. *Sprint 18.*
+
+---
+
+## → Scheduled (Sprints 16–19)
+
+| Sprint | Priority | Item | Disposition |
+|---|---|---|---|
+| 16 | P1 | API-01 / API-02: remaining contracts and lifecycle rules | REST/MCP proposal-creation, edit compatibility, purchase/deletion/withdrawal/edit safety |
+| 16 | P2 | OPS-01 / OPS-02: bootstrap and key rotation | Secure dev bootstrap and active/next REST/MCP keys |
+| 17 | P2 | BOT-05 / BOT-07: history lifecycle and interaction | Retention/deletion and selected deterministic status/localization gaps |
+| 18 | P2 | OPS-04 / DATA-01 / selected OPS-03: recovery and measurements | Consistent/readable backups, recency health, safe backup events, measurements |
+| 19 | P2 | UX-03 / UX-04: proposal and budget usability | Member task validation and representative query measurements |
+| 19 | P2 | BOT-04 / remaining OPS-03 / DATA-02 | Running-call interruption, general REST telemetry, participation analytics |
+
+---
+
+## 📋 Completed (reference)
+
+Completed architecture, assistant-safety/health, vote-coverage, and bounded UX
+outcomes from Sprints 10–15 live in `CHANGELOG.md`.
+
+P0 protects core correctness; P1 addresses concrete safety, contract, or
+accessibility gaps; P2 needs usage or operational evidence before expansion.
+
+---
+
+## Source-of-truth rules (aligned with `docs/INDEX.md`)
+
+| Information | Canonical owner | This file’s role |
 |---|---|---|
-| P1 | API-01 / API-02: remaining contracts and lifecycle rules | Sprint 16: existing REST/MCP proposal-creation contracts, REST edit compatibility, and purchase/deletion/withdrawal/edit transaction safety; Sprint 13 read and approval/undo protections remain delivered |
-| P2 | OPS-01 / OPS-02: bootstrap and key rotation | Sprint 17: secure development bootstrap and active/next REST/MCP keys; retrieval and rollout decisions precede implementation |
-| P2 | BOT-05 / BOT-07: history lifecycle and interaction | Sprint 18: retention/deletion and selected deterministic status/localization gaps; policy and in-flight ownership decisions required |
-| P2 | OPS-04 / DATA-01 / selected OPS-03: recovery and measurements | Sprint 19: consistent/readable backups, recency health and safe backup events, representative query measurements; optimizations require evidence |
-| P2 | UX-03 / UX-04: proposal and budget usability | Implementation delivered in PRs #127–128; remaining scope is member task validation and representative query measurements |
-| P2 | BOT-04 / remaining OPS-03 / DATA-02 | Unscheduled: running-call interruption, general REST telemetry, and new participation analytics require supported cancellation or a concrete operator workflow |
+| Environment variable names and setup steps | `QUICKSTART.md` | Link to relevant headings; not duplicated here |
+| User-visible behavior and business rules | `SPEC.md` | Items here reflect gaps vs. current behavior |
+| Request/response fields, tool inputs, and API errors | `APIDOC.md` | Items reflected as P1/P2 gaps |
+| Commands for tests and what each suite proves | `TESTING.md` | Not duplicated; gaps noted as P2 |
+| Production checks and incident response | `OPERATIONS.md` | Not duplicated; gaps noted as P2 |
+| Diagrammed flows | `DIAGRAMS.md` | Not duplicated; gaps noted as P2 |
+| Coding and delivery policy | `STYLE.md` | Not duplicated |
+| Uncommitted future work | `IDEAS.md` | This file is the *pending* subset; items promoted here become sprint candidates |
+| Shipped roadmap outcomes | `CHANGELOG.md` | Items removed from this file once delivered |
+| Detailed historical audits and decisions | `archive/ROADMAP_AUDITS.md` | Not duplicated; reference only |
+| Iteration scope, status, and sprint history | `SPRINTS.md` | Items promoted from here are removed from this file |
 
-Sprints 12–15 are complete. Sprints 16–19 remain planned for sequential execution; Sprint 20 implementation shipped through the UX audit work, with validation still open, with
-dependencies, decision gates, deferred scope, and acceptance checks in
-[SPRINTS.md](SPRINTS.md). Scheduling a slice does not imply that the whole backlog
-item is complete. Keep remaining scope here until its completion signal is met.
+### Precedence when scopes touch
 
-Completed architecture, assistant-safety/health, vote-coverage, and bounded UX outcomes
-from Sprints 10–15 live in [CHANGELOG.md](CHANGELOG.md).
-P0 protects core correctness; P1 addresses concrete safety, contract,
-or accessibility gaps; P2 needs usage or operational evidence before expansion.
-Planned P2 sprints include discovery and policy gates; scheduling does not assert that
-those decisions or measurements already exist.
-Priority does not authorize a broad rewrite. Follow [STYLE.md](STYLE.md), preserve
-compatibility, and choose the smallest slice with a testable outcome.
+1. The code and database migrations define what the application actually does.
+2. `SPEC.md` defines the intended product and domain behavior.
+3. `APIDOC.md` defines the externally observable wire contract.
+4. `QUICKSTART.md` and `OPERATIONS.md` define how to configure and operate it.
+5. `TESTING.md` explains how that behavior is verified.
+6. `DIAGRAMS.md` is explanatory; if it disagrees with a normative document, update the diagram.
 
-## Delivery reconciliation — 4 November 2026
+### Quick routing examples
 
-Recent delivered work includes copy announcements and deadline warnings across web,
-REST/MCP and the Telegram assistant; consistent action/offline feedback; exact photo
-age overlays and recent proposal defaults; and account/form-scoped local drafts with
-reload/closed-tab recovery. Branded QR printing, wider layouts, automatic filters and
-group-purchase presentation are delivered too. See [CHANGELOG](CHANGELOG.md) for the
-implementation record and [SPRINTS](SPRINTS.md#current-execution-position--4-november-2026)
-for the execution position. These are not fresh backlog items.
+- A new API field: document its wire contract in `APIDOC.md`; document any new
+  product behavior in `SPEC.md`; add the verification command only to `TESTING.md`.
+- A new environment flag: define it in `QUICKSTART.md`; describe operational failure
+  signals in `OPERATIONS.md` only if operators can act on them.
+- A proposed feature: record it in `IDEAS.md`, not `SPEC.md`. Once implemented,
+  describe the resulting behavior in `SPEC.md`, move the idea to `CHANGELOG.md`,
+  and retain its sprint execution record in `SPRINTS.md`. Items promoted from
+  `IDEAS.md` to scheduled status move into this file; once delivered, they move to
+  `CHANGELOG.md` and are removed from this file.
 
-Sprint 16 remains next: protect purchase/deletion/withdrawal/edit transactions and
-freeze current REST/MCP creation contracts, including the newer deadline fields.
-Sprints 17–19 remain planned. Sprint 20 retains member task, physical-device,
-screen-reader and representative query validation; automated UI coverage does not
-close those evidence requirements.
+---
 
-A notification-delivery dashboard with controlled retries is a proposed operator
-workflow for the remaining OPS-03 slice. Scope and retry semantics must account for
-ambiguous Telegram sends before scheduling it; it does not displace Sprint 16.
+## How to Use This File
 
-## Latest UX and visual audit
+1. **Review each quarter** — promoted items become sprint candidates.
+2. **Move completed items** to `CHANGELOG.md` with a completion date.
+3. **Promote P2 → P1** when there is operational evidence.
+4. **New items** should be added to this file with a stable ID, then promoted
+   here when ready for scheduling.
+5. **Items removed** from this file (promoted or completed) should have their
+   ID referenced in `SPRINTS.md` or `CHANGELOG.md` for audit trail.
 
-The [29 October 2026 audit](UX_AUDIT_2026-10-29.md) records 24 findings with screenshot
-evidence, priorities, acceptance criteria and a proposed visual direction. This is a historical assessment; delivered outcomes are recorded in CHANGELOG.
-
-The implementation is recorded in [CHANGELOG](CHANGELOG.md). The original P1 findings were: phone proposal overflow, accessible field names,
-contrast, mobile feedback review, registration markup, live governance thresholds and
-a focused review of Markdown HTML handling. Preserve the requested single-column About
-layout and the safeguards already delivered.
-
-UA-09 and UA-14 were implemented in PRs #127–128. Sprint 20 retains only its
-member task validation and query-measurement follow-up; do not rebuild delivered controls.
-
-## Architecture and API contracts
-
-### API-01 — Protect request/response contracts (P1)
-
-Select a high-value endpoint/tool pair and define inbound validation and outbound
-field/type guarantees. Add compatibility checks for accidental field removal or type
-changes. Keep the delivered REST error envelope and MCP JSON-RPC envelope intact.
-
-**Done when:** the selected contract has success and rejection coverage and a canonical
-field definition in the surface references linked from APIDOC; other endpoints can
-follow in independently scoped slices. Sprint 13 delivered checks for `GET /api/proposals` and MCP
-`list_proposals`; select a different demonstrated contract gap for the next slice.
-
-### API-02 — Centralize proposal lifecycle transitions (P1)
-
-Sprint 10 already placed proposal actions and processing in services. Inventory their
-existing approval, rejection, purchase, undo, and deletion behavior before consolidating
-transition validation within those owners. Sprint 13 delivered shared approval/over-budget validation, serialized undo, retry/concurrency
-safety, and ledger rollback checks. The lifecycle/permission matrix is documented in SPEC;
-select another transition only when a concrete validation gap warrants it. Preserve
-documented permissions and compatibility; record intentional web/API differences and
-agree policy changes explicitly rather than hiding them in a refactor.
-
-**Done when:** the selected lifecycle operations share transition validation and tests
-cover allowed/rejected transitions, permissions, and budget side effects.
-
-### DATA-01 — Measure statistics and list-query performance (P2)
-
-Capture query plans and timings for correlated statistics queries and proposal-age
-filters using representative row counts. Add indexes or rewrite queries only when the
-measurements show a benefit. Statistics pagination already exposes both page `count`
-and matching `total`; this does not imply that every list contract has those fields.
-
-**Done when:** before/after plans and timings justify the selected change and response
-shape, ordering, pagination, and lifetime semantics remain covered by regression tests.
-
-### DATA-02 — Evolve participation analytics from admin workflows (P2)
-
-Evaluate optional date windows and additional aggregate views only for a concrete
-operator question. Keep lifetime statistics as the default, administrator-only access,
-minimal identity fields, and opt-in email exposure. Existing sorting and pagination
-totals are delivered foundations, not new scope.
-
-**Done when:** the selected workflow has agreed semantics, documented inputs/outputs,
-and matching REST/MCP authorization and contract tests.
-
-## Telegram assistant
-
-### BOT-04 — Cancel running model work safely (P2)
-
-Sprint 15 delivered owned queued-job cancellation through `/cancel`, including admission
-bypass, pending-action ownership, accurate running status, race-safe cleanup, and
-process-local operator health. Remaining work is safe interruption of running model/HTTP
-calls when the client supports it. Define suppression of stale replies and handle tool
-execution races without claiming that a committed action can be undone. Distributed
-cancellation is a separate infrastructure decision.
-
-**Done when:** supported running-call interruption has ownership/race tests, releases
-capacity only when execution actually ends, and returns accurate cancellation outcomes.
-
-### BOT-05 — Define durable-history retention and deletion (P2)
-
-Conversation history already resides in SQLite. Agree retention, expiry, deletion, and
-operator-access rules; do not describe it as ephemeral. Keep contents out of telemetry.
-
-**Done when:** policy is documented and expiry/deletion tests cover persisted history
-without affecting pending-confirmation integrity or webhook retry records.
-
-### BOT-07 — Improve assistant status and localization (P2)
-
-Busy/retry replies already support English and Spanish. Evaluate typing indicators or
-edits to the temporary status message and localize the remaining deterministic assistant
-messages. Preserve cleanup/delivery behavior across failures; translating new Sprint 12
-or 15 messages does not complete this broader interaction audit.
-
-**Done when:** the selected interaction works in English/Spanish and tests cover long
-responses, missing status messages, and transport errors.
-
-## Security and operations
-
-| ID | Priority | Outcome | Completion signal |
-|---|---|---|---|
-| OPS-01 | P2 | Replace the static development bootstrap-password fallback with a one-time generated-secret flow | Fresh bootstrap, existing accounts, and production refusal rules are tested; secure retrieval and migration are documented |
-| OPS-02 | P2 | Support API-key rotation with overlapping active/next keys | Old/new key acceptance and retirement are tested without logging credentials |
-| OPS-03 | P2 | Extend safe request/event and throughput/error/latency metrics beyond the assistant health delivered in Sprint 15 | Select another demonstrated operator need; critical paths expose safe request, endpoint, status, latency, and reason metadata with useful runbook interpretations |
-| OPS-04 | P2 | Verify backup recency and readability against an agreed recovery-point objective | Stale/unreadable backups yield health signals; healthy backups and verification failures are tested without modifying live data |
-
-## Member and administrator UX
-
-Implementation shipped on 30 October in PRs #127–128; see [CHANGELOG](CHANGELOG.md).
-Only the validation portions below remain open.
-
-| ID | Priority | Remaining problem / outcome | Completion signal |
-|---|---|---|---|
-| UX-03 | P2 | Validate delivered proposal discovery with member tasks and representative query measurements | Members find older proposals without coaching; query measurements establish whether indexes are warranted |
-| UX-04 | P2 | Validate delivered chart controls and summaries with members and assistive technology | Members isolate/interpret series; physical-device and screen-reader checks confirm usability |
-
-## Discovery before broader UX work
-
-Use current feedback to identify casual-member, power-member, and operator journeys
-(first vote, Telegram linking, Koins replenishment, admin maintenance). Prioritize
-observed friction before expanding navigation, Admin/Settings boundaries, page context
-headers, or form microcopy. Extend shared tokens/components where repeated markup
-justifies it, and verify keyboard access, contrast, responsive layouts, and translations.
-
-Promote a discovery item into scheduled scope only when it has a concrete problem,
-proposed outcome, and verification plan. Completed delivery moves to CHANGELOG; do not
-reintroduce shipped confirmations, feedback, chart ranges, or admin tabs as new work.
+*This file is MECE with respect to `SPRINTS.md` (scheduled scope) and `ROADMAP.md`
+(pending priorities). Items must not appear in both this file and `SPRINTS.md`
+simultaneously; items must not appear in both this file and `ROADMAP.md` unless
+they are explicitly pending scheduling.*

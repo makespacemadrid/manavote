@@ -1,4 +1,4 @@
-# Documentation Map
+# Documentation Map — ManaVote
 
 This is the canonical entry point for ManaVote documentation. The documentation is
 organized by **reader intent**, so each question has one primary home. Supporting
@@ -99,3 +99,39 @@ appear only in their respective owners.
 - A proposed feature: record it in `IDEAS.md`, not `SPEC.md`. Once implemented,
   describe the resulting behavior in `SPEC.md`, move the idea to `CHANGELOG.md`,
   and retain its sprint execution record in `SPRINTS.md`.
+
+---
+
+## Documentation hierarchy at a glance
+
+| Level | Document | Purpose | Owns |
+|---|---|---|---|
+| **Reference** | `SPEC.md` | Product behavior, business rules, data model | Normative |
+| | `APIDOC.md` | REST/MCP/Telegram wire contracts | Normative |
+| **Setup** | `QUICKSTART.md` | Installation, configuration, deployment | Normative |
+| | `OPERATIONS.md` | Health checks, logs, backups, incidents | Normative |
+| **Verification** | `TESTING.md` | Test commands, suites, coverage | Normative |
+| **Visual** | `DIAGRAMS.md` | Architecture, request, startup, Telegram diagrams | Explanatory |
+| **Contributor** | `STYLE.md` | Engineering rules, delivery guardrails | Governance |
+| **Future** | `IDEAS.md` | Backlog of unfinished work | Backlog |
+| | `SPRINTS.md` | Scheduled scope and progress | Progress |
+| | `CHANGELOG.md` | Completed roadmap outcomes | History |
+| **Reference (cross-cutting)** | `META.md` | Retrospectives and lessons learned | History |
+| | `ROADMAP.md` | Pending priorities and priorities | Planning |
+| | `INDEX.md` | Documentation map and routing | Navigation |
+
+---
+
+## Quick routing examples
+
+- A new API field: document its wire contract in `APIDOC.md`; document any new
+  product behavior in `SPEC.md`; add the verification command only to `TESTING.md`.
+- A new environment flag: define it in `QUICKSTART.md`; describe operational failure
+  signals in `OPERATIONS.md` only if operators can act on them.
+- A proposed feature: record it in `IDEAS.md`, not `SPEC.md`. Once implemented,
+  describe the resulting behavior in `SPEC.md`, move the idea to `CHANGELOG.md`,
+  and retain its sprint execution record in `SPRINTS.md`.
+- A docs-only cleanup: update `INDEX.md` routing only; no code changes needed.
+
+---
+*This document is the canonical entry point. When in doubt, start here.*
