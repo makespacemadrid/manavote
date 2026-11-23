@@ -167,6 +167,18 @@ The assistant can be configured via environment variables:
 - `MCP_SERVER_HOST` — MCP server host address
 - `MCP_SERVER_PORT` — MCP server port
 
+### Assistant operator health
+
+Operators can inspect assistant queue/failure interpretation and cross-worker limits through the session-admin-only `GET /admin/assistant-health` endpoint. Counters are process-local and multiply across WSGI workers; saturation, provider/tool failures, delivery failures, and restart behavior are documented there.
+
+### Platform notifications
+
+Backup state events (database and image backups) and scheduled backup creation/failure are emitted as structured audit events and surfaced to the Telegram assistant. Delivery failures are deduplicated and do not undo committed actions.
+
+### Assistant model safeguards
+
+The assistant enforces bounded context/input/output budgets using serialized UTF-8 byte counting, provider `max_tokens`, and credential scrubbing across model payloads, history writes, tool errors, confirmation displays, and logs. Oversized or credential-bearing input fails safely without consuming unrelated confirmations.
+
 ## Member onboarding
 
 ### Telegram linking

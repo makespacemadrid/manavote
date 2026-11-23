@@ -62,6 +62,14 @@ completed items move to `CHANGELOG.md`.
 ---
 
 
+## BOT-04 — cancel running model work safely (P2)
+
+Cancel running assistant model calls safely without corrupting in-flight mutations or releasing job capacity early. Process-local cancellation semantics; cross-worker cancellation is best effort and never claims a running call is undone.
+
+## Telegram assistant
+
+Backlog items for the natural-language Telegram assistant: fair-use limits, cancellation, conversation quality controls, and reliable English/Spanish interaction. Sprints 17–19 retain decision gates for history retention, localized status, and related assistant hardening.
+
 ## 📋 Completed (reference)
 
 Completed architecture, assistant-safety/health, vote-coverage, and bounded UX
