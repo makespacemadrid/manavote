@@ -813,3 +813,48 @@ graph.
   voter list, web-vote form) — a good pattern, just mis-ordered (see below).
 - `budget.html` already has table sort, pagination, and category filters on the
   transaction list — a good pattern the Proposals list doesn't share.
+
+---
+
+## Test baseline audit (2026-11-23)
+
+Audit scope: full Python test suite run from a clean Python 3.11 venv with
+`requirements.txt` + pytest (no system site packages), comparing against the
+documented environment requirements.
+
+### Confirmed strengths
+- Full suite: **1096 passed, 6 skipped, 19 failed** in ~7 minutes (421s).
+- All 19 failures are environmental or stale-test-data issues, **not code regressions**:
+  - 18 × `test_proposal_image_validation` — the fixture hardcodes `voting_deadline:
+    "2026-11-12T19:30"`, which is in the past as of 2026-11-23, so
+    `normalize_voting_deadline()` rejects it before image validation ever runs.
+  - 1 × `test_documentation::test_relative_markdown_links_and_fragments_resolve` — five
+    doc anchors referenced across QUICKSTART.md, SPEC.md, REST.md, TELEGRAM.md, and
+    SPRINTS.md don't exist yet in `docs/OPERATIONS.md` (`#assistant-operator-health`,
+    `#platform-notifications`, `#assistant-model-safeguards`) and
+    `docs/IDEAS.md` (`#bot-04--cancel-running-model-work-safely-p2`,
+    `#telegram-assistant`).
+- Environment requirements documented:
+  - Python 3.11+ required (`enum.StrEnum`); system `python3` (3.10) is incompatible.
+  - Isolated venv required — system site packages pollute Python 3.11 with
+    Flask/Werkzeug built for the 3.10 ABI, causing `'Flask' object has no attribute
+    'json'`.
+  - CI additionally installs `zxing-cpp==3.1.1`; frontend needs Node 22 + committed
+    `static/react/` assets.
+
+### Action items
+1. **Fix `tests/test_proposal_image_validation.py`** — replace the past
+   `voting_deadline` with a future date so image-validation draft recovery is exercised
+   as intended (expected to restore 100% green).
+2. **Add missing doc anchors** to `docs/OPERATIONS.md` and `docs/IDEAS.md` for the five
+   referenced fragments (restores documentation integrity test).
+3. **Decide whether to promote either fix to a scheduled sprint item** — both are
+   low-risk, docs/test-only changes with no behavior impact.
+
+### Relevant files
+- `tests/test_proposal_image_validation.py` — stale deadline fixture
+- `tests/test_documentation.py` — link/fragment integrity check
+- `docs/OPERATIONS.md` — missing anchors
+- `docs/IDEAS.md` — missing anchors
+- `docs/TESTING.md` — test commands and suite responsibilities
+- `ROADMAP.md` — pending priorities (see review note below)

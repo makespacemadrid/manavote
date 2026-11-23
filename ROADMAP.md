@@ -56,6 +56,12 @@ promoted to scheduled status are removed from this file and tracked in
   REST/MCP keys.*
 - [ ] **History lifecycle** — Retention/deletion policies for bot interaction
   history, with deterministic status/localization gaps. *Sprint 18.*
+- [ ] **Review 2026-11-23 test baseline audit findings** — 19 failures across
+  `test_proposal_image_validation` (stale past-date fixture) and
+  `test_documentation` (missing doc anchors in OPERATIONS.md / IDEAS.md); none are
+  code regressions. Fix the test fixture date and add the missing anchors, then
+  consider promoting to a scheduled item if operator-facing test-health evidence is
+  needed. See `docs/archive/ROADMAP_AUDITS.md#test-baseline-audit-2026-11-23`.
 
 ---
 
